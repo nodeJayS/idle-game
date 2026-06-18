@@ -50,6 +50,7 @@ namespace IdleGame.GameCore
             }
 
             var rt = cfg.Rifts.Find(r => r.Tier == tier) ?? cfg.Rifts[0];
+            s.Loot = LootContext.ForRift(rt);
             double scale = 1.0 + 0.1 * (rt.MonsterLevel - 1);
 
             for (int j = 0; j < rt.PackCount; j++)
@@ -137,6 +138,23 @@ namespace IdleGame.GameCore
                             events.Add(new CombatEvent { Type = CombatEventType.Death, EntityId = target.Id });
                             if (target.IsBoss)
                                 events.Add(new CombatEvent { Type = CombatEventType.BossDefeated, Tier = s.Tier });
+
+                            // Loot only from real monsters (guards synthetic test/party entities).
+                            if (target.Team == Team.Enemy && target.RefKind == "monster" &&
+                                cfg.Monsters.TryGetValue(target.RefId, out var mdef))
+                            {
+                                var drop = Loot.RollDrop(rng, mdef, s.Loot, cfg);
+                                if (drop != null)
+                                {
+                                    s.PendingLoot.Add(drop);
+                                    events.Add(new CombatEvent
+                                    {
+                                        Type = CombatEventType.LootDrop,
+                                        EntityId = target.Id,
+                                        Item = drop,
+                                    });
+                                }
+                            }
                         }
                     }
                 }

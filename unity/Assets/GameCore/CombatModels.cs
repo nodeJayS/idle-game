@@ -52,9 +52,10 @@ namespace IdleGame.GameCore
     {
         public double TimeMs;
         public int Tier;
+        public LootContext Loot;       // set by InitCombat; mode-agnostic drop params
         public List<CombatEntity> Entities = new List<CombatEntity>();
         public CombatStatus Status = CombatStatus.Running;
-        public List<Item> PendingLoot = new List<Item>(); // populated in M2
+        public List<Item> PendingLoot = new List<Item>(); // drops accrued this run (M2)
     }
 
     public enum CombatEventType { Hit, Death, LootDrop, LevelUp, WaveCleared, BossDefeated }
@@ -69,5 +70,6 @@ namespace IdleGame.GameCore
         public bool Crit;
         public string? EntityId;
         public int Tier;
+        public Item? Item;          // set on LootDrop; EntityId = the monster that dropped it
     }
 }

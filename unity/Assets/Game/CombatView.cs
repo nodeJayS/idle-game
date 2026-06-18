@@ -33,6 +33,7 @@ namespace IdleGame.Game
         private double _accMs;
         private float _endTimer;
         private uint _runCount;
+        private bool _committed;   // has this run's loot been added to the save yet?
 
         // --- GUI textures (created lazily) ---
         private Texture2D _white = null!;
@@ -68,6 +69,7 @@ namespace IdleGame.Game
 
             _accMs = 0;
             _endTimer = 0;
+            _committed = false;
             Debug.Log($"[CombatView] Run #{_runCount} start: {_combat.Entities.Count} entities, tier {_combat.Tier}.");
         }
 
@@ -117,6 +119,18 @@ namespace IdleGame.Game
             }
             else
             {
+                // Commit this run's loot to the save once, on the first ended frame.
+                if (!_committed)
+                {
+                    _committed = true;
+                    if (_combat.Status == CombatStatus.Won && _combat.PendingLoot.Count > 0)
+                    {
+                        _save = Inventory.AddItems(_save, _combat.PendingLoot);
+                        Debug.Log($"[CombatView] Won — claimed {_combat.PendingLoot.Count} item(s). " +
+                                  $"Inventory now {_save.Inventory.Count}.");
+                    }
+                }
+
                 _endTimer += Time.deltaTime;
                 if (_endTimer >= RestartDelaySec)
                 {
@@ -141,6 +155,11 @@ namespace IdleGame.Game
                         break;
                     case CombatEventType.BossDefeated:
                         Debug.Log($"[CombatView] Boss defeated at tier {ev.Tier}.");
+                        break;
+                    case CombatEventType.LootDrop:
+                        if (ev.Item != null)
+                            Debug.Log($"[CombatView] Drop: {ev.Item.Rarity} {ev.Item.BaseId} " +
+                                      $"(iLvl {ev.Item.ItemLevel}, {ev.Item.Affixes.Count} affixes)");
                         break;
                 }
             }

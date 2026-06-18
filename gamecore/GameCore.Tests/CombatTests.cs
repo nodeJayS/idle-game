@@ -113,5 +113,81 @@ namespace IdleGame.GameCore.Tests
             var events = Combat.RunToEnd(s, Cfg, new Rng(1));
             Assert.Contains(events, e => e.Type == CombatEventType.BossDefeated && e.Tier == 3);
         }
+
+        // --- M2.4: loot into combat ---
+
+        private static CombatEntity Monster(string id, string defId, double hp, bool boss = false)
+        {
+            var e = Ent(id, Team.Enemy, hp: hp, atk: 0, def: 0);
+            e.RefKind = "monster"; e.RefId = defId; e.IsBoss = boss;
+            return e;
+        }
+
+        [Fact]
+        public void EnemyMonsterDeathProducesLoot()
+        {
+            var s = State(
+                Ent("A", Team.Party, hp: 1000, atk: 500, def: 0),
+                Monster("EBOSS", "goblin_king", hp: 10, boss: true)); // boss => always drops
+            s.Loot = new LootContext { ItemLevel = 5, DropRateMult = 1.5 };
+
+            var events = Combat.RunToEnd(s, Cfg, new Rng(1));
+
+            Assert.Equal(CombatStatus.Won, s.Status);
+            Assert.True(s.PendingLoot.Count >= 1);
+            Assert.Equal(s.PendingLoot.Count, events.Count(e => e.Type == CombatEventType.LootDrop));
+            foreach (var it in s.PendingLoot)
+                Assert.True(Cfg.ItemBases.ContainsKey(it.BaseId));
+        }
+
+        [Fact]
+        public void SyntheticTestEntitiesDropNothing()
+        {
+            // default Ent has RefKind "test" -> must not roll loot, even on enemy death
+            var s = State(
+                Ent("A", Team.Party, hp: 1000, atk: 500, def: 0),
+                Ent("B", Team.Enemy, hp: 10, atk: 0, def: 0));
+            Combat.RunToEnd(s, Cfg, new Rng(1));
+            Assert.Empty(s.PendingLoot);
+        }
+
+        [Fact]
+        public void PendingLootCommitsToInventory()
+        {
+            var s = State(
+                Ent("A", Team.Party, hp: 1000, atk: 500, def: 0),
+                Monster("EBOSS", "goblin_king", hp: 10, boss: true));
+            s.Loot = new LootContext { ItemLevel = 5, DropRateMult = 1.5 };
+            Combat.RunToEnd(s, Cfg, new Rng(1));
+
+            var save = Save.NewGame(1, Cfg, 0);
+            int before = save.Inventory.Count;
+            var after = Inventory.AddItems(save, s.PendingLoot);
+
+            Assert.Equal(before + s.PendingLoot.Count, after.Inventory.Count);
+            Assert.Equal(before, save.Inventory.Count); // original untouched
+        }
+
+        [Fact]
+        public void LootIsDeterministicForSameSeed()
+        {
+            CombatState Build()
+            {
+                var s = State(
+                    Ent("A", Team.Party, hp: 1000, atk: 500, def: 0),
+                    Monster("EBOSS", "goblin_king", hp: 10, boss: true));
+                s.Loot = new LootContext { ItemLevel = 5, DropRateMult = 1.5 };
+                return s;
+            }
+
+            var s1 = Build();
+            var s2 = Build();
+            Combat.RunToEnd(s1, Cfg, new Rng(7));
+            Combat.RunToEnd(s2, Cfg, new Rng(7));
+
+            Assert.Equal(s1.PendingLoot.Count, s2.PendingLoot.Count);
+            for (int i = 0; i < s1.PendingLoot.Count; i++)
+                Assert.Equal(s1.PendingLoot[i].Id, s2.PendingLoot[i].Id);
+        }
     }
 }
