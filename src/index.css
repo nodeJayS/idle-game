@@ -1,0 +1,113 @@
+:root {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color-scheme: dark;
+
+  --bg: #14101a;
+  --panel: #1e1828;
+  --border: #352b47;
+  --text: #e8e2f0;
+  --muted: #9a8fb0;
+  --accent: #b388ff;
+  --gold: #ffcc66;
+  --done: #6ee7a8;
+  --todo: #6b6378;
+
+  /* loot rarity colors */
+  --normal: #c9c9c9;
+  --magic: #6fa8ff;
+  --rare: #ffe066;
+  --unique: #ff9f43;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(1200px 600px at 50% -10%, #241a33, var(--bg));
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* pixel-art images render crisp, never blurry */
+img {
+  image-rendering: pixelated;
+}
+
+#root {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 48px 24px 64px;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 2rem;
+  letter-spacing: -0.5px;
+}
+
+.tagline {
+  color: var(--muted);
+  margin: 0 0 32px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+
+.panel h2 {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+  color: var(--accent);
+}
+
+ul.milestones {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+ul.milestones li {
+  display: flex;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+ul.milestones li:last-child {
+  border-bottom: none;
+}
+
+.tag {
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  align-self: center;
+}
+
+.tag.todo {
+  background: #2a2436;
+  color: var(--todo);
+}
+
+.tag.next {
+  background: #2d2440;
+  color: var(--accent);
+}
+
+code {
+  background: #00000033;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-size: 0.85em;
+  color: var(--gold);
+}
