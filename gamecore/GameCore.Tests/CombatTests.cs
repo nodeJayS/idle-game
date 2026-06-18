@@ -34,13 +34,13 @@ namespace IdleGame.GameCore.Tests
         private static double Hp(CombatState s, string id) => s.Entities.First(e => e.Id == id).Hp;
 
         [Fact]
-        public void InitCombatBuildsPartyAndTierEnemies()
+        public void InitCombatBuildsPartyAndStageEnemies()
         {
             var party = new[] { new HeroInstance { Id = "h1", DefId = "warrior_basic", Level = 1 } };
             var s = Combat.InitCombat(party, 1, Cfg, new Rng(1));
 
             Assert.Single(s.Entities, e => e.Team == Team.Party);
-            // tier 1: packCount = 3 + 1/5 = 3, plus 1 boss => 4 enemies
+            // stage 1: packCount = 3 + 1/5 = 3, plus 1 boss => 4 enemies
             Assert.Equal(4, s.Entities.Count(e => e.Team == Team.Enemy));
             Assert.Single(s.Entities, e => e.IsBoss);
             Assert.True(s.Entities.First(e => e.Team == Team.Party).Pos.X < 0);
@@ -108,10 +108,10 @@ namespace IdleGame.GameCore.Tests
             var boss = Ent("EBOSS", Team.Enemy, hp: 1, atk: 0, def: 0);
             boss.IsBoss = true;
             var s = State(Ent("A", Team.Party, hp: 100, atk: 50, def: 0), boss);
-            s.Tier = 3;
+            s.Stage = 3;
 
             var events = Combat.RunToEnd(s, Cfg, new Rng(1));
-            Assert.Contains(events, e => e.Type == CombatEventType.BossDefeated && e.Tier == 3);
+            Assert.Contains(events, e => e.Type == CombatEventType.BossDefeated && e.Stage == 3);
         }
 
         // --- M2.4: loot into combat ---

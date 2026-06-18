@@ -31,7 +31,6 @@ unity/Assets/Game/       MonoBehaviours, read-only client (Bootstrap, CombatView
 gamecore/GameCore.Tests/ xUnit tests — compile the SAME Assets/GameCore sources via a
                          csproj glob (no copy). + gamecore/Adapters/Persistence.cs.
 docs/game-design.md      the durable what/why
-web-prototype/           ARCHIVED Vite/React/Pixi prototype (pre-pivot; do not extend)
 ```
 **Edit sim code in `unity/Assets/GameCore/`.** The test project compiles those exact
 files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sync.
@@ -43,7 +42,7 @@ files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sy
    - **`SaveState`** — persisted: heroes, gear, currencies, progress, `lastClaimAt`,
      rng seed + cursor.
    - **`GameConfig`** — static content (injected, not imported): hero defs, item
-     bases, affixes, monsters, rifts, balance. `GameConfig.Default()` today.
+     bases, affixes, monsters, stages, balance. `GameConfig.Default()` today.
    - **`CombatState`** — transient sim, never saved: live entities, hp, cooldowns.
 3. **Config is injected** as a `cfg` param — swap balance/content without touching logic.
 4. **Save reducers are pure** (return new state); the combat sim mutates `CombatState`
@@ -65,8 +64,8 @@ Engine-independent order, same as the original plan:
 |--|--|--|
 | M0 | Iso scene, camera, party lead (placeholder primitives) | ✅ |
 | M1 | Deterministic auto-combat in the client (`CombatView`) | ✅ |
-| M2 | Loot: drops + rarity + affixes, inventory, equip → stats recompute | **next** |
-| M3 | Rift/difficulty tiers (progression spine) | later |
+| M2 | Loot: drops + rarity + affixes, inventory, equip → stats recompute | ✅ |
+| M3 | Stage/difficulty tiers (progression spine) | **next** |
 | M4 | Idle accrual (offline = math, claim modal) | later |
 | M5 | Persistence (save/load) | later |
 | M6 | Feel pass (number formatting, juice, item-compare UI) | later |
@@ -77,7 +76,7 @@ on the server so a modded client can't cheat. The design supports it; it's addit
 not a rewrite. When we get there:
 - **Server:** ASP.NET Core service referencing `GameCore`. Client sends *intents*
   ("push tier N", "equip X", "claim idle"); server runs the sim, owns the save,
-  returns results. First proof-of-concept: one authoritative "resolve a rift run"
+  returns results. First proof-of-concept: one authoritative "resolve a stage run"
   endpoint.
 - **Authority model:** server result is truth; client sim is cosmetic prediction.
   (Avoids relying on bit-exact cross-platform float determinism — `GameCore` uses

@@ -51,7 +51,7 @@ namespace IdleGame.GameCore
     public sealed class CombatState
     {
         public double TimeMs;
-        public int Tier;
+        public int Stage;
         public LootContext Loot;       // set by InitCombat; mode-agnostic drop params
         public List<CombatEntity> Entities = new List<CombatEntity>();
         public CombatStatus Status = CombatStatus.Running;
@@ -69,7 +69,7 @@ namespace IdleGame.GameCore
         public double Amount;
         public bool Crit;
         public string? EntityId;
-        public int Tier;
+        public int Stage;
         public Item? Item;          // set on LootDrop; EntityId = the monster that dropped it
     }
 }

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace IdleGame.GameCore
 {
-    /// <summary>New-game creation + save migration (C# port of save.ts).</summary>
+    /// <summary>New-game creation + save schema migration.</summary>
     public static class Save
     {
         public const int SaveVersion = 1;
@@ -39,7 +39,7 @@ namespace IdleGame.GameCore
                 Party = new string?[] { warrior.Id, null, null, null },
                 Inventory = new List<Item>(),
                 Currencies = new Dictionary<string, long> { ["gold"] = 0 },
-                Progress = new ProgressState { HighestRiftTier = 0, CurrentRiftTier = 1, AccountLevel = 1 },
+                Progress = new ProgressState { HighestStage = 0, CurrentStage = 1, AccountLevel = 1 },
                 LastClaimAt = now,
             };
         }

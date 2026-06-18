@@ -24,10 +24,10 @@ namespace IdleGame.GameCore
         private static double AttackInterval(StatBlock s)
             => 1000.0 / Math.Max(0.1, s.Get(StatKey.Spd));
 
-        /// <summary>Build the initial battle: party (left) vs the tier's pack + boss (right).</summary>
-        public static CombatState InitCombat(IReadOnlyList<HeroInstance> party, int tier, GameConfig cfg, Rng rng)
+        /// <summary>Build the initial battle: party (left) vs the stage's pack + boss (right).</summary>
+        public static CombatState InitCombat(IReadOnlyList<HeroInstance> party, int stage, GameConfig cfg, Rng rng)
         {
-            var s = new CombatState { Tier = tier };
+            var s = new CombatState { Stage = stage };
 
             int idx = 0;
             foreach (var hero in party)
@@ -49,8 +49,8 @@ namespace IdleGame.GameCore
                 idx++;
             }
 
-            var rt = cfg.Rifts.Find(r => r.Tier == tier) ?? cfg.Rifts[0];
-            s.Loot = LootContext.ForRift(rt);
+            var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
+            s.Loot = LootContext.ForStage(rt);
             double scale = 1.0 + 0.1 * (rt.MonsterLevel - 1);
 
             for (int j = 0; j < rt.PackCount; j++)
@@ -137,7 +137,7 @@ namespace IdleGame.GameCore
                             target.Hp = 0;
                             events.Add(new CombatEvent { Type = CombatEventType.Death, EntityId = target.Id });
                             if (target.IsBoss)
-                                events.Add(new CombatEvent { Type = CombatEventType.BossDefeated, Tier = s.Tier });
+                                events.Add(new CombatEvent { Type = CombatEventType.BossDefeated, Stage = s.Stage });
 
                             // Loot only from real monsters (guards synthetic test/party entities).
                             if (target.Team == Team.Enemy && target.RefKind == "monster" &&

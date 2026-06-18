@@ -4,16 +4,16 @@ using System.Collections.Generic;
 namespace IdleGame.GameCore
 {
     // ------------------------------------------------------------------------
-    // game-core data model (C# port of the TS types).
+    // GameCore data model.
     //
-    // THE RULE (carried over from the web prototype): this assembly is pure
-    // logic. No UnityEngine references anywhere in GameCore. Unity references
-    // GameCore as the client; a .NET server can reuse it for authority.
+    // THE RULE: this assembly is pure logic. No UnityEngine references anywhere
+    // in GameCore. Unity references GameCore as the client; a .NET server can
+    // reuse it for authority.
     //
     // Three kinds of state, never mixed:
     //   - SaveState   : persisted
     //   - GameConfig  : static content, injected (see GameConfig.cs)
-    //   - combat state: transient (added in M1)
+    //   - combat state: transient
     // ------------------------------------------------------------------------
 
     // Ascending value — order matters: AffixDef.RarityFloor and the rarity-roll
@@ -60,8 +60,8 @@ namespace IdleGame.GameCore
 
     public sealed class ProgressState
     {
-        public int HighestRiftTier = 0;
-        public int CurrentRiftTier = 1;
+        public int HighestStage = 0;
+        public int CurrentStage = 1;
         public int AccountLevel = 1;
     }
 

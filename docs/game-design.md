@@ -17,7 +17,7 @@
 |----------|--------|
 | Genre / feel | **Idle ARPG** — Diablo 3 / PoE style, loot-and-build driven |
 | Initial scope | Personal / for-fun game |
-| Engine | **Unity (C#)**, 3D URP. (Pivoted from an early Vite/React/Pixi web prototype, now archived.) |
+| Engine | **Unity (C#)**, 3D URP. |
 | Sim | **`GameCore`** — pure C# library, no `UnityEngine` refs; Unity is a read-only client |
 | Party | **4 hero slots**; player starts with **1 basic Warrior**, 3 empty |
 | Map / movement | Party **auto-navigates** dungeons, auto-fights, auto-loots |
@@ -38,7 +38,7 @@ Three nested loops:
 | Loop | Time scale | What the player does | The hook |
 |------|-----------|---------------------|----------|
 | **Moment-to-moment** | seconds | Watch the party clear packs, loot drops, numbers pop | kill + loot dopamine |
-| **Session** | 2–10 min | Claim idle loot/XP, equip upgrades, respec/level skills, push a higher rift tier | build gets visibly stronger |
+| **Session** | 2–10 min | Claim idle loot/XP, equip upgrades, respec/level skills, push a higher stage | build gets visibly stronger |
 | **Meta / long-term** | days–weeks | Chase Unique/rare affixes, complete builds, climb endless difficulty | loot grind + power fantasy |
 
 If this feels good with placeholder primitives and grey/blue/yellow item rectangles, you've won. Build the loop before any art.
@@ -52,8 +52,8 @@ If this feels good with placeholder primitives and grey/blue/yellow item rectang
 3. **Monster packs + a boss** — clear the zone, boss at the end.
 4. **Loot drops** — monsters drop gear with rarity + random affixes; auto-pickup.
 5. **Equip & stats** — equip gear on a hero; stats recompute; party gets stronger.
-6. **Rift/difficulty tiers** — pick a difficulty; higher tier = tougher monsters + better loot. The progression spine.
-7. **Idle accumulation** — offline → loot/gold/XP accrue based on highest cleared rift tier, capped (~8–12h).
+6. **Stage/difficulty tiers** — pick a difficulty; higher stage = tougher monsters + better loot. The progression spine.
+7. **Idle accumulation** — offline → loot/gold/XP accrue based on highest cleared stage, capped (~8–12h).
 8. **Save/load.**
 
 No gacha, no summoning. Heroes 2–4 unlock through progression for now (gacha slots in later — §9).
@@ -75,7 +75,7 @@ reference the same library. Specifics:
   → rewards. Never simulate hours of real time.
 - **Loot/affixes = seeded weighted rolls** via the one `Rng` engine. *Same engine gacha
   will use later* — build once.
-- **Content as data:** monsters, affixes, item bases, skills, rift tiers, balance live
+- **Content as data:** monsters, affixes, item bases, skills, stages, balance live
   in `GameConfig` (today `GameConfig.Default()`; ScriptableObjects or content tables
   later). Logic reads config → tune without touching logic.
 
@@ -87,7 +87,7 @@ The sim is one assembly (`GameCore.asmdef`, no engine refs) living in
 unity/Assets/GameCore/             THE sim (pure C#)
   Models.cs        heroes, items, stats, save state
   Rng.cs           mulberry32 + WeightedPick  (loot now, gacha later)
-  GameConfig.cs    Default() content: heroes/items/affixes/monsters/rifts/balance
+  GameConfig.cs    Default() content: heroes/items/affixes/monsters/stages/balance
   Save.cs          NewGame / Migrate (versioned)
   Party.cs         SetPartySlot, AcquireHero (the gacha plug point)
   Stats.cs         ComputeHeroStats / ComputePartyPower
@@ -118,14 +118,14 @@ gamecore/Adapters/Persistence.cs   System.Text.Json (the one host-specific adapt
 
 **Currencies:** a map (`gold` today; `gems`/`tickets`/`shards` are additive later).
 
-**Progression:** `highestRiftTier, currentRiftTier, accountLevel, lastClaimAt`.
+**Progression:** `highestStage, currentStage, accountLevel, lastClaimAt`.
 
 ---
 
 ## 5. The two systems to get mathematically right
 
 ### 5.1 Idle reward formula
-Tie income to highest cleared rift tier so progression *feels* like it raises your rate:
+Tie income to highest cleared stage so progression *feels* like it raises your rate:
 ```
 goldPerSec(tier)       = base * growth^tier
 xpPerSec(tier)         = ...
@@ -144,7 +144,7 @@ Add a "quick run" button later: grants e.g. 2h of yield instantly on a daily coo
 | Rare (yellow) | low | 3–5 |
 | Unique (orange) | very low | fixed special affixes |
 
-- Drop rates and affix values **scale with rift tier / item level**.
+- Drop rates and affix values **scale with stage / item level**.
 - Affixes rolled from a weighted pool with value ranges → near-infinite item variety.
 - **Loot filter** (later) so high tiers don't drown the player in whites.
 - Implement as a **seeded, testable pure function**; sim 10,000+ drops to verify rates.
@@ -157,7 +157,7 @@ Add a "quick run" button later: grants e.g. 2h of yield instantly on a daily coo
 1. **Skills / build depth** — skill gems (PoE) or rune-modified skills (D3) so heroes aren't stat sticks.
 2. **More gear slots + set bonuses** — bigger build space.
 3. **Crafting / currency (PoE-style)** — reroll/upgrade affixes; major gold/currency sink.
-4. **Endless rift scaling + "deepest tier"** — the long-term chase.
+4. **Endless stage scaling + "deepest stage"** — the long-term chase.
 5. **Loot filter** — QoL that becomes essential at high tiers.
 6. **Boss mechanics & difficulty walls** — force build optimization, not just push.
 7. **Daily/weekly quests + login rewards** — retention backbone.
@@ -192,7 +192,7 @@ Status is tracked in [`../CLAUDE.md`](../CLAUDE.md). Order:
 | **M0 – Skeleton** | Scene + camera, render the party + dummy monsters as placeholders. |
 | **M1 – Auto-combat** | Deterministic auto-target/attack, kill packs, clear a zone + boss. |
 | **M2 – Loot** | Drops with rarity + affixes, auto-pickup, inventory, equip → stats recompute. |
-| **M3 – Rifts** | Difficulty tiers; higher tier = tougher monsters + better loot. |
+| **M3 – Stages** | Difficulty stages; higher stage = tougher monsters + better loot. |
 | **M4 – Idle** | `lastClaimAt` math + offline loot/gold/xp + claim modal. |
 | **M5 – Persistence** | Save/load (local now; server-authoritative later). |
 | **M6 – Feel pass** | Number formatting, loot juice, item-compare UI, offline modal. |
@@ -224,7 +224,7 @@ this is build-out on top of the existing core:
 2. **Server:** an **ASP.NET Core** service referencing `GameCore`. Client sends
    *intents* ("push tier N", "equip X", "claim idle"); the server runs the sim, owns
    the `SaveState`, and returns results. First proof-of-concept: one authoritative
-   "resolve a rift run" endpoint.
+   "resolve a stage run" endpoint.
 3. **Authority model:** the server's result is the truth; the client sim is cosmetic
    prediction. (This avoids depending on bit-exact cross-platform float determinism —
    `GameCore` uses `double`; only the server needs to be self-consistent.)
@@ -240,7 +240,7 @@ this is build-out on top of the existing core:
 - **Server time authority** for idle accrual (don't trust the device clock).
 - **Server-side RNG** for loot *and* gacha — anti-cheat + (for gacha) legally-mandated
   disclosed rates (Japan, China, South Korea; loot boxes restricted in Belgium/Netherlands).
-- **Remote config / LiveOps** — push rifts/events/balance without app updates.
+- **Remote config / LiveOps** — push stages/events/balance without app updates.
 - **IAP** via Apple/Google billing + server-side receipt validation.
 - **Store-compliant auth** — Sign in with Apple + Google + guest linking.
 - **i18n from the start**; **analytics + crash reporting**; **cloud save / cross-device**.

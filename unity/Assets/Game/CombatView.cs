@@ -64,13 +64,13 @@ namespace IdleGame.Game
                     if (hero != null) party.Add(hero);
                 }
 
-            _combat = Combat.InitCombat(party, _save.Progress.CurrentRiftTier, _cfg, _rng);
+            _combat = Combat.InitCombat(party, _save.Progress.CurrentStage, _cfg, _rng);
             SpawnViews();
 
             _accMs = 0;
             _endTimer = 0;
             _committed = false;
-            Debug.Log($"[CombatView] Run #{_runCount} start: {_combat.Entities.Count} entities, tier {_combat.Tier}.");
+            Debug.Log($"[CombatView] Run #{_runCount} start: {_combat.Entities.Count} entities, stage {_combat.Stage}.");
         }
 
         private void SpawnViews()
@@ -154,7 +154,7 @@ namespace IdleGame.Game
                             v.Go.SetActive(false);
                         break;
                     case CombatEventType.BossDefeated:
-                        Debug.Log($"[CombatView] Boss defeated at tier {ev.Tier}.");
+                        Debug.Log($"[CombatView] Boss defeated at stage {ev.Stage}.");
                         break;
                     case CombatEventType.LootDrop:
                         if (ev.Item != null)
@@ -217,7 +217,7 @@ namespace IdleGame.Game
                 _                 => "Auto-combat running",
             };
             var style = new GUIStyle(GUI.skin.label) { fontSize = 18, fontStyle = FontStyle.Bold };
-            GUI.Label(new Rect(12, 8, 600, 28), $"M1 · Tier {_combat.Tier} · {status}", style);
+            GUI.Label(new Rect(12, 8, 600, 28), $"Stage {_combat.Stage} · {status}", style);
         }
 
         private void DrawRect(float x, float y, float w, float h, Color c)

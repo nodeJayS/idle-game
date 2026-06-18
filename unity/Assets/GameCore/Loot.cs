@@ -5,9 +5,9 @@ using System.Collections.Generic;
 namespace IdleGame.GameCore
 {
     /// <summary>
-    /// Mode-agnostic loot parameters. Any game mode (rift, event, multiplayer queue)
+    /// Mode-agnostic loot parameters. Any game mode (stage, event, multiplayer queue)
     /// builds one of these and hands it to <see cref="Loot"/> — loot never references
-    /// rifts or any specific mode. Extend additively (drop-chance override, loot table
+    /// stages or any specific mode. Extend additively (drop-chance override, loot table
     /// id, mode id…) without churning the loot signatures.
     /// </summary>
     public struct LootContext
@@ -15,10 +15,10 @@ namespace IdleGame.GameCore
         public int ItemLevel;        // power/scaling of dropped items
         public double DropRateMult;  // bias toward higher rarity
 
-        public static LootContext ForRift(RiftTierDef rift) => new LootContext
+        public static LootContext ForStage(StageDef stage) => new LootContext
         {
-            ItemLevel = rift.AffixItemLevel,
-            DropRateMult = rift.DropRateMult,
+            ItemLevel = stage.AffixItemLevel,
+            DropRateMult = stage.DropRateMult,
         };
     }
 

@@ -49,7 +49,7 @@ namespace IdleGame.GameCore.Tests
             var low = Sample(1.0, n);
             var high = Sample(2.0, n);
 
-            // a richer rift should yield fewer commons and more high-end items
+            // a richer stage should yield fewer commons and more high-end items
             Assert.True(high[Rarity.Normal] < low[Rarity.Normal], "expected fewer Normals at higher mult");
             Assert.True(high[Rarity.Unique] > low[Rarity.Unique], "expected more Uniques at higher mult");
             Assert.True(high[Rarity.Legendary] > low[Rarity.Legendary], "expected more Legendaries at higher mult");

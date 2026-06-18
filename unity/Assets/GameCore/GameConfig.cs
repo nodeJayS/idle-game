@@ -8,7 +8,7 @@ namespace IdleGame.GameCore
     // Static content definitions + the assembled GameConfig. Injected into
     // game-core functions (not a global) so a server can share the same config
     // and balance is swappable. In Unity these become ScriptableObjects or load
-    // from JSON; GameConfig.Default() is the C# port of the web config/* files.
+    // from JSON; GameConfig.Default() is the built-in content set.
     // ------------------------------------------------------------------------
 
     public sealed class HeroDef
@@ -52,9 +52,9 @@ namespace IdleGame.GameCore
         public string Sprite = "";
     }
 
-    public sealed class RiftTierDef
+    public sealed class StageDef
     {
-        public int Tier;
+        public int Stage;
         public int MonsterLevel;
         public int PackCount;
         public string BossId = "";
@@ -81,7 +81,7 @@ namespace IdleGame.GameCore
 
         // Base drop weights per rarity, indexed by (int)Rarity ascending:
         // [Normal, Magic, Rare, Unique, Legendary]. Must have one entry per Rarity.
-        // The rift's DropRateMult biases this upward — see Loot.RollRarity.
+        // The stage's DropRateMult biases this upward — see Loot.RollRarity.
         public double[] RarityBaseWeights = { 1000, 400, 120, 25, 4 };
 
         // Affix count (min, max) per rarity, indexed by (int)Rarity ascending:
@@ -94,9 +94,9 @@ namespace IdleGame.GameCore
         public double DropChance = 0.35;
 
         public long XpCurve(int level) => (long)Math.Floor(100 * Math.Pow(1.15, level - 1));
-        public long GoldPerSec(int tier) => (long)Math.Floor(5 * Math.Pow(1.18, tier));
-        public long XpPerSec(int tier) => (long)Math.Floor(3 * Math.Pow(1.15, tier));
-        public double LootRollsPerHour(int tier) => 20 + tier * 5;
+        public long GoldPerSec(int stage) => (long)Math.Floor(5 * Math.Pow(1.18, stage));
+        public long XpPerSec(int stage) => (long)Math.Floor(3 * Math.Pow(1.15, stage));
+        public double LootRollsPerHour(int stage) => 20 + stage * 5;
     }
 
     public sealed class GameConfig
@@ -105,7 +105,7 @@ namespace IdleGame.GameCore
         public Dictionary<string, ItemBaseDef> ItemBases = new Dictionary<string, ItemBaseDef>();
         public List<AffixDef> AffixPool = new List<AffixDef>();
         public Dictionary<string, MonsterDef> Monsters = new Dictionary<string, MonsterDef>();
-        public List<RiftTierDef> Rifts = new List<RiftTierDef>();
+        public List<StageDef> Stages = new List<StageDef>();
         public Dictionary<string, SkillDef> Skills = new Dictionary<string, SkillDef>();
         public BalanceConstants Balance = new BalanceConstants();
 
@@ -116,7 +116,7 @@ namespace IdleGame.GameCore
             return b;
         }
 
-        /// <summary>The default content set (M0). Mirrors the web config/* files.</summary>
+        /// <summary>The default content set.</summary>
         public static GameConfig Default()
         {
             var cfg = new GameConfig();
@@ -175,11 +175,11 @@ namespace IdleGame.GameCore
 
             for (int i = 0; i < 50; i++)
             {
-                int tier = i + 1;
-                cfg.Rifts.Add(new RiftTierDef
+                int stage = i + 1;
+                cfg.Stages.Add(new StageDef
                 {
-                    Tier = tier, MonsterLevel = tier, PackCount = 3 + tier / 5,
-                    BossId = "goblin_king", DropRateMult = 1 + tier * 0.05, AffixItemLevel = tier,
+                    Stage = stage, MonsterLevel = stage, PackCount = 3 + stage / 5,
+                    BossId = "goblin_king", DropRateMult = 1 + stage * 0.05, AffixItemLevel = stage,
                 });
             }
 
