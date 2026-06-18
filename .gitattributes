@@ -11,11 +11,17 @@
 *.wav   filter=lfs diff=lfs merge=lfs -text
 *.mp3   filter=lfs diff=lfs merge=lfs -text
 *.ogg   filter=lfs diff=lfs merge=lfs -text
-*.anim  filter=lfs diff=lfs merge=lfs -text
-*.unity filter=lfs diff=lfs merge=lfs -text
 
-# Keep small Unity text assets as normal text (NOT in LFS)
-*.cs     text
-*.shader text
-*.meta   text
-*.asmdef text
+# Keep Unity YAML and source as normal TEXT (diffable/mergeable — NOT in LFS):
+# scenes, prefabs, assets, animations, materials, controllers, and code.
+*.unity            text
+*.prefab           text
+*.asset            text
+*.anim             text
+*.mat              text
+*.controller       text
+*.cs               text
+*.shader           text
+*.meta             text
+*.asmdef           text
+*.inputactions     text
