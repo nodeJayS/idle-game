@@ -1,65 +1,56 @@
+import { useEffect } from 'react';
 import { gameConfig } from '@game/index';
+import { useGameStore } from './state/store';
+import { GameCanvas } from './components/GameCanvas';
 
 /**
- * Placeholder landing page for the scaffold. The real game (Pixi canvas + HUD)
- * replaces this starting at M0. For now it confirms the build boots and that
- * game-core config is importable through the @game alias.
+ * M0 shell: ensure a SaveState exists, then render the isometric scene from it
+ * plus a tiny party HUD. Combat / loot / idle UI arrive in later milestones.
  */
-const milestones: { id: string; name: string; status: 'next' | 'todo' }[] = [
-  { id: 'M0', name: 'Skeleton — Pixi renders a static iso scene + Warrior', status: 'next' },
-  { id: 'M1', name: 'Auto-combat — deterministic stepCombat clears a pack + boss', status: 'todo' },
-  { id: 'M2', name: 'Loot — drops w/ rarity + affixes, inventory, equip → stats', status: 'todo' },
-  { id: 'M3', name: 'Rifts — difficulty tiers scale monsters + loot', status: 'todo' },
-  { id: 'M4', name: 'Idle — offline yield as math + claim modal', status: 'todo' },
-  { id: 'M5', name: 'Persistence — Supabase save/load + RLS', status: 'todo' },
-  { id: 'M6', name: 'Feel pass — pixel juice, gear-compare, number formatting', status: 'todo' },
-];
-
 export default function App() {
-  const heroCount = Object.keys(gameConfig.heroes).length;
-  const monsterCount = Object.keys(gameConfig.monsters).length;
-  const riftCount = gameConfig.rifts.length;
+  const save = useGameStore((s) => s.save);
+  const startNewGame = useGameStore((s) => s.startNewGame);
+
+  useEffect(() => {
+    if (!save) startNewGame();
+  }, [save, startNewGame]);
+
+  if (!save) return <p style={{ padding: 24 }}>Loading…</p>;
 
   return (
     <>
-      <h1>⚔️ Idle ARPG</h1>
-      <p className="tagline">
-        Cute-pixel-art idle ARPG — Diablo/PoE-style loot, Minecraft-friendly surface.
+      <header className="topbar">
+        <h1>⚔️ Idle ARPG</h1>
+        <button className="btn" onClick={startNewGame}>
+          New game
+        </button>
+      </header>
+
+      <GameCanvas save={save} />
+
+      <div className="party-bar">
+        {save.party.map((heroId, i) => {
+          const hero = heroId ? save.heroes.find((h) => h.id === heroId) : null;
+          const def = hero ? gameConfig.heroes[hero.defId] : null;
+          return (
+            <div key={i} className={`slot ${def ? 'filled' : 'empty'}`}>
+              {def ? (
+                <>
+                  <span className="slot-name">{def.name}</span>
+                  <span className="slot-sub">Lv {hero!.level}</span>
+                </>
+              ) : (
+                <span className="slot-sub">Empty</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="hint">
+        M0 — scene renders from <code>SaveState</code>. The Warrior on the highlighted tile is your
+        party lead; the slime, goblin, and goblin king are placeholder scale. Combat comes in M1.
       </p>
-
-      <div className="panel">
-        <h2>Scaffold is alive</h2>
-        <p style={{ margin: 0, color: 'var(--muted)' }}>
-          Build boots and <code>game-core</code> config loads through the <code>@game</code> alias:{' '}
-          <strong>{heroCount}</strong> hero, <strong>{monsterCount}</strong> monsters,{' '}
-          <strong>{riftCount}</strong> rift tiers defined. Gameplay systems are stubbed and
-          implemented milestone by milestone.
-        </p>
-      </div>
-
-      <div className="panel">
-        <h2>Milestones</h2>
-        <ul className="milestones">
-          {milestones.map((m) => (
-            <li key={m.id}>
-              <span className={`tag ${m.status}`}>{m.status === 'next' ? 'NEXT' : 'TODO'}</span>
-              <span>
-                <strong>{m.id}</strong> — {m.name}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="panel">
-        <h2>Architecture rule</h2>
-        <p style={{ margin: 0, color: 'var(--muted)' }}>
-          All combat / loot / idle / progression logic lives in <code>src/game</code> (pure TS,
-          zero React / Pixi / DOM / Supabase). The renderer only reads state. That boundary keeps
-          the Pixi→3D swap, the mobile port, and the gacha layer all additive. See{' '}
-          <code>docs/</code>.
-        </p>
-      </div>
     </>
   );
 }

@@ -13,7 +13,15 @@ export function acquireHero(_save: SaveState, _defId: string, _cfg: GameConfig):
   throw new Error('not implemented: acquireHero');
 }
 
-/** Place a hero into one of the 4 party slots (or null to clear). Implement M0/M3. */
-export function setPartySlot(_save: SaveState, _slot: number, _heroId: HeroId | null): SaveState {
-  throw new Error('not implemented: setPartySlot');
+/** Place a hero into one of the 4 party slots (or null to clear). Pure. */
+export function setPartySlot(save: SaveState, slot: number, heroId: HeroId | null): SaveState {
+  if (slot < 0 || slot >= save.party.length) {
+    throw new Error(`setPartySlot: slot ${slot} out of range (0..${save.party.length - 1})`);
+  }
+  if (heroId !== null && !save.heroes.some((h) => h.id === heroId)) {
+    throw new Error(`setPartySlot: hero "${heroId}" not owned`);
+  }
+  const party = [...save.party];
+  party[slot] = heroId;
+  return { ...save, party };
 }

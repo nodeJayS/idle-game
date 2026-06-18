@@ -9,10 +9,8 @@
   --muted: #9a8fb0;
   --accent: #b388ff;
   --gold: #ffcc66;
-  --done: #6ee7a8;
-  --todo: #6b6378;
 
-  /* loot rarity colors */
+  /* loot rarity colors (used from M2) */
   --normal: #c9c9c9;
   --magic: #6fa8ff;
   --rare: #ffe066;
@@ -32,75 +30,92 @@ body {
 }
 
 /* pixel-art images render crisp, never blurry */
-img {
+img,
+canvas {
   image-rendering: pixelated;
 }
 
 #root {
   max-width: 880px;
   margin: 0 auto;
-  padding: 48px 24px 64px;
+  padding: 24px 24px 48px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
 }
 
 h1 {
-  margin: 0 0 4px;
-  font-size: 2rem;
+  margin: 0;
+  font-size: 1.6rem;
   letter-spacing: -0.5px;
 }
 
-.tagline {
-  color: var(--muted);
-  margin: 0 0 32px;
+.btn {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
-.panel {
-  background: var(--panel);
+.game-canvas {
+  width: 100%;
+  height: 460px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 20px 24px;
-  margin-bottom: 20px;
+  overflow: hidden;
+  background: var(--bg);
 }
 
-.panel h2 {
-  margin: 0 0 12px;
-  font-size: 1.05rem;
-  color: var(--accent);
-}
-
-ul.milestones {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-ul.milestones li {
-  display: flex;
+.party-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 10px;
-  padding: 6px 0;
-  border-bottom: 1px dashed var(--border);
+  margin-top: 14px;
 }
 
-ul.milestones li:last-child {
-  border-bottom: none;
+.slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 64px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel);
 }
-
-.tag {
-  flex: none;
-  font-size: 0.72rem;
+.slot.empty {
+  border-style: dashed;
+  opacity: 0.55;
+}
+.slot.filled {
+  border-color: var(--accent);
+}
+.slot-name {
   font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 999px;
-  align-self: center;
+  font-size: 0.9rem;
+}
+.slot-sub {
+  font-size: 0.72rem;
+  color: var(--muted);
 }
 
-.tag.todo {
-  background: #2a2436;
-  color: var(--todo);
-}
-
-.tag.next {
-  background: #2d2440;
-  color: var(--accent);
+.hint {
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
 
 code {
