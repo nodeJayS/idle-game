@@ -1,3 +1,4 @@
+#nullable enable
 using System.Collections.Generic;
 using UnityEngine;
 using IdleGame.GameCore;
@@ -31,6 +32,7 @@ namespace IdleGame.Game
         private SaveState _save = null!;
         private CombatState _combat = null!;
         private Rng _rng = null!;
+        private CombatJuice? _juice;
         private readonly Dictionary<string, View> _views = new Dictionary<string, View>();
 
         private double _accMs;
@@ -49,6 +51,11 @@ namespace IdleGame.Game
         {
             _save = save;
             _cfg = cfg;
+            if (Camera.main != null)
+            {
+                _juice = new GameObject("CombatJuice").AddComponent<CombatJuice>();
+                _juice.Init(Camera.main);
+            }
             StartRun();
         }
 
@@ -173,6 +180,19 @@ namespace IdleGame.Game
             {
                 switch (ev.Type)
                 {
+                    case CombatEventType.Hit:
+                        if (_juice != null && ev.TargetId != null &&
+                            _views.TryGetValue(ev.TargetId, out var hv) && hv.Go != null && hv.Go.activeSelf)
+                        {
+                            var head = hv.Go.transform.position + Vector3.up * (hv.Height + 0.6f);
+                            _juice.DamageNumber(head, ev.Amount, ev.Crit);
+                            if (ev.Crit)
+                            {
+                                _juice.Shake(0.15f);
+                                _juice.Flash(0.5f, new Color(1f, 0.85f, 0.4f));
+                            }
+                        }
+                        break;
                     case CombatEventType.Death:
                         if (ev.EntityId != null && _views.TryGetValue(ev.EntityId, out var v) && v.Go != null)
                         {
@@ -191,12 +211,17 @@ namespace IdleGame.Game
                         }
                         break;
                     case CombatEventType.BossDefeated:
+                        _juice?.Shake(0.4f);
+                        _juice?.Flash(0.7f, new Color(1f, 0.6f, 0.3f));
                         Debug.Log($"[CombatView] Boss defeated at stage {ev.Stage}.");
                         break;
                     case CombatEventType.LootDrop:
                         if (ev.Item != null)
+                        {
+                            _juice?.Toast($"{ev.Item.Rarity} {ev.Item.BaseId}", Palette.Rarity(ev.Item.Rarity));
                             Debug.Log($"[CombatView] Drop: {ev.Item.Rarity} {ev.Item.BaseId} " +
                                       $"(iLvl {ev.Item.ItemLevel}, {ev.Item.Affixes.Count} affixes)");
+                        }
                         break;
                 }
             }
