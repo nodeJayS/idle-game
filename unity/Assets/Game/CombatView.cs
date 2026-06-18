@@ -181,7 +181,7 @@ namespace IdleGame.Game
                 switch (ev.Type)
                 {
                     case CombatEventType.Hit:
-                        if (_juice != null && ev.TargetId != null &&
+                        if (_juice != null && Settings.CombatEffects && ev.TargetId != null &&
                             _views.TryGetValue(ev.TargetId, out var hv) && hv.Go != null && hv.Go.activeSelf)
                         {
                             var head = hv.Go.transform.position + Vector3.up * (hv.Height + 0.6f);
@@ -211,8 +211,11 @@ namespace IdleGame.Game
                         }
                         break;
                     case CombatEventType.BossDefeated:
-                        _juice?.Shake(0.4f);
-                        _juice?.Flash(0.7f, new Color(1f, 0.6f, 0.3f));
+                        if (_juice != null && Settings.CombatEffects)
+                        {
+                            _juice.Shake(0.4f);
+                            _juice.Flash(0.7f, new Color(1f, 0.6f, 0.3f));
+                        }
                         Debug.Log($"[CombatView] Boss defeated at stage {ev.Stage}.");
                         break;
                     case CombatEventType.LootDrop:
