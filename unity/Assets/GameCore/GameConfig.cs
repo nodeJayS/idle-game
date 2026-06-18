@@ -78,6 +78,7 @@ namespace IdleGame.GameCore
     {
         public double IdleCapHours = 12;
         public double OfflineRate = 0.8;
+        public int MaxLevel = 100;
 
         // Base drop weights per rarity, indexed by (int)Rarity ascending:
         // [Normal, Magic, Rare, Unique, Legendary]. Must have one entry per Rarity.
