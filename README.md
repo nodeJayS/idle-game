@@ -1,18 +1,12 @@
 # Idle ARPG (Unity)
 
-A cozy low-poly **3D idle ARPG** — Diablo/PoE-style loot & build depth, *Tunic*-ish
-visual surface. A 4-hero party (each hero independently equippable) auto-clears
-dungeons, monsters drop gear, you build out the party and push higher difficulty.
+A low-poly **3D idle ARPG** — Diablo/PoE-style loot & build depth. A 4-hero party (each hero independently equippable) auto-clears dungeons, monsters drop gear, you build out the party and push higher difficulty.
 Progress accrues while you're away.
 
 > **Status:** the simulation lives in a pure-C# `GameCore` library (tested with
 > `dotnet test`) that Unity references as its client. M0 (scene) and M1 (auto-combat)
 > are done; M2 (loot) is complete. Gacha and live-service are deferred; the
 > architecture supports both later.
-
-## Why Unity
-The target look (stylized low-poly 3D) + native global mobile fit Unity's pipeline
-(URP, lighting, animation, Addressables, IAP, Localization).
 
 ## Repo layout
 ```
