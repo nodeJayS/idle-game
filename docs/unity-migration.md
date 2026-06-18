@@ -29,6 +29,17 @@ reads simulation state; no game logic in MonoBehaviours.
   `Combat.InitCombat`/`StepCombat`/`RunToEnd` — a deterministic auto-battle
   (walk-to-target + auto-attack, crits, win/lose, boss-defeated events). 21/21
   tests passing.
+- ✅ **Unity project created** (Phase 3): `unity/` is a 3D (URP) project;
+  `GameCore` sources copied to `unity/Assets/GameCore/` with a no-engine-refs
+  `GameCore.asmdef`; `GameCore.Tests` still points at the canonical sources for
+  `dotnet test`.
+- ✅ **M0 scene** (Phase 3): `Bootstrap.cs` builds the iso environment in code on
+  Play (camera, directional light, ground) — no manual editor wiring.
+- ✅ **M1 auto-combat in the Unity client** (Phase 4): `CombatView` MonoBehaviour
+  drives the deterministic battle at a fixed timestep, interpolates placeholder
+  primitives toward sim positions, shows floating HP bars + a status line, and
+  auto-restarts each run. Renderer only *reads* `CombatState` — combat rules stay
+  in `GameCore`.
 
 ## Phase map
 | Phase | Work | State |
@@ -36,14 +47,17 @@ reads simulation state; no game logic in MonoBehaviours.
 | 0 | Setup: SDK install, repo hygiene, structure | ✅ |
 | 1 | Port `game-core` → C# library + tests | ✅ (foundation + Stats & Combat systems implemented) |
 | 2 | Content as ScriptableObjects (or keep `GameConfig.Default()`) | later |
-| 3 | **Unity project + M0 scene** (3D iso, camera, party lead) | **next — needs the editor** |
-| 4+ | M1 combat → M2 loot → M3 rifts → M4 idle → M5 persistence → M6 feel, in C# | later |
+| 3 | **Unity project + M0 scene** (3D iso, camera, party lead) | ✅ |
+| 4 | **M1 auto-combat** wired into the Unity client (`CombatView`) | ✅ |
+| 5+ | M2 loot → M3 rifts → M4 idle → M5 persistence → M6 feel, in C# | **next** |
 
 ## What needs YOU (the editor, not scriptable by the agent)
-1. `winget install Unity.UnityHub`
-2. In Unity Hub: install **Unity 6 LTS** + create a **3D (URP)** project at `unity/`.
-3. Tell me when it's created — I'll add `unity/Assets/GameCore/` + `GameCore.asmdef`
-   and start the M0 scene.
+- ✅ Unity Hub + Unity 6 LTS installed; 3D (URP) project created at `unity/`.
+- ✅ `GameCore` wired in; M0 scene + M1 auto-combat implemented.
+- **Now:** open `unity/` and press **Play** to verify M1 visually — party capsules
+  advance on the pack + boss, HP bars drain, units vanish on death, and the run
+  shows VICTORY/DEFEAT then auto-restarts. (Play-mode can't be driven headlessly
+  by the agent; this is the one manual confirmation step.)
 
 ## Wiring GameCore into Unity (when the project exists)
 - **Preferred:** copy `gamecore/GameCore/*.cs` into `unity/Assets/GameCore/` and add
