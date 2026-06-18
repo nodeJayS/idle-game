@@ -67,8 +67,8 @@ Engine-independent order, same as the original plan:
 | M2 | Loot: drops + rarity + affixes, inventory, equip → stats recompute | ✅ |
 | M3 | Leveling: kills grant XP, fielded heroes level, stats scale | ✅ |
 | M4 | Stages & progression: 50-stage ladder, miniboss gate, major boss /10, hero downing | ✅ |
-| M5 | Idle accrual (offline = math off highest cleared stage, claim modal) | **next** |
-| M6 | Persistence & main menu (save/load, Continue / New Game) | later |
+| M5 | Idle accrual (offline = math off highest cleared stage, claim modal) | ✅ |
+| M6 | Persistence & main menu (save/load, Continue / New Game) | **next** |
 | M7 | Feel pass (number formatting, juice, item-compare UI) | later |
 
 Full roadmap (Depth + Live-service phases) is in [`docs/game-design.md`](docs/game-design.md) §8.

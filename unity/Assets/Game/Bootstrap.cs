@@ -17,7 +17,23 @@ namespace IdleGame.Game
         {
             // --- game-core: a fresh save; CombatView owns the live combat lineup ---
             var cfg = GameConfig.Default();
-            var save = Save.NewGame(12345u, cfg, 0);
+            long now = System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var save = Save.NewGame(12345u, cfg, now);
+
+            // DEV (until M6 persistence): no real offline gap exists yet, so simulate
+            // one — a few cleared stages + a 3h-old LastClaimAt — to exercise the
+            // claim flow. Remove once load/save provides a genuine elapsed time.
+            const bool DemoIdle = true;
+            if (DemoIdle)
+            {
+                save.Progress.HighestStage = 5;
+                save.Progress.CurrentStage = 6;
+                save.LastClaimAt = now - 3L * 3600_000L;
+            }
+
+            // --- M5: claim offline accrual before the run starts ---
+            var (claimed, idleReport) = Idle.Claim(save, cfg, now);
+            save = claimed;
 
             // --- camera (iso-ish angle) ---
             var cam = Camera.main;
@@ -51,6 +67,15 @@ namespace IdleGame.Game
             var director = new GameObject("CombatDirector");
             var view = director.AddComponent<CombatView>();
             view.Init(save, cfg);
+
+            // --- M5: "while you were away" modal, if the claim yielded anything ---
+            if (!idleReport.IsEmpty)
+            {
+                var modalGo = new GameObject("IdleClaimModal");
+                modalGo.AddComponent<IdleClaimModal>().Show(idleReport);
+                Debug.Log($"[Bootstrap] Idle claim: {idleReport.Gold} gold, {idleReport.Xp} XP, " +
+                          $"{idleReport.Items.Count} item(s) over {idleReport.ElapsedMs / 3600_000.0:F1}h.");
+            }
 
             Debug.Log("[Bootstrap] Scene built; CombatView driving M1 auto-combat.");
         }
