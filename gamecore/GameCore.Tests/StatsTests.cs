@@ -21,6 +21,13 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void WarriorHasSmallHpRegen()
+        {
+            var st = Stats.ComputeHeroStats(Warrior(1), Cfg);
+            Assert.Equal(1.5, st.Get(StatKey.HpRegen));
+        }
+
+        [Fact]
         public void GrowthScalesWithLevel()
         {
             var st = Stats.ComputeHeroStats(Warrior(5), Cfg); // +4 levels of growth

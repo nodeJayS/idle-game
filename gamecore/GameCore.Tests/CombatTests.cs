@@ -115,6 +115,37 @@ namespace IdleGame.GameCore.Tests
             Assert.Contains(events, e => e.Type == CombatEventType.BossDefeated && e.Stage == 3);
         }
 
+        // --- HP regen ---
+
+        [Fact]
+        public void HpRegenHealsAliveEntitiesUpToMax()
+        {
+            // Far apart so nothing attacks; the run stays Running while A regenerates.
+            var a = Ent("A", Team.Party, hp: 100, atk: 0, def: 0, x: -50);
+            a.Hp = 50; a.Stats[StatKey.HpRegen] = 10; // 10 hp/sec
+            var b = Ent("B", Team.Enemy, hp: 100, atk: 0, def: 0, x: 50);
+            b.Hp = 50; // no regen
+            var s = State(a, b);
+
+            for (int i = 0; i < 60; i++) Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+
+            Assert.True(Hp(s, "A") > 50);          // healed
+            Assert.True(Hp(s, "A") <= 100);        // never above max
+            Assert.Equal(50, Hp(s, "B"));          // no regen stat -> unchanged
+        }
+
+        [Fact]
+        public void HpRegenNeverExceedsMaxHp()
+        {
+            var a = Ent("A", Team.Party, hp: 100, atk: 0, def: 0, x: -50);
+            a.Hp = 99; a.Stats[StatKey.HpRegen] = 10000;
+            var b = Ent("B", Team.Enemy, hp: 100, atk: 0, def: 0, x: 50);
+            var s = State(a, b);
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+            Assert.Equal(100, Hp(s, "A"));
+        }
+
         // --- M2.4: loot into combat ---
 
         private static CombatEntity Monster(string id, string defId, double hp, bool boss = false)

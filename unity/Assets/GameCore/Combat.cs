@@ -118,6 +118,15 @@ namespace IdleGame.GameCore
                 }
             }
 
+            // HP regen: alive entities with HpRegen heal up to MaxHp. Deterministic
+            // (no rng). Downed heroes (Hp 0) don't regen — respawn restores them.
+            foreach (var e in s.Entities)
+            {
+                if (!e.Alive) continue;
+                double regen = e.Stats.Get(StatKey.HpRegen);
+                if (regen > 0) e.Hp = Math.Min(e.MaxHp, e.Hp + regen * dtMs / 1000.0);
+            }
+
             var actors = s.Entities.Where(e => e.Alive)
                                    .OrderBy(e => e.Id, StringComparer.Ordinal)
                                    .ToList();

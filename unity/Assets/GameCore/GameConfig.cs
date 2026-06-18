@@ -142,7 +142,8 @@ namespace IdleGame.GameCore
             {
                 DefId = "warrior_basic", Name = "Warrior", Class = "Warrior", Role = "melee",
                 BaseStats = SB((StatKey.Hp, 120), (StatKey.Atk, 14), (StatKey.Def, 8),
-                               (StatKey.Spd, 1.0), (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.5)),
+                               (StatKey.Spd, 1.0), (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.5),
+                               (StatKey.HpRegen, 1.5)), // very small sustain (hp/sec)
                 GrowthPerLevel = SB((StatKey.Hp, 18), (StatKey.Atk, 3), (StatKey.Def, 1.5)),
                 Skills = new List<string> { "cleave" }, Sprite = "warrior",
             };
@@ -174,19 +175,19 @@ namespace IdleGame.GameCore
             cfg.Monsters["slime"] = new MonsterDef
             {
                 Id = "slime", Name = "Slime",
-                BaseStats = SB((StatKey.Hp, 30), (StatKey.Atk, 5), (StatKey.Def, 1), (StatKey.Spd, 0.8), (StatKey.CritDmg, 1.5)),
+                BaseStats = SB((StatKey.Hp, 18), (StatKey.Atk, 3), (StatKey.Def, 0), (StatKey.Spd, 0.8), (StatKey.CritDmg, 1.5)),
                 LootTableId = "common", XpReward = 5, GoldReward = 2, Sprite = "slime",
             };
             cfg.Monsters["goblin"] = new MonsterDef
             {
                 Id = "goblin", Name = "Goblin",
-                BaseStats = SB((StatKey.Hp, 45), (StatKey.Atk, 8), (StatKey.Def, 2), (StatKey.Spd, 1.1), (StatKey.CritChance, 0.03), (StatKey.CritDmg, 1.5)),
+                BaseStats = SB((StatKey.Hp, 28), (StatKey.Atk, 5), (StatKey.Def, 1), (StatKey.Spd, 1.1), (StatKey.CritChance, 0.03), (StatKey.CritDmg, 1.5)),
                 LootTableId = "common", XpReward = 9, GoldReward = 4, Sprite = "goblin",
             };
             cfg.Monsters["goblin_king"] = new MonsterDef
             {
                 Id = "goblin_king", Name = "Goblin King",
-                BaseStats = SB((StatKey.Hp, 320), (StatKey.Atk, 16), (StatKey.Def, 5), (StatKey.Spd, 0.9), (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.6)),
+                BaseStats = SB((StatKey.Hp, 160), (StatKey.Atk, 12), (StatKey.Def, 3), (StatKey.Spd, 0.9), (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.6)),
                 LootTableId = "boss", XpReward = 60, GoldReward = 40, Sprite = "goblin_king",
             };
 
