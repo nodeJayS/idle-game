@@ -47,6 +47,10 @@ namespace IdleGame.Game
         /// autosave host reads this to persist real progress.</summary>
         public SaveState CurrentSave => _save;
 
+        /// <summary>Swap the live save (e.g. after the player equips gear). Stats are
+        /// recomputed at the next <see cref="StartRun"/>; the current run finishes as-is.</summary>
+        public void ReplaceSave(SaveState save) => _save = save;
+
         public void Init(SaveState save, GameConfig cfg)
         {
             _save = save;
