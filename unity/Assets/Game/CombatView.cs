@@ -22,7 +22,10 @@ namespace IdleGame.Game
         {
             public GameObject Go = null!;
             public float Height;                       // world Y (half the primitive height)
+            public Color BaseColor;                    // restored when a downed hero respawns
         }
+
+        private static readonly Color DownedColor = new Color(0.30f, 0.30f, 0.34f); // greyed while down
 
         private GameConfig _cfg = null!;
         private SaveState _save = null!;
@@ -94,7 +97,7 @@ namespace IdleGame.Game
                                 : new Color(0.45f, 0.80f, 0.50f));  // mobs = green
                 Paint(go, color);
 
-                _views[e.Id] = new View { Go = go, Height = height };
+                _views[e.Id] = new View { Go = go, Height = height, BaseColor = color };
             }
         }
 
@@ -139,6 +142,12 @@ namespace IdleGame.Game
                             string levels = gained > 0 ? $" — leveled up x{gained}!" : "";
                             Debug.Log($"[CombatView] Won — party gained {_combat.PendingXp} XP{levels}");
                         }
+
+                        // Advance the ladder: bump HighestStage + auto-advance CurrentStage,
+                        // so the next run visibly climbs (loops back to farm on a loss).
+                        _save = Progression.OnStageCleared(_save, _combat.Stage);
+                        Debug.Log($"[CombatView] Stage {_combat.Stage} cleared — now on stage " +
+                                  $"{_save.Progress.CurrentStage} (highest {_save.Progress.HighestStage}).");
                     }
                 }
 
@@ -162,7 +171,20 @@ namespace IdleGame.Game
                 {
                     case CombatEventType.Death:
                         if (ev.EntityId != null && _views.TryGetValue(ev.EntityId, out var v) && v.Go != null)
-                            v.Go.SetActive(false);
+                        {
+                            var ent = _combat.Entities.Find(x => x.Id == ev.EntityId);
+                            if (ent != null && ent.Team == Team.Party)
+                                Paint(v.Go, DownedColor); // downed hero: grey, stays visible (respawns)
+                            else
+                                v.Go.SetActive(false);    // monster: gone
+                        }
+                        break;
+                    case CombatEventType.Respawn:
+                        if (ev.EntityId != null && _views.TryGetValue(ev.EntityId, out var rv) && rv.Go != null)
+                        {
+                            rv.Go.SetActive(true);
+                            Paint(rv.Go, rv.BaseColor);   // restore hero color
+                        }
                         break;
                     case CombatEventType.BossDefeated:
                         Debug.Log($"[CombatView] Boss defeated at stage {ev.Stage}.");
@@ -212,12 +234,22 @@ namespace IdleGame.Game
             {
                 foreach (var e in _combat.Entities)
                 {
-                    if (!e.Alive) continue;
                     if (!_views.TryGetValue(e.Id, out var v) || v.Go == null || !v.Go.activeSelf) continue;
 
                     var head = v.Go.transform.position + Vector3.up * (v.Height + 0.6f);
                     var sp = cam.WorldToScreenPoint(head);
                     if (sp.z <= 0) continue; // behind camera
+
+                    // Downed hero: no HP bar, show a respawn countdown instead.
+                    if (e.Downed)
+                    {
+                        var dl = new GUIStyle(GUI.skin.label) { fontSize = 11, fontStyle = FontStyle.Bold };
+                        dl.normal.textColor = new Color(1f, 0.85f, 0.4f);
+                        GUI.Label(new Rect(sp.x - 30, Screen.height - sp.y - 4, 60, 16),
+                                  $"↻ {Mathf.CeilToInt((float)e.RespawnMs / 1000f)}s", dl);
+                        continue;
+                    }
+                    if (!e.Alive) continue;
 
                     float w = e.IsBoss ? 56f : 34f;
                     float h = 5f;
@@ -241,7 +273,9 @@ namespace IdleGame.Game
                 _                 => "Auto-combat running",
             };
             var style = new GUIStyle(GUI.skin.label) { fontSize = 18, fontStyle = FontStyle.Bold };
-            GUI.Label(new Rect(12, 8, 600, 28), $"Stage {_combat.Stage} · {status}", style);
+            string major = _cfg.Stages.Find(st => st.Stage == _combat.Stage)?.IsMajorBoss == true ? " ★MAJOR" : "";
+            GUI.Label(new Rect(12, 8, 700, 28),
+                      $"Stage {_combat.Stage}{major} · {status}  (highest {_save.Progress.HighestStage})", style);
         }
 
         private void DrawRect(float x, float y, float w, float h, Color c)

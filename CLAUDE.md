@@ -65,9 +65,9 @@ Engine-independent order, same as the original plan:
 | M0 | Iso scene, camera, party lead (placeholder primitives) | ✅ |
 | M1 | Deterministic auto-combat in the client (`CombatView`) | ✅ |
 | M2 | Loot: drops + rarity + affixes, inventory, equip → stats recompute | ✅ |
-| M3 | Leveling: kills grant XP, fielded heroes level, stats scale | **next** |
-| M4 | Stages & progression: 50-stage ladder, miniboss gate, major boss /10, hero downing | later |
-| M5 | Idle accrual (offline = math off highest cleared stage, claim modal) | later |
+| M3 | Leveling: kills grant XP, fielded heroes level, stats scale | ✅ |
+| M4 | Stages & progression: 50-stage ladder, miniboss gate, major boss /10, hero downing | ✅ |
+| M5 | Idle accrual (offline = math off highest cleared stage, claim modal) | **next** |
 | M6 | Persistence & main menu (save/load, Continue / New Game) | later |
 | M7 | Feel pass (number formatting, juice, item-compare UI) | later |
 
