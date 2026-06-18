@@ -80,7 +80,9 @@ namespace IdleGame.GameCore
     public sealed class BalanceConstants
     {
         public double IdleCapHours = 12;
-        public double OfflineRate = 0.8;
+        // Offline yield as a fraction of the online rate (gold, XP, and loot rolls
+        // alike) — starts at 70% to nudge active play; tune freely later.
+        public double OfflineRate = 0.70;
         public int MaxLevel = 100;
 
         // A major boss (every 10th stage) multiplies the stage boss's scaled stats
