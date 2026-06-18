@@ -45,7 +45,14 @@ namespace IdleGame.GameCore
         public string RefId = "";       // heroId or monster defId
         public bool IsBoss;
 
+        // Hero downing (M4.3): a party hero at 0 HP is "downed", not dead — it
+        // respawns after RespawnMs counts down. RespawnDurationMs is the level-scaled
+        // base set at InitCombat. Monsters leave these at 0 (they die permanently).
+        public double RespawnMs;
+        public double RespawnDurationMs;
+
         public bool Alive => Hp > 0;
+        public bool Downed => Hp <= 0 && RespawnMs > 0;
     }
 
     public sealed class CombatState
@@ -59,7 +66,7 @@ namespace IdleGame.GameCore
         public int PendingXp;                             // XP accrued this run (M3)
     }
 
-    public enum CombatEventType { Hit, Death, LootDrop, LevelUp, WaveCleared, BossDefeated }
+    public enum CombatEventType { Hit, Death, LootDrop, LevelUp, WaveCleared, BossDefeated, Respawn }
 
     /// <summary>Flat event the renderer reacts to (damage numbers, deaths, etc.).</summary>
     public sealed class CombatEvent

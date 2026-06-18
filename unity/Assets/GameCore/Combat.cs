@@ -45,6 +45,7 @@ namespace IdleGame.GameCore
                     AttackIntervalMs = AttackInterval(stats),
                     RefKind = "hero",
                     RefId = hero.Id,
+                    RespawnDurationMs = cfg.Balance.RespawnBaseMs + cfg.Balance.RespawnPerLevelMs * hero.Level,
                 });
                 idx++;
             }
@@ -101,6 +102,22 @@ namespace IdleGame.GameCore
 
             s.TimeMs += dtMs;
 
+            // Respawn countdown (before acting + before the win/lose check) so a hero
+            // who comes back this step prevents a false wipe. Downed in a prior step
+            // counts down here; a hero downed this step starts counting next step.
+            foreach (var e in s.Entities)
+            {
+                if (!e.Downed) continue;
+                e.RespawnMs -= dtMs;
+                if (e.RespawnMs <= 0)
+                {
+                    e.RespawnMs = 0;
+                    e.Hp = e.MaxHp;
+                    e.AttackCdMs = 0;
+                    events.Add(new CombatEvent { Type = CombatEventType.Respawn, EntityId = e.Id });
+                }
+            }
+
             var actors = s.Entities.Where(e => e.Alive)
                                    .OrderBy(e => e.Id, StringComparer.Ordinal)
                                    .ToList();
@@ -139,25 +156,34 @@ namespace IdleGame.GameCore
                         {
                             target.Hp = 0;
                             events.Add(new CombatEvent { Type = CombatEventType.Death, EntityId = target.Id });
-                            if (target.IsBoss)
-                                events.Add(new CombatEvent { Type = CombatEventType.BossDefeated, Stage = s.Stage });
 
-                            // Loot + XP only from real monsters (guards synthetic test/party entities).
-                            if (target.Team == Team.Enemy && target.RefKind == "monster" &&
-                                cfg.Monsters.TryGetValue(target.RefId, out var mdef))
+                            // Party heroes are downed (will respawn), not killed. Monsters die.
+                            if (target.Team == Team.Party)
                             {
-                                s.PendingXp += mdef.XpReward;
+                                target.RespawnMs = target.RespawnDurationMs;
+                            }
+                            else
+                            {
+                                if (target.IsBoss)
+                                    events.Add(new CombatEvent { Type = CombatEventType.BossDefeated, Stage = s.Stage });
 
-                                var drop = Loot.RollDrop(rng, mdef, s.Loot, cfg);
-                                if (drop != null)
+                                // Loot + XP only from real monsters (guards synthetic test/party entities).
+                                if (target.RefKind == "monster" &&
+                                    cfg.Monsters.TryGetValue(target.RefId, out var mdef))
                                 {
-                                    s.PendingLoot.Add(drop);
-                                    events.Add(new CombatEvent
+                                    s.PendingXp += mdef.XpReward;
+
+                                    var drop = Loot.RollDrop(rng, mdef, s.Loot, cfg);
+                                    if (drop != null)
                                     {
-                                        Type = CombatEventType.LootDrop,
-                                        EntityId = target.Id,
-                                        Item = drop,
-                                    });
+                                        s.PendingLoot.Add(drop);
+                                        events.Add(new CombatEvent
+                                        {
+                                            Type = CombatEventType.LootDrop,
+                                            EntityId = target.Id,
+                                            Item = drop,
+                                        });
+                                    }
                                 }
                             }
                         }
@@ -169,10 +195,13 @@ namespace IdleGame.GameCore
                 }
             }
 
+            // A downed hero has Hp 0 (Alive == false), so an all-at-once wipe makes
+            // partyAlive false -> Lost. A timeout (can't clear in time) also loses.
             bool partyAlive = s.Entities.Any(e => e.Team == Team.Party && e.Alive);
             bool enemyAlive = s.Entities.Any(e => e.Team == Team.Enemy && e.Alive);
             if (!partyAlive) s.Status = CombatStatus.Lost;
             else if (!enemyAlive) s.Status = CombatStatus.Won;
+            else if (s.TimeMs >= cfg.Balance.MaxRunSeconds * 1000.0) s.Status = CombatStatus.Lost;
 
             return events;
         }

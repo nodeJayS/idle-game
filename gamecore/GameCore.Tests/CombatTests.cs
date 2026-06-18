@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using IdleGame.GameCore;
 using Xunit;
@@ -246,6 +247,135 @@ namespace IdleGame.GameCore.Tests
             var h1 = after.Heroes.Find(h => h.Id == "h1")!;
             Assert.Equal(s.PendingXp, h1.Xp);                    // goblin_king XP (60) < XpCurve(1) -> xp advances
             Assert.Equal(0, save.Heroes.Find(h => h.Id == "h1")!.Xp); // original untouched
+        }
+
+        // --- M4.3: hero downing + respawn ---
+
+        // A downed party hero (Hp 0, RespawnMs pending) that doesn't act/get targeted.
+        private static CombatEntity Downed(string id, double maxHp, double respawnMs, double x = 0)
+        {
+            var e = Ent(id, Team.Party, hp: maxHp, atk: 0, def: 0, x: x);
+            e.Hp = 0;
+            e.RespawnDurationMs = respawnMs;
+            e.RespawnMs = respawnMs;
+            return e;
+        }
+
+        [Fact]
+        public void DownedHeroRespawnsToFullHpAfterTimer()
+        {
+            // Tank + far-away enemy keep the run Running and out of attack range so
+            // nothing dies; the glass hero counts down and respawns.
+            var s = State(
+                Ent("P_tank", Team.Party, hp: 1000, atk: 0, def: 0, x: -50),
+                Ent("E", Team.Enemy, hp: 1000, atk: 0, def: 0, x: 50),
+                Downed("P_glass", maxHp: 50, respawnMs: 100));
+
+            // 100ms / 30ms-step => respawns on the 4th step (TimeMs 120).
+            List<CombatEvent> all = new();
+            for (int i = 0; i < 4; i++)
+                all.AddRange(Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1)));
+
+            var glass = s.Entities.First(e => e.Id == "P_glass");
+            Assert.True(glass.Alive);
+            Assert.Equal(50, glass.Hp);
+            Assert.Equal(0, glass.RespawnMs);
+            Assert.Contains(all, e => e.Type == CombatEventType.Respawn && e.EntityId == "P_glass");
+            Assert.Equal(CombatStatus.Running, s.Status);
+        }
+
+        [Fact]
+        public void DownedHeroDoesNotActOrGetTargetedWhileDown()
+        {
+            var enemy = Ent("E", Team.Enemy, hp: 1000, atk: 0, def: 0, x: 0.5);
+            var s = State(
+                Ent("P_tank", Team.Party, hp: 1000, atk: 0, def: 0, x: -50),
+                Downed("P_glass", maxHp: 50, respawnMs: 100000, x: 0),
+                enemy);
+
+            var events = Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+
+            // The in-range enemy targets the distant tank, never the adjacent downed hero,
+            // and the downed hero never attacks.
+            Assert.DoesNotContain(events, e => e.Type == CombatEventType.Hit &&
+                                               (e.TargetId == "P_glass" || e.SourceId == "P_glass"));
+        }
+
+        [Fact]
+        public void SimultaneousWipeLosesEvenThoughHeroIsDowned()
+        {
+            // Single party hero downed this step => no one alive => Lost.
+            var hero = Ent("P", Team.Party, hp: 5, atk: 0, def: 0, x: 0);
+            hero.RespawnDurationMs = 5000;
+            var s = State(
+                hero,
+                Ent("E", Team.Enemy, hp: 1000, atk: 100, def: 0, spd: 5, x: 0.5));
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+
+            var p = s.Entities.First(e => e.Id == "P");
+            Assert.Equal(CombatStatus.Lost, s.Status);
+            Assert.True(p.Downed);            // it was downed, not just killed...
+            Assert.Equal(0, p.Hp);            // ...but the all-at-once wipe still lost the run
+        }
+
+        [Fact]
+        public void RunTimesOutToLoss()
+        {
+            var cfg = GameConfig.Default();
+            cfg.Balance.MaxRunSeconds = 0.05; // 50ms
+
+            // Both teams alive and out of range => stalemate that should time out.
+            var s = State(
+                Ent("P", Team.Party, hp: 1000, atk: 0, def: 0, x: -50),
+                Ent("E", Team.Enemy, hp: 1000, atk: 0, def: 0, x: 50));
+
+            Combat.RunToEnd(s, cfg, new Rng(1));
+
+            Assert.Equal(CombatStatus.Lost, s.Status);
+            Assert.True(s.TimeMs >= 50);
+        }
+
+        [Fact]
+        public void MonstersDoNotRespawn()
+        {
+            // Party kills a weak enemy; a tank enemy keeps the run going. The dead
+            // enemy must stay dead (never gets a respawn timer).
+            var s = State(
+                Ent("P", Team.Party, hp: 1000, atk: 500, def: 0, x: 0),
+                Ent("E_weak", Team.Enemy, hp: 10, atk: 0, def: 0, x: 0.5),
+                Ent("E_tank", Team.Enemy, hp: 100000, atk: 0, def: 0, x: 50));
+
+            for (int i = 0; i < 50; i++)
+                Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+
+            var weak = s.Entities.First(e => e.Id == "E_weak");
+            Assert.False(weak.Alive);
+            Assert.False(weak.Downed);
+            Assert.Equal(0, weak.RespawnMs);
+        }
+
+        [Fact]
+        public void DowningAndRespawnAreDeterministic()
+        {
+            // A lone level-1 hero into a tough stage will get downed and the run
+            // resolves identically across seeds-equal runs.
+            CombatState Build()
+            {
+                var party = new[] { new HeroInstance { Id = "h1", DefId = "warrior_basic", Level = 1 } };
+                return Combat.InitCombat(party, 10, Cfg, new Rng(42));
+            }
+
+            var s1 = Build();
+            var s2 = Build();
+            var e1 = Combat.RunToEnd(s1, Cfg, new Rng(42));
+            var e2 = Combat.RunToEnd(s2, Cfg, new Rng(42));
+
+            Assert.Equal(s1.Status, s2.Status);
+            Assert.Equal(s1.TimeMs, s2.TimeMs);
+            Assert.Equal(e1.Count, e2.Count);
+            Assert.Equal(e1.Count(e => e.Type == CombatEventType.Respawn),
+                         e2.Count(e => e.Type == CombatEventType.Respawn));
         }
     }
 }

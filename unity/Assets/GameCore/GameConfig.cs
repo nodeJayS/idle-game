@@ -87,6 +87,13 @@ namespace IdleGame.GameCore
         // on top of the normal monster-level scaling.
         public double MajorBossMult = 2.5;
 
+        // Hero downing/respawn (M4.3). A downed party hero respawns after
+        // RespawnBaseMs + RespawnPerLevelMs * level. A run that can't clear within
+        // MaxRunSeconds is a loss (stuck/under-geared).
+        public double RespawnBaseMs = 3000;
+        public double RespawnPerLevelMs = 200;
+        public double MaxRunSeconds = 120;
+
         // Base drop weights per rarity, indexed by (int)Rarity ascending:
         // [Normal, Magic, Rare, Unique, Legendary]. Must have one entry per Rarity.
         // The stage's DropRateMult biases this upward — see Loot.RollRarity.
