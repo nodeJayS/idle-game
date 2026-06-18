@@ -54,6 +54,28 @@ namespace IdleGame.GameCore
             };
         }
 
+        /// <summary>Credit gold to the account balance (Currencies["gold"]). Pure.</summary>
+        public static SaveState GrantGold(SaveState save, long amount)
+        {
+            if (amount <= 0) return save;
+
+            var currencies = new Dictionary<string, long>(save.Currencies);
+            currencies["gold"] = (currencies.TryGetValue("gold", out var g) ? g : 0) + amount;
+
+            return new SaveState
+            {
+                Version = save.Version,
+                RngSeed = save.RngSeed,
+                RngCursor = save.RngCursor,
+                Heroes = save.Heroes,
+                Party = save.Party,
+                Inventory = save.Inventory,
+                Currencies = currencies,
+                Progress = save.Progress,
+                LastClaimAt = save.LastClaimAt,
+            };
+        }
+
         /// <summary>
         /// Record a stage clear: bump HighestStage if this is the deepest yet, and
         /// auto-advance CurrentStage to the next stage. Replaying an already-cleared

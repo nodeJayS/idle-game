@@ -73,6 +73,7 @@ namespace IdleGame.GameCore
         public CombatStatus Status = CombatStatus.Running;
         public List<Item> PendingLoot = new List<Item>(); // drops accrued this run (M2)
         public int PendingXp;                             // XP accrued this run (M3)
+        public long PendingGold;                          // gold accrued this run (M8)
 
         // Farm-mode spawning (M8): countdown to the next trash spawn, and a monotonic
         // counter used for unique entity ids + slime/goblin alternation.

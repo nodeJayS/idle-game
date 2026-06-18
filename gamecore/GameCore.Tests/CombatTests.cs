@@ -274,6 +274,38 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(s1.TimeMs, s2.TimeMs);
         }
 
+        // --- M8: per-kill gold + stage-scaled rewards ---
+
+        [Fact]
+        public void MonsterKillsAccruePendingGold()
+        {
+            var s = State(
+                Ent("A", Team.Party, hp: 1000, atk: 500, def: 0),
+                Monster("E0", "slime", hp: 10),
+                Monster("EBOSS", "goblin_king", hp: 10, boss: true));
+            // default State Stage == 0 => KillRewardMult == 1
+            Combat.RunToEnd(s, Cfg, new Rng(1));
+
+            Assert.Equal(Cfg.Monsters["slime"].GoldReward + Cfg.Monsters["goblin_king"].GoldReward, s.PendingGold);
+        }
+
+        [Fact]
+        public void DeeperStagesPayMorePerKill()
+        {
+            CombatState Build(int stage)
+            {
+                var s = State(Ent("A", Team.Party, hp: 1000, atk: 500, def: 0), Monster("E0", "slime", hp: 10));
+                s.Stage = stage;
+                return s;
+            }
+
+            var low = Build(1); Combat.RunToEnd(low, Cfg, new Rng(1));
+            var high = Build(25); Combat.RunToEnd(high, Cfg, new Rng(1));
+
+            Assert.True(high.PendingGold > low.PendingGold);
+            Assert.True(high.PendingXp > low.PendingXp);
+        }
+
         // --- HP regen ---
 
         [Fact]

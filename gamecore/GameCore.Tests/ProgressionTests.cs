@@ -73,6 +73,24 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void GrantGoldAddsToAccountAndIsPure()
+        {
+            var save = Save.NewGame(1, Cfg, 0); // gold 0
+            var after = Progression.GrantGold(save, 250);
+
+            Assert.Equal(250, after.Currencies["gold"]);
+            Assert.Equal(0, save.Currencies["gold"]); // original untouched
+            Assert.NotSame(save, after);
+        }
+
+        [Fact]
+        public void GrantGoldZeroIsNoop()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            Assert.Same(save, Progression.GrantGold(save, 0));
+        }
+
+        [Fact]
         public void GrantPartyXpLevelsPartyNotBench()
         {
             var save = Save.NewGame(1, Cfg, 0);            // h1 in party slot 0

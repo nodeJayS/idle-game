@@ -119,9 +119,29 @@ namespace IdleGame.GameCore
         public double DropChance = 0.35;
 
         public long XpCurve(int level) => (long)Math.Floor(100 * Math.Pow(1.15, level - 1));
-        public long GoldPerSec(int stage) => (long)Math.Floor(5 * Math.Pow(1.18, stage));
-        public long XpPerSec(int stage) => (long)Math.Floor(3 * Math.Pow(1.15, stage));
-        public double LootRollsPerHour(int stage) => 20 + stage * 5;
+
+        // Tiered rate model (M8): rates grow a little each stage and jump significantly
+        // each time you cross a real boss (every StagesPerTier). Stage drop params
+        // (StageDef.DropRateMult / AffixItemLevel) use the same tier in GameConfig.Default.
+        public int StagesPerTier = 10;
+        public double RatePerStageMult = 1.06; // small incremental growth per stage
+        public double RateTierMult = 2.2;      // significant jump per tier (after a real boss)
+        public double DropRatePerStage = 0.04; // additive rarity bias per stage within a tier
+        public double DropRateTierBonus = 0.4; // additive rarity bias per tier
+        public int ItemLevelTierBonus = 6;     // item-power bump per tier
+
+        /// <summary>0-based difficulty tier: stages 1..N => 0, N+1..2N => 1, … (N = StagesPerTier).</summary>
+        public int Tier(int stage) => Math.Max(0, (stage - 1) / StagesPerTier);
+
+        private double TierScale(int stage) =>
+            Math.Pow(RatePerStageMult, Math.Max(0, stage - 1)) * Math.Pow(RateTierMult, Tier(stage));
+
+        public long GoldPerSec(int stage) => (long)Math.Floor(5 * TierScale(stage));
+        public long XpPerSec(int stage) => (long)Math.Floor(3 * TierScale(stage));
+        public double LootRollsPerHour(int stage) => 20 + 5 * (stage - 1) + 40 * Tier(stage);
+
+        /// <summary>Per-kill XP/gold multiplier by stage — deeper stages pay more (same tier curve as idle).</summary>
+        public double KillRewardMult(int stage) => TierScale(stage);
     }
 
     public sealed class GameConfig
@@ -184,13 +204,13 @@ namespace IdleGame.GameCore
             {
                 Id = "slime", Name = "Slime",
                 BaseStats = SB((StatKey.Hp, 18), (StatKey.Atk, 3), (StatKey.Def, 0), (StatKey.Spd, 0.8), (StatKey.CritDmg, 1.5)),
-                LootTableId = "common", XpReward = 5, GoldReward = 2, Sprite = "slime",
+                LootTableId = "common", XpReward = 12, GoldReward = 3, Sprite = "slime",
             };
             cfg.Monsters["goblin"] = new MonsterDef
             {
                 Id = "goblin", Name = "Goblin",
                 BaseStats = SB((StatKey.Hp, 28), (StatKey.Atk, 5), (StatKey.Def, 1), (StatKey.Spd, 1.1), (StatKey.CritChance, 0.03), (StatKey.CritDmg, 1.5)),
-                LootTableId = "common", XpReward = 9, GoldReward = 4, Sprite = "goblin",
+                LootTableId = "common", XpReward = 20, GoldReward = 6, Sprite = "goblin",
             };
             cfg.Monsters["goblin_king"] = new MonsterDef
             {
@@ -202,10 +222,13 @@ namespace IdleGame.GameCore
             for (int i = 0; i < 50; i++)
             {
                 int stage = i + 1;
+                int tier = cfg.Balance.Tier(stage);
                 cfg.Stages.Add(new StageDef
                 {
                     Stage = stage, MonsterLevel = stage, PackCount = 3 + stage / 5,
-                    BossId = "goblin_king", DropRateMult = 1 + stage * 0.05, AffixItemLevel = stage,
+                    BossId = "goblin_king",
+                    DropRateMult = 1 + cfg.Balance.DropRatePerStage * (stage - 1) + cfg.Balance.DropRateTierBonus * tier,
+                    AffixItemLevel = stage + cfg.Balance.ItemLevelTierBonus * tier,
                 });
             }
 

@@ -254,7 +254,9 @@ namespace IdleGame.GameCore
                                 if (target.RefKind == "monster" &&
                                     cfg.Monsters.TryGetValue(target.RefId, out var mdef))
                                 {
-                                    s.PendingXp += mdef.XpReward;
+                                    double mult = cfg.Balance.KillRewardMult(s.Stage);
+                                    s.PendingXp += (int)Math.Floor(mdef.XpReward * mult);
+                                    s.PendingGold += (long)Math.Floor(mdef.GoldReward * mult);
 
                                     var drop = Loot.RollDrop(rng, mdef, s.Loot, cfg);
                                     if (drop != null)
