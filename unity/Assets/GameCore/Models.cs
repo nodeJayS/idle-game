@@ -16,7 +16,9 @@ namespace IdleGame.GameCore
     //   - combat state: transient (added in M1)
     // ------------------------------------------------------------------------
 
-    public enum Rarity { Normal, Magic, Rare, Unique }
+    // Ascending value — order matters: AffixDef.RarityFloor and the rarity-roll
+    // bias both rely on (int)Rarity as the rank (Normal = 0 … Legendary = 4).
+    public enum Rarity { Normal, Magic, Rare, Unique, Legendary }
 
     public enum EquipSlot { Weapon, Helm, Chest, Boots, Ring, Amulet }
 

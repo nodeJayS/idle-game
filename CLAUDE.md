@@ -17,23 +17,24 @@ logic leak into MonoBehaviours** — they spawn/animate/poll, they don't decide 
 
 ## Tech stack
 - **Sim:** `GameCore` — pure C# library, `net8.0`, tested with `dotnet test` (xUnit).
-- **Client:** Unity 6 LTS, 3D **URP**. `GameCore/*.cs` is copied into
-  `unity/Assets/GameCore/` under a no-engine-refs `GameCore.asmdef`; game-side
-  MonoBehaviours live in `unity/Assets/Game/` (`IdleGame.Game`).
+- **Client:** Unity 6 LTS, 3D **URP**. The sim lives in `unity/Assets/GameCore/`
+  under a no-engine-refs `GameCore.asmdef`; game-side MonoBehaviours live in
+  `unity/Assets/Game/` (`IdleGame.Game`).
 - **Persistence (today):** local JSON via `System.Text.Json` (the one host adapter).
 - **Later:** ASP.NET Core server referencing `GameCore` + Postgres + Redis; Supabase
   was the web-era plan. See live-service roadmap below.
 
 ## Repo layout
 ```
-gamecore/         PURE C# sim (canonical sources + GameCore.Tests xUnit)
-unity/            Unity project; references GameCore. Game code in Assets/Game,
-                  sim mirrored in Assets/GameCore.
-docs/             game-design.md — the durable what/why
-web-prototype/    ARCHIVED Vite/React/Pixi prototype (pre-pivot; do not extend)
+unity/Assets/GameCore/   THE sim — pure C#, no engine refs. SINGLE SOURCE OF TRUTH.
+unity/Assets/Game/       MonoBehaviours, read-only client (Bootstrap, CombatView)
+gamecore/GameCore.Tests/ xUnit tests — compile the SAME Assets/GameCore sources via a
+                         csproj glob (no copy). + gamecore/Adapters/Persistence.cs.
+docs/game-design.md      the durable what/why
+web-prototype/           ARCHIVED Vite/React/Pixi prototype (pre-pivot; do not extend)
 ```
-Note: `unity/Assets/GameCore/` is a **copy** of `gamecore/GameCore/`. Keep them in
-sync when editing sim code; `GameCore.Tests` points at the canonical `gamecore/` set.
+**Edit sim code in `unity/Assets/GameCore/`.** The test project compiles those exact
+files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sync.
 
 ## Design principles (what keeps it scalable)
 1. **Pure & deterministic.** Same state + seed ⇒ same result. Enables unit tests and

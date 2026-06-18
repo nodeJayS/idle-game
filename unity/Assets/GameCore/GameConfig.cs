@@ -79,6 +79,20 @@ namespace IdleGame.GameCore
         public double IdleCapHours = 12;
         public double OfflineRate = 0.8;
 
+        // Base drop weights per rarity, indexed by (int)Rarity ascending:
+        // [Normal, Magic, Rare, Unique, Legendary]. Must have one entry per Rarity.
+        // The rift's DropRateMult biases this upward — see Loot.RollRarity.
+        public double[] RarityBaseWeights = { 1000, 400, 120, 25, 4 };
+
+        // Affix count (min, max) per rarity, indexed by (int)Rarity ascending:
+        // [Normal, Magic, Rare, Unique, Legendary]. Counts cap at the eligible
+        // affix-pool size for the item base — see Loot.RollAffixes.
+        public (int min, int max)[] AffixCountByRarity = { (0, 0), (1, 2), (3, 4), (4, 5), (5, 6) };
+
+        // Base chance a common monster drops an item. Bosses always drop. (DropRateMult
+        // biases rarity, not drop chance, to avoid double-dipping.)
+        public double DropChance = 0.35;
+
         public long XpCurve(int level) => (long)Math.Floor(100 * Math.Pow(1.15, level - 1));
         public long GoldPerSec(int tier) => (long)Math.Floor(5 * Math.Pow(1.18, tier));
         public long XpPerSec(int tier) => (long)Math.Floor(3 * Math.Pow(1.15, tier));

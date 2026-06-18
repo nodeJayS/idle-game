@@ -80,8 +80,11 @@ reference the same library. Specifics:
   later). Logic reads config → tune without touching logic.
 
 ### Structure (C#)
+The sim is one assembly (`GameCore.asmdef`, no engine refs) living in
+`unity/Assets/GameCore/` — the **single source of truth**. The test project in
+`gamecore/` compiles those exact files via a csproj glob (no copy).
 ```
-gamecore/GameCore/
+unity/Assets/GameCore/             THE sim (pure C#)
   Models.cs        heroes, items, stats, save state
   Rng.cs           mulberry32 + WeightedPick  (loot now, gacha later)
   GameConfig.cs    Default() content: heroes/items/affixes/monsters/rifts/balance
@@ -90,11 +93,11 @@ gamecore/GameCore/
   Stats.cs         ComputeHeroStats / ComputePartyPower
   Combat.cs        InitCombat / StepCombat / RunToEnd (deterministic auto-battle)
   CombatModels.cs  transient CombatState / CombatEntity / CombatEvent
-gamecore/Adapters/Persistence.cs   System.Text.Json (the one host-specific adapter)
-
 unity/Assets/Game/                 MonoBehaviours (read-only client)
   Bootstrap.cs     builds the scene in code on Play
   CombatView.cs    drives + visualizes the auto-battle (M1)
+gamecore/GameCore.Tests/           xUnit, compiles Assets/GameCore + Persistence
+gamecore/Adapters/Persistence.cs   System.Text.Json (the one host-specific adapter)
 ```
 
 ---

@@ -13,6 +13,9 @@ namespace IdleGame.GameCore
     {
         private uint _state;
 
+        /// <summary>The seed this stream was constructed with (for deterministic ids).</summary>
+        public uint Seed { get; }
+
         /// <summary>How many values have been drawn from the seed so far.</summary>
         public int Cursor { get; private set; }
 
@@ -22,6 +25,7 @@ namespace IdleGame.GameCore
             {
                 _state = seed + (uint)(cursor * 0x6D2B79F5);
             }
+            Seed = seed;
             Cursor = cursor;
         }
 
