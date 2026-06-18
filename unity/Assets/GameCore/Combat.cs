@@ -60,7 +60,10 @@ namespace IdleGame.GameCore
             }
 
             if (cfg.Monsters.TryGetValue(rt.BossId, out var boss))
-                s.Entities.Add(MakeMonster(boss, "EBOSS", new Vec2(5, rt.PackCount * 0.75), scale, true));
+            {
+                double bossScale = rt.IsMajorBoss ? scale * cfg.Balance.MajorBossMult : scale;
+                s.Entities.Add(MakeMonster(boss, "EBOSS", new Vec2(5, rt.PackCount * 0.75), bossScale, true));
+            }
 
             return s;
         }

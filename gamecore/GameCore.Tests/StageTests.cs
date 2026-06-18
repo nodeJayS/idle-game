@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using IdleGame.GameCore;
 using Xunit;
 
@@ -74,6 +75,33 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(4, before.Progress.CurrentStage); // input untouched
             Assert.NotSame(before, after);
             Assert.Equal(3, after.Progress.HighestStage);  // highest preserved
+        }
+
+        [Fact]
+        public void EveryTenthStageIsMajorBoss()
+        {
+            Assert.True(Cfg.Stages.First(s => s.Stage == 10).IsMajorBoss);
+            Assert.True(Cfg.Stages.First(s => s.Stage == 20).IsMajorBoss);
+            Assert.False(Cfg.Stages.First(s => s.Stage == 1).IsMajorBoss);
+            Assert.False(Cfg.Stages.First(s => s.Stage == 15).IsMajorBoss);
+        }
+
+        [Fact]
+        public void MajorBossIsTougherThanRegularStageBoss()
+        {
+            var party = new[] { new HeroInstance { Id = "h1", DefId = "warrior_basic", Level = 1 } };
+
+            double BossHp(int stage)
+            {
+                var s = Combat.InitCombat(party, stage, Cfg, new Rng(1));
+                return s.Entities.First(e => e.IsBoss).MaxHp;
+            }
+
+            // Compare the major boss at stage 10 to the same boss def at the
+            // adjacent non-major stages, ruling out plain monster-level scaling.
+            double major = BossHp(10);
+            Assert.True(major > BossHp(9));
+            Assert.True(major > BossHp(11));
         }
     }
 }

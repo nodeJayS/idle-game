@@ -60,6 +60,9 @@ namespace IdleGame.GameCore
         public string BossId = "";
         public double DropRateMult;
         public int AffixItemLevel;
+
+        /// <summary>Every 10th stage hosts a major (scaled) boss. Distinct content later.</summary>
+        public bool IsMajorBoss => Stage % 10 == 0;
     }
 
     public sealed class SkillDef
@@ -79,6 +82,10 @@ namespace IdleGame.GameCore
         public double IdleCapHours = 12;
         public double OfflineRate = 0.8;
         public int MaxLevel = 100;
+
+        // A major boss (every 10th stage) multiplies the stage boss's scaled stats
+        // on top of the normal monster-level scaling.
+        public double MajorBossMult = 2.5;
 
         // Base drop weights per rarity, indexed by (int)Rarity ascending:
         // [Normal, Magic, Rare, Unique, Legendary]. Must have one entry per Rarity.
