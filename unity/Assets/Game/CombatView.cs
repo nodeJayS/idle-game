@@ -310,8 +310,9 @@ namespace IdleGame.Game
             };
             var style = new GUIStyle(GUI.skin.label) { fontSize = 18, fontStyle = FontStyle.Bold };
             string major = _cfg.Stages.Find(st => st.Stage == _combat.Stage)?.IsMajorBoss == true ? " ★MAJOR" : "";
-            GUI.Label(new Rect(12, 8, 700, 28),
-                      $"Stage {_combat.Stage}{major} · {status}  (highest {_save.Progress.HighestStage})", style);
+            long gold = _save.Currencies.TryGetValue("gold", out var g) ? g : 0;
+            GUI.Label(new Rect(12, 8, 760, 28),
+                      $"Stage {_combat.Stage}{major} · {status}  (highest {_save.Progress.HighestStage})  ·  {Num.Compact(gold)} gold", style);
         }
 
         private void DrawRect(float x, float y, float w, float h, Color c)
