@@ -44,12 +44,51 @@ namespace IdleGame.GameCore
             };
         }
 
-        /// <summary>Bring a loaded save up to the current version.</summary>
+        /// <summary>
+        /// Update the heartbeat: stamp <see cref="SaveState.LastClaimAt"/> to <c>now</c>
+        /// (epoch ms) so online play isn't later mistaken for offline time by idle
+        /// accrual. Pure (returns a new save); never moves the clock backward.
+        /// </summary>
+        public static SaveState Touch(SaveState save, long now)
+        {
+            long stamped = Math.Max(save.LastClaimAt, now);
+            if (stamped == save.LastClaimAt) return save; // no-op, share the ref
+
+            return new SaveState
+            {
+                Version = save.Version,
+                RngSeed = save.RngSeed,
+                RngCursor = save.RngCursor,
+                Heroes = save.Heroes,
+                Party = save.Party,
+                Inventory = save.Inventory,
+                Currencies = save.Currencies,
+                Progress = save.Progress,
+                LastClaimAt = stamped,
+            };
+        }
+
+        /// <summary>
+        /// Bring a loaded save up to the current version. Rejects a save newer than this
+        /// build, and back-fills any null collections so a partial/older JSON payload
+        /// can't NRE the rest of the game.
+        /// </summary>
         public static SaveState Migrate(SaveState? save)
         {
             if (save == null) throw new ArgumentException("Migrate: null save");
+            if (save.Version > SaveVersion)
+                throw new InvalidOperationException($"Migrate: save version {save.Version} is newer than supported {SaveVersion}");
             if (save.Version != SaveVersion)
                 throw new InvalidOperationException($"Migrate: unsupported version {save.Version} (expected {SaveVersion})");
+
+            // Defensive defaults: deserializers may leave collections null on partial input.
+            save.Heroes ??= new List<HeroInstance>();
+            save.Inventory ??= new List<Item>();
+            save.Currencies ??= new Dictionary<string, long>();
+            save.Progress ??= new ProgressState();
+            if (save.Party == null || save.Party.Length != 4)
+                save.Party = new string?[4];
+
             return save;
         }
     }
