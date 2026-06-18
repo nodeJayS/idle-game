@@ -31,8 +31,10 @@ namespace IdleGame.Game
                 // autosave the live save (heartbeat + on pause/quit)
                 director.AddComponent<Autosave>().Bind(view);
 
-                // manual inventory + item-compare screen
-                director.AddComponent<InventoryView>().Bind(view, cfg);
+                // manual inventory + item-compare screen (opened from the combat HUD)
+                var inventory = director.AddComponent<InventoryView>();
+                inventory.Bind(view, cfg);
+                view.BindInventory(inventory);
 
                 // "while you were away" modal, if the claim yielded anything
                 if (!idleReport.IsEmpty)

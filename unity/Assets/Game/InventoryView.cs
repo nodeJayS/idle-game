@@ -24,24 +24,17 @@ namespace IdleGame.Game
         private string? _selectedHeroId;
         private string? _selectedItemId;
 
+        /// <summary>True while the inventory panel is open (the HUD reads this).</summary>
+        public bool IsOpen => _panel != null;
+
         public void Bind(CombatView view, GameConfig cfg)
         {
             _view = view;
             _cfg = cfg;
         }
 
-        private void Start()
-        {
-            // persistent launcher button
-            var canvas = UiKit.CreateCanvas("InventoryLauncher", transform, sortOrder: 80);
-            var rt = UiKit.TextButton(canvas.transform, "Inventory", new Vector2(140, 40),
-                Vector2.zero, Toggle).GetComponent<RectTransform>();
-            rt.anchorMin = rt.anchorMax = new Vector2(1f, 0f); // bottom-right
-            rt.pivot = new Vector2(1f, 0f);
-            rt.anchoredPosition = new Vector2(-16f, 16f);
-        }
-
-        private void Toggle()
+        /// <summary>Open/close the inventory (driven by the combat HUD's Inventory button).</summary>
+        public void Toggle()
         {
             if (_panel != null) { Close(); return; }
             Open();

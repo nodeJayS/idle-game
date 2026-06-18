@@ -6,50 +6,49 @@ using IdleGame.GameCore;
 namespace IdleGame.Game
 {
     /// <summary>
-    /// M1 — drives and VISUALIZES the deterministic auto-battle. This is the
-    /// renderer: it only READS <see cref="CombatState"/>; all combat rules live in
-    /// <see cref="Combat"/> (IdleGame.GameCore). Per fixed step it calls
-    /// <see cref="Combat.StepCombat"/>, then interpolates placeholder primitives
-    /// toward the sim's entity positions for smooth motion. Deaths hide the view;
-    /// a win/loss restarts the run so the loop is visibly continuous.
+    /// Drives and VISUALIZES the deterministic sim (M8 loop). Two modes, both read-only
+    /// over <see cref="CombatState"/>:
+    ///   • Farm — endless trash you grind as long as you like (rewards committed to the
+    ///     save periodically); a wipe just resets the zone.
+    ///   • Boss challenge — a 60s timed miniboss/major boss; a win advances the stage,
+    ///     a loss/timeout drops you back to farming.
+    /// All rules live in <see cref="Combat"/> / <see cref="Progression"/>.
     /// </summary>
     public sealed class CombatView : MonoBehaviour
     {
-        private const float RestartDelaySec = 2.0f;
-        private const int MaxStepsPerFrame = 8;       // anti-spiral on a slow frame
-        private const float MoveSmoothing = 12f;       // exp smoothing toward sim pos
+        private const float OutcomeDelaySec = 1.5f;
+        private const float CommitIntervalSec = 3f;
+        private const int MaxStepsPerFrame = 8;
+        private const float MoveSmoothing = 12f;
 
         private sealed class View
         {
             public GameObject Go = null!;
-            public float Height;                       // world Y (half the primitive height)
-            public Color BaseColor;                    // restored when a downed hero respawns
+            public float Height;
+            public Color BaseColor;
         }
 
-        private static readonly Color DownedColor = new Color(0.30f, 0.30f, 0.34f); // greyed while down
+        private static readonly Color DownedColor = new Color(0.30f, 0.30f, 0.34f);
 
         private GameConfig _cfg = null!;
         private SaveState _save = null!;
         private CombatState _combat = null!;
         private Rng _rng = null!;
         private CombatJuice? _juice;
+        private InventoryView? _inventory;
         private readonly Dictionary<string, View> _views = new Dictionary<string, View>();
 
         private double _accMs;
-        private float _endTimer;
+        private float _commitTimer;
+        private float _outcomeTimer;
+        private bool _resolved;
         private uint _runCount;
-        private bool _committed;   // has this run's loot been added to the save yet?
 
-        // --- GUI textures (created lazily) ---
         private Texture2D _white = null!;
 
-        /// <summary>The live save — CombatView mutates it on wins (loot/XP/stage). The
-        /// autosave host reads this to persist real progress.</summary>
         public SaveState CurrentSave => _save;
-
-        /// <summary>Swap the live save (e.g. after the player equips gear). Stats are
-        /// recomputed at the next <see cref="StartRun"/>; the current run finishes as-is.</summary>
         public void ReplaceSave(SaveState save) => _save = save;
+        public void BindInventory(InventoryView inv) => _inventory = inv;
 
         public void Init(SaveState save, GameConfig cfg)
         {
@@ -60,20 +59,13 @@ namespace IdleGame.Game
                 _juice = new GameObject("CombatJuice").AddComponent<CombatJuice>();
                 _juice.Init(Camera.main);
             }
-            StartRun();
+            StartFarm();
         }
 
-        private void StartRun()
+        // ---- run lifecycle ----
+
+        private List<HeroInstance> BuildParty()
         {
-            // clear any previous run's views
-            foreach (var v in _views.Values)
-                if (v.Go != null) Destroy(v.Go);
-            _views.Clear();
-
-            // one RNG threaded through the whole fight (determinism). Offset by the
-            // run counter so the auto-restart loop shows varied fights, not a replay.
-            _rng = new Rng((uint)(_save.RngSeed + _runCount));
-
             var party = new List<HeroInstance>();
             foreach (var id in _save.Party)
                 if (id != null)
@@ -81,39 +73,24 @@ namespace IdleGame.Game
                     var hero = _save.Heroes.Find(h => h.Id == id);
                     if (hero != null) party.Add(hero);
                 }
-
-            _combat = Combat.InitCombat(party, _save.Progress.CurrentStage, _cfg, _rng);
-            SpawnViews();
-
-            _accMs = 0;
-            _endTimer = 0;
-            _committed = false;
-            Debug.Log($"[CombatView] Run #{_runCount} start: {_combat.Entities.Count} entities, stage {_combat.Stage}.");
+            return party;
         }
 
-        private void SpawnViews()
+        private void StartFarm() => Begin(Combat.InitFarm(BuildParty(), _save.Progress.CurrentStage, _cfg, NewRng()));
+        private void StartBoss() => Begin(Combat.InitBossChallenge(BuildParty(), _save.Progress.CurrentStage, _cfg, NewRng()));
+
+        private Rng NewRng() => _rng = new Rng((uint)(_save.RngSeed + _runCount));
+
+        private void Begin(CombatState combat)
         {
-            // combat Pos is a 2D plane (X, Y) -> world (X, Z); world Y is up.
-            foreach (var e in _combat.Entities)
-            {
-                bool isHero = e.Team == Team.Party;
-                var type = (!isHero && e.IsBoss) ? PrimitiveType.Cube : PrimitiveType.Capsule;
-                var go = GameObject.CreatePrimitive(type);
-                go.name = e.Id;
-
-                float scale = e.IsBoss ? 1.6f : 1f;
-                float height = (type == PrimitiveType.Capsule ? 1f : 0.5f) * scale;
-                go.transform.position = new Vector3((float)e.Pos.X, height, (float)e.Pos.Y);
-                go.transform.localScale = new Vector3(0.7f * scale, 0.9f * scale, 0.7f * scale);
-
-                Color color = isHero
-                    ? new Color(0.36f, 0.55f, 0.85f)               // party = blue
-                    : (e.IsBoss ? new Color(0.85f, 0.40f, 0.25f)   // boss = orange
-                                : new Color(0.45f, 0.80f, 0.50f));  // mobs = green
-                Paint(go, color);
-
-                _views[e.Id] = new View { Go = go, Height = height, BaseColor = color };
-            }
+            ClearViews();
+            _combat = combat;
+            ReconcileViews();
+            _accMs = 0;
+            _commitTimer = 0;
+            _outcomeTimer = 0;
+            _resolved = false;
+            Debug.Log($"[CombatView] {_combat.Kind} start: stage {_combat.Stage}.");
         }
 
         private void Update()
@@ -124,58 +101,123 @@ namespace IdleGame.Game
             {
                 _accMs += Time.deltaTime * 1000.0;
                 int steps = 0;
-                while (_accMs >= Combat.DefaultStepMs &&
-                       _combat.Status == CombatStatus.Running &&
-                       steps < MaxStepsPerFrame)
+                while (_accMs >= Combat.DefaultStepMs && _combat.Status == CombatStatus.Running && steps < MaxStepsPerFrame)
                 {
-                    var events = Combat.StepCombat(_combat, Combat.DefaultStepMs, _cfg, _rng);
+                    HandleEvents(Combat.StepCombat(_combat, Combat.DefaultStepMs, _cfg, _rng));
                     _accMs -= Combat.DefaultStepMs;
                     steps++;
-                    HandleEvents(events);
                 }
-                if (steps == MaxStepsPerFrame) _accMs = 0; // drop backlog after a stall
+                if (steps == MaxStepsPerFrame) _accMs = 0;
+
+                // Farm: bank progress periodically so grinding always counts.
+                if (_combat.Kind == EncounterKind.Farm)
+                {
+                    _commitTimer += Time.deltaTime;
+                    if (_commitTimer >= CommitIntervalSec) { CommitPending(); _commitTimer = 0; }
+                }
             }
             else
             {
-                // Commit this run's loot + XP to the save once, on the first ended frame.
-                if (!_committed)
-                {
-                    _committed = true;
-                    if (_combat.Status == CombatStatus.Won)
-                    {
-                        if (_combat.PendingLoot.Count > 0)
-                        {
-                            _save = Inventory.AddItems(_save, _combat.PendingLoot);
-                            Debug.Log($"[CombatView] Won — claimed {_combat.PendingLoot.Count} item(s). " +
-                                      $"Inventory now {_save.Inventory.Count}.");
-                        }
-                        if (_combat.PendingXp > 0)
-                        {
-                            int before = PartyLevelSum();
-                            _save = Progression.GrantPartyXp(_save, _combat.PendingXp, _cfg);
-                            int gained = PartyLevelSum() - before;
-                            string levels = gained > 0 ? $" — leveled up x{gained}!" : "";
-                            Debug.Log($"[CombatView] Won — party gained {_combat.PendingXp} XP{levels}");
-                        }
-
-                        // Advance the ladder: bump HighestStage + auto-advance CurrentStage,
-                        // so the next run visibly climbs (loops back to farm on a loss).
-                        _save = Progression.OnStageCleared(_save, _combat.Stage);
-                        Debug.Log($"[CombatView] Stage {_combat.Stage} cleared — now on stage " +
-                                  $"{_save.Progress.CurrentStage} (highest {_save.Progress.HighestStage}).");
-                    }
-                }
-
-                _endTimer += Time.deltaTime;
-                if (_endTimer >= RestartDelaySec)
-                {
-                    _runCount++;
-                    StartRun();
-                    return;
-                }
+                if (!_resolved) { _resolved = true; ResolveOutcome(); }
+                _outcomeTimer += Time.deltaTime;
+                if (_outcomeTimer >= OutcomeDelaySec) { _runCount++; StartFarm(); return; }
             }
 
+            ReconcileViews();
             SyncViews();
+        }
+
+        /// <summary>Bank pending loot/XP/gold into the save (idempotent — buffers reset).</summary>
+        private void CommitPending()
+        {
+            if (_combat.PendingLoot.Count > 0)
+            {
+                _save = Inventory.AddItems(_save, _combat.PendingLoot);
+                _combat.PendingLoot.Clear();
+            }
+            if (_combat.PendingXp > 0)
+            {
+                _save = Progression.GrantPartyXp(_save, _combat.PendingXp, _cfg);
+                _combat.PendingXp = 0;
+            }
+            if (_combat.PendingGold > 0)
+            {
+                _save = Progression.GrantGold(_save, _combat.PendingGold);
+                _combat.PendingGold = 0;
+            }
+        }
+
+        private void ResolveOutcome()
+        {
+            CommitPending(); // you keep whatever you earned, win or lose
+
+            if (_combat.Kind == EncounterKind.BossChallenge && _combat.Status == CombatStatus.Won)
+            {
+                _save = Progression.OnStageCleared(_save, _combat.Stage);
+                Debug.Log($"[CombatView] Boss cleared — advanced to stage {_save.Progress.CurrentStage} " +
+                          $"(highest {_save.Progress.HighestStage}).");
+            }
+        }
+
+        // ---- player controls (called from the IMGUI bar) ----
+
+        private void GoToStage(int stage)
+        {
+            try { _save = Progression.SetStage(_save, stage, _cfg); }
+            catch (System.ArgumentOutOfRangeException) { return; }
+            CommitPending(); _runCount++; StartFarm();
+        }
+
+        private void ChallengeBoss() { CommitPending(); _runCount++; StartBoss(); }
+        private void FleeToFarm() { CommitPending(); _runCount++; StartFarm(); }
+
+        // ---- views ----
+
+        private void SpawnView(CombatEntity e)
+        {
+            bool isHero = e.Team == Team.Party;
+            var type = (!isHero && e.IsBoss) ? PrimitiveType.Cube : PrimitiveType.Capsule;
+            var go = GameObject.CreatePrimitive(type);
+            go.name = e.Id;
+
+            float scale = e.IsBoss ? 1.6f : 1f;
+            float height = (type == PrimitiveType.Capsule ? 1f : 0.5f) * scale;
+            go.transform.position = new Vector3((float)e.Pos.X, height, (float)e.Pos.Y);
+            go.transform.localScale = new Vector3(0.7f * scale, 0.9f * scale, 0.7f * scale);
+
+            Color color = isHero
+                ? new Color(0.36f, 0.55f, 0.85f)
+                : (e.IsBoss ? new Color(0.85f, 0.40f, 0.25f) : new Color(0.45f, 0.80f, 0.50f));
+            Paint(go, color);
+
+            _views[e.Id] = new View { Go = go, Height = height, BaseColor = color };
+        }
+
+        /// <summary>Add views for new (spawned) entities and drop views for pruned/removed ones.</summary>
+        private void ReconcileViews()
+        {
+            var present = new HashSet<string>();
+            foreach (var e in _combat.Entities)
+            {
+                present.Add(e.Id);
+                if (!_views.ContainsKey(e.Id)) SpawnView(e);
+            }
+
+            List<string>? stale = null;
+            foreach (var kv in _views)
+                if (!present.Contains(kv.Key)) (stale ??= new List<string>()).Add(kv.Key);
+            if (stale != null)
+                foreach (var id in stale)
+                {
+                    if (_views[id].Go != null) Destroy(_views[id].Go);
+                    _views.Remove(id);
+                }
+        }
+
+        private void ClearViews()
+        {
+            foreach (var v in _views.Values) if (v.Go != null) Destroy(v.Go);
+            _views.Clear();
         }
 
         private void HandleEvents(List<CombatEvent> events)
@@ -190,64 +232,35 @@ namespace IdleGame.Game
                         {
                             var head = hv.Go.transform.position + Vector3.up * (hv.Height + 0.6f);
                             _juice.DamageNumber(head, ev.Amount, ev.Crit);
-                            if (ev.Crit)
-                            {
-                                _juice.Shake(0.15f);
-                                _juice.Flash(0.5f, new Color(1f, 0.85f, 0.4f));
-                            }
+                            if (ev.Crit) { _juice.Shake(0.15f); _juice.Flash(0.5f, new Color(1f, 0.85f, 0.4f)); }
                         }
                         break;
                     case CombatEventType.Death:
                         if (ev.EntityId != null && _views.TryGetValue(ev.EntityId, out var v) && v.Go != null)
                         {
                             var ent = _combat.Entities.Find(x => x.Id == ev.EntityId);
-                            if (ent != null && ent.Team == Team.Party)
-                                Paint(v.Go, DownedColor); // downed hero: grey, stays visible (respawns)
-                            else
-                                v.Go.SetActive(false);    // monster: gone
+                            if (ent != null && ent.Team == Team.Party) Paint(v.Go, DownedColor);
+                            else v.Go.SetActive(false);
                         }
                         break;
                     case CombatEventType.Respawn:
                         if (ev.EntityId != null && _views.TryGetValue(ev.EntityId, out var rv) && rv.Go != null)
                         {
                             rv.Go.SetActive(true);
-                            Paint(rv.Go, rv.BaseColor);   // restore hero color
+                            Paint(rv.Go, rv.BaseColor);
                         }
                         break;
                     case CombatEventType.BossDefeated:
-                        if (_juice != null && Settings.CombatEffects)
-                        {
-                            _juice.Shake(0.4f);
-                            _juice.Flash(0.7f, new Color(1f, 0.6f, 0.3f));
-                        }
-                        Debug.Log($"[CombatView] Boss defeated at stage {ev.Stage}.");
+                        if (_juice != null && Settings.CombatEffects) { _juice.Shake(0.4f); _juice.Flash(0.7f, new Color(1f, 0.6f, 0.3f)); }
                         break;
                     case CombatEventType.LootDrop:
                         if (ev.Item != null)
-                        {
                             _juice?.Toast($"{ev.Item.Rarity} {ev.Item.BaseId}", Palette.Rarity(ev.Item.Rarity));
-                            Debug.Log($"[CombatView] Drop: {ev.Item.Rarity} {ev.Item.BaseId} " +
-                                      $"(iLvl {ev.Item.ItemLevel}, {ev.Item.Affixes.Count} affixes)");
-                        }
                         break;
                 }
             }
         }
 
-        /// <summary>Sum of the fielded party's levels (for logging level-ups on a win).</summary>
-        private int PartyLevelSum()
-        {
-            int sum = 0;
-            foreach (var id in _save.Party)
-                if (id != null)
-                {
-                    var h = _save.Heroes.Find(x => x.Id == id);
-                    if (h != null) sum += h.Level;
-                }
-            return sum;
-        }
-
-        /// <summary>Interpolate each living view toward its sim position (smooth motion).</summary>
         private void SyncViews()
         {
             float t = 1f - Mathf.Exp(-MoveSmoothing * Time.deltaTime);
@@ -259,61 +272,101 @@ namespace IdleGame.Game
             }
         }
 
-        // --- lightweight status + HP-bar overlay (full juice is M6) ---
+        // ---- IMGUI HUD + control bar (always-on-top; full juice/UI polish later) ----
+
         private void OnGUI()
         {
             if (_combat == null) return;
             EnsureTextures();
+            DrawHealthBars();
+            DrawHud();
+            DrawControlBar();
+        }
 
+        private void DrawHealthBars()
+        {
             var cam = Camera.main;
-            if (cam != null)
+            if (cam == null) return;
+            foreach (var e in _combat.Entities)
             {
-                foreach (var e in _combat.Entities)
+                if (!_views.TryGetValue(e.Id, out var v) || v.Go == null || !v.Go.activeSelf) continue;
+                var sp = cam.WorldToScreenPoint(v.Go.transform.position + Vector3.up * (v.Height + 0.6f));
+                if (sp.z <= 0) continue;
+
+                if (e.Downed)
                 {
-                    if (!_views.TryGetValue(e.Id, out var v) || v.Go == null || !v.Go.activeSelf) continue;
-
-                    var head = v.Go.transform.position + Vector3.up * (v.Height + 0.6f);
-                    var sp = cam.WorldToScreenPoint(head);
-                    if (sp.z <= 0) continue; // behind camera
-
-                    // Downed hero: no HP bar, show a respawn countdown instead.
-                    if (e.Downed)
-                    {
-                        var dl = new GUIStyle(GUI.skin.label) { fontSize = 11, fontStyle = FontStyle.Bold };
-                        dl.normal.textColor = new Color(1f, 0.85f, 0.4f);
-                        GUI.Label(new Rect(sp.x - 30, Screen.height - sp.y - 4, 60, 16),
-                                  $"↻ {Mathf.CeilToInt((float)e.RespawnMs / 1000f)}s", dl);
-                        continue;
-                    }
-                    if (!e.Alive) continue;
-
-                    float w = e.IsBoss ? 56f : 34f;
-                    float h = 5f;
-                    float x = sp.x - w / 2f;
-                    float y = Screen.height - sp.y;
-                    float frac = e.MaxHp > 0 ? Mathf.Clamp01((float)(e.Hp / e.MaxHp)) : 0f;
-
-                    DrawRect(x - 1, y - 1, w + 2, h + 2, new Color(0f, 0f, 0f, 0.7f));
-                    DrawRect(x, y, w, h, new Color(0.25f, 0.05f, 0.05f, 0.9f));
-                    Color fill = e.Team == Team.Party
-                        ? new Color(0.35f, 0.75f, 1f)
-                        : new Color(0.9f, 0.35f, 0.3f);
-                    DrawRect(x, y, w * frac, h, fill);
+                    var dl = new GUIStyle(GUI.skin.label) { fontSize = 11, fontStyle = FontStyle.Bold };
+                    dl.normal.textColor = new Color(1f, 0.85f, 0.4f);
+                    GUI.Label(new Rect(sp.x - 30, Screen.height - sp.y - 4, 60, 16),
+                              $"↻ {Mathf.CeilToInt((float)e.RespawnMs / 1000f)}s", dl);
+                    continue;
                 }
+                if (!e.Alive) continue;
+
+                float w = e.IsBoss ? 56f : 34f, h = 5f;
+                float x = sp.x - w / 2f, y = Screen.height - sp.y;
+                float frac = e.MaxHp > 0 ? Mathf.Clamp01((float)(e.Hp / e.MaxHp)) : 0f;
+                DrawRect(x - 1, y - 1, w + 2, h + 2, new Color(0f, 0f, 0f, 0.7f));
+                DrawRect(x, y, w, h, new Color(0.25f, 0.05f, 0.05f, 0.9f));
+                DrawRect(x, y, w * frac, h, e.Team == Team.Party ? new Color(0.35f, 0.75f, 1f) : new Color(0.9f, 0.35f, 0.3f));
+            }
+        }
+
+        private void DrawHud()
+        {
+            var style = new GUIStyle(GUI.skin.label) { fontSize = 18, fontStyle = FontStyle.Bold };
+            bool major = _cfg.Stages.Find(st => st.Stage == _combat.Stage)?.IsMajorBoss == true;
+            long gold = _save.Currencies.TryGetValue("gold", out var g) ? g : 0;
+            string mode = _combat.Kind == EncounterKind.Farm ? "Farming" : (major ? "★ MAJOR BOSS" : "Miniboss");
+            GUI.Label(new Rect(12, 8, 900, 28),
+                      $"Stage {_combat.Stage} · {mode}  ·  highest {_save.Progress.HighestStage}  ·  {Num.Compact(gold)} gold", style);
+
+            if (_combat.Kind == EncounterKind.BossChallenge)
+            {
+                float remain = Mathf.Max(0f, (float)(_cfg.Balance.BossChallengeSeconds - _combat.TimeMs / 1000.0));
+                var timer = new GUIStyle(GUI.skin.label)
+                { fontSize = 30, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+                timer.normal.textColor = remain <= 10 ? new Color(1f, 0.4f, 0.35f) : Color.white;
+                GUI.Label(new Rect(Screen.width / 2f - 100, 40, 200, 40), $"{remain:0.0}s", timer);
             }
 
-            string status = _combat.Status switch
+            if (_combat.Status != CombatStatus.Running)
             {
-                CombatStatus.Won  => "VICTORY — restarting…",
-                CombatStatus.Lost => "DEFEAT — restarting…",
-                _                 => "Auto-combat running",
-            };
-            var style = new GUIStyle(GUI.skin.label) { fontSize = 18, fontStyle = FontStyle.Bold };
-            string major = _cfg.Stages.Find(st => st.Stage == _combat.Stage)?.IsMajorBoss == true ? " ★MAJOR" : "";
-            long gold = _save.Currencies.TryGetValue("gold", out var g) ? g : 0;
-            GUI.Label(new Rect(12, 8, 760, 28),
-                      $"Stage {_combat.Stage}{major} · {status}  (highest {_save.Progress.HighestStage})  ·  {Num.Compact(gold)} gold", style);
+                string banner = _combat.Kind == EncounterKind.BossChallenge
+                    ? (_combat.Status == CombatStatus.Won ? "STAGE CLEARED!" : "BOSS FAILED")
+                    : "PARTY WIPED";
+                var bs = new GUIStyle(GUI.skin.label)
+                { fontSize = 34, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+                GUI.Label(new Rect(0, Screen.height / 2f - 60, Screen.width, 44), banner, bs);
+            }
         }
+
+        private void DrawControlBar()
+        {
+            float y = Screen.height - 46f;
+            bool invOpen = _inventory != null && _inventory.IsOpen;
+
+            if (Button(12, y, 120, 34, invOpen ? "Close Bag" : "Inventory")) _inventory?.Toggle();
+            if (invOpen) return; // keep the bar uncluttered while the bag is open
+
+            bool running = _combat.Status == CombatStatus.Running;
+            if (running && _combat.Kind == EncounterKind.Farm)
+            {
+                int cur = _save.Progress.CurrentStage;
+                int maxStage = Mathf.Min(_save.Progress.HighestStage + 1, _cfg.Stages.Count);
+
+                if (cur > 1 && Button(144, y, 36, 34, "◀")) GoToStage(cur - 1);
+                if (cur < maxStage && Button(264, y, 36, 34, "▶")) GoToStage(cur + 1);
+                if (Button(312, y, 200, 34, "Challenge Miniboss")) ChallengeBoss();
+            }
+            else if (running && _combat.Kind == EncounterKind.BossChallenge)
+            {
+                if (Button(144, y, 100, 34, "Flee")) FleeToFarm();
+            }
+        }
+
+        private bool Button(float x, float y, float w, float h, string label) =>
+            GUI.Button(new Rect(x, y, w, h), label);
 
         private void DrawRect(float x, float y, float w, float h, Color c)
         {

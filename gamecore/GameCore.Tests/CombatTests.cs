@@ -187,6 +187,20 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void FarmPrunesDeadTrash()
+        {
+            // a killing party keeps clearing spawns; dead enemies must not accumulate
+            var cfg = FarmCfg(cap: 5, intervalMs: 50);
+            var s = Combat.InitFarm(new[] { Champ(50) }, 1, cfg, new Rng(1));
+            s.Entities[0].Stats[StatKey.Atk] = 100000;
+
+            for (int i = 0; i < 500; i++) Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            // party (1) + at most the cap of living trash; no graveyard of corpses
+            Assert.True(s.Entities.Count <= 1 + cfg.Balance.MobCap);
+        }
+
+        [Fact]
         public void FarmIsDeterministic()
         {
             var cfg = FarmCfg(cap: 8, intervalMs: 100);

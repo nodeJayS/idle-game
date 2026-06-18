@@ -287,6 +287,9 @@ namespace IdleGame.GameCore
             {
                 // Endless: never auto-wins, no timeout — only a wipe ends it.
                 if (!partyAlive) s.Status = CombatStatus.Lost;
+                // Dead trash would otherwise pile up forever — prune it (rewards already
+                // accrued at death; living entities keep their order, so determinism holds).
+                s.Entities.RemoveAll(e => e.Team == Team.Enemy && !e.Alive);
             }
             else
             {
