@@ -42,6 +42,22 @@ namespace IdleGame.GameCore
         public static StatBlock ComputeHeroStats(HeroInstance hero, GameConfig cfg)
             => ComputeHeroStats(hero, cfg, Array.Empty<Item>());
 
+        /// <summary>
+        /// Resolve a hero's equipped slot→itemId references into the actual Items by
+        /// looking them up in the inventory pool. Lives here (not Inventory) so Stats
+        /// has no dependency back on Inventory. Ids with no matching item are skipped.
+        /// </summary>
+        public static IReadOnlyList<Item> ResolveEquipped(SaveState save, HeroInstance hero)
+        {
+            var items = new List<Item>(hero.Equipped.Count);
+            foreach (var itemId in hero.Equipped.Values)
+            {
+                var item = save.Inventory.Find(i => i.Id == itemId);
+                if (item != null) items.Add(item);
+            }
+            return items;
+        }
+
         /// <summary>A single rolled-up "power" number for UI / future matchmaking.</summary>
         public static double ComputePartyPower(SaveState save, GameConfig cfg)
         {
@@ -51,7 +67,7 @@ namespace IdleGame.GameCore
                 if (heroId == null) continue;
                 var hero = save.Heroes.Find(h => h.Id == heroId);
                 if (hero == null) continue;
-                var st = ComputeHeroStats(hero, cfg); // item resolution arrives in M2
+                var st = ComputeHeroStats(hero, cfg, ResolveEquipped(save, hero));
                 power += st.Get(StatKey.Hp) * 0.5
                        + st.Get(StatKey.Atk) * 5.0
                        + st.Get(StatKey.Def) * 3.0;
