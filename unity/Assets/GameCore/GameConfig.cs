@@ -96,6 +96,11 @@ namespace IdleGame.GameCore
         public double RespawnPerLevelMs = 200;
         public double MaxRunSeconds = 120;
 
+        // Farm zones (M8): max concurrent trash on screen, and how often a new one
+        // spawns (one per interval up to the cap).
+        public int MobCap = 30;
+        public double SpawnIntervalMs = 2000;
+
         // Base drop weights per rarity, indexed by (int)Rarity ascending:
         // [Normal, Magic, Rare, Unique, Legendary]. Must have one entry per Rarity.
         // The stage's DropRateMult biases this upward — see Loot.RollRarity.

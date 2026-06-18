@@ -27,8 +27,53 @@ namespace IdleGame.GameCore
         /// <summary>Build the initial battle: party (left) vs the stage's pack + boss (right).</summary>
         public static CombatState InitCombat(IReadOnlyList<HeroInstance> party, int stage, GameConfig cfg, Rng rng)
         {
-            var s = new CombatState { Stage = stage };
+            var s = new CombatState { Stage = stage, Kind = EncounterKind.Encounter };
+            AddParty(s, party, cfg);
 
+            var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
+            s.Loot = LootContext.ForStage(rt);
+            double scale = StageScale(rt);
+
+            for (int j = 0; j < rt.PackCount; j++)
+            {
+                var mdef = (j % 2 == 0) ? cfg.Monsters["slime"] : cfg.Monsters["goblin"];
+                s.Entities.Add(MakeMonster(mdef, "E" + j, new Vec2(3, j * 1.5), scale, false));
+            }
+
+            if (cfg.Monsters.TryGetValue(rt.BossId, out var boss))
+            {
+                double bossScale = rt.IsMajorBoss ? scale * cfg.Balance.MajorBossMult : scale;
+                s.Entities.Add(MakeMonster(boss, "EBOSS", new Vec2(5, rt.PackCount * 0.75), bossScale, true));
+            }
+
+            return s;
+        }
+
+        /// <summary>
+        /// Build an endless farm zone (M8): party vs continuously-respawning trash (no
+        /// boss). Trash is capped at Balance.MobCap and refilled one per
+        /// Balance.SpawnIntervalMs in <see cref="StepCombat"/>; the run never auto-wins
+        /// and only a full party wipe loses.
+        /// </summary>
+        public static CombatState InitFarm(IReadOnlyList<HeroInstance> party, int stage, GameConfig cfg, Rng rng)
+        {
+            var s = new CombatState { Stage = stage, Kind = EncounterKind.Farm };
+            AddParty(s, party, cfg);
+
+            var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
+            s.Loot = LootContext.ForStage(rt);
+
+            int initial = Math.Min(rt.PackCount, cfg.Balance.MobCap);
+            for (int i = 0; i < initial; i++) SpawnTrash(s, rt, cfg, rng);
+
+            s.SpawnTimerMs = cfg.Balance.SpawnIntervalMs;
+            return s;
+        }
+
+        private static double StageScale(StageDef rt) => 1.0 + 0.1 * (rt.MonsterLevel - 1);
+
+        private static void AddParty(CombatState s, IReadOnlyList<HeroInstance> party, GameConfig cfg)
+        {
             int idx = 0;
             foreach (var hero in party)
             {
@@ -49,24 +94,15 @@ namespace IdleGame.GameCore
                 });
                 idx++;
             }
+        }
 
-            var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
-            s.Loot = LootContext.ForStage(rt);
-            double scale = 1.0 + 0.1 * (rt.MonsterLevel - 1);
-
-            for (int j = 0; j < rt.PackCount; j++)
-            {
-                var mdef = (j % 2 == 0) ? cfg.Monsters["slime"] : cfg.Monsters["goblin"];
-                s.Entities.Add(MakeMonster(mdef, "E" + j, new Vec2(3, j * 1.5), scale, false));
-            }
-
-            if (cfg.Monsters.TryGetValue(rt.BossId, out var boss))
-            {
-                double bossScale = rt.IsMajorBoss ? scale * cfg.Balance.MajorBossMult : scale;
-                s.Entities.Add(MakeMonster(boss, "EBOSS", new Vec2(5, rt.PackCount * 0.75), bossScale, true));
-            }
-
-            return s;
+        /// <summary>Spawn one trash mob at a random spot on the enemy side (deterministic via rng).</summary>
+        private static void SpawnTrash(CombatState s, StageDef rt, GameConfig cfg, Rng rng)
+        {
+            var mdef = (s.SpawnCount % 2 == 0) ? cfg.Monsters["slime"] : cfg.Monsters["goblin"];
+            var pos = new Vec2(2.5 + rng.RandRange(0.0, 3.0), rng.RandRange(-3.0, 3.0));
+            s.Entities.Add(MakeMonster(mdef, "E" + s.SpawnCount, pos, StageScale(rt), false));
+            s.SpawnCount++;
         }
 
         private static CombatEntity MakeMonster(MonsterDef def, string id, Vec2 pos, double scale, bool isBoss)
@@ -115,6 +151,21 @@ namespace IdleGame.GameCore
                     e.Hp = e.MaxHp;
                     e.AttackCdMs = 0;
                     events.Add(new CombatEvent { Type = CombatEventType.Respawn, EntityId = e.Id });
+                }
+            }
+
+            // Farm spawning: refill trash one per interval, up to the cap.
+            if (s.Kind == EncounterKind.Farm)
+            {
+                s.SpawnTimerMs -= dtMs;
+                if (s.SpawnTimerMs <= 0)
+                {
+                    if (CountAliveEnemies(s) < cfg.Balance.MobCap)
+                    {
+                        var rt = cfg.Stages.Find(r => r.Stage == s.Stage) ?? cfg.Stages[0];
+                        SpawnTrash(s, rt, cfg, rng);
+                    }
+                    s.SpawnTimerMs = cfg.Balance.SpawnIntervalMs;
                 }
             }
 
@@ -205,12 +256,20 @@ namespace IdleGame.GameCore
             }
 
             // A downed hero has Hp 0 (Alive == false), so an all-at-once wipe makes
-            // partyAlive false -> Lost. A timeout (can't clear in time) also loses.
+            // partyAlive false -> Lost.
             bool partyAlive = s.Entities.Any(e => e.Team == Team.Party && e.Alive);
-            bool enemyAlive = s.Entities.Any(e => e.Team == Team.Enemy && e.Alive);
-            if (!partyAlive) s.Status = CombatStatus.Lost;
-            else if (!enemyAlive) s.Status = CombatStatus.Won;
-            else if (s.TimeMs >= cfg.Balance.MaxRunSeconds * 1000.0) s.Status = CombatStatus.Lost;
+            if (s.Kind == EncounterKind.Farm)
+            {
+                // Endless: never auto-wins, no timeout — only a wipe ends it.
+                if (!partyAlive) s.Status = CombatStatus.Lost;
+            }
+            else
+            {
+                bool enemyAlive = s.Entities.Any(e => e.Team == Team.Enemy && e.Alive);
+                if (!partyAlive) s.Status = CombatStatus.Lost;
+                else if (!enemyAlive) s.Status = CombatStatus.Won;
+                else if (s.TimeMs >= cfg.Balance.MaxRunSeconds * 1000.0) s.Status = CombatStatus.Lost;
+            }
 
             return events;
         }
@@ -227,6 +286,13 @@ namespace IdleGame.GameCore
                 steps++;
             }
             return all;
+        }
+
+        private static int CountAliveEnemies(CombatState s)
+        {
+            int n = 0;
+            foreach (var e in s.Entities) if (e.Team == Team.Enemy && e.Alive) n++;
+            return n;
         }
 
         private static CombatEntity? FindNearestEnemy(CombatState s, CombatEntity self)

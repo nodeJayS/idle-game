@@ -30,6 +30,13 @@ namespace IdleGame.GameCore
 
     public enum CombatStatus { Running, Won, Lost }
 
+    /// <summary>
+    /// Encounter type (M8). Encounter = the classic clear-the-enemies fight (also the
+    /// base for the timed boss challenge). Farm = an endless zone: trash respawns up to
+    /// a cap, never auto-wins, and only a full party wipe loses.
+    /// </summary>
+    public enum EncounterKind { Encounter, Farm }
+
     public sealed class CombatEntity
     {
         public string Id = "";
@@ -59,11 +66,17 @@ namespace IdleGame.GameCore
     {
         public double TimeMs;
         public int Stage;
+        public EncounterKind Kind = EncounterKind.Encounter;
         public LootContext Loot;       // set by InitCombat; mode-agnostic drop params
         public List<CombatEntity> Entities = new List<CombatEntity>();
         public CombatStatus Status = CombatStatus.Running;
         public List<Item> PendingLoot = new List<Item>(); // drops accrued this run (M2)
         public int PendingXp;                             // XP accrued this run (M3)
+
+        // Farm-mode spawning (M8): countdown to the next trash spawn, and a monotonic
+        // counter used for unique entity ids + slime/goblin alternation.
+        public double SpawnTimerMs;
+        public int SpawnCount;
     }
 
     public enum CombatEventType { Hit, Death, LootDrop, LevelUp, WaveCleared, BossDefeated, Respawn }

@@ -115,6 +115,102 @@ namespace IdleGame.GameCore.Tests
             Assert.Contains(events, e => e.Type == CombatEventType.BossDefeated && e.Stage == 3);
         }
 
+        // --- M8.1: farm encounter (endless spawning) ---
+
+        private static GameConfig FarmCfg(int cap, double intervalMs)
+        {
+            var cfg = GameConfig.Default();
+            cfg.Balance.MobCap = cap;
+            cfg.Balance.SpawnIntervalMs = intervalMs;
+            return cfg;
+        }
+
+        private static int AliveEnemies(CombatState s) =>
+            s.Entities.Count(e => e.Team == Team.Enemy && e.Alive);
+
+        [Fact]
+        public void InitFarmStartsWithTrashAndNoBoss()
+        {
+            var party = new[] { new HeroInstance { Id = "h1", DefId = "warrior_basic", Level = 1 } };
+            var s = Combat.InitFarm(party, 1, GameConfig.Default(), new Rng(1));
+
+            Assert.Equal(EncounterKind.Farm, s.Kind);
+            Assert.True(AliveEnemies(s) > 0);
+            Assert.DoesNotContain(s.Entities, e => e.IsBoss);
+        }
+
+        [Fact]
+        public void FarmRefillsTrashUpToCapAndNoFurther()
+        {
+            // a party that can't kill anything (atk 0) lets trash accumulate to the cap
+            var cfg = FarmCfg(cap: 5, intervalMs: 50);
+            var party = new[] { new HeroInstance { Id = "h1", DefId = "warrior_basic", Level = 1 } };
+            var s = Combat.InitFarm(party, 1, cfg, new Rng(1));
+            s.Entities[0].Stats[StatKey.Atk] = 0; // party deals no damage
+
+            for (int i = 0; i < 400; i++) Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.Equal(5, AliveEnemies(s));         // filled to cap
+            Assert.Equal(CombatStatus.Running, s.Status); // never auto-wins
+        }
+
+        [Fact]
+        public void FarmNeverAutoWinsEvenWhenCleared()
+        {
+            // a one-shot party clears trash constantly; farm must stay Running, not Won
+            var cfg = FarmCfg(cap: 30, intervalMs: 2000);
+            var party = new[] { new HeroInstance { Id = "h1", DefId = "warrior_basic", Level = 50 } };
+            var s = Combat.InitFarm(party, 1, cfg, new Rng(1));
+            s.Entities[0].Stats[StatKey.Atk] = 100000;
+
+            for (int i = 0; i < 500; i++) Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.NotEqual(CombatStatus.Won, s.Status);
+            Assert.Equal(CombatStatus.Running, s.Status);
+        }
+
+        [Fact]
+        public void FarmWipeLoses()
+        {
+            var cfg = FarmCfg(cap: 30, intervalMs: 2000);
+            var s = Combat.InitFarm(
+                new[] { new HeroInstance { Id = "h1", DefId = "warrior_basic", Level = 1 } }, 1, cfg, new Rng(1));
+            // make the hero a glass cannon-less target that simply dies and can't respawn
+            var hero = s.Entities[0];
+            hero.MaxHp = hero.Hp = 1;
+            hero.Stats[StatKey.Atk] = 0;
+            hero.Stats[StatKey.HpRegen] = 0;
+            hero.RespawnDurationMs = 0;
+
+            Combat.RunToEnd(s, cfg, new Rng(1), maxSteps: 5000);
+            Assert.Equal(CombatStatus.Lost, s.Status);
+        }
+
+        [Fact]
+        public void FarmIsDeterministic()
+        {
+            var cfg = FarmCfg(cap: 8, intervalMs: 100);
+            CombatState Build()
+            {
+                var s = Combat.InitFarm(
+                    new[] { new HeroInstance { Id = "h1", DefId = "warrior_basic", Level = 1 } }, 1, cfg, new Rng(9));
+                s.Entities[0].Stats[StatKey.Atk] = 0;
+                return s;
+            }
+
+            var s1 = Build();
+            var s2 = Build();
+            for (int i = 0; i < 300; i++)
+            {
+                Combat.StepCombat(s1, Combat.DefaultStepMs, cfg, new Rng(9));
+                Combat.StepCombat(s2, Combat.DefaultStepMs, cfg, new Rng(9));
+            }
+
+            Assert.Equal(s1.SpawnCount, s2.SpawnCount);
+            Assert.Equal(s1.Entities.Count, s2.Entities.Count);
+            Assert.Equal(AliveEnemies(s1), AliveEnemies(s2));
+        }
+
         // --- HP regen ---
 
         [Fact]
