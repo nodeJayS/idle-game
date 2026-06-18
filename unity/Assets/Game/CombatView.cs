@@ -119,15 +119,26 @@ namespace IdleGame.Game
             }
             else
             {
-                // Commit this run's loot to the save once, on the first ended frame.
+                // Commit this run's loot + XP to the save once, on the first ended frame.
                 if (!_committed)
                 {
                     _committed = true;
-                    if (_combat.Status == CombatStatus.Won && _combat.PendingLoot.Count > 0)
+                    if (_combat.Status == CombatStatus.Won)
                     {
-                        _save = Inventory.AddItems(_save, _combat.PendingLoot);
-                        Debug.Log($"[CombatView] Won — claimed {_combat.PendingLoot.Count} item(s). " +
-                                  $"Inventory now {_save.Inventory.Count}.");
+                        if (_combat.PendingLoot.Count > 0)
+                        {
+                            _save = Inventory.AddItems(_save, _combat.PendingLoot);
+                            Debug.Log($"[CombatView] Won — claimed {_combat.PendingLoot.Count} item(s). " +
+                                      $"Inventory now {_save.Inventory.Count}.");
+                        }
+                        if (_combat.PendingXp > 0)
+                        {
+                            int before = PartyLevelSum();
+                            _save = Progression.GrantPartyXp(_save, _combat.PendingXp, _cfg);
+                            int gained = PartyLevelSum() - before;
+                            string levels = gained > 0 ? $" — leveled up x{gained}!" : "";
+                            Debug.Log($"[CombatView] Won — party gained {_combat.PendingXp} XP{levels}");
+                        }
                     }
                 }
 
@@ -163,6 +174,19 @@ namespace IdleGame.Game
                         break;
                 }
             }
+        }
+
+        /// <summary>Sum of the fielded party's levels (for logging level-ups on a win).</summary>
+        private int PartyLevelSum()
+        {
+            int sum = 0;
+            foreach (var id in _save.Party)
+                if (id != null)
+                {
+                    var h = _save.Heroes.Find(x => x.Id == id);
+                    if (h != null) sum += h.Level;
+                }
+            return sum;
         }
 
         /// <summary>Interpolate each living view toward its sim position (smooth motion).</summary>

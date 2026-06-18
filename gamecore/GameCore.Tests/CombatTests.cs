@@ -229,5 +229,23 @@ namespace IdleGame.GameCore.Tests
             Combat.RunToEnd(s2, Cfg, new Rng(7));
             Assert.Equal(s1.PendingXp, s2.PendingXp);
         }
+
+        [Fact]
+        public void PendingXpCommitsToPartyOnWin()
+        {
+            // a run yields PendingXp; committing it advances the real save's party hero
+            var s = State(
+                Ent("A", Team.Party, hp: 1000, atk: 500, def: 0),
+                Monster("EBOSS", "goblin_king", hp: 10, boss: true));
+            Combat.RunToEnd(s, Cfg, new Rng(1));
+            Assert.True(s.PendingXp > 0);
+
+            var save = Save.NewGame(1, Cfg, 0);                 // warrior h1 in party, level 1, xp 0
+            var after = Progression.GrantPartyXp(save, s.PendingXp, Cfg);
+
+            var h1 = after.Heroes.Find(h => h.Id == "h1")!;
+            Assert.Equal(s.PendingXp, h1.Xp);                    // goblin_king XP (60) < XpCurve(1) -> xp advances
+            Assert.Equal(0, save.Heroes.Find(h => h.Id == "h1")!.Xp); // original untouched
+        }
     }
 }
