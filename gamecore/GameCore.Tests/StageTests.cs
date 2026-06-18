@@ -86,6 +86,31 @@ namespace IdleGame.GameCore.Tests
             Assert.False(Cfg.Stages.First(s => s.Stage == 15).IsMajorBoss);
         }
 
+        // --- M8.3: boss-gate progression contract ---
+        // Beating the current stage's timed boss challenge is what advances progression:
+        // OnStageCleared(stage) raises HighestStage to that stage and moves to the next.
+
+        [Fact]
+        public void BeatingTheBossGateAdvancesProgression()
+        {
+            var save = Save0(); // HighestStage 0, CurrentStage 1
+            var party = save.Heroes.ToArray();
+
+            var fight = Combat.InitBossChallenge(party, save.Progress.CurrentStage, Cfg, new Rng(1));
+            fight.Entities.First(e => e.IsBoss).Stats[StatKey.Hp] = 1; // trivial kill
+            foreach (var e in fight.Entities)
+                if (e.Team == Team.Party) e.Stats[StatKey.Atk] = 100000;
+            Combat.RunToEnd(fight, Cfg, new Rng(1));
+            Assert.Equal(CombatStatus.Won, fight.Status);
+
+            var after = Progression.OnStageCleared(save, fight.Stage);
+            Assert.Equal(1, after.Progress.HighestStage);
+            Assert.Equal(2, after.Progress.CurrentStage);
+
+            // and the newly-unlocked frontier (HighestStage + 1) is selectable to farm
+            Assert.Equal(2, Progression.SetStage(after, 2, Cfg).Progress.CurrentStage);
+        }
+
         [Fact]
         public void MajorBossIsTougherThanRegularStageBoss()
         {
