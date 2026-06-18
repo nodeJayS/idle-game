@@ -1,60 +1,41 @@
+#nullable enable
 using UnityEngine;
+using UnityEngine.UI;
 using IdleGame.GameCore;
 
 namespace IdleGame.Game
 {
     /// <summary>
-    /// The "while you were away" claim modal (design §7 — the offline-return moment).
-    /// Read-only: it just displays an <see cref="IdleReport"/> already produced by
-    /// <see cref="Idle.Claim"/> in game-core. Full count-up animation/juice is M7;
-    /// this is the functional placeholder. Dismiss with OK to clear it.
+    /// The "while you were away" claim modal (design §7 — the offline-return moment),
+    /// built in uGUI. Read-only: it just displays an <see cref="IdleReport"/> already
+    /// produced by <see cref="Idle.Claim"/> in game-core. Count-up animation/juice is
+    /// M7; this is the functional version. Collect dismisses it.
     /// </summary>
     public sealed class IdleClaimModal : MonoBehaviour
     {
-        private IdleReport _report = null!;
-        private Texture2D _dim = null!;
-
-        public void Show(IdleReport report) => _report = report;
-
-        private void OnGUI()
+        public void Show(IdleReport report)
         {
-            if (_report == null) return;
-            if (_dim == null)
-            {
-                _dim = new Texture2D(1, 1);
-                _dim.SetPixel(0, 0, new Color(0f, 0f, 0f, 0.6f));
-                _dim.Apply();
-            }
+            var canvas = UiKit.CreateCanvas("IdleClaimCanvas", transform, sortOrder: 90);
+            UiKit.FullScreen(canvas.transform, new Color(0f, 0f, 0f, 0.6f));
 
-            // dim the screen behind the panel
-            GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), _dim);
+            var panel = UiKit.Panel(canvas.transform, new Vector2(420, 300), new Color(0.10f, 0.10f, 0.14f, 1f));
+            UiKit.Label(panel.transform, "While you were away", 24, TextAnchor.MiddleCenter,
+                        new Vector2(380, 36), new Vector2(0, 110));
 
-            const float w = 360f, h = 230f;
-            float x = (Screen.width - w) / 2f;
-            float y = (Screen.height - h) / 2f;
+            var ts = System.TimeSpan.FromMilliseconds(report.ElapsedMs);
+            string away = ts.TotalHours >= 1 ? $"{(int)ts.TotalHours}h {ts.Minutes}m" : $"{ts.Minutes}m {ts.Seconds}s";
+            string capped = report.Capped ? "  (capped)" : "";
 
-            GUI.Box(new Rect(x, y, w, h), GUIContent.none);
+            Line(panel.transform, $"Away for: {away}{capped}", 50);
+            Line(panel.transform, $"Gold:  {report.Gold:N0}", 14);
+            Line(panel.transform, $"XP:    {report.Xp:N0}", -22);
+            Line(panel.transform, $"Items: {report.Items.Count:N0}", -58);
 
-            var title = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter,
-            };
-            var line = new GUIStyle(GUI.skin.label) { fontSize = 15 };
-
-            GUI.Label(new Rect(x, y + 14, w, 28), "While you were away", title);
-
-            var ts = System.TimeSpan.FromMilliseconds(_report.ElapsedMs);
-            string elapsed = ts.TotalHours >= 1 ? $"{(int)ts.TotalHours}h {ts.Minutes}m" : $"{ts.Minutes}m {ts.Seconds}s";
-            string capped = _report.Capped ? "  (capped)" : "";
-
-            float ly = y + 56;
-            GUI.Label(new Rect(x + 28, ly, w - 40, 24), $"Away for: {elapsed}{capped}", line); ly += 30;
-            GUI.Label(new Rect(x + 28, ly, w - 40, 24), $"Gold:  {_report.Gold:N0}", line); ly += 28;
-            GUI.Label(new Rect(x + 28, ly, w - 40, 24), $"XP:    {_report.Xp:N0}", line); ly += 28;
-            GUI.Label(new Rect(x + 28, ly, w - 40, 24), $"Items: {_report.Items.Count:N0}", line);
-
-            if (GUI.Button(new Rect(x + w / 2f - 60f, y + h - 46f, 120f, 32f), "Collect"))
-                Destroy(gameObject);
+            UiKit.TextButton(panel.transform, "Collect", new Vector2(160, 48), new Vector2(0, -110),
+                () => Destroy(gameObject));
         }
+
+        private static void Line(Transform parent, string text, float y) =>
+            UiKit.Label(parent, text, 17, TextAnchor.MiddleLeft, new Vector2(320, 26), new Vector2(0, y));
     }
 }

@@ -4,36 +4,69 @@ using IdleGame.GameCore;
 namespace IdleGame.Game
 {
     /// <summary>
-    /// Scene bootstrap. Builds the isometric environment in code on Play — no
-    /// manual editor wiring needed — then hands the party off to <see cref="CombatView"/>
-    /// which drives the M1 auto-battle. The renderer only READS game-core state
-    /// (Save + CombatState); all logic stays in IdleGame.GameCore. Primitives are
-    /// placeholders to be swapped for real art later (pixels or low-poly).
+    /// Scene bootstrap. Builds the environment in code on Play (no manual editor
+    /// wiring), shows the main menu, and on Continue / New Game starts a session that
+    /// hands the party to <see cref="CombatView"/>. The renderer only READS game-core
+    /// state; all logic stays in IdleGame.GameCore. Primitives are placeholders.
     /// </summary>
     public static class Bootstrap
     {
+        private const uint Seed = 12345u;
+
+        private static long NowMs() => System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         public static void Boot()
         {
-            // --- game-core: load the existing save (claiming offline accrual) or
-            // start a fresh one. CombatView owns the live combat lineup. ---
             var cfg = GameConfig.Default();
-            long now = System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            BuildEnvironment();
 
-            SaveState save;
-            IdleReport idleReport;
-            var loaded = SaveStore.Load();
-            if (loaded != null)
+            // --- session starters (the menu invokes one of these) ---
+            void StartSession(SaveState save, IdleReport idleReport)
             {
-                (save, idleReport) = Idle.Claim(loaded, cfg, now); // real offline gap
-            }
-            else
-            {
-                save = Save.NewGame(12345u, cfg, now);
-                SaveStore.Save(save);                 // create the file immediately
-                idleReport = new IdleReport();         // nothing to claim on a fresh game
+                var director = new GameObject("CombatDirector");
+                var view = director.AddComponent<CombatView>();
+                view.Init(save, cfg);
+
+                // autosave the live save (heartbeat + on pause/quit)
+                director.AddComponent<Autosave>().Bind(view);
+
+                // "while you were away" modal, if the claim yielded anything
+                if (!idleReport.IsEmpty)
+                {
+                    new GameObject("IdleClaimModal").AddComponent<IdleClaimModal>().Show(idleReport);
+                    Debug.Log($"[Bootstrap] Idle claim: {idleReport.Gold} gold, {idleReport.Xp} XP, " +
+                              $"{idleReport.Items.Count} item(s) over {idleReport.ElapsedMs / 3600_000.0:F1}h.");
+                }
+
+                Debug.Log($"[Bootstrap] Session started at stage {save.Progress.CurrentStage}.");
             }
 
+            void NewGame()
+            {
+                var save = Save.NewGame(Seed, cfg, NowMs());
+                SaveStore.Save(save); // write immediately so Continue works next launch
+                StartSession(save, new IdleReport());
+            }
+
+            void Continue()
+            {
+                var loaded = SaveStore.Load();
+                if (loaded == null) { NewGame(); return; } // corrupt/missing -> fall back
+                var (save, report) = Idle.Claim(loaded, cfg, NowMs()); // real offline gap
+                StartSession(save, report);
+            }
+
+            // --- main menu ---
+            var menu = new GameObject("MainMenu").AddComponent<MainMenu>();
+            menu.HasSave = SaveStore.Exists();
+            menu.OnContinue = Continue;
+            menu.OnNewGame = NewGame;
+            menu.Open();
+        }
+
+        private static void BuildEnvironment()
+        {
             // --- camera (iso-ish angle) ---
             var cam = Camera.main;
             if (cam == null)
@@ -61,25 +94,6 @@ namespace IdleGame.Game
             ground.name = "Ground";
             ground.transform.localScale = new Vector3(2f, 1f, 2f);
             CombatView.Paint(ground, new Color(0.18f, 0.35f, 0.22f));
-
-            // --- hand off to the M1 auto-combat driver ---
-            var director = new GameObject("CombatDirector");
-            var view = director.AddComponent<CombatView>();
-            view.Init(save, cfg);
-
-            // --- M6: autosave the live save (heartbeat + on pause/quit) ---
-            director.AddComponent<Autosave>().Bind(view);
-
-            // --- M5: "while you were away" modal, if the claim yielded anything ---
-            if (!idleReport.IsEmpty)
-            {
-                var modalGo = new GameObject("IdleClaimModal");
-                modalGo.AddComponent<IdleClaimModal>().Show(idleReport);
-                Debug.Log($"[Bootstrap] Idle claim: {idleReport.Gold} gold, {idleReport.Xp} XP, " +
-                          $"{idleReport.Items.Count} item(s) over {idleReport.ElapsedMs / 3600_000.0:F1}h.");
-            }
-
-            Debug.Log("[Bootstrap] Scene built; CombatView driving M1 auto-combat.");
         }
     }
 }
