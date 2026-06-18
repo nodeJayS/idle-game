@@ -113,5 +113,83 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(1234, save.LastClaimAt);                 // clock untouched
             Assert.Equal(0, save.Currencies.GetValueOrDefault("gold")); // no rewards applied
         }
+
+        // --- M5.2: Claim ---
+
+        [Fact]
+        public void ClaimAppliesGoldXpItemsAndAdvancesClock()
+        {
+            var cfg = GameConfig.Default();
+            var save = SaveAt(highest: 10, lastClaimAt: 0);
+            int beforeInv = save.Inventory.Count;
+
+            var (next, report) = Idle.Claim(save, cfg, 2 * Hour);
+
+            Assert.True(report.Gold > 0 && report.LootCount > 0);
+            Assert.Equal(report.Gold, next.Currencies["gold"]);
+            Assert.Equal(report.LootCount, report.Items.Count);
+            Assert.Equal(beforeInv + report.LootCount, next.Inventory.Count);
+            Assert.True(next.Heroes.Find(h => h.Id == "h1")!.Level > 1); // party hero leveled from idle XP
+            Assert.Equal(2 * Hour, next.LastClaimAt);
+        }
+
+        [Fact]
+        public void ClaimAdvancesClockToNowEvenWhenCapped()
+        {
+            var (next, report) = Idle.Claim(SaveAt(highest: 10, lastClaimAt: 0), GameConfig.Default(), 100 * Hour);
+            Assert.True(report.Capped);
+            Assert.Equal(100 * Hour, next.LastClaimAt); // excess past the cap is forfeited
+        }
+
+        [Fact]
+        public void ClaimIsPure()
+        {
+            var save = SaveAt(highest: 10, lastClaimAt: 0);
+            int origLevel = save.Heroes.Find(h => h.Id == "h1")!.Level;
+
+            Idle.Claim(save, GameConfig.Default(), 5 * Hour);
+
+            Assert.Equal(0, save.LastClaimAt);
+            Assert.Equal(0, save.Currencies.GetValueOrDefault("gold"));
+            Assert.Empty(save.Inventory);
+            Assert.Equal(origLevel, save.Heroes.Find(h => h.Id == "h1")!.Level);
+        }
+
+        [Fact]
+        public void ClaimIsDeterministic()
+        {
+            var cfg = GameConfig.Default();
+            var (n1, r1) = Idle.Claim(SaveAt(highest: 10, lastClaimAt: 0), cfg, 3 * Hour);
+            var (n2, r2) = Idle.Claim(SaveAt(highest: 10, lastClaimAt: 0), cfg, 3 * Hour);
+
+            Assert.Equal(r1.Items.Count, r2.Items.Count);
+            for (int i = 0; i < r1.Items.Count; i++)
+                Assert.Equal(r1.Items[i].Id, r2.Items[i].Id);
+            Assert.Equal(n1.Currencies["gold"], n2.Currencies["gold"]);
+        }
+
+        [Fact]
+        public void ClaimWithClockSkewReturnsSameSave()
+        {
+            var save = SaveAt(highest: 10, lastClaimAt: 5 * Hour);
+            var (next, report) = Idle.Claim(save, GameConfig.Default(), 2 * Hour);
+
+            Assert.Same(save, next);
+            Assert.True(report.IsEmpty);
+        }
+
+        [Fact]
+        public void BackToBackClaimYieldsNothing()
+        {
+            var cfg = GameConfig.Default();
+            var (afterFirst, _) = Idle.Claim(SaveAt(highest: 10, lastClaimAt: 0), cfg, 2 * Hour);
+
+            // Immediately claiming again at the same instant should yield an empty report.
+            var (afterSecond, report2) = Idle.Claim(afterFirst, cfg, 2 * Hour);
+
+            Assert.True(report2.IsEmpty);
+            Assert.Equal(afterFirst.Currencies["gold"], afterSecond.Currencies["gold"]);
+            Assert.Equal(afterFirst.Inventory.Count, afterSecond.Inventory.Count);
+        }
     }
 }

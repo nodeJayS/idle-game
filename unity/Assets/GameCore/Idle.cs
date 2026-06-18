@@ -58,5 +58,53 @@ namespace IdleGame.GameCore
 
             return report;
         }
+
+        /// <summary>
+        /// Apply an offline accrual: roll the report's loot, credit gold + party XP +
+        /// items, and advance LastClaimAt to <c>now</c> (forfeiting any excess past the
+        /// cap). Pure — returns a NEW save; the input is untouched. The returned report
+        /// carries the rolled <see cref="IdleReport.Items"/> for the claim modal.
+        /// Loot uses an ephemeral Rng seeded from (RngSeed, LastClaimAt) so the result
+        /// is deterministic without touching the persisted combat cursor.
+        /// </summary>
+        public static (SaveState next, IdleReport report) Claim(SaveState save, GameConfig cfg, long now)
+        {
+            var report = Preview(save, cfg, now);
+            if (report.ElapsedMs <= 0) return (save, report); // nothing to claim / clock skew
+
+            int highest = save.Progress.HighestStage;
+            if (report.LootCount > 0)
+            {
+                var stage = cfg.Stages.Find(s => s.Stage == highest);
+                if (stage != null)
+                {
+                    var ctx = LootContext.ForStage(stage);
+                    uint seed = unchecked((uint)(save.RngSeed ^ (ulong)save.LastClaimAt));
+                    var rng = new Rng(seed);
+                    for (int i = 0; i < report.LootCount; i++)
+                        report.Items.Add(Loot.RollContextItem(rng, ctx, cfg));
+                }
+            }
+
+            // Reuse the tested reducers, then clone once more for gold + the new clock.
+            var next = Progression.GrantPartyXp(save, (int)Math.Min(report.Xp, int.MaxValue), cfg);
+            next = Inventory.AddItems(next, report.Items);
+
+            var currencies = new Dictionary<string, long>(next.Currencies);
+            currencies["gold"] = currencies.GetValueOrDefault("gold") + report.Gold;
+
+            return (new SaveState
+            {
+                Version = next.Version,
+                RngSeed = next.RngSeed,
+                RngCursor = next.RngCursor,
+                Heroes = next.Heroes,
+                Party = next.Party,
+                Inventory = next.Inventory,
+                Currencies = currencies,
+                Progress = next.Progress,
+                LastClaimAt = now,
+            }, report);
+        }
     }
 }

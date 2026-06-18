@@ -129,6 +129,16 @@ namespace IdleGame.GameCore
             double chance = isBoss ? 1.0 : cfg.Balance.DropChance;
             if (rng.Next() >= chance) return null;
 
+            return RollContextItem(rng, ctx, cfg);
+        }
+
+        /// <summary>
+        /// Roll one guaranteed item for a loot context (no drop-chance gate): pick a
+        /// base uniformly, roll rarity, assemble. Used by <see cref="RollDrop"/> once a
+        /// drop is confirmed, and directly by idle accrual which grants a fixed count.
+        /// </summary>
+        public static Item RollContextItem(Rng rng, LootContext ctx, GameConfig cfg)
+        {
             // sort keys for deterministic selection (dictionary order isn't stable)
             var baseIds = new List<string>(cfg.ItemBases.Keys);
             baseIds.Sort(StringComparer.Ordinal);
