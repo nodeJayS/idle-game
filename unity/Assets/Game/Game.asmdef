@@ -2,7 +2,8 @@
     "name": "IdleGame.Game",
     "rootNamespace": "IdleGame.Game",
     "references": [
-        "IdleGame.GameCore"
+        "IdleGame.GameCore",
+        "Newtonsoft.Json"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

@@ -15,25 +15,24 @@ namespace IdleGame.Game
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         public static void Boot()
         {
-            // --- game-core: a fresh save; CombatView owns the live combat lineup ---
+            // --- game-core: load the existing save (claiming offline accrual) or
+            // start a fresh one. CombatView owns the live combat lineup. ---
             var cfg = GameConfig.Default();
             long now = System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var save = Save.NewGame(12345u, cfg, now);
 
-            // DEV (until M6 persistence): no real offline gap exists yet, so simulate
-            // one — a few cleared stages + a 3h-old LastClaimAt — to exercise the
-            // claim flow. Remove once load/save provides a genuine elapsed time.
-            const bool DemoIdle = true;
-            if (DemoIdle)
+            SaveState save;
+            IdleReport idleReport;
+            var loaded = SaveStore.Load();
+            if (loaded != null)
             {
-                save.Progress.HighestStage = 5;
-                save.Progress.CurrentStage = 6;
-                save.LastClaimAt = now - 3L * 3600_000L;
+                (save, idleReport) = Idle.Claim(loaded, cfg, now); // real offline gap
             }
-
-            // --- M5: claim offline accrual before the run starts ---
-            var (claimed, idleReport) = Idle.Claim(save, cfg, now);
-            save = claimed;
+            else
+            {
+                save = Save.NewGame(12345u, cfg, now);
+                SaveStore.Save(save);                 // create the file immediately
+                idleReport = new IdleReport();         // nothing to claim on a fresh game
+            }
 
             // --- camera (iso-ish angle) ---
             var cam = Camera.main;
@@ -67,6 +66,9 @@ namespace IdleGame.Game
             var director = new GameObject("CombatDirector");
             var view = director.AddComponent<CombatView>();
             view.Init(save, cfg);
+
+            // --- M6: autosave the live save (heartbeat + on pause/quit) ---
+            director.AddComponent<Autosave>().Bind(view);
 
             // --- M5: "while you were away" modal, if the claim yielded anything ---
             if (!idleReport.IsEmpty)

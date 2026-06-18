@@ -41,6 +41,10 @@ namespace IdleGame.Game
         // --- GUI textures (created lazily) ---
         private Texture2D _white = null!;
 
+        /// <summary>The live save — CombatView mutates it on wins (loot/XP/stage). The
+        /// autosave host reads this to persist real progress.</summary>
+        public SaveState CurrentSave => _save;
+
         public void Init(SaveState save, GameConfig cfg)
         {
             _save = save;
