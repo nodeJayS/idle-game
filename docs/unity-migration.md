@@ -24,12 +24,17 @@ reads simulation state; no game logic in MonoBehaviours.
   balance), `Save.NewGame`/`Migrate`, `Party.SetPartySlot`, `Persistence`
   (System.Text.Json — the one host-specific adapter).
 - ✅ xUnit tests mirroring the old vitest suite.
+- ✅ **Combat + Stats systems** (engine-independent, ahead of the Unity scene):
+  `Stats.ComputeHeroStats` (base + growth + gear) / `ComputePartyPower`; and
+  `Combat.InitCombat`/`StepCombat`/`RunToEnd` — a deterministic auto-battle
+  (walk-to-target + auto-attack, crits, win/lose, boss-defeated events). 21/21
+  tests passing.
 
 ## Phase map
 | Phase | Work | State |
 |------|------|-------|
 | 0 | Setup: SDK install, repo hygiene, structure | ✅ |
-| 1 | Port `game-core` → C# library + tests | ✅ (foundation; systems still stubbed) |
+| 1 | Port `game-core` → C# library + tests | ✅ (foundation + Stats & Combat systems implemented) |
 | 2 | Content as ScriptableObjects (or keep `GameConfig.Default()`) | later |
 | 3 | **Unity project + M0 scene** (3D iso, camera, party lead) | **next — needs the editor** |
 | 4+ | M1 combat → M2 loot → M3 rifts → M4 idle → M5 persistence → M6 feel, in C# | later |
