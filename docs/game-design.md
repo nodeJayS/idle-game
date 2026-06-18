@@ -230,8 +230,8 @@ single-player, local game), **Depth** (build variety + retention), **Live-servic
 | **M3 – Leveling** | Kills grant XP; fielded heroes level up; stats scale with level. | ✅ |
 | **M4 – Stages & progression** | 50-stage ladder, **miniboss gate** to advance, **major boss every 10**, hero **downing / run-fail**, stage select. | ✅ |
 | **M5 – Idle** | Offline accrual off **highest cleared stage** + "while you were away" claim modal. | ✅ |
-| **M6 – Persistence & menu** | Save/load + main menu (Continue / New Game, single local account). | next |
-| **M7 – Feel pass** | Number formatting, loot juice, item-compare UI, offline-modal animation. | |
+| **M6 – Persistence & menu** | Save/load + main menu (Continue / New Game, single local account). | ✅ |
+| **M7 – Feel pass** | Number formatting, loot juice, item-compare UI, offline-modal animation. | next |
 
 → At the end of Phase A you have a complete, satisfying solo idle ARPG.
 

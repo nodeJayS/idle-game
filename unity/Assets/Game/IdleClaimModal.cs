@@ -27,9 +27,9 @@ namespace IdleGame.Game
             string capped = report.Capped ? "  (capped)" : "";
 
             Line(panel.transform, $"Away for: {away}{capped}", 50);
-            Line(panel.transform, $"Gold:  {report.Gold:N0}", 14);
-            Line(panel.transform, $"XP:    {report.Xp:N0}", -22);
-            Line(panel.transform, $"Items: {report.Items.Count:N0}", -58);
+            Line(panel.transform, $"Gold:  {Num.Compact(report.Gold)}", 14);
+            Line(panel.transform, $"XP:    {Num.Compact(report.Xp)}", -22);
+            Line(panel.transform, $"Items: {report.Items.Count}", -58);
 
             UiKit.TextButton(panel.transform, "Collect", new Vector2(160, 48), new Vector2(0, -110),
                 () => Destroy(gameObject));
