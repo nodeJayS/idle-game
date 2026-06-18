@@ -189,5 +189,45 @@ namespace IdleGame.GameCore.Tests
             for (int i = 0; i < s1.PendingLoot.Count; i++)
                 Assert.Equal(s1.PendingLoot[i].Id, s2.PendingLoot[i].Id);
         }
+
+        // --- M3.2: XP accrual in combat ---
+
+        [Fact]
+        public void MonsterKillsAccruePendingXp()
+        {
+            var s = State(
+                Ent("A", Team.Party, hp: 1000, atk: 500, def: 0),
+                Monster("E0", "slime", hp: 10),
+                Monster("EBOSS", "goblin_king", hp: 10, boss: true));
+            Combat.RunToEnd(s, Cfg, new Rng(1));
+
+            Assert.Equal(CombatStatus.Won, s.Status);
+            Assert.Equal(Cfg.Monsters["slime"].XpReward + Cfg.Monsters["goblin_king"].XpReward, s.PendingXp);
+        }
+
+        [Fact]
+        public void SyntheticTestEntitiesGiveNoXp()
+        {
+            var s = State(
+                Ent("A", Team.Party, hp: 1000, atk: 500, def: 0),
+                Ent("B", Team.Enemy, hp: 10, atk: 0, def: 0)); // RefKind "test"
+            Combat.RunToEnd(s, Cfg, new Rng(1));
+            Assert.Equal(0, s.PendingXp);
+        }
+
+        [Fact]
+        public void PendingXpIsDeterministic()
+        {
+            CombatState Build() => State(
+                Ent("A", Team.Party, hp: 1000, atk: 500, def: 0),
+                Monster("E0", "slime", hp: 10),
+                Monster("EBOSS", "goblin_king", hp: 10, boss: true));
+
+            var s1 = Build();
+            var s2 = Build();
+            Combat.RunToEnd(s1, Cfg, new Rng(7));
+            Combat.RunToEnd(s2, Cfg, new Rng(7));
+            Assert.Equal(s1.PendingXp, s2.PendingXp);
+        }
     }
 }

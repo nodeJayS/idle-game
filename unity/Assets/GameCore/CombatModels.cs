@@ -56,6 +56,7 @@ namespace IdleGame.GameCore
         public List<CombatEntity> Entities = new List<CombatEntity>();
         public CombatStatus Status = CombatStatus.Running;
         public List<Item> PendingLoot = new List<Item>(); // drops accrued this run (M2)
+        public int PendingXp;                             // XP accrued this run (M3)
     }
 
     public enum CombatEventType { Hit, Death, LootDrop, LevelUp, WaveCleared, BossDefeated }

@@ -139,10 +139,12 @@ namespace IdleGame.GameCore
                             if (target.IsBoss)
                                 events.Add(new CombatEvent { Type = CombatEventType.BossDefeated, Stage = s.Stage });
 
-                            // Loot only from real monsters (guards synthetic test/party entities).
+                            // Loot + XP only from real monsters (guards synthetic test/party entities).
                             if (target.Team == Team.Enemy && target.RefKind == "monster" &&
                                 cfg.Monsters.TryGetValue(target.RefId, out var mdef))
                             {
+                                s.PendingXp += mdef.XpReward;
+
                                 var drop = Loot.RollDrop(rng, mdef, s.Loot, cfg);
                                 if (drop != null)
                                 {
