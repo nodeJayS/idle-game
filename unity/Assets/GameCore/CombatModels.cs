@@ -31,11 +31,12 @@ namespace IdleGame.GameCore
     public enum CombatStatus { Running, Won, Lost }
 
     /// <summary>
-    /// Encounter type (M8). Encounter = the classic clear-the-enemies fight (also the
-    /// base for the timed boss challenge). Farm = an endless zone: trash respawns up to
-    /// a cap, never auto-wins, and only a full party wipe loses.
+    /// Encounter type (M8). Encounter = the classic clear-the-enemies fight. Farm = an
+    /// endless zone: trash respawns up to a cap, never auto-wins, only a wipe loses.
+    /// BossChallenge = a single boss under a short timer (the gate that advances a
+    /// stage): win by killing it in time, lose on the timer expiring or a wipe.
     /// </summary>
-    public enum EncounterKind { Encounter, Farm }
+    public enum EncounterKind { Encounter, Farm, BossChallenge }
 
     public sealed class CombatEntity
     {

@@ -101,6 +101,9 @@ namespace IdleGame.GameCore
         public int MobCap = 30;
         public double SpawnIntervalMs = 2000;
 
+        // Boss challenge (M8): seconds to kill the stage's boss and advance.
+        public double BossChallengeSeconds = 60;
+
         // Base drop weights per rarity, indexed by (int)Rarity ascending:
         // [Normal, Magic, Rare, Unique, Legendary]. Must have one entry per Rarity.
         // The stage's DropRateMult biases this upward — see Loot.RollRarity.

@@ -211,6 +211,69 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(AliveEnemies(s1), AliveEnemies(s2));
         }
 
+        // --- M8.2: boss challenge (timed gate) ---
+
+        private static HeroInstance Champ(int level = 1) =>
+            new HeroInstance { Id = "h1", DefId = "warrior_basic", Level = level };
+
+        [Fact]
+        public void BossChallengeSpawnsLoneBoss()
+        {
+            var s = Combat.InitBossChallenge(new[] { Champ() }, 1, GameConfig.Default(), new Rng(1));
+
+            Assert.Equal(EncounterKind.BossChallenge, s.Kind);
+            Assert.Single(s.Entities, e => e.Team == Team.Enemy);
+            Assert.Single(s.Entities, e => e.IsBoss);
+        }
+
+        [Fact]
+        public void BossChallengeWonWhenBossKilledInTime()
+        {
+            var cfg = GameConfig.Default();
+            var s = Combat.InitBossChallenge(new[] { Champ(50) }, 1, cfg, new Rng(1));
+            s.Entities.Find(e => e.IsBoss)!.Stats[StatKey.Hp] = 1; // trivial to kill
+            foreach (var p in s.Entities) if (p.Team == Team.Party) p.Stats[StatKey.Atk] = 100000;
+
+            Combat.RunToEnd(s, cfg, new Rng(1));
+            Assert.Equal(CombatStatus.Won, s.Status);
+        }
+
+        [Fact]
+        public void BossChallengeLostWhenTimerExpires()
+        {
+            var cfg = GameConfig.Default();
+            cfg.Balance.BossChallengeSeconds = 1; // expire fast
+            var s = Combat.InitBossChallenge(new[] { Champ() }, 1, cfg, new Rng(1));
+            foreach (var p in s.Entities) if (p.Team == Team.Party) p.Stats[StatKey.Atk] = 0; // can't kill
+
+            Combat.RunToEnd(s, cfg, new Rng(1), maxSteps: 5000);
+            Assert.Equal(CombatStatus.Lost, s.Status);
+            Assert.True(s.TimeMs >= 1000);
+        }
+
+        [Fact]
+        public void BossChallengeMajorBossIsTougher()
+        {
+            var cfg = GameConfig.Default();
+            double Hp(int stage) =>
+                Combat.InitBossChallenge(new[] { Champ() }, stage, cfg, new Rng(1)).Entities.First(e => e.IsBoss).MaxHp;
+
+            Assert.True(Hp(10) > Hp(9));  // major boss at stage 10
+            Assert.True(Hp(10) > Hp(11));
+        }
+
+        [Fact]
+        public void BossChallengeIsDeterministic()
+        {
+            var cfg = GameConfig.Default();
+            CombatState Build() => Combat.InitBossChallenge(new[] { Champ(8) }, 5, cfg, new Rng(3));
+            var s1 = Build(); var s2 = Build();
+            Combat.RunToEnd(s1, cfg, new Rng(3));
+            Combat.RunToEnd(s2, cfg, new Rng(3));
+            Assert.Equal(s1.Status, s2.Status);
+            Assert.Equal(s1.TimeMs, s2.TimeMs);
+        }
+
         // --- HP regen ---
 
         [Fact]

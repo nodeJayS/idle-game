@@ -70,6 +70,29 @@ namespace IdleGame.GameCore
             return s;
         }
 
+        /// <summary>
+        /// Build the timed boss challenge (M8): party vs the stage's lone boss (mini, or
+        /// the scaled major boss on every 10th stage). Win by killing it before
+        /// Balance.BossChallengeSeconds elapses; lose on the timer or a wipe. Clearing
+        /// it is what advances the stage.
+        /// </summary>
+        public static CombatState InitBossChallenge(IReadOnlyList<HeroInstance> party, int stage, GameConfig cfg, Rng rng)
+        {
+            var s = new CombatState { Stage = stage, Kind = EncounterKind.BossChallenge };
+            AddParty(s, party, cfg);
+
+            var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
+            s.Loot = LootContext.ForStage(rt);
+
+            if (cfg.Monsters.TryGetValue(rt.BossId, out var boss))
+            {
+                double bossScale = rt.IsMajorBoss ? StageScale(rt) * cfg.Balance.MajorBossMult : StageScale(rt);
+                s.Entities.Add(MakeMonster(boss, "EBOSS", new Vec2(4, 0), bossScale, true));
+            }
+
+            return s;
+        }
+
         private static double StageScale(StageDef rt) => 1.0 + 0.1 * (rt.MonsterLevel - 1);
 
         private static void AddParty(CombatState s, IReadOnlyList<HeroInstance> party, GameConfig cfg)
@@ -266,9 +289,12 @@ namespace IdleGame.GameCore
             else
             {
                 bool enemyAlive = s.Entities.Any(e => e.Team == Team.Enemy && e.Alive);
+                double timeoutSec = s.Kind == EncounterKind.BossChallenge
+                    ? cfg.Balance.BossChallengeSeconds
+                    : cfg.Balance.MaxRunSeconds;
                 if (!partyAlive) s.Status = CombatStatus.Lost;
                 else if (!enemyAlive) s.Status = CombatStatus.Won;
-                else if (s.TimeMs >= cfg.Balance.MaxRunSeconds * 1000.0) s.Status = CombatStatus.Lost;
+                else if (s.TimeMs >= timeoutSec * 1000.0) s.Status = CombatStatus.Lost;
             }
 
             return events;
