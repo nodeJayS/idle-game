@@ -54,6 +54,56 @@ namespace IdleGame.GameCore
             };
         }
 
+        /// <summary>
+        /// Record a stage clear: bump HighestStage if this is the deepest yet, and
+        /// auto-advance CurrentStage to the next stage. Replaying an already-cleared
+        /// stage is fine — HighestStage only ever moves forward.
+        /// </summary>
+        public static SaveState OnStageCleared(SaveState save, int stage)
+        {
+            int highest = Math.Max(save.Progress.HighestStage, stage);
+            return WithProgress(save, new ProgressState
+            {
+                HighestStage = highest,
+                CurrentStage = stage + 1,
+                AccountLevel = save.Progress.AccountLevel,
+            });
+        }
+
+        /// <summary>
+        /// Select the stage to play (farm or retry). Valid range is
+        /// 1 ≤ stage ≤ HighestStage + 1 (you may attempt the next uncleared stage but
+        /// can't skip ahead), further capped to the number of defined stages.
+        /// </summary>
+        public static SaveState SetStage(SaveState save, int stage, GameConfig cfg)
+        {
+            int maxSelectable = Math.Min(save.Progress.HighestStage + 1, cfg.Stages.Count);
+            if (stage < 1 || stage > maxSelectable)
+                throw new ArgumentOutOfRangeException(nameof(stage),
+                    $"SetStage: {stage} out of range (1..{maxSelectable})");
+
+            return WithProgress(save, new ProgressState
+            {
+                HighestStage = save.Progress.HighestStage,
+                CurrentStage = stage,
+                AccountLevel = save.Progress.AccountLevel,
+            });
+        }
+
+        // Clone the save with a new ProgressState; everything else shares refs.
+        private static SaveState WithProgress(SaveState save, ProgressState progress) => new SaveState
+        {
+            Version = save.Version,
+            RngSeed = save.RngSeed,
+            RngCursor = save.RngCursor,
+            Heroes = save.Heroes,
+            Party = save.Party,
+            Inventory = save.Inventory,
+            Currencies = save.Currencies,
+            Progress = progress,
+            LastClaimAt = save.LastClaimAt,
+        };
+
         // Equipped / SkillLoadout are unchanged here, so the new hero shares those refs.
         private static HeroInstance WithLevel(HeroInstance hero, int level, int xp) => new HeroInstance
         {
