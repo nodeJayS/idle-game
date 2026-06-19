@@ -178,9 +178,24 @@ namespace IdleGame.GameCore
                 DefId = "warrior_basic", Name = "Warrior", Class = "Warrior", Role = "melee",
                 BaseStats = SB((StatKey.Hp, 120), (StatKey.Atk, 14), (StatKey.Def, 8),
                                (StatKey.Spd, 1.0), (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.5),
-                               (StatKey.HpRegen, 1.5)), // very small sustain (hp/sec)
+                               (StatKey.HpRegen, 1.5),                 // very small sustain (hp/sec)
+                               (StatKey.AttackRange, 1.2),             // melee
+                               (StatKey.SplashRadius, 2.0)),           // wide cleave (melee perk)
                 GrowthPerLevel = SB((StatKey.Hp, 18), (StatKey.Atk, 3), (StatKey.Def, 1.5)),
                 Skills = new List<string> { "cleave" }, Sprite = "warrior",
+            };
+
+            cfg.Heroes["magician_basic"] = new HeroDef
+            {
+                DefId = "magician_basic", Name = "Magician", Class = "Magician", Role = "ranged",
+                // fragile (low HP/Def) but hits harder from range, with a tighter AoE
+                BaseStats = SB((StatKey.Hp, 72), (StatKey.Atk, 17), (StatKey.Def, 4),
+                               (StatKey.Spd, 1.0), (StatKey.CritChance, 0.07), (StatKey.CritDmg, 1.5),
+                               (StatKey.HpRegen, 1.0),
+                               (StatKey.AttackRange, 6.0),             // max reach; still fine point-blank
+                               (StatKey.SplashRadius, 1.5)),
+                GrowthPerLevel = SB((StatKey.Hp, 11), (StatKey.Atk, 4), (StatKey.Def, 1)),
+                Skills = new List<string> { "firebolt" }, Sprite = "magician",
             };
 
             cfg.ItemBases["rusty_sword"] = new ItemBaseDef
@@ -243,6 +258,11 @@ namespace IdleGame.GameCore
             {
                 Id = "cleave", Name = "Cleave", CooldownMs = 3000, Range = 1.5,
                 Targeting = "nearest", DamageMult = 1.4, Sprite = "cleave",
+            };
+            cfg.Skills["firebolt"] = new SkillDef
+            {
+                Id = "firebolt", Name = "Firebolt", CooldownMs = 2500, Range = 6.0,
+                Targeting = "nearest", DamageMult = 1.3, Sprite = "firebolt",
             };
 
             return cfg;

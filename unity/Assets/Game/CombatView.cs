@@ -213,9 +213,15 @@ namespace IdleGame.Game
             go.transform.position = new Vector3((float)e.Pos.X, height, (float)e.Pos.Y);
             var baseScale = new Vector3(0.7f * scale, 0.9f * scale, 0.7f * scale);
 
-            Color color = isHero
-                ? new Color(0.36f, 0.55f, 0.85f)
-                : (e.IsBoss ? new Color(0.85f, 0.40f, 0.25f) : new Color(0.45f, 0.80f, 0.50f));
+            Color color;
+            if (isHero)
+            {
+                var hero = _save.Heroes.Find(h => h.Id == e.RefId);
+                bool ranged = hero != null && _cfg.Heroes.TryGetValue(hero.DefId, out var hd) && hd.Role == "ranged";
+                color = ranged ? new Color(0.62f, 0.45f, 0.92f)   // magician = violet
+                               : new Color(0.36f, 0.55f, 0.85f);  // melee = blue
+            }
+            else color = e.IsBoss ? new Color(0.85f, 0.40f, 0.25f) : new Color(0.45f, 0.80f, 0.50f);
             Paint(go, color);
 
             var view = new View { Go = go, Height = height, BaseColor = color, BaseScale = baseScale };

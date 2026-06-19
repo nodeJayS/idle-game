@@ -17,7 +17,7 @@ namespace IdleGame.GameCore
     /// </summary>
     public static class Combat
     {
-        public const double AttackRange = 1.0;        // tiles (melee)
+        public const double MeleeRange = 1.0;         // fallback range when an entity has no AttackRange stat
         public const double MoveSpeedTilesPerSec = 3.0;
         public const double DefaultStepMs = 1000.0 / 30.0;
 
@@ -248,61 +248,27 @@ namespace IdleGame.GameCore
                 if (target == null) continue;
 
                 double dist = Vec2.Distance(e.Pos, target.Pos);
-                if (dist <= AttackRange)
+                double range = e.Stats.Get(StatKey.AttackRange);
+                if (range <= 0) range = MeleeRange;
+
+                if (dist <= range)
                 {
                     if (e.AttackCdMs <= 0)
                     {
-                        double dmg = Math.Max(1.0, e.Stats.Get(StatKey.Atk) - target.Stats.Get(StatKey.Def));
-                        bool crit = rng.Next() < e.Stats.Get(StatKey.CritChance);
-                        if (crit) dmg *= Math.Max(1.0, e.Stats.Get(StatKey.CritDmg));
-
-                        target.Hp -= dmg;
                         e.AttackCdMs = e.AttackIntervalMs;
-                        events.Add(new CombatEvent
+                        ApplyHit(s, e, target, cfg, rng, events);
+
+                        // Splash: the same swing also strikes enemies near the target
+                        // (full damage, each rolls its own crit). Warrior/magician only.
+                        double splash = e.Stats.Get(StatKey.SplashRadius);
+                        if (splash > 0)
                         {
-                            Type = CombatEventType.Hit,
-                            SourceId = e.Id,
-                            TargetId = target.Id,
-                            Amount = dmg,
-                            Crit = crit,
-                        });
-
-                        if (target.Hp <= 0)
-                        {
-                            target.Hp = 0;
-                            events.Add(new CombatEvent { Type = CombatEventType.Death, EntityId = target.Id });
-
-                            // Party heroes are downed (will respawn), not killed. Monsters die.
-                            if (target.Team == Team.Party)
-                            {
-                                target.RespawnMs = target.RespawnDurationMs;
-                            }
-                            else
-                            {
-                                if (target.IsBoss)
-                                    events.Add(new CombatEvent { Type = CombatEventType.BossDefeated, Stage = s.Stage });
-
-                                // Loot + XP only from real monsters (guards synthetic test/party entities).
-                                if (target.RefKind == "monster" &&
-                                    cfg.Monsters.TryGetValue(target.RefId, out var mdef))
-                                {
-                                    double mult = cfg.Balance.KillRewardMult(s.Stage);
-                                    s.PendingXp += (int)Math.Floor(mdef.XpReward * mult);
-                                    s.PendingGold += (long)Math.Floor(mdef.GoldReward * mult);
-
-                                    var drop = Loot.RollDrop(rng, mdef, s.Loot, cfg);
-                                    if (drop != null)
-                                    {
-                                        s.PendingLoot.Add(drop);
-                                        events.Add(new CombatEvent
-                                        {
-                                            Type = CombatEventType.LootDrop,
-                                            EntityId = target.Id,
-                                            Item = drop,
-                                        });
-                                    }
-                                }
-                            }
+                            var extra = new List<CombatEntity>();
+                            foreach (var o in s.Entities)
+                                if (o.Team == target.Team && o.Alive && !ReferenceEquals(o, target) &&
+                                    Vec2.Distance(o.Pos, target.Pos) <= splash)
+                                    extra.Add(o);
+                            foreach (var o in extra) ApplyHit(s, e, o, cfg, rng, events);
                         }
                     }
                 }
@@ -349,6 +315,59 @@ namespace IdleGame.GameCore
                 steps++;
             }
             return all;
+        }
+
+        /// <summary>Apply one hit (own crit roll) from attacker to victim; handle death.</summary>
+        private static void ApplyHit(CombatState s, CombatEntity attacker, CombatEntity victim,
+                                     GameConfig cfg, Rng rng, List<CombatEvent> events)
+        {
+            double dmg = Math.Max(1.0, attacker.Stats.Get(StatKey.Atk) - victim.Stats.Get(StatKey.Def));
+            bool crit = rng.Next() < attacker.Stats.Get(StatKey.CritChance);
+            if (crit) dmg *= Math.Max(1.0, attacker.Stats.Get(StatKey.CritDmg));
+
+            victim.Hp -= dmg;
+            events.Add(new CombatEvent
+            {
+                Type = CombatEventType.Hit,
+                SourceId = attacker.Id,
+                TargetId = victim.Id,
+                Amount = dmg,
+                Crit = crit,
+            });
+
+            if (victim.Hp <= 0) HandleDeath(s, victim, cfg, rng, events);
+        }
+
+        /// <summary>Resolve a killed entity: party heroes are downed (respawn); monsters
+        /// die and yield XP/gold/loot.</summary>
+        private static void HandleDeath(CombatState s, CombatEntity target, GameConfig cfg, Rng rng, List<CombatEvent> events)
+        {
+            target.Hp = 0;
+            events.Add(new CombatEvent { Type = CombatEventType.Death, EntityId = target.Id });
+
+            if (target.Team == Team.Party)
+            {
+                target.RespawnMs = target.RespawnDurationMs; // downed, not dead
+                return;
+            }
+
+            if (target.IsBoss)
+                events.Add(new CombatEvent { Type = CombatEventType.BossDefeated, Stage = s.Stage });
+
+            // Loot + XP only from real monsters (guards synthetic test entities).
+            if (target.RefKind == "monster" && cfg.Monsters.TryGetValue(target.RefId, out var mdef))
+            {
+                double mult = cfg.Balance.KillRewardMult(s.Stage);
+                s.PendingXp += (int)Math.Floor(mdef.XpReward * mult);
+                s.PendingGold += (long)Math.Floor(mdef.GoldReward * mult);
+
+                var drop = Loot.RollDrop(rng, mdef, s.Loot, cfg);
+                if (drop != null)
+                {
+                    s.PendingLoot.Add(drop);
+                    events.Add(new CombatEvent { Type = CombatEventType.LootDrop, EntityId = target.Id, Item = drop });
+                }
+            }
         }
 
         private static int CountAliveEnemies(CombatState s)

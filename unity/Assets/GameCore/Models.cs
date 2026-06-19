@@ -22,7 +22,7 @@ namespace IdleGame.GameCore
 
     public enum EquipSlot { Weapon, Helm, Chest, Boots, Ring, Amulet }
 
-    public enum StatKey { Hp, Atk, Def, Spd, CritChance, CritDmg, HpRegen }
+    public enum StatKey { Hp, Atk, Def, Spd, CritChance, CritDmg, HpRegen, AttackRange, SplashRadius }
 
     /// <summary>A bag of stat values. Partial blocks simply omit keys.</summary>
     public sealed class StatBlock : Dictionary<StatKey, double>

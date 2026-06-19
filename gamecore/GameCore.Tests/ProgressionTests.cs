@@ -93,15 +93,15 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void GrantPartyXpLevelsPartyNotBench()
         {
-            var save = Save.NewGame(1, Cfg, 0);            // h1 in party slot 0
-            save.Heroes.Add(new HeroInstance { Id = "h2", DefId = "warrior_basic", Level = 1, Xp = 0 }); // benched
+            var save = Save.NewGame(1, Cfg, 0);            // h1 + h2 fielded
+            save.Heroes.Add(new HeroInstance { Id = "hb", DefId = "warrior_basic", Level = 1, Xp = 0 }); // benched
 
             var after = Progression.GrantPartyXp(save, 250, Cfg);
 
             var h1 = after.Heroes.Find(h => h.Id == "h1")!;
-            var h2 = after.Heroes.Find(h => h.Id == "h2")!;
+            var hb = after.Heroes.Find(h => h.Id == "hb")!;
             Assert.True(h1.Level > 1);                       // party hero leveled
-            Assert.Equal(1, h2.Level);                       // bench untouched
+            Assert.Equal(1, hb.Level);                       // bench untouched
             Assert.Equal(1, save.Heroes.Find(h => h.Id == "h1")!.Level); // input untouched
         }
     }

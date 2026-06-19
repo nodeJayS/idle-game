@@ -9,12 +9,13 @@ namespace IdleGame.GameCore.Tests
         private static readonly GameConfig Cfg = GameConfig.Default();
 
         [Fact]
-        public void NewGameStartsWithOneWarriorInSlotZero()
+        public void NewGameStartsWithWarriorAndMagician()
         {
             var save = Save.NewGame(123, Cfg, 1000);
-            Assert.Single(save.Heroes);
+            Assert.Equal(2, save.Heroes.Count);
             Assert.Equal(Save.StarterHeroDef, save.Heroes[0].DefId);
-            Assert.Equal(new string?[] { save.Heroes[0].Id, null, null, null }, save.Party);
+            Assert.Equal(Save.StarterMageDef, save.Heroes[1].DefId);
+            Assert.Equal(new string?[] { save.Heroes[0].Id, save.Heroes[1].Id, null, null }, save.Party);
             Assert.Equal(0, save.Currencies["gold"]);
             Assert.Equal(1000, save.LastClaimAt);
         }
@@ -32,9 +33,9 @@ namespace IdleGame.GameCore.Tests
         public void SetPartySlotPlacesOwnedHeroAndIsPure()
         {
             var save = Save.NewGame(1, Cfg, 0);
-            var next = Party.SetPartySlot(save, 1, save.Heroes[0].Id);
-            Assert.Equal(save.Heroes[0].Id, next.Party[1]);
-            Assert.Null(save.Party[1]); // original untouched
+            var next = Party.SetPartySlot(save, 2, save.Heroes[0].Id); // slot 2 is empty
+            Assert.Equal(save.Heroes[0].Id, next.Party[2]);
+            Assert.Null(save.Party[2]); // original untouched
         }
 
         [Fact]
@@ -129,7 +130,7 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void DefaultConfigHasExpectedContent()
         {
-            Assert.Single(Cfg.Heroes);
+            Assert.Equal(2, Cfg.Heroes.Count);
             Assert.Equal(3, Cfg.Monsters.Count);
             Assert.Equal(50, Cfg.Stages.Count);
         }

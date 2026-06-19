@@ -9,38 +9,44 @@ namespace IdleGame.GameCore
     {
         public const int SaveVersion = 1;
         public const string StarterHeroDef = "warrior_basic";
+        public const string StarterMageDef = "magician_basic";
 
         /// <summary>
-        /// A fresh game: 1 basic Warrior in party slot 0, three empty slots.
-        /// `now` (epoch ms) is passed in, not read from the clock, to keep
-        /// game-core pure/testable.
+        /// A fresh game: a Warrior in slot 0 and a Magician in slot 1 (two empty slots).
+        /// `now` (epoch ms) is passed in, not read from the clock, to keep game-core
+        /// pure/testable.
         /// </summary>
         public static SaveState NewGame(uint seed, GameConfig cfg, long now)
         {
-            if (!cfg.Heroes.TryGetValue(StarterHeroDef, out var def))
-                throw new InvalidOperationException($"NewGame: missing starter hero def \"{StarterHeroDef}\"");
-
-            var warrior = new HeroInstance
-            {
-                Id = "h1",
-                DefId = def.DefId,
-                Level = 1,
-                Xp = 0,
-                Equipped = new Dictionary<EquipSlot, string>(),
-                SkillLoadout = new List<string>(def.Skills),
-            };
+            var warrior = MakeHero("h1", StarterHeroDef, cfg);
+            var magician = MakeHero("h2", StarterMageDef, cfg);
 
             return new SaveState
             {
                 Version = SaveVersion,
                 RngSeed = seed,
                 RngCursor = 0,
-                Heroes = new List<HeroInstance> { warrior },
-                Party = new string?[] { warrior.Id, null, null, null },
+                Heroes = new List<HeroInstance> { warrior, magician },
+                Party = new string?[] { warrior.Id, magician.Id, null, null },
                 Inventory = new List<Item>(),
                 Currencies = new Dictionary<string, long> { ["gold"] = 0 },
                 Progress = new ProgressState { HighestStage = 0, CurrentStage = 1, AccountLevel = 1 },
                 LastClaimAt = now,
+            };
+        }
+
+        private static HeroInstance MakeHero(string id, string defId, GameConfig cfg)
+        {
+            if (!cfg.Heroes.TryGetValue(defId, out var def))
+                throw new InvalidOperationException($"NewGame: missing hero def \"{defId}\"");
+            return new HeroInstance
+            {
+                Id = id,
+                DefId = def.DefId,
+                Level = 1,
+                Xp = 0,
+                Equipped = new Dictionary<EquipSlot, string>(),
+                SkillLoadout = new List<string>(def.Skills),
             };
         }
 

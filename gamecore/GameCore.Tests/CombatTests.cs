@@ -445,6 +445,79 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(100, Hp(s, "A"));
         }
 
+        // --- M9.3: ranged attacks + splash AoE ---
+
+        [Fact]
+        public void RangedAttackerHitsWithoutClosingToMelee()
+        {
+            // attacker with range 5 hits a target 4 away and stays put (no move toward)
+            var a = Ent("A", Team.Party, hp: 100, atk: 10, def: 0, x: 0);
+            a.Stats[StatKey.AttackRange] = 5;
+            var b = Ent("B", Team.Enemy, hp: 1000, atk: 0, def: 0, x: 4);
+            var s = State(a, b);
+
+            var events = Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+
+            Assert.Contains(events, e => e.Type == CombatEventType.Hit && e.SourceId == "A" && e.TargetId == "B");
+            Assert.Equal(0, s.Entities.First(e => e.Id == "A").Pos.X); // didn't move
+        }
+
+        [Fact]
+        public void MeleeAttackerWithoutRangeStatStillWorks()
+        {
+            // no AttackRange stat -> falls back to melee; far target gets approached, not hit
+            var a = Ent("A", Team.Party, hp: 100, atk: 10, def: 0, x: 0);
+            var b = Ent("B", Team.Enemy, hp: 1000, atk: 0, def: 0, x: 5);
+            var s = State(a, b);
+
+            var events = Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+            Assert.DoesNotContain(events, e => e.Type == CombatEventType.Hit); // out of melee
+            Assert.True(s.Entities.First(e => e.Id == "A").Pos.X > 0);          // moved closer
+        }
+
+        [Fact]
+        public void SplashHitsNearbyEnemies()
+        {
+            // A strikes B; C is within splash radius of B and also takes a hit
+            var a = Ent("A", Team.Party, hp: 100, atk: 50, def: 0, x: 0);
+            a.Stats[StatKey.SplashRadius] = 2.0;
+            var b = Ent("B", Team.Enemy, hp: 1000, atk: 0, def: 0, x: 0.5);
+            var c = Ent("C", Team.Enemy, hp: 1000, atk: 0, def: 0, x: 1.5); // 1.0 from B
+            var d = Ent("D", Team.Enemy, hp: 1000, atk: 0, def: 0, x: 10);  // far away
+            var s = State(a, b, c, d);
+
+            var events = Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+
+            Assert.Contains(events, e => e.Type == CombatEventType.Hit && e.TargetId == "B");
+            Assert.Contains(events, e => e.Type == CombatEventType.Hit && e.TargetId == "C"); // splashed
+            Assert.DoesNotContain(events, e => e.Type == CombatEventType.Hit && e.TargetId == "D");
+            Assert.True(Hp(s, "C") < 1000); // took damage
+        }
+
+        [Fact]
+        public void NoSplashWithoutRadius()
+        {
+            var a = Ent("A", Team.Party, hp: 100, atk: 50, def: 0, x: 0); // no SplashRadius
+            var b = Ent("B", Team.Enemy, hp: 1000, atk: 0, def: 0, x: 0.5);
+            var c = Ent("C", Team.Enemy, hp: 1000, atk: 0, def: 0, x: 1.0);
+            var s = State(a, b, c);
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+            Assert.Equal(1000, Hp(s, "C")); // untouched
+        }
+
+        [Fact]
+        public void MagicianIsFragileRangedHitter()
+        {
+            var w = Stats.ComputeHeroStats(new HeroInstance { Id = "w", DefId = "warrior_basic", Level = 1 }, Cfg);
+            var m = Stats.ComputeHeroStats(new HeroInstance { Id = "m", DefId = "magician_basic", Level = 1 }, Cfg);
+
+            Assert.True(m.Get(StatKey.Hp) < w.Get(StatKey.Hp));        // fragile
+            Assert.True(m.Get(StatKey.Atk) > w.Get(StatKey.Atk));      // hits harder
+            Assert.Equal(6.0, m.Get(StatKey.AttackRange));            // ranged
+            Assert.True(m.Get(StatKey.AttackRange) > w.Get(StatKey.AttackRange));
+        }
+
         // --- M2.4: loot into combat ---
 
         private static CombatEntity Monster(string id, string defId, double hp, bool boss = false)
