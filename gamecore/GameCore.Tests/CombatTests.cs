@@ -445,6 +445,38 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(100, Hp(s, "A"));
         }
 
+        // --- M9.4: group vs solo party tactic ---
+
+        // party spread vertically; one enemy nearest each hero, one nearest the centre
+        private static CombatState TacticSetup() => State(
+            Ent("P0", Team.Party, hp: 1000, atk: 0, def: 0, x: 0, y: 0),
+            Ent("P1", Team.Party, hp: 1000, atk: 0, def: 0, x: 0, y: 10),
+            Ent("EA", Team.Enemy, hp: 1000, atk: 0, def: 0, x: 1, y: 2),  // near P0 + nearest centre (0,5)
+            Ent("EB", Team.Enemy, hp: 1000, atk: 0, def: 0, x: 1, y: 9)); // near P1
+
+        [Fact]
+        public void SoloTacticTargetsIndividually()
+        {
+            var s = TacticSetup();
+            s.Tactic = PartyTactic.Solo;
+            Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+
+            Assert.Equal("EA", s.Entities.First(e => e.Id == "P0").TargetId);
+            Assert.Equal("EB", s.Entities.First(e => e.Id == "P1").TargetId);
+        }
+
+        [Fact]
+        public void GroupTacticFocusFiresSharedTarget()
+        {
+            var s = TacticSetup();
+            s.Tactic = PartyTactic.Group;
+            Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+
+            // both heroes converge on the enemy nearest the party centre (EA)
+            Assert.Equal("EA", s.Entities.First(e => e.Id == "P0").TargetId);
+            Assert.Equal("EA", s.Entities.First(e => e.Id == "P1").TargetId);
+        }
+
         // --- M9.3: ranged attacks + splash AoE ---
 
         [Fact]

@@ -159,6 +159,7 @@ namespace IdleGame.Game
         {
             ClearViews();
             _combat = combat;
+            _combat.Tactic = Settings.GroupMovement ? PartyTactic.Group : PartyTactic.Solo;
             ReconcileViews();
             _accMs = 0;
             _outcomeTimer = 0;
@@ -502,7 +503,15 @@ namespace IdleGame.Game
 
             if (Button(x, y, 260, h, invOpen ? "Close Bag" : "Inventory")) _inventory?.Toggle();
             if (invOpen) return; // keep the bar uncluttered while the bag is open
-            x += 260 + gap * 2;
+            x += 260 + gap;
+
+            // party tactic toggle (applies live + persists)
+            if (Button(x, y, 200, h, _combat.Tactic == PartyTactic.Group ? "Group" : "Solo"))
+            {
+                Settings.GroupMovement = !Settings.GroupMovement;
+                _combat.Tactic = Settings.GroupMovement ? PartyTactic.Group : PartyTactic.Solo;
+            }
+            x += 200 + gap * 2;
 
             bool running = _combat.Status == CombatStatus.Running;
             if (running && _combat.Kind == EncounterKind.Farm)

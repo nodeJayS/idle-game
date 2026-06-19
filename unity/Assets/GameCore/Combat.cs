@@ -237,13 +237,19 @@ namespace IdleGame.GameCore
                                    .OrderBy(e => e.Id, StringComparer.Ordinal)
                                    .ToList();
 
+            // In Group tactic the whole party shares one focus target (recomputed each
+            // step); Solo and all monsters use their own nearest enemy.
+            var groupTarget = s.Tactic == PartyTactic.Group ? FindGroupTarget(s) : null;
+
             foreach (var e in actors)
             {
                 if (!e.Alive) continue; // could have died earlier this step
 
                 if (e.AttackCdMs > 0) e.AttackCdMs = Math.Max(0, e.AttackCdMs - dtMs);
 
-                var target = FindNearestEnemy(s, e);
+                var target = (e.Team == Team.Party && groupTarget != null && groupTarget.Alive)
+                    ? groupTarget
+                    : FindNearestEnemy(s, e);
                 e.TargetId = target?.Id;
                 if (target == null) continue;
 
@@ -375,6 +381,30 @@ namespace IdleGame.GameCore
             int n = 0;
             foreach (var e in s.Entities) if (e.Team == Team.Enemy && e.Alive) n++;
             return n;
+        }
+
+        /// <summary>The enemy nearest the living party's centroid (stable tie-break by Id).</summary>
+        private static CombatEntity? FindGroupTarget(CombatState s)
+        {
+            double cx = 0, cy = 0; int n = 0;
+            foreach (var e in s.Entities)
+                if (e.Team == Team.Party && e.Alive) { cx += e.Pos.X; cy += e.Pos.Y; n++; }
+            if (n == 0) return null;
+            var centre = new Vec2(cx / n, cy / n);
+
+            CombatEntity? best = null;
+            double bestDist = double.MaxValue;
+            foreach (var o in s.Entities)
+            {
+                if (!o.Alive || o.Team != Team.Enemy) continue;
+                double d = Vec2.Distance(centre, o.Pos);
+                if (d < bestDist || (d == bestDist && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
+                {
+                    bestDist = d;
+                    best = o;
+                }
+            }
+            return best;
         }
 
         private static CombatEntity? FindNearestEnemy(CombatState s, CombatEntity self)

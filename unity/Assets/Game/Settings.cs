@@ -10,6 +10,14 @@ namespace IdleGame.Game
     /// </summary>
     public static class Settings
     {
+        /// <summary>Party tactic preference (gameplay, not a visual): true = group focus-fire,
+        /// false = solo. Off by default. Persisted so it carries across runs.</summary>
+        public static bool GroupMovement
+        {
+            get => PlayerPrefs.GetInt("tacticGroup", 0) != 0;
+            set { PlayerPrefs.SetInt("tacticGroup", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
         public static bool DamageNumbers   { get => Get("fxDamage");      set => Set("fxDamage", value); }
         public static bool ScreenShake     { get => Get("fxShake");       set => Set("fxShake", value); }
         public static bool LootToasts      { get => Get("fxToasts");      set => Set("fxToasts", value); }

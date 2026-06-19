@@ -38,6 +38,13 @@ namespace IdleGame.GameCore
     /// </summary>
     public enum EncounterKind { Encounter, Farm, BossChallenge }
 
+    /// <summary>
+    /// How the party picks targets (M9). Solo = each hero independently goes for its
+    /// own nearest enemy (they spread out). Group = the whole party focus-fires the
+    /// enemy nearest the party's centre and clusters on it.
+    /// </summary>
+    public enum PartyTactic { Solo, Group }
+
     public sealed class CombatEntity
     {
         public string Id = "";
@@ -68,6 +75,7 @@ namespace IdleGame.GameCore
         public double TimeMs;
         public int Stage;
         public EncounterKind Kind = EncounterKind.Encounter;
+        public PartyTactic Tactic = PartyTactic.Solo;
         public LootContext Loot;       // set by InitCombat; mode-agnostic drop params
         public List<CombatEntity> Entities = new List<CombatEntity>();
         public CombatStatus Status = CombatStatus.Running;
