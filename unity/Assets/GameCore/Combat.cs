@@ -153,9 +153,8 @@ namespace IdleGame.GameCore
             // drop benched heroes
             s.Entities.RemoveAll(e => e.Team == Team.Party && e.RefKind == "hero" && !slotOf.ContainsKey(e.RefId));
 
-            // add newly fielded heroes (skip any already on the field)
-            int n = slotOf.Count;
-            double px = -cfg.Balance.MapHalfWidth * 0.6;
+            // add newly fielded heroes (skip any already on the field) — a roster swap drops
+            // the new hero in at its slot's centre cluster spot ("in place"), no recentering.
             foreach (var kv in slotOf)
             {
                 if (s.Entities.Exists(e => e.Team == Team.Party && e.RefKind == "hero" && e.RefId == kv.Key)) continue;
@@ -170,7 +169,7 @@ namespace IdleGame.GameCore
                 {
                     Id = "P" + idx + "_" + hero.Id,
                     Team = Team.Party,
-                    Pos = new Vec2(px, (idx - (n - 1) / 2.0) * 2.0),
+                    Pos = PartyStartPos(idx),
                     Stats = stats,
                     Hp = hp,
                     MaxHp = hp,
@@ -187,10 +186,17 @@ namespace IdleGame.GameCore
 
         private static double StageScale(StageDef rt) => 1.0 + 0.1 * (rt.MonsterLevel - 1);
 
+        /// <summary>Party spawn point: a tight cluster at the map CENTER (mobs now spawn all
+        /// around them). The index fans heroes into a small 2-wide grid so they don't stack.</summary>
+        private static Vec2 PartyStartPos(int idx)
+        {
+            const double s = 1.4;
+            int col = idx % 2, row = idx / 2;
+            return new Vec2((col - 0.5) * s, (row - 0.5) * s);
+        }
+
         private static void AddParty(CombatState s, IReadOnlyList<HeroInstance> party, GameConfig cfg)
         {
-            double px = -cfg.Balance.MapHalfWidth * 0.6; // party lines up on the left
-            int n = party.Count;
             int idx = 0;
             foreach (var hero in party)
             {
@@ -201,7 +207,7 @@ namespace IdleGame.GameCore
                 {
                     Id = "P" + idx + "_" + hero.Id,
                     Team = Team.Party,
-                    Pos = new Vec2(px, (idx - (n - 1) / 2.0) * 2.0),
+                    Pos = PartyStartPos(idx),
                     Stats = stats,
                     Hp = hp,
                     MaxHp = hp,
@@ -217,13 +223,14 @@ namespace IdleGame.GameCore
             }
         }
 
-        /// <summary>Spawn one trash mob at a random spot on the enemy side (deterministic via rng).</summary>
+        /// <summary>Spawn one trash mob at a random spot anywhere on the map (deterministic
+        /// via rng) — mobs surround the centred party rather than arriving as a side wave.</summary>
         private static void SpawnTrash(CombatState s, StageDef rt, GameConfig cfg, Rng rng)
         {
             var mdef = (s.SpawnCount % 2 == 0) ? cfg.Monsters["slime"] : cfg.Monsters["goblin"];
             double w = cfg.Balance.MapHalfWidth, d = cfg.Balance.MapHalfDepth;
-            // scattered across the right/centre of the field
-            var pos = new Vec2(rng.RandRange(0.0, w - 1.0), rng.RandRange(-(d - 1.0), d - 1.0));
+            // scattered across the entire field (both sides), not lined up on the enemy side
+            var pos = new Vec2(rng.RandRange(-(w - 1.0), w - 1.0), rng.RandRange(-(d - 1.0), d - 1.0));
             s.Entities.Add(MakeMonster(mdef, "E" + s.SpawnCount, pos, StageScale(rt), false));
             s.SpawnCount++;
         }

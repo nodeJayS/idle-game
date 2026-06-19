@@ -202,6 +202,11 @@ namespace IdleGame.GameCore
         public Dictionary<string, SkillDef> Skills = new Dictionary<string, SkillDef>();
         public BalanceConstants Balance = new BalanceConstants();
 
+        /// <summary>Heroes granted by clearing a stage: highestStage reached >= key ⇒ acquire
+        /// the hero def (value), once. The progression path to "20+ characters"; gacha later
+        /// becomes another source feeding the same <see cref="Party.AcquireHero"/>.</summary>
+        public Dictionary<int, string> HeroUnlocks = new Dictionary<int, string>();
+
         private static StatBlock SB(params (StatKey k, double v)[] pairs)
         {
             var b = new StatBlock();
@@ -242,6 +247,10 @@ namespace IdleGame.GameCore
                 GrowthPerLevel = SB((StatKey.Hp, 11), (StatKey.Atk, 4), (StatKey.Def, 1), (StatKey.MaxMana, 5)),
                 Skills = new List<string> { "firebolt", "mend" }, Sprite = "magician", AttackFx = "fireball",
             };
+
+            // Progression unlocks: you start with just the Warrior; clearing stage 3 adds
+            // the Magician to the roster. (More heroes/classes slot in here as content grows.)
+            cfg.HeroUnlocks[3] = "magician_basic";
 
             cfg.ItemBases["rusty_sword"] = new ItemBaseDef
             {

@@ -168,6 +168,7 @@ namespace IdleGame.GameCore.Tests
         {
             // shared account inventory: equipping on hero A makes the item unavailable to B
             var save = Inventory.AddItems(Save.NewGame(1, Cfg, 0), new[] { Mk("w1", "rusty_sword", Rarity.Rare, 5) });
+            save = Party.AcquireHero(save, "magician_basic", Cfg, "h2"); // a second owned hero
             string a = save.Heroes[0].Id, b = save.Heroes[1].Id;
 
             save = Inventory.EquipItem(save, a, "w1", Cfg);

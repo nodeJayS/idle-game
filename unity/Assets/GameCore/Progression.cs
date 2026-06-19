@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace IdleGame.GameCore
 {
@@ -77,19 +78,35 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>
-        /// Record a stage clear: bump HighestStage if this is the deepest yet, and
-        /// auto-advance CurrentStage to the next stage. Replaying an already-cleared
-        /// stage is fine — HighestStage only ever moves forward.
+        /// Record a stage clear: bump HighestStage if this is the deepest yet, auto-advance
+        /// CurrentStage, and grant any hero unlocks now satisfied
+        /// (<see cref="GameConfig.HeroUnlocks"/>) — each acquired once and auto-fielded into
+        /// the first empty party slot. Replaying an already-cleared stage is fine —
+        /// HighestStage only moves forward and owned unlocks are skipped. Pure.
         /// </summary>
-        public static SaveState OnStageCleared(SaveState save, int stage)
+        public static SaveState OnStageCleared(SaveState save, int stage, GameConfig cfg)
         {
             int highest = Math.Max(save.Progress.HighestStage, stage);
-            return WithProgress(save, new ProgressState
+            var next = WithProgress(save, new ProgressState
             {
                 HighestStage = highest,
                 CurrentStage = stage + 1,
                 AccountLevel = save.Progress.AccountLevel,
             });
+
+            // Sorted so multi-unlock grants mint hero ids deterministically.
+            foreach (var unlock in cfg.HeroUnlocks.OrderBy(u => u.Key))
+            {
+                if (unlock.Key > highest) continue;                              // not reached yet
+                if (next.Heroes.Exists(h => h.DefId == unlock.Value)) continue;  // already owned
+
+                string heroId = "h" + (next.Heroes.Count + 1);
+                next = Party.AcquireHero(next, unlock.Value, cfg, heroId);
+                int empty = Array.IndexOf(next.Party, (string?)null);
+                if (empty >= 0) next = Party.FieldHero(next, empty, heroId);      // join the party
+            }
+
+            return next;
         }
 
         /// <summary>

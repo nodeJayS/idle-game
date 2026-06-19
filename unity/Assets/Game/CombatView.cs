@@ -392,7 +392,7 @@ namespace IdleGame.Game
             if (_combat.Kind == EncounterKind.BossChallenge && _combat.Status == CombatStatus.Won)
             {
                 int cleared = _combat.Stage;
-                _save = Progression.OnStageCleared(_save, cleared);
+                _save = Progression.OnStageCleared(_save, cleared, _cfg);
                 _chat?.AddFeed($"Stage {cleared} cleared!", new Color(0.55f, 0.9f, 0.55f));
             }
         }

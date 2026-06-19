@@ -9,15 +9,33 @@ namespace IdleGame.GameCore.Tests
         private static readonly GameConfig Cfg = GameConfig.Default();
 
         [Fact]
-        public void NewGameStartsWithWarriorAndMagician()
+        public void NewGameStartsWithWarriorOnly()
         {
             var save = Save.NewGame(123, Cfg, 1000);
-            Assert.Equal(2, save.Heroes.Count);
+            Assert.Single(save.Heroes);
             Assert.Equal(Save.StarterHeroDef, save.Heroes[0].DefId);
-            Assert.Equal(Save.StarterMageDef, save.Heroes[1].DefId);
-            Assert.Equal(new string?[] { save.Heroes[0].Id, save.Heroes[1].Id, null, null }, save.Party);
+            Assert.Equal(new string?[] { save.Heroes[0].Id, null, null, null }, save.Party);
             Assert.Equal(0, save.Currencies["gold"]);
             Assert.Equal(1000, save.LastClaimAt);
+        }
+
+        [Fact]
+        public void AcquireHeroAddsOwnedHeroAndIsPure()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            var next = Party.AcquireHero(save, "magician_basic", Cfg, "h2");
+
+            Assert.Equal(2, next.Heroes.Count);
+            Assert.Contains(next.Heroes, h => h.Id == "h2" && h.DefId == "magician_basic");
+            Assert.Single(save.Heroes); // original untouched
+        }
+
+        [Fact]
+        public void AcquireHeroRejectsDuplicateIdAndUnknownDef()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            Assert.Throws<InvalidOperationException>(() => Party.AcquireHero(save, "magician_basic", Cfg, "h1")); // dup id
+            Assert.Throws<InvalidOperationException>(() => Party.AcquireHero(save, "nope", Cfg, "hX"));           // unknown def
         }
 
         [Fact]
@@ -76,8 +94,10 @@ namespace IdleGame.GameCore.Tests
         public void FieldHeroBenchesPreviousOccupant()
         {
             var save = Save.NewGame(1, Cfg, 0);
-            string h1 = save.Heroes[0].Id; // slot 0
-            string h2 = save.Heroes[1].Id; // slot 1
+            save = Party.AcquireHero(save, "magician_basic", Cfg, "h2");
+            save = Party.FieldHero(save, 1, "h2"); // h1 in slot 0, h2 in slot 1
+            string h1 = save.Heroes[0].Id, h2 = "h2";
+
             var next = Party.FieldHero(save, 1, h1); // field h1 where h2 was
 
             Assert.Equal(h1, next.Party[1]);

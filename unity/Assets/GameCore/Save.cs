@@ -12,22 +12,22 @@ namespace IdleGame.GameCore
         public const string StarterMageDef = "magician_basic";
 
         /// <summary>
-        /// A fresh game: a Warrior in slot 0 and a Magician in slot 1 (two empty slots).
-        /// `now` (epoch ms) is passed in, not read from the clock, to keep game-core
-        /// pure/testable.
+        /// A fresh game: just a Warrior in slot 0 (three empty slots). More heroes are
+        /// earned through progression — e.g. the Magician unlocks at stage 3
+        /// (<see cref="GameConfig.HeroUnlocks"/>). `now` (epoch ms) is passed in, not read
+        /// from the clock, to keep game-core pure/testable.
         /// </summary>
         public static SaveState NewGame(uint seed, GameConfig cfg, long now)
         {
             var warrior = MakeHero("h1", StarterHeroDef, cfg);
-            var magician = MakeHero("h2", StarterMageDef, cfg);
 
             return new SaveState
             {
                 Version = SaveVersion,
                 RngSeed = seed,
                 RngCursor = 0,
-                Heroes = new List<HeroInstance> { warrior, magician },
-                Party = new string?[] { warrior.Id, magician.Id, null, null },
+                Heroes = new List<HeroInstance> { warrior },
+                Party = new string?[] { warrior.Id, null, null, null },
                 Inventory = new List<Item>(),
                 Currencies = new Dictionary<string, long> { ["gold"] = 0 },
                 Progress = new ProgressState { HighestStage = 0, CurrentStage = 1, AccountLevel = 1 },

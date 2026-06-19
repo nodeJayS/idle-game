@@ -22,7 +22,7 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void OnStageClearedBumpsAndAdvances()
         {
-            var after = Progression.OnStageCleared(Save(highest: 0, current: 1), 1);
+            var after = Progression.OnStageCleared(Save(highest: 0, current: 1), 1, Cfg);
             Assert.Equal(1, after.Progress.HighestStage);
             Assert.Equal(2, after.Progress.CurrentStage);
         }
@@ -31,7 +31,7 @@ namespace IdleGame.GameCore.Tests
         public void OnStageClearedReplayDoesNotLowerHighest()
         {
             // Already cleared up to 5; replaying stage 2 keeps HighestStage at 5.
-            var after = Progression.OnStageCleared(Save(highest: 5, current: 2), 2);
+            var after = Progression.OnStageCleared(Save(highest: 5, current: 2), 2, Cfg);
             Assert.Equal(5, after.Progress.HighestStage);
             Assert.Equal(3, after.Progress.CurrentStage);
         }
@@ -40,7 +40,7 @@ namespace IdleGame.GameCore.Tests
         public void OnStageClearedIsPure()
         {
             var before = Save(highest: 0, current: 1);
-            var after = Progression.OnStageCleared(before, 1);
+            var after = Progression.OnStageCleared(before, 1, Cfg);
 
             Assert.Equal(0, before.Progress.HighestStage); // input untouched
             Assert.Equal(1, before.Progress.CurrentStage);
@@ -103,12 +103,38 @@ namespace IdleGame.GameCore.Tests
             Combat.RunToEnd(fight, Cfg, new Rng(1));
             Assert.Equal(CombatStatus.Won, fight.Status);
 
-            var after = Progression.OnStageCleared(save, fight.Stage);
+            var after = Progression.OnStageCleared(save, fight.Stage, Cfg);
             Assert.Equal(1, after.Progress.HighestStage);
             Assert.Equal(2, after.Progress.CurrentStage);
 
             // and the newly-unlocked frontier (HighestStage + 1) is selectable to farm
             Assert.Equal(2, Progression.SetStage(after, 2, Cfg).Progress.CurrentStage);
+        }
+
+        [Fact]
+        public void ClearingStage3UnlocksAndFieldsTheMagician()
+        {
+            var save = Save(highest: 2, current: 3); // one warrior, three empty slots
+            Assert.Single(save.Heroes);
+
+            var after = Progression.OnStageCleared(save, 3, Cfg);
+
+            var mage = after.Heroes.Find(h => h.DefId == "magician_basic");
+            Assert.NotNull(mage);                                  // acquired
+            Assert.Contains(mage!.Id, after.Party);                // auto-fielded into an empty slot
+            Assert.Equal(2, after.Heroes.Count);
+        }
+
+        [Fact]
+        public void HeroUnlockIsGrantedOnlyOnce()
+        {
+            var first = Progression.OnStageCleared(Save(highest: 2, current: 3), 3, Cfg);
+            Assert.Equal(2, first.Heroes.Count);
+
+            // replaying stage 3 (already owned) must not mint a second magician
+            var again = Progression.OnStageCleared(first, 3, Cfg);
+            Assert.Equal(2, again.Heroes.Count);
+            Assert.Single(again.Heroes, h => h.DefId == "magician_basic");
         }
 
         [Fact]

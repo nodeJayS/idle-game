@@ -48,47 +48,56 @@ namespace IdleGame.GameCore.Tests
             Assert.True(s.Entities.First(e => e.Team == Team.Party).Pos.X < 0);
         }
 
+        // Two fielded heroes (warrior h1 + an acquired magician h2) for swap tests, since a
+        // fresh save now starts with just the warrior.
+        private static SaveState TwoHeroSave()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            save = Party.AcquireHero(save, "magician_basic", Cfg, "h2");
+            return Party.FieldHero(save, 1, "h2"); // h1 in slot 0, h2 in slot 1
+        }
+
         [Fact]
         public void ReconcilePartyRemovesBenchedHero()
         {
-            var save = Save.NewGame(1, Cfg, 0);
+            var save = TwoHeroSave();
             var s = Combat.InitFarm(save.Heroes, 1, Cfg, new Rng(1));
             Assert.Equal(2, s.Entities.Count(e => e.Team == Team.Party));
 
             Combat.ReconcileParty(s, Party.SetPartySlot(save, 1, null), Cfg); // bench hero 2
 
             Assert.Equal(1, s.Entities.Count(e => e.Team == Team.Party));
-            Assert.DoesNotContain(s.Entities, e => e.RefKind == "hero" && e.RefId == save.Heroes[1].Id);
-            Assert.Contains(s.Entities, e => e.RefKind == "hero" && e.RefId == save.Heroes[0].Id);
+            Assert.DoesNotContain(s.Entities, e => e.RefKind == "hero" && e.RefId == "h2");
+            Assert.Contains(s.Entities, e => e.RefKind == "hero" && e.RefId == "h1");
         }
 
         [Fact]
         public void ReconcilePartyAddsFieldedHeroWithoutDuplicating()
         {
-            var save = Save.NewGame(1, Cfg, 0);
+            var save = TwoHeroSave();
             var s = Combat.InitFarm(save.Heroes, 1, Cfg, new Rng(1));
 
             var benched = Party.SetPartySlot(save, 1, null);
             Combat.ReconcileParty(s, benched, Cfg);
             Assert.Equal(1, s.Entities.Count(e => e.Team == Team.Party));
 
-            var refielded = Party.FieldHero(benched, 2, save.Heroes[1].Id); // bring hero 2 back
+            var refielded = Party.FieldHero(benched, 2, "h2"); // bring hero 2 back
             Combat.ReconcileParty(s, refielded, Cfg);
 
             Assert.Equal(2, s.Entities.Count(e => e.Team == Team.Party));
-            Assert.Single(s.Entities, e => e.RefKind == "hero" && e.RefId == save.Heroes[1].Id);
+            Assert.Single(s.Entities, e => e.RefKind == "hero" && e.RefId == "h2");
         }
 
         [Fact]
         public void ReconcilePartyKeepsExistingHeroLiveState()
         {
-            var save = Save.NewGame(1, Cfg, 0);
+            var save = TwoHeroSave();
             var s = Combat.InitFarm(save.Heroes, 1, Cfg, new Rng(1));
-            s.Entities.First(e => e.RefId == save.Heroes[0].Id).Hp = 5; // took damage mid-run
+            s.Entities.First(e => e.RefId == "h1").Hp = 5; // took damage mid-run
 
             Combat.ReconcileParty(s, Party.SetPartySlot(save, 1, null), Cfg); // bench the other hero
 
-            Assert.Equal(5, s.Entities.First(e => e.RefId == save.Heroes[0].Id).Hp); // untouched by the swap
+            Assert.Equal(5, s.Entities.First(e => e.RefId == "h1").Hp); // untouched by the swap
         }
 
         [Fact]
