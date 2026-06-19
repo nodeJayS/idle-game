@@ -63,7 +63,7 @@ namespace IdleGame.GameCore
             var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
             s.Loot = LootContext.ForStage(rt);
 
-            int initial = Math.Min(rt.PackCount, cfg.Balance.MobCap);
+            int initial = Math.Min(cfg.Balance.SpawnBatchSize, cfg.Balance.MobCap);
             for (int i = 0; i < initial; i++) SpawnTrash(s, rt, cfg, rng);
 
             s.SpawnTimerMs = cfg.Balance.SpawnIntervalMs;
@@ -213,10 +213,12 @@ namespace IdleGame.GameCore
                 s.SpawnTimerMs -= dtMs;
                 if (s.SpawnTimerMs <= 0)
                 {
-                    if (CountAliveEnemies(s) < cfg.Balance.MobCap)
+                    int room = cfg.Balance.MobCap - CountAliveEnemies(s);
+                    int n = Math.Min(cfg.Balance.SpawnBatchSize, room);
+                    if (n > 0)
                     {
                         var rt = cfg.Stages.Find(r => r.Stage == s.Stage) ?? cfg.Stages[0];
-                        SpawnTrash(s, rt, cfg, rng);
+                        for (int i = 0; i < n; i++) SpawnTrash(s, rt, cfg, rng);
                     }
                     s.SpawnTimerMs = cfg.Balance.SpawnIntervalMs;
                 }

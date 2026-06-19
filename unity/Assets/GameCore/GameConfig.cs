@@ -96,10 +96,11 @@ namespace IdleGame.GameCore
         public double RespawnPerLevelMs = 200;
         public double MaxRunSeconds = 120;
 
-        // Farm zones (M8): max concurrent trash on screen, and how often a new one
-        // spawns (one per interval up to the cap).
+        // Farm zones (M8/M9): max concurrent trash, and how big a wave spawns each
+        // interval (scattered across the field) until the cap is reached.
         public int MobCap = 30;
-        public double SpawnIntervalMs = 2000;
+        public int SpawnBatchSize = 10;
+        public double SpawnIntervalMs = 10000;
 
         // Boss challenge (M8): seconds to kill the stage's boss and advance.
         public double BossChallengeSeconds = 60;

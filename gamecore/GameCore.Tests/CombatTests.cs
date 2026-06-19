@@ -187,6 +187,36 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void FarmSpawnsInBatchesNotOneAtATime()
+        {
+            var cfg = GameConfig.Default();
+            cfg.Balance.MobCap = 30;
+            cfg.Balance.SpawnBatchSize = 10;
+            cfg.Balance.SpawnIntervalMs = 1000;
+            var s = Combat.InitFarm(new[] { Champ() }, 1, cfg, new Rng(1));
+            s.Entities[0].Stats[StatKey.Atk] = 0; // nothing dies
+
+            Assert.Equal(10, AliveEnemies(s)); // initial wave is a batch
+
+            for (int i = 0; i < 45; i++) Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1)); // one interval
+            Assert.Equal(20, AliveEnemies(s)); // jumped by a full batch, not by 1
+        }
+
+        [Fact]
+        public void BatchSpawnRespectsCap()
+        {
+            var cfg = GameConfig.Default();
+            cfg.Balance.MobCap = 25;
+            cfg.Balance.SpawnBatchSize = 10;
+            cfg.Balance.SpawnIntervalMs = 100;
+            var s = Combat.InitFarm(new[] { Champ() }, 1, cfg, new Rng(1));
+            s.Entities[0].Stats[StatKey.Atk] = 0;
+
+            for (int i = 0; i < 60; i++) Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1)); // many waves
+            Assert.Equal(25, AliveEnemies(s)); // partial final wave, never over cap
+        }
+
+        [Fact]
         public void FarmSpawnsWithinMapBounds()
         {
             var cfg = GameConfig.Default();
