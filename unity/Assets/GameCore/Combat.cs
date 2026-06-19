@@ -93,6 +93,32 @@ namespace IdleGame.GameCore
             return s;
         }
 
+        /// <summary>
+        /// Re-derive each living party hero's combat stats from the current save (level
+        /// + equipped gear), so leveling up or swapping gear takes effect immediately
+        /// without restarting the encounter. An increase in max HP also heals by the
+        /// gain (a level-up feels rewarding); a downed hero keeps its 0 HP and respawns
+        /// at the new max. Mutates the combat state in place; deterministic.
+        /// </summary>
+        public static void RefreshPartyStats(CombatState s, SaveState save, GameConfig cfg)
+        {
+            foreach (var e in s.Entities)
+            {
+                if (e.Team != Team.Party || e.RefKind != "hero") continue;
+                var hero = save.Heroes.Find(h => h.Id == e.RefId);
+                if (hero == null) continue;
+
+                var stats = Stats.ComputeHeroStats(hero, cfg, Stats.ResolveEquipped(save, hero));
+                double oldMax = e.MaxHp;
+                double newMax = stats.Get(StatKey.Hp);
+
+                e.Stats = stats;
+                e.MaxHp = newMax;
+                e.AttackIntervalMs = AttackInterval(stats);
+                if (e.Hp > 0) e.Hp = Math.Min(newMax, e.Hp + Math.Max(0.0, newMax - oldMax));
+            }
+        }
+
         private static double StageScale(StageDef rt) => 1.0 + 0.1 * (rt.MonsterLevel - 1);
 
         private static void AddParty(CombatState s, IReadOnlyList<HeroInstance> party, GameConfig cfg)

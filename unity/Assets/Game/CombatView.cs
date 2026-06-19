@@ -17,7 +17,6 @@ namespace IdleGame.Game
     public sealed class CombatView : MonoBehaviour
     {
         private const float OutcomeDelaySec = 1.5f;
-        private const float CommitIntervalSec = 3f;
         private const int MaxStepsPerFrame = 8;
         private const float MoveSmoothing = 12f;
 
@@ -39,7 +38,6 @@ namespace IdleGame.Game
         private readonly Dictionary<string, View> _views = new Dictionary<string, View>();
 
         private double _accMs;
-        private float _commitTimer;
         private float _outcomeTimer;
         private bool _resolved;
         private uint _runCount;
@@ -47,7 +45,11 @@ namespace IdleGame.Game
         private Texture2D _white = null!;
 
         public SaveState CurrentSave => _save;
-        public void ReplaceSave(SaveState save) => _save = save;
+            public void ReplaceSave(SaveState save)
+        {
+            _save = save;
+            if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg); // equip applies live
+        }
         public void BindInventory(InventoryView inv) => _inventory = inv;
 
         public void Init(SaveState save, GameConfig cfg)
@@ -109,12 +111,8 @@ namespace IdleGame.Game
                 }
                 if (steps == MaxStepsPerFrame) _accMs = 0;
 
-                // Farm: bank progress periodically so grinding always counts.
-                if (_combat.Kind == EncounterKind.Farm)
-                {
-                    _commitTimer += Time.deltaTime;
-                    if (_commitTimer >= CommitIntervalSec) { CommitPending(); _commitTimer = 0; }
-                }
+                // Bank progress as it's earned; a level-up recomputes party stats live.
+                if (CommitPending()) Combat.RefreshPartyStats(_combat, _save, _cfg);
             }
             else
             {
@@ -127,9 +125,11 @@ namespace IdleGame.Game
             SyncViews();
         }
 
-        /// <summary>Bank pending loot/XP/gold into the save (idempotent — buffers reset).</summary>
-        private void CommitPending()
+        /// <summary>Bank pending loot/XP/gold into the save. Returns true if XP was
+        /// granted (so the caller can refresh live party stats).</summary>
+        private bool CommitPending()
         {
+            bool xp = false;
             if (_combat.PendingLoot.Count > 0)
             {
                 _save = Inventory.AddItems(_save, _combat.PendingLoot);
@@ -139,12 +139,14 @@ namespace IdleGame.Game
             {
                 _save = Progression.GrantPartyXp(_save, _combat.PendingXp, _cfg);
                 _combat.PendingXp = 0;
+                xp = true;
             }
             if (_combat.PendingGold > 0)
             {
                 _save = Progression.GrantGold(_save, _combat.PendingGold);
                 _combat.PendingGold = 0;
             }
+            return xp;
         }
 
         private void ResolveOutcome()

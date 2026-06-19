@@ -288,6 +288,54 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(s1.TimeMs, s2.TimeMs);
         }
 
+        // --- M8: live stat refresh (real-time leveling / gear) ---
+
+        [Fact]
+        public void RefreshPartyStatsAppliesLevelUpLive()
+        {
+            var save = Save.NewGame(1, Cfg, 0); // warrior h1, level 1
+            var s = Combat.InitFarm(save.Heroes, 1, Cfg, new Rng(1));
+            var hero = s.Entities.First(e => e.Team == Team.Party);
+            double maxBefore = hero.MaxHp;
+
+            var leveled = Progression.GrantPartyXp(save, 1_000_000, Cfg); // many levels
+            Combat.RefreshPartyStats(s, leveled, Cfg);
+
+            Assert.True(hero.MaxHp > maxBefore);     // tougher immediately
+            Assert.True(hero.Hp > 0);                // healed by the gain, not reset
+        }
+
+        [Fact]
+        public void RefreshPartyStatsAppliesEquippedGearLive()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            var sword = new Item { Id = "i1", BaseId = "rusty_sword", Rarity = Rarity.Normal, ItemLevel = 1 };
+            save = Inventory.AddItems(save, new[] { sword });
+
+            var s = Combat.InitFarm(save.Heroes, 1, Cfg, new Rng(1));
+            var hero = s.Entities.First(e => e.Team == Team.Party);
+            double atkBefore = hero.Stats.Get(StatKey.Atk);
+
+            save = Inventory.EquipItem(save, "h1", "i1", Cfg);
+            Combat.RefreshPartyStats(s, save, Cfg);
+
+            Assert.True(hero.Stats.Get(StatKey.Atk) > atkBefore); // weapon applied live
+        }
+
+        [Fact]
+        public void RefreshPartyStatsDoesNotReviveDownedHero()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            var s = Combat.InitFarm(save.Heroes, 1, Cfg, new Rng(1));
+            var hero = s.Entities.First(e => e.Team == Team.Party);
+            hero.Hp = 0; hero.RespawnMs = 2000; // downed
+
+            Combat.RefreshPartyStats(s, Progression.GrantPartyXp(save, 1_000_000, Cfg), Cfg);
+
+            Assert.Equal(0, hero.Hp);  // still down; respawn restores it to the new max
+            Assert.True(hero.Downed);
+        }
+
         // --- M8: per-kill gold + stage-scaled rewards ---
 
         [Fact]
