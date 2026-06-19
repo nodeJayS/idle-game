@@ -331,7 +331,11 @@ namespace IdleGame.Game
             {
                 if (!_resolved) { _resolved = true; ResolveOutcome(); }
                 _outcomeTimer += Time.deltaTime;
-                if (_outcomeTimer >= OutcomeDelaySec) { _runCount++; StartFarm(); return; }
+                // A boss win shows a success popup that auto-advances after ~1s (or OK,
+                // which fast-forwards the timer); losses use the longer banner delay.
+                bool bossWin = _combat.Kind == EncounterKind.BossChallenge && _combat.Status == CombatStatus.Won;
+                float delay = bossWin ? 1.0f : OutcomeDelaySec;
+                if (_outcomeTimer >= delay) { _runCount++; StartFarm(); return; }
             }
 
             ReconcileViews();
@@ -689,6 +693,8 @@ namespace IdleGame.Game
 
             DrawHealthBars(s);
             DrawHud(s);
+            DrawTopControls(s);
+            DrawOutcome(s);
             DrawPartyHud(s);
             DrawControlBar();
 
@@ -697,8 +703,12 @@ namespace IdleGame.Game
 
         private static float UiScale()
         {
-            float dpi = Screen.dpi;
-            return dpi > 0f ? Mathf.Clamp(dpi / 96f, 1f, 3f) : 1f; // 96dpi desktop => 1x
+            // Compact desktop sizing — about half the previous scale (the HUD was way too
+            // big). Scales gently with DPI (phones) / screen height; uGUI panels (chat, top
+            // bar) scale separately via CanvasScaler, and this now reads in line with them.
+            float byDpi = Screen.dpi > 0f ? Screen.dpi / 96f : 1f;
+            float byRes = Screen.height / 720f;
+            return Mathf.Clamp(Mathf.Max(byDpi, byRes) * 0.62f, 0.58f, 1.8f);
         }
 
         private void DrawHealthBars(float s)
@@ -737,15 +747,17 @@ namespace IdleGame.Game
         private void DrawHud(float s)
         {
             if (AnyPanelOpen) return; // a full-screen panel (Heroes/Inventory) owns the view
-            float sw = Screen.width / s, sh = Screen.height / s;
-            // Centered at the top so it clears the account chip / Settings button (top-left).
+            float sw = Screen.width / s;
+            // Top-centre context line (clears the account chip / Settings button at top-left).
             var style = new GUIStyle(GUI.skin.label)
             { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.UpperCenter };
             bool major = _cfg.Stages.Find(st => st.Stage == _combat.Stage)?.IsMajorBoss == true;
             long gold = _save.Currencies.TryGetValue("gold", out var g) ? g : 0;
-            string mode = _combat.Kind == EncounterKind.Farm ? "Farming" : (major ? "★ MAJOR BOSS" : "Miniboss");
+            string mode = _combat.Kind == EncounterKind.Farm
+                ? "Farming"
+                : (major ? $"★ MAJOR BOSS — Stage {_combat.Stage}" : $"Miniboss — Stage {_combat.Stage}");
             GUI.Label(new Rect(0, 8, sw, 28),
-                      $"Stage {_combat.Stage} · {mode}  ·  highest {_save.Progress.HighestStage}  ·  {Num.Compact(gold)} gold", style);
+                      $"{mode}  ·  highest {_save.Progress.HighestStage}  ·  {Num.Compact(gold)} gold", style);
 
             if (_combat.Kind == EncounterKind.BossChallenge)
             {
@@ -755,14 +767,60 @@ namespace IdleGame.Game
                 timer.normal.textColor = remain <= 10 ? new Color(1f, 0.4f, 0.35f) : Color.white;
                 GUI.Label(new Rect(sw / 2f - 100, 40, 200, 40), $"{remain:0.0}s", timer);
             }
+        }
 
-            if (_combat.Status != CombatStatus.Running)
+        /// <summary>Top-centre stage nav + boss challenge/flee, under the context line.</summary>
+        private void DrawTopControls(float s)
+        {
+            if (AnyPanelOpen || _combat.Status != CombatStatus.Running) return;
+            float cx = Screen.width / s / 2f;
+
+            if (_combat.Kind == EncounterKind.Farm)
             {
-                string banner = _combat.Kind == EncounterKind.BossChallenge
-                    ? (_combat.Status == CombatStatus.Won ? "STAGE CLEARED!" : "BOSS FAILED")
-                    : "PARTY WIPED";
-                var bs = new GUIStyle(GUI.skin.label)
-                { fontSize = 34, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+                int cur = _save.Progress.CurrentStage;
+                int maxStage = Mathf.Min(_save.Progress.HighestStage + 1, _cfg.Stages.Count);
+
+                var st = new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+                GUI.Label(new Rect(cx - 90, 44, 180, 40), $"Stage {cur}", st);
+                if (cur > 1 && Button(cx - 162, 46, 46, 38, "◀")) GoToStage(cur - 1);
+                if (cur < maxStage && Button(cx + 116, 46, 46, 38, "▶")) GoToStage(cur + 1);
+
+                bool major = _cfg.Stages.Find(x => x.Stage == cur)?.IsMajorBoss == true;
+                if (Button(cx - 150, 90, 300, 44, major ? "Challenge ★ Major Boss" : "Challenge Miniboss")) ChallengeBoss();
+            }
+            else if (_combat.Kind == EncounterKind.BossChallenge)
+            {
+                if (Button(cx - 90, 90, 180, 44, "Flee")) FleeToFarm();
+            }
+        }
+
+        /// <summary>Outcome overlay: a success popup on a boss win (auto-advances ~1s or OK),
+        /// a plain banner on a loss/wipe.</summary>
+        private void DrawOutcome(float s)
+        {
+            if (AnyPanelOpen || _combat.Status == CombatStatus.Running) return;
+            float sw = Screen.width / s, sh = Screen.height / s;
+
+            bool bossWin = _combat.Kind == EncounterKind.BossChallenge && _combat.Status == CombatStatus.Won;
+            if (bossWin)
+            {
+                float w = 420f, h = 180f, x = sw / 2f - w / 2f, y = sh / 2f - h / 2f;
+                DrawRect(x - 2, y - 2, w + 4, h + 4, new Color(0.40f, 0.70f, 0.45f, 0.95f));
+                DrawRect(x, y, w, h, new Color(0.10f, 0.13f, 0.11f, 0.98f));
+
+                var t = new GUIStyle(GUI.skin.label) { fontSize = 30, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+                t.normal.textColor = new Color(0.6f, 0.95f, 0.6f);
+                GUI.Label(new Rect(x, y + 24, w, 40), $"Stage {_combat.Stage} cleared!", t);
+                var sub = new GUIStyle(GUI.skin.label) { fontSize = 15, alignment = TextAnchor.MiddleCenter };
+                sub.normal.textColor = new Color(0.8f, 0.85f, 0.8f);
+                GUI.Label(new Rect(x, y + 70, w, 24), "Advancing to the next stage…", sub);
+
+                if (Button(x + w / 2f - 80, y + h - 60, 160, 44, "OK")) _outcomeTimer = 9999f; // fast-forward
+            }
+            else
+            {
+                string banner = _combat.Kind == EncounterKind.BossChallenge ? "BOSS FAILED" : "PARTY WIPED";
+                var bs = new GUIStyle(GUI.skin.label) { fontSize = 34, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
                 GUI.Label(new Rect(0, sh / 2f - 60, sw, 44), banner, bs);
             }
         }
@@ -909,29 +967,12 @@ namespace IdleGame.Game
             if (Button(x, y, 170, h, "Heroes")) _equipment?.ToggleDefault();
             x += 170 + gap;
 
-            // party tactic toggle (applies live + persists)
+            // party tactic toggle (applies live + persists). Stage nav + Challenge/Flee live
+            // in the top-centre HUD now (see DrawTopControls).
             if (Button(x, y, 200, h, _combat.Tactic == PartyTactic.Group ? "Group" : "Solo"))
             {
                 Settings.GroupMovement = !Settings.GroupMovement;
                 _combat.Tactic = Settings.GroupMovement ? PartyTactic.Group : PartyTactic.Solo;
-            }
-            x += 200 + gap * 2;
-
-            bool running = _combat.Status == CombatStatus.Running;
-            if (running && _combat.Kind == EncounterKind.Farm)
-            {
-                int cur = _save.Progress.CurrentStage;
-                int maxStage = Mathf.Min(_save.Progress.HighestStage + 1, _cfg.Stages.Count);
-
-                if (cur > 1 && Button(x, y, h, h, "◀")) GoToStage(cur - 1);
-                x += h + gap;
-                if (cur < maxStage && Button(x, y, h, h, "▶")) GoToStage(cur + 1);
-                x += h + gap * 2;
-                if (Button(x, y, 420, h, "Challenge Miniboss")) ChallengeBoss();
-            }
-            else if (running && _combat.Kind == EncounterKind.BossChallenge)
-            {
-                if (Button(x, y, 260, h, "Flee")) FleeToFarm();
             }
         }
 
