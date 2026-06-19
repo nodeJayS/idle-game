@@ -122,6 +122,58 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(5, Inventory.CompareForHero(save2, heroId2, candidate, Cfg).Get(StatKey.Atk), 3);
         }
 
+        // --- M10.4: full MapleStory-style slot set ---
+
+        [Fact]
+        public void EveryEquipSlotHasAtLeastOneItemBase()
+        {
+            // loot picks bases uniformly, so each slot needs gear to ever drop/equip
+            foreach (EquipSlot slot in System.Enum.GetValues(typeof(EquipSlot)))
+                Assert.Contains(Cfg.ItemBases.Values, b => b.Slot == slot);
+        }
+
+        [Theory]
+        [InlineData("wooden_shield", EquipSlot.Offhand)]
+        [InlineData("leather_gloves", EquipSlot.Gloves)]
+        [InlineData("linen_cape", EquipSlot.Cape)]
+        [InlineData("leather_boots", EquipSlot.Boots)]
+        [InlineData("copper_ring", EquipSlot.Ring)]
+        [InlineData("bone_amulet", EquipSlot.Amulet)]
+        public void NewSlotItemsEquipIntoTheirSlot(string baseId, EquipSlot slot)
+        {
+            var (save, heroId) = Setup(Mk("x", baseId, Rarity.Normal, 1));
+            var after = Inventory.EquipItem(save, heroId, "x", Cfg);
+            Assert.Equal("x", after.Heroes.Find(h => h.Id == heroId)!.Equipped[slot]);
+        }
+
+        [Fact]
+        public void HeroCanFillMultipleSlotsFromTheSharedPool()
+        {
+            var (save, heroId) = Setup(
+                Mk("a", "rusty_sword", Rarity.Normal, 1),
+                Mk("b", "wooden_shield", Rarity.Normal, 1),
+                Mk("c", "leather_cap", Rarity.Normal, 1),
+                Mk("d", "linen_cape", Rarity.Normal, 1),
+                Mk("e", "copper_ring", Rarity.Normal, 1));
+
+            var s = save;
+            foreach (var id in new[] { "a", "b", "c", "d", "e" }) s = Inventory.EquipItem(s, heroId, id, Cfg);
+
+            var eq = s.Heroes.Find(h => h.Id == heroId)!.Equipped;
+            Assert.Equal(5, eq.Count); // five different slots filled at once
+        }
+
+        [Fact]
+        public void TwoHeroesShareOnePoolButCannotWearTheSameItem()
+        {
+            // shared account inventory: equipping on hero A makes the item unavailable to B
+            var save = Inventory.AddItems(Save.NewGame(1, Cfg, 0), new[] { Mk("w1", "rusty_sword", Rarity.Rare, 5) });
+            string a = save.Heroes[0].Id, b = save.Heroes[1].Id;
+
+            save = Inventory.EquipItem(save, a, "w1", Cfg);
+            Assert.Throws<System.InvalidOperationException>(() => Inventory.EquipItem(save, b, "w1", Cfg));
+        }
+
         [Fact]
         public void PartyPowerIncreasesAfterEquipping()
         {

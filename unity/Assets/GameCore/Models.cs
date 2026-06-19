@@ -20,7 +20,9 @@ namespace IdleGame.GameCore
     // bias both rely on (int)Rarity as the rank (Normal = 0 … Legendary = 4).
     public enum Rarity { Normal, Magic, Rare, Unique, Legendary }
 
-    public enum EquipSlot { Weapon, Helm, Chest, Boots, Ring, Amulet }
+    // Appended (not reordered) so persisted slot values stay stable. MapleStory-style
+    // gear sheet: armor pieces + a weapon/offhand pair, plus two accessory slots.
+    public enum EquipSlot { Weapon, Helm, Chest, Boots, Ring, Amulet, Offhand, Gloves, Cape }
 
     // Appended (not reordered) so persisted StatKey values stay stable across saves.
     // MaxMana/ManaRegen back the skill resource; basic attacks cost nothing.

@@ -248,6 +248,38 @@ namespace IdleGame.GameCore
                 BaseId = "leather_vest", Slot = EquipSlot.Chest, BaseStats = SB((StatKey.Def, 5), (StatKey.Hp, 20)),
                 AllowedAffixes = new List<StatKey> { StatKey.Hp, StatKey.Def }, Sprite = "chest",
             };
+            cfg.ItemBases["wooden_shield"] = new ItemBaseDef
+            {
+                BaseId = "wooden_shield", Slot = EquipSlot.Offhand, BaseStats = SB((StatKey.Def, 4), (StatKey.Hp, 12)),
+                AllowedAffixes = new List<StatKey> { StatKey.Hp, StatKey.Def }, Sprite = "shield",
+            };
+            cfg.ItemBases["leather_gloves"] = new ItemBaseDef
+            {
+                BaseId = "leather_gloves", Slot = EquipSlot.Gloves, BaseStats = SB((StatKey.Def, 2), (StatKey.Atk, 2)),
+                AllowedAffixes = new List<StatKey> { StatKey.Atk, StatKey.Def, StatKey.CritChance }, Sprite = "gloves",
+            };
+            cfg.ItemBases["leather_boots"] = new ItemBaseDef
+            {
+                BaseId = "leather_boots", Slot = EquipSlot.Boots, BaseStats = SB((StatKey.Def, 2), (StatKey.Spd, 0.05)),
+                AllowedAffixes = new List<StatKey> { StatKey.Def, StatKey.Hp, StatKey.Spd }, Sprite = "boots",
+            };
+            cfg.ItemBases["linen_cape"] = new ItemBaseDef
+            {
+                BaseId = "linen_cape", Slot = EquipSlot.Cape, BaseStats = SB((StatKey.Def, 2), (StatKey.Hp, 8)),
+                AllowedAffixes = new List<StatKey> { StatKey.Hp, StatKey.Def }, Sprite = "cape",
+            };
+            cfg.ItemBases["copper_ring"] = new ItemBaseDef
+            {
+                BaseId = "copper_ring", Slot = EquipSlot.Ring, BaseStats = SB((StatKey.Atk, 3)),
+                AllowedAffixes = new List<StatKey> { StatKey.Atk, StatKey.CritChance, StatKey.CritDmg }, Sprite = "ring",
+            };
+            cfg.ItemBases["bone_amulet"] = new ItemBaseDef
+            {
+                // accessory that ties into the new mana resource (MaxMana is a base stat;
+                // there's no mana affix yet — those arrive with skills).
+                BaseId = "bone_amulet", Slot = EquipSlot.Amulet, BaseStats = SB((StatKey.Hp, 8), (StatKey.MaxMana, 15)),
+                AllowedAffixes = new List<StatKey> { StatKey.Hp, StatKey.Def }, Sprite = "amulet",
+            };
 
             cfg.AffixPool.Add(new AffixDef { Stat = StatKey.Hp, Weight = 30, ValueMinPerItemLevel = 4, ValueMaxPerItemLevel = 8, RarityFloor = Rarity.Magic });
             cfg.AffixPool.Add(new AffixDef { Stat = StatKey.Atk, Weight = 25, ValueMinPerItemLevel = 1, ValueMaxPerItemLevel = 2, RarityFloor = Rarity.Magic });
