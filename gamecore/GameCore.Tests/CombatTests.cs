@@ -202,6 +202,18 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void FarmSpawnsTrashAroundTheParty()
+        {
+            var cfg = GameConfig.Default();
+            var s = Combat.InitFarm(new[] { Champ() }, 1, cfg, new Rng(3));
+            Assert.True(s.Entities.Count(e => e.Team == Team.Enemy) > 0);
+            // party starts near the origin; trash should ring it, not scatter across the map
+            foreach (var e in s.Entities)
+                if (e.Team == Team.Enemy)
+                    Assert.True(Vec2.Distance(e.Pos, new Vec2(0, 0)) <= cfg.Balance.SpawnRingOuter + 3);
+        }
+
+        [Fact]
         public void TrashGetsTankierWithStage()
         {
             var cfg = GameConfig.Default();

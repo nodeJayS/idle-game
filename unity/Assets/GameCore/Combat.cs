@@ -195,6 +195,16 @@ namespace IdleGame.GameCore
         private static double HpScale(StageDef rt, GameConfig cfg) =>
             Math.Pow(cfg.Balance.MonsterHpGrowth, rt.MonsterLevel - 1);
 
+        /// <summary>Centre of the living party — the focus that trash spawning and culling
+        /// (and the client camera) track. Falls back to the origin when all are down.</summary>
+        private static Vec2 PartyCentroid(CombatState s)
+        {
+            double sx = 0, sy = 0; int n = 0;
+            foreach (var e in s.Entities)
+                if (e.Team == Team.Party && e.Alive) { sx += e.Pos.X; sy += e.Pos.Y; n++; }
+            return n > 0 ? new Vec2(sx / n, sy / n) : new Vec2(0, 0);
+        }
+
         /// <summary>Party spawn point: a tight cluster at the map CENTER (mobs now spawn all
         /// around them). The index fans heroes into a small 2-wide grid so they don't stack.</summary>
         private static Vec2 PartyStartPos(int idx)
@@ -237,9 +247,14 @@ namespace IdleGame.GameCore
         private static void SpawnTrash(CombatState s, StageDef rt, GameConfig cfg, Rng rng)
         {
             var mdef = (s.SpawnCount % 2 == 0) ? cfg.Monsters["slime"] : cfg.Monsters["goblin"];
-            double w = cfg.Balance.MapHalfWidth, d = cfg.Balance.MapHalfDepth;
-            // scattered across the entire field (both sides), not lined up on the enemy side
-            var pos = new Vec2(rng.RandRange(-(w - 1.0), w - 1.0), rng.RandRange(-(d - 1.0), d - 1.0));
+            double w = cfg.Balance.MapHalfWidth - 1.0, d = cfg.Balance.MapHalfDepth - 1.0;
+            // Spawn in a ring around the party (out near the view edges), so the populated
+            // area follows the group across the big field rather than sitting in a fixed box.
+            var c = PartyCentroid(s);
+            double ang = rng.RandRange(0, 2.0 * Math.PI);
+            double rad = rng.RandRange(cfg.Balance.SpawnRingInner, cfg.Balance.SpawnRingOuter);
+            var pos = new Vec2(Math.Clamp(c.X + Math.Cos(ang) * rad, -w, w),
+                               Math.Clamp(c.Y + Math.Sin(ang) * rad, -d, d));
             var mob = MakeMonster(mdef, "E" + s.SpawnCount, pos, StageScale(rt, cfg), false, HpScale(rt, cfg));
             mob.Aggro = false;          // ambles until a hero hits it
             mob.WanderTarget = pos;     // idle in place until...
@@ -414,6 +429,8 @@ namespace IdleGame.GameCore
                 if (!partyAlive) s.Status = CombatStatus.Lost;
                 // Dead trash would otherwise pile up forever — prune it (rewards already
                 // accrued at death; living entities keep their order, so determinism holds).
+                // Living trash is NOT culled by distance: a sparse field where mobs persist
+                // makes each kill feel more impactful (and future AoE will thin packs).
                 s.Entities.RemoveAll(e => e.Team == Team.Enemy && !e.Alive);
             }
             else

@@ -124,13 +124,12 @@ namespace IdleGame.Game
             light.intensity = 1.15f;
 
             // --- ground plane ---
-            // The VISUAL world is huge so the camera never sees the map edge fall off;
-            // the gameplay border (where trash spawns and the party walks) is the
-            // invisible Balance.MapHalfWidth/MapHalfDepth region, independent of this.
-            // (A Unity plane is 10x10 units, so scale 30 => ~300x300 units.)
+            // Must cover the whole roam region (Balance.MapHalfWidth/Depth, now ±200×140)
+            // plus margin so the party never walks off onto the void. A Unity plane is
+            // 10x10 units, so scale 50 => 500x500 units (±250).
             var ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
             ground.name = "Ground";
-            ground.transform.localScale = new Vector3(30f, 1f, 30f);
+            ground.transform.localScale = new Vector3(50f, 1f, 50f);
             CombatView.Paint(ground, new Color(0.18f, 0.35f, 0.22f));
         }
     }
