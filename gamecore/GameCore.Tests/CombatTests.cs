@@ -193,6 +193,53 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void SpawnedFarmTrashStartsNonAggro()
+        {
+            var party = new[] { new HeroInstance { Id = "h1", DefId = "warrior_basic", Level = 1 } };
+            var s = Combat.InitFarm(party, 1, GameConfig.Default(), new Rng(1));
+            Assert.True(s.Entities.Count(e => e.Team == Team.Enemy) > 0);
+            Assert.All(s.Entities.Where(e => e.Team == Team.Enemy), e => Assert.False(e.Aggro)); // ambles until hit
+        }
+
+        [Fact]
+        public void BossStartsAggro()
+        {
+            var s = Combat.InitBossChallenge(new[] { Champ() }, 1, GameConfig.Default(), new Rng(1));
+            Assert.All(s.Entities.Where(e => e.Team == Team.Enemy), e => Assert.True(e.Aggro));
+        }
+
+        [Fact]
+        public void HittingAnEnemyAggrosIt()
+        {
+            var hero = Ent("A", Team.Party, hp: 100, atk: 5, def: 0, x: 0);
+            var mob = Ent("B", Team.Enemy, hp: 1000, atk: 0, def: 0, x: 0); // adjacent + tanky
+            mob.Aggro = false;
+            var s = State(hero, mob);
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+
+            Assert.True(s.Entities.First(e => e.Id == "B").Aggro); // woke up after being hit
+        }
+
+        [Fact]
+        public void WanderingTrashStaysWithinMapBounds()
+        {
+            var cfg = GameConfig.Default();
+            var party = new[] { new HeroInstance { Id = "h1", DefId = "warrior_basic", Level = 1 } };
+            var s = Combat.InitFarm(party, 1, cfg, new Rng(7));
+            s.Entities[0].Stats[StatKey.Atk] = 0; // nothing dies -> trash persists and wanders
+
+            for (int i = 0; i < 300; i++) Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(7));
+
+            foreach (var e in s.Entities)
+            {
+                if (e.Team != Team.Enemy) continue;
+                Assert.True(System.Math.Abs(e.Pos.X) <= cfg.Balance.MapHalfWidth);
+                Assert.True(System.Math.Abs(e.Pos.Y) <= cfg.Balance.MapHalfDepth);
+            }
+        }
+
+        [Fact]
         public void FarmRefillsTrashUpToCapAndNoFurther()
         {
             // a party that can't kill anything (atk 0) lets trash accumulate to the cap

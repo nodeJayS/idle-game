@@ -231,7 +231,9 @@ namespace IdleGame.GameCore
             double w = cfg.Balance.MapHalfWidth, d = cfg.Balance.MapHalfDepth;
             // scattered across the entire field (both sides), not lined up on the enemy side
             var pos = new Vec2(rng.RandRange(-(w - 1.0), w - 1.0), rng.RandRange(-(d - 1.0), d - 1.0));
-            s.Entities.Add(MakeMonster(mdef, "E" + s.SpawnCount, pos, StageScale(rt), false));
+            var mob = MakeMonster(mdef, "E" + s.SpawnCount, pos, StageScale(rt), false);
+            mob.Aggro = false; // ambles until a hero hits it
+            s.Entities.Add(mob);
             s.SpawnCount++;
         }
 
@@ -343,6 +345,10 @@ namespace IdleGame.GameCore
 
                 if (e.AttackCdMs > 0) e.AttackCdMs = Math.Max(0, e.AttackCdMs - dtMs);
 
+                // Idle (non-aggro) trash just ambles randomly; it doesn't seek or attack the
+                // party until something hits it (ApplyHit flips Aggro on).
+                if (e.Team == Team.Enemy && !e.Aggro) { Wander(e, cfg, dtMs, rng); continue; }
+
                 // A ready skill replaces this step's basic attack/move (M11).
                 if (TryCastSkill(s, e, cfg, rng, events)) continue;
 
@@ -432,6 +438,8 @@ namespace IdleGame.GameCore
         private static void ApplyHit(CombatState s, CombatEntity attacker, CombatEntity victim,
                                      GameConfig cfg, Rng rng, List<CombatEvent> events, double mult = 1.0)
         {
+            if (victim.Team == Team.Enemy) victim.Aggro = true; // being hit wakes idle trash
+
             double dmg = Math.Max(1.0, attacker.EffectiveStat(StatKey.Atk) - victim.EffectiveStat(StatKey.Def)) * mult;
             bool crit = rng.Next() < attacker.EffectiveStat(StatKey.CritChance);
             if (crit) dmg *= Math.Max(1.0, attacker.EffectiveStat(StatKey.CritDmg));
@@ -664,6 +672,25 @@ namespace IdleGame.GameCore
                 return;
             }
             e.Pos = new Vec2(e.Pos.X + dx / dist * maxStep, e.Pos.Y + dy / dist * maxStep);
+        }
+
+        /// <summary>Idle amble: stroll toward a random point within the field, repicking when
+        /// reached or after a random interval. Deterministic (rng-driven). Clamped to the map
+        /// so wanderers never drift out of bounds.</summary>
+        private static void Wander(CombatEntity e, GameConfig cfg, double dtMs, Rng rng)
+        {
+            e.WanderCdMs -= dtMs;
+            if (e.WanderCdMs <= 0 || Vec2.Distance(e.Pos, e.WanderTarget) <= 0.5)
+            {
+                double w = cfg.Balance.MapHalfWidth, d = cfg.Balance.MapHalfDepth, r = cfg.Balance.WanderRadius;
+                double tx = Math.Clamp(e.Pos.X + rng.RandRange(-r, r), -(w - 0.5), w - 0.5);
+                double ty = Math.Clamp(e.Pos.Y + rng.RandRange(-r, r), -(d - 0.5), d - 0.5);
+                e.WanderTarget = new Vec2(tx, ty);
+                e.WanderCdMs = rng.RandRange(cfg.Balance.WanderMinMs, cfg.Balance.WanderMaxMs);
+            }
+            double speed = e.EffectiveStat(StatKey.MoveSpd);
+            if (speed <= 0) speed = MoveSpeedTilesPerSec;
+            MoveToward(e, e.WanderTarget, speed * cfg.Balance.WanderSpeedMult * dtMs / 1000.0);
         }
     }
 }

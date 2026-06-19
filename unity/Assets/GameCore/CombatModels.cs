@@ -73,6 +73,13 @@ namespace IdleGame.GameCore
         public string RefId = "";       // heroId or monster defId
         public bool IsBoss;
 
+        // Aggro (M-combat): a non-aggro enemy ambles randomly (WanderTarget) and ignores the
+        // party until something hits it (then it fights back). Defaults TRUE so heroes, bosses,
+        // and synthetic test entities behave normally; farm trash is spawned non-aggro.
+        public bool Aggro = true;
+        public Vec2 WanderTarget;
+        public double WanderCdMs;
+
         // Hero downing (M4.3): a party hero at 0 HP is "downed", not dead — it
         // respawns after RespawnMs counts down. RespawnDurationMs is the level-scaled
         // base set at InitCombat. Monsters leave these at 0 (they die permanently).

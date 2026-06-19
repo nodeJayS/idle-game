@@ -117,10 +117,19 @@ namespace IdleGame.GameCore
         // Boss challenge (M8): seconds to kill the stage's boss and advance.
         public double BossChallengeSeconds = 60;
 
-        // Play area (M9): half-extents of the field. Party stands on the left; trash
-        // spawns scattered across it. Precursor to real terrain/maps later.
-        public double MapHalfWidth = 12;
-        public double MapHalfDepth = 8;
+        // Play area: half-extents of the field. The party starts at the centre; trash
+        // spawns scattered across the whole field (~2.5x the old area) so heroes range
+        // out to hunt it. Precursor to real terrain/maps later.
+        public double MapHalfWidth = 20;
+        public double MapHalfDepth = 13;
+
+        // Wander (idle trash): a non-aggro mob ambles between random points within
+        // WanderRadius of itself, repicking every WanderMin..MaxMs, at WanderSpeedMult of
+        // its move speed — until a hero hits it and it aggros.
+        public double WanderRadius = 5.0;
+        public double WanderMinMs = 1500;
+        public double WanderMaxMs = 3500;
+        public double WanderSpeedMult = 0.5;
 
         // Base drop weights per rarity, indexed by (int)Rarity ascending:
         // [Normal, Magic, Rare, Unique, Legendary]. Must have one entry per Rarity.
