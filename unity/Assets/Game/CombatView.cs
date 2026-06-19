@@ -778,6 +778,11 @@ namespace IdleGame.Game
             if (_combat == null) return;
             EnsureTextures();
 
+            // Route all IMGUI HUD text through the shared UI font. The HUD's GUIStyles leave
+            // .font null, so they fall back to GUI.skin.font at draw time — setting it here
+            // makes the control bar / stage nav / party HUD match the uGUI font (UiKit.Font).
+            GUI.skin.font = UiKit.Font;
+
             // Scale the immediate-mode UI by device DPI so the HUD/buttons stay a usable
             // physical size on phones (uGUI panels already scale via CanvasScaler). All
             // draw code below works in this scaled "logical" space.
