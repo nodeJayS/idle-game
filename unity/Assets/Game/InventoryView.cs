@@ -1,6 +1,5 @@
 #nullable enable
 using System;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using IdleGame.GameCore;
@@ -8,12 +7,10 @@ using IdleGame.GameCore;
 namespace IdleGame.Game
 {
     /// <summary>
-    /// Manual inventory + item-compare screen (uGUI). Reads the live save from
-    /// <see cref="CombatView"/>, lists owned items (rarity-colored), and on selection
-    /// shows the green▲/red▼ stat deltas from the pure <see cref="Inventory.CompareForHero"/>
-    /// against a chosen party hero, with Equip/Unequip via the pure reducers. Equip
-    /// changes are written back through <see cref="CombatView.ReplaceSave"/> and take
-    /// effect on the next run. Read-only w.r.t. game rules.
+    /// The shared account bag (uGUI). Lists every owned item (rarity-colored) and shows
+    /// the selected item's details. Equipping is NOT done here — that's the per-hero
+    /// Equipment HUD (<see cref="EquipmentView"/>); this window is purely the bag the whole
+    /// roster draws from. Read-only w.r.t. game rules. (Salvage UI lands later.)
     /// </summary>
     public sealed class InventoryView : MonoBehaviour
     {
@@ -21,7 +18,6 @@ namespace IdleGame.Game
         private GameConfig _cfg = null!;
 
         private GameObject? _panel;          // the open inventory canvas (null when closed)
-        private string? _selectedHeroId;
         private string? _selectedItemId;
 
         /// <summary>True while the inventory panel is open (the HUD reads this).</summary>
@@ -51,52 +47,38 @@ namespace IdleGame.Game
         private void Open()
         {
             var save = _view.CurrentSave;
-            _selectedHeroId ??= FirstPartyHeroId(save);
 
             var canvas = UiKit.CreateCanvas("InventoryCanvas", transform, sortOrder: 95);
             _panel = canvas.gameObject;
             UiKit.FullScreen(canvas.transform, new Color(0f, 0f, 0f, 0.6f));
 
             var panel = UiKit.Panel(canvas.transform, new Vector2(920, 640), new Color(0.10f, 0.10f, 0.14f, 1f));
-            UiKit.Label(panel.transform, "Inventory", 30, TextAnchor.MiddleLeft, new Vector2(300, 40), new Vector2(-280, 270));
+
+            int loose = Inventory.LooseCount(save);
+            int cap = _cfg.Balance.InventoryCap;
+            var title = UiKit.Label(panel.transform, $"Inventory   {loose}/{cap}", 30, TextAnchor.MiddleLeft,
+                                    new Vector2(420, 40), new Vector2(-220, 270));
+            if (loose > cap) title.color = new Color(1f, 0.6f, 0.4f); // overfilled (idle/boss spillover)
             UiKit.TextButton(panel.transform, "Close", new Vector2(200, 64), new Vector2(330, 270), Close);
 
-            BuildHeroRow(panel.transform, save, new Vector2(-280, 200));
-
-            // left: item list
-            var content = UiKit.ScrollColumn(panel.transform, new Vector2(440, 440), new Vector2(-230, -50));
+            // left: item list (the shared bag)
+            var content = UiKit.ScrollColumn(panel.transform, new Vector2(440, 500), new Vector2(-230, -20));
             if (save.Inventory.Count == 0)
                 UiKit.Label(content, "No items yet — go win some loot!", 18, TextAnchor.MiddleCenter,
                             new Vector2(0, 0), Vector2.zero).gameObject.AddComponent<LayoutElement>().preferredHeight = 56;
             foreach (var item in save.Inventory)
             {
                 var it = item; // capture
-                ItemRow(content, it, IsEquippedBy(save, _selectedHeroId, it.Id),
-                        () => { _selectedItemId = it.Id; Rebuild(); });
+                ItemRow(content, save, it, () => { _selectedItemId = it.Id; Rebuild(); });
             }
 
-            // right: details + compare
-            BuildDetails(panel.transform, save, new Vector2(240, -50));
-        }
-
-        private void BuildHeroRow(Transform parent, SaveState save, Vector2 pos)
-        {
-            float x = pos.x;
-            foreach (var id in save.Party)
-            {
-                if (id == null) continue;
-                var heroId = id;
-                bool sel = heroId == _selectedHeroId;
-                var btn = UiKit.TextButton(parent, heroId, new Vector2(150, 60), new Vector2(x, pos.y),
-                    () => { _selectedHeroId = heroId; _selectedItemId = null; Rebuild(); });
-                if (sel) btn.GetComponent<Image>().color = new Color(0.30f, 0.45f, 0.65f);
-                x += 165f;
-            }
+            // right: item details
+            BuildDetails(panel.transform, save, new Vector2(240, -20));
         }
 
         private void BuildDetails(Transform parent, SaveState save, Vector2 pos)
         {
-            var box = UiKit.Panel(parent, new Vector2(400, 440), new Color(0.07f, 0.07f, 0.10f, 1f), pos);
+            var box = UiKit.Panel(parent, new Vector2(400, 500), new Color(0.07f, 0.07f, 0.10f, 1f), pos);
 
             var selected = _selectedItemId != null ? save.Inventory.Find(i => i.Id == _selectedItemId) : null;
             if (selected == null)
@@ -105,7 +87,7 @@ namespace IdleGame.Game
                 return;
             }
 
-            float y = 150f;
+            float y = 200f;
             UiKit.Label(box.transform, $"{selected.Rarity} {selected.BaseId}", 18, TextAnchor.MiddleLeft,
                         new Vector2(330, 26), new Vector2(0, y)).color = Palette.Rarity(selected.Rarity);
             y -= 28f;
@@ -119,65 +101,18 @@ namespace IdleGame.Game
                 y -= 22f;
             }
 
-            // compare vs the selected hero
-            y -= 8f;
-            UiKit.Label(box.transform, $"If equipped on {_selectedHeroId}:", 14, TextAnchor.MiddleLeft,
-                        new Vector2(330, 22), new Vector2(0, y));
-            y -= 24f;
-
-            if (_selectedHeroId != null)
+            var owner = EquippedByWhom(save, selected.Id);
+            if (owner != null)
             {
-                var delta = Inventory.CompareForHero(save, _selectedHeroId, selected, _cfg);
-                bool any = false;
-                foreach (StatKey k in Enum.GetValues(typeof(StatKey)))
-                {
-                    double d = delta.Get(k);
-                    if (d == 0) continue;
-                    any = true;
-                    string arrow = d > 0 ? "▲" : "▼";
-                    var line = UiKit.Label(box.transform, $"{arrow} {k}  {(d > 0 ? "+" : "")}{StatVal(k, d)}",
-                                           14, TextAnchor.MiddleLeft, new Vector2(330, 22), new Vector2(0, y));
-                    line.color = d > 0 ? new Color(0.45f, 0.9f, 0.5f) : new Color(0.95f, 0.45f, 0.45f);
-                    y -= 22f;
-                }
-                if (!any)
-                    UiKit.Label(box.transform, "No stat change", 13, TextAnchor.MiddleLeft, new Vector2(330, 20), new Vector2(0, y));
-            }
-
-            BuildActionButton(box.transform, save, selected, new Vector2(0, -185));
-        }
-
-        private void BuildActionButton(Transform parent, SaveState save, Item item, Vector2 pos)
-        {
-            string? equippedHero = EquippedByWhom(save, item.Id);
-
-            if (equippedHero == _selectedHeroId && equippedHero != null)
-            {
-                UiKit.TextButton(parent, "Unequip", new Vector2(220, 64), pos, () =>
-                {
-                    if (!_cfg.ItemBases.TryGetValue(item.BaseId, out var b)) return;
-                    _view.ReplaceSave(Inventory.UnequipItem(save, _selectedHeroId!, b.Slot));
-                    Rebuild();
-                });
-            }
-            else if (equippedHero != null)
-            {
-                UiKit.Label(parent, $"Equipped by {equippedHero}", 13, TextAnchor.MiddleCenter,
-                            new Vector2(330, 22), pos);
-            }
-            else if (_selectedHeroId != null)
-            {
-                UiKit.TextButton(parent, "Equip", new Vector2(220, 64), pos, () =>
-                {
-                    _view.ReplaceSave(Inventory.EquipItem(save, _selectedHeroId!, item.Id, _cfg));
-                    Rebuild();
-                });
+                y -= 8f;
+                UiKit.Label(box.transform, $"Equipped by {HeroName(save, owner)}", 14, TextAnchor.MiddleLeft,
+                            new Vector2(330, 22), new Vector2(0, y)).color = new Color(0.6f, 0.8f, 1f);
             }
         }
 
         // ---- rows + helpers ----
 
-        private void ItemRow(Transform parent, Item it, bool equippedHere, Action onClick)
+        private void ItemRow(Transform parent, SaveState save, Item it, Action onClick)
         {
             var go = new GameObject("Row", typeof(RectTransform));
             go.transform.SetParent(parent, false);
@@ -191,7 +126,8 @@ namespace IdleGame.Game
 
             go.AddComponent<LayoutElement>().preferredHeight = 56;
 
-            var label = UiKit.Label(go.transform, $"{it.Rarity} {it.BaseId} (i{it.ItemLevel}){(equippedHere ? "  [E]" : "")}",
+            bool equipped = EquippedByWhom(save, it.Id) != null;
+            var label = UiKit.Label(go.transform, $"{it.Rarity} {it.BaseId} (i{it.ItemLevel}){(equipped ? "  [E]" : "")}",
                                     20, TextAnchor.MiddleLeft, Vector2.zero, Vector2.zero);
             var lrt = (RectTransform)label.transform;
             lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
@@ -206,17 +142,12 @@ namespace IdleGame.Game
             return fractional ? v.ToString("0.##") : Mathf.RoundToInt((float)v).ToString();
         }
 
-        private static string? FirstPartyHeroId(SaveState save)
+        private string HeroName(SaveState save, string heroId)
         {
-            foreach (var id in save.Party) if (id != null) return id;
-            return null;
-        }
-
-        private static bool IsEquippedBy(SaveState save, string? heroId, string itemId)
-        {
-            if (heroId == null) return false;
             var hero = save.Heroes.Find(h => h.Id == heroId);
-            return hero != null && hero.Equipped.ContainsValue(itemId);
+            if (hero != null && _cfg.Heroes.TryGetValue(hero.DefId, out var def) && !string.IsNullOrEmpty(def.Name))
+                return def.Name;
+            return heroId;
         }
 
         private static string? EquippedByWhom(SaveState save, string itemId)

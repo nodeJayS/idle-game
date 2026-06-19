@@ -103,6 +103,7 @@ namespace IdleGame.Game
         private Rng _rng = null!;
         private CombatJuice? _juice;
         private InventoryView? _inventory;
+        private EquipmentView? _equipment;
         private ChatPanel? _chat;
         private readonly Dictionary<string, View> _views = new Dictionary<string, View>();
 
@@ -121,7 +122,11 @@ namespace IdleGame.Game
             if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg); // equip applies live
         }
         public void BindInventory(InventoryView inv) => _inventory = inv;
+        public void BindEquipment(EquipmentView eq) => _equipment = eq;
         public void BindChat(ChatPanel chat) => _chat = chat;
+
+        private bool AnyPanelOpen => (_inventory != null && _inventory.IsOpen)
+                                  || (_equipment != null && _equipment.IsOpen);
 
         public void Init(SaveState save, GameConfig cfg)
         {
@@ -453,6 +458,7 @@ namespace IdleGame.Game
 
             DrawHealthBars(s);
             DrawHud(s);
+            DrawPartyHud(s);
             DrawControlBar();
 
             GUI.matrix = prevMatrix;
@@ -528,8 +534,96 @@ namespace IdleGame.Game
             }
         }
 
+        /// <summary>
+        /// Party status panel, bottom-right: an HP + mana bar per party hero, read live
+        /// from the combat entities. Each chip is clickable and opens that hero's
+        /// equipment doll (the only way in, per design). Hidden while a panel is open.
+        /// </summary>
+        private void DrawPartyHud(float s)
+        {
+            if (AnyPanelOpen) return;
+
+            const float w = 230f, rowH = 60f, gap = 8f, pad = 16f;
+            float sw = Screen.width / s, sh = Screen.height / s;
+
+            var ids = _save.Party;
+            int n = ids.Length;
+            float totalH = n * rowH + (n - 1) * gap;
+            float x = sw - w - pad;
+            float y0 = sh - totalH - pad;
+
+            for (int i = 0; i < n; i++)
+            {
+                float y = y0 + i * (rowH + gap);
+                string? heroId = ids[i];
+
+                DrawRect(x, y, w, rowH, new Color(0.08f, 0.09f, 0.12f, 0.9f));
+                if (heroId == null)
+                {
+                    GUI.Label(new Rect(x + 10, y + rowH / 2f - 10, w - 20, 20), "— empty —", PartyEmptyStyle);
+                    continue;
+                }
+
+                var e = FindHeroEntity(heroId);
+                double hp = e?.Hp ?? 0, maxHp = e?.MaxHp ?? 1;
+                double mana = e?.Mana ?? 0, maxMana = e?.MaxMana ?? 0;
+
+                GUI.Label(new Rect(x + 10, y + 5, w - 20, 18), HeroDisplayName(heroId), PartyNameStyle);
+
+                // HP bar
+                float bx = x + 10, bw = w - 20;
+                DrawBar(bx, y + 26, bw, 9, maxHp > 0 ? Mathf.Clamp01((float)(hp / maxHp)) : 0f,
+                        new Color(0.2f, 0.05f, 0.05f, 0.9f), new Color(0.35f, 0.75f, 1f));
+                // Mana bar
+                DrawBar(bx, y + 40, bw, 7, maxMana > 0 ? Mathf.Clamp01((float)(mana / maxMana)) : 0f,
+                        new Color(0.05f, 0.06f, 0.12f, 0.9f), new Color(0.45f, 0.55f, 1f));
+
+                if (e != null && e.Downed)
+                    GUI.Label(new Rect(x + 10, y + 5, w - 20, 18),
+                              $"↻ {Mathf.CeilToInt((float)e.RespawnMs / 1000f)}s", PartyDownedStyle);
+
+                // whole chip is a click target -> opens this hero's equipment
+                if (GUI.Button(new Rect(x, y, w, rowH), GUIContent.none, GUIStyle.none))
+                    _equipment?.Toggle(heroId);
+            }
+        }
+
+        private void DrawBar(float x, float y, float w, float h, float frac, Color bg, Color fill)
+        {
+            DrawRect(x, y, w, h, bg);
+            DrawRect(x, y, w * frac, h, fill);
+        }
+
+        private CombatEntity? FindHeroEntity(string heroId) =>
+            _combat.Entities.Find(e => e.RefKind == "hero" && e.RefId == heroId);
+
+        private string HeroDisplayName(string heroId)
+        {
+            var hero = _save.Heroes.Find(h => h.Id == heroId);
+            if (hero != null && _cfg.Heroes.TryGetValue(hero.DefId, out var def) && !string.IsNullOrEmpty(def.Name))
+                return def.Name;
+            return heroId;
+        }
+
+        private GUIStyle? _partyNameStyle, _partyEmptyStyle, _partyDownedStyle;
+        private GUIStyle PartyNameStyle => _partyNameStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 14, fontStyle = FontStyle.Bold };
+        private GUIStyle PartyEmptyStyle => _partyEmptyStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 13, alignment = TextAnchor.MiddleCenter };
+        private GUIStyle PartyDownedStyle
+        {
+            get
+            {
+                if (_partyDownedStyle == null)
+                {
+                    _partyDownedStyle = new GUIStyle(GUI.skin.label) { fontSize = 13, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleRight };
+                    _partyDownedStyle.normal.textColor = new Color(1f, 0.85f, 0.4f);
+                }
+                return _partyDownedStyle;
+            }
+        }
+
         private void DrawControlBar()
         {
+            if (_equipment != null && _equipment.IsOpen) return; // equipment panel owns the screen
             const float h = 80f, pad = 16f, gap = 12f;
             float sh = Screen.height / UiScale();
             float y = sh - h - pad;
