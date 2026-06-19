@@ -111,11 +111,18 @@ namespace IdleGame.GameCore
                 var stats = Stats.ComputeHeroStats(hero, cfg, Stats.ResolveEquipped(save, hero));
                 double oldMax = e.MaxHp;
                 double newMax = stats.Get(StatKey.Hp);
+                double oldMaxMana = e.MaxMana;
+                double newMaxMana = stats.Get(StatKey.MaxMana);
 
                 e.Stats = stats;
                 e.MaxHp = newMax;
                 e.AttackIntervalMs = AttackInterval(stats);
                 if (e.Hp > 0) e.Hp = Math.Min(newMax, e.Hp + Math.Max(0.0, newMax - oldMax));
+
+                // Grow current mana by the max gain too, so a level-up/gear swap doesn't
+                // shrink the pool; clamp to the new max.
+                e.MaxMana = newMaxMana;
+                e.Mana = Math.Min(newMaxMana, e.Mana + Math.Max(0.0, newMaxMana - oldMaxMana));
             }
         }
 
@@ -130,6 +137,7 @@ namespace IdleGame.GameCore
             {
                 var stats = Stats.ComputeHeroStats(hero, cfg);
                 double hp = stats.Get(StatKey.Hp);
+                double mana = stats.Get(StatKey.MaxMana);
                 s.Entities.Add(new CombatEntity
                 {
                     Id = "P" + idx + "_" + hero.Id,
@@ -138,6 +146,8 @@ namespace IdleGame.GameCore
                     Stats = stats,
                     Hp = hp,
                     MaxHp = hp,
+                    Mana = mana,
+                    MaxMana = mana,
                     AttackIntervalMs = AttackInterval(stats),
                     RefKind = "hero",
                     RefId = hero.Id,
@@ -202,6 +212,7 @@ namespace IdleGame.GameCore
                 {
                     e.RespawnMs = 0;
                     e.Hp = e.MaxHp;
+                    e.Mana = e.MaxMana; // come back ready to cast
                     e.AttackCdMs = 0;
                     events.Add(new CombatEvent { Type = CombatEventType.Respawn, EntityId = e.Id });
                 }
@@ -231,6 +242,11 @@ namespace IdleGame.GameCore
                 if (!e.Alive) continue;
                 double regen = e.Stats.Get(StatKey.HpRegen);
                 if (regen > 0) e.Hp = Math.Min(e.MaxHp, e.Hp + regen * dtMs / 1000.0);
+
+                // Mana regen (M10): fills toward MaxMana. Basic attacks don't spend it yet,
+                // so this only ramps the pool until skills consume it.
+                double mregen = e.Stats.Get(StatKey.ManaRegen);
+                if (mregen > 0 && e.MaxMana > 0) e.Mana = Math.Min(e.MaxMana, e.Mana + mregen * dtMs / 1000.0);
             }
 
             var actors = s.Entities.Where(e => e.Alive)

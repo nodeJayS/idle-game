@@ -182,8 +182,9 @@ namespace IdleGame.GameCore
                                (StatKey.Spd, 1.0), (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.5),
                                (StatKey.HpRegen, 1.5),                 // very small sustain (hp/sec)
                                (StatKey.AttackRange, 1.2),             // melee
-                               (StatKey.SplashRadius, 1.0)),           // slightly wider cleave (melee perk)
-                GrowthPerLevel = SB((StatKey.Hp, 18), (StatKey.Atk, 3), (StatKey.Def, 1.5)),
+                               (StatKey.SplashRadius, 1.0),            // slightly wider cleave (melee perk)
+                               (StatKey.MaxMana, 50), (StatKey.ManaRegen, 3)), // shallow pool, slow regen
+                GrowthPerLevel = SB((StatKey.Hp, 18), (StatKey.Atk, 3), (StatKey.Def, 1.5), (StatKey.MaxMana, 2)),
                 Skills = new List<string> { "cleave" }, Sprite = "warrior",
             };
 
@@ -195,8 +196,9 @@ namespace IdleGame.GameCore
                                (StatKey.Spd, 1.0), (StatKey.CritChance, 0.07), (StatKey.CritDmg, 1.5),
                                (StatKey.HpRegen, 1.0),
                                (StatKey.AttackRange, 6.0),             // max reach; still fine point-blank
-                               (StatKey.SplashRadius, 0.75)),          // tight AoE (same as warrior)
-                GrowthPerLevel = SB((StatKey.Hp, 11), (StatKey.Atk, 4), (StatKey.Def, 1)),
+                               (StatKey.SplashRadius, 0.75),           // tight AoE (same as warrior)
+                               (StatKey.MaxMana, 120), (StatKey.ManaRegen, 6)), // deep pool, fast regen (caster)
+                GrowthPerLevel = SB((StatKey.Hp, 11), (StatKey.Atk, 4), (StatKey.Def, 1), (StatKey.MaxMana, 5)),
                 Skills = new List<string> { "firebolt" }, Sprite = "magician", AttackFx = "fireball",
             };
 

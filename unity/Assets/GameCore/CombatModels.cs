@@ -53,6 +53,11 @@ namespace IdleGame.GameCore
         public StatBlock Stats = new StatBlock();
         public double Hp;
         public double MaxHp;
+        // Skill resource (M10). Heroes start full and regenerate via ManaRegen; basic
+        // attacks are free, so today mana only fills — skills spend it once they fire.
+        // Monsters leave MaxMana at 0 (they don't cast).
+        public double Mana;
+        public double MaxMana;
         public string? TargetId;
         public double AttackCdMs;       // remaining cooldown
         public double AttackIntervalMs; // 1000 / Spd
