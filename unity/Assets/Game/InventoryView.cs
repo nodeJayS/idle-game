@@ -57,17 +57,17 @@ namespace IdleGame.Game
             _panel = canvas.gameObject;
             UiKit.FullScreen(canvas.transform, new Color(0f, 0f, 0f, 0.6f));
 
-            var panel = UiKit.Panel(canvas.transform, new Vector2(820, 540), new Color(0.10f, 0.10f, 0.14f, 1f));
-            UiKit.Label(panel.transform, "Inventory", 26, TextAnchor.MiddleLeft, new Vector2(300, 34), new Vector2(-250, 240));
-            UiKit.TextButton(panel.transform, "Close", new Vector2(120, 40), new Vector2(330, 240), Close);
+            var panel = UiKit.Panel(canvas.transform, new Vector2(920, 640), new Color(0.10f, 0.10f, 0.14f, 1f));
+            UiKit.Label(panel.transform, "Inventory", 30, TextAnchor.MiddleLeft, new Vector2(300, 40), new Vector2(-280, 270));
+            UiKit.TextButton(panel.transform, "Close", new Vector2(200, 64), new Vector2(330, 270), Close);
 
-            BuildHeroRow(panel.transform, save, new Vector2(-250, 198));
+            BuildHeroRow(panel.transform, save, new Vector2(-280, 200));
 
             // left: item list
-            var content = UiKit.ScrollColumn(panel.transform, new Vector2(380, 380), new Vector2(-205, -30));
+            var content = UiKit.ScrollColumn(panel.transform, new Vector2(440, 440), new Vector2(-230, -50));
             if (save.Inventory.Count == 0)
-                UiKit.Label(content, "No items yet — go win some loot!", 15, TextAnchor.MiddleCenter,
-                            new Vector2(0, 0), Vector2.zero).gameObject.AddComponent<LayoutElement>().preferredHeight = 40;
+                UiKit.Label(content, "No items yet — go win some loot!", 18, TextAnchor.MiddleCenter,
+                            new Vector2(0, 0), Vector2.zero).gameObject.AddComponent<LayoutElement>().preferredHeight = 56;
             foreach (var item in save.Inventory)
             {
                 var it = item; // capture
@@ -76,7 +76,7 @@ namespace IdleGame.Game
             }
 
             // right: details + compare
-            BuildDetails(panel.transform, save, new Vector2(205, -30));
+            BuildDetails(panel.transform, save, new Vector2(240, -50));
         }
 
         private void BuildHeroRow(Transform parent, SaveState save, Vector2 pos)
@@ -87,16 +87,16 @@ namespace IdleGame.Game
                 if (id == null) continue;
                 var heroId = id;
                 bool sel = heroId == _selectedHeroId;
-                var btn = UiKit.TextButton(parent, heroId, new Vector2(110, 34), new Vector2(x, pos.y),
+                var btn = UiKit.TextButton(parent, heroId, new Vector2(150, 60), new Vector2(x, pos.y),
                     () => { _selectedHeroId = heroId; _selectedItemId = null; Rebuild(); });
                 if (sel) btn.GetComponent<Image>().color = new Color(0.30f, 0.45f, 0.65f);
-                x += 120f;
+                x += 165f;
             }
         }
 
         private void BuildDetails(Transform parent, SaveState save, Vector2 pos)
         {
-            var box = UiKit.Panel(parent, new Vector2(360, 380), new Color(0.07f, 0.07f, 0.10f, 1f), pos);
+            var box = UiKit.Panel(parent, new Vector2(400, 440), new Color(0.07f, 0.07f, 0.10f, 1f), pos);
 
             var selected = _selectedItemId != null ? save.Inventory.Find(i => i.Id == _selectedItemId) : null;
             if (selected == null)
@@ -144,7 +144,7 @@ namespace IdleGame.Game
                     UiKit.Label(box.transform, "No stat change", 13, TextAnchor.MiddleLeft, new Vector2(330, 20), new Vector2(0, y));
             }
 
-            BuildActionButton(box.transform, save, selected, new Vector2(0, -150));
+            BuildActionButton(box.transform, save, selected, new Vector2(0, -185));
         }
 
         private void BuildActionButton(Transform parent, SaveState save, Item item, Vector2 pos)
@@ -153,7 +153,7 @@ namespace IdleGame.Game
 
             if (equippedHero == _selectedHeroId && equippedHero != null)
             {
-                UiKit.TextButton(parent, "Unequip", new Vector2(160, 44), pos, () =>
+                UiKit.TextButton(parent, "Unequip", new Vector2(220, 64), pos, () =>
                 {
                     if (!_cfg.ItemBases.TryGetValue(item.BaseId, out var b)) return;
                     _view.ReplaceSave(Inventory.UnequipItem(save, _selectedHeroId!, b.Slot));
@@ -167,7 +167,7 @@ namespace IdleGame.Game
             }
             else if (_selectedHeroId != null)
             {
-                UiKit.TextButton(parent, "Equip", new Vector2(160, 44), pos, () =>
+                UiKit.TextButton(parent, "Equip", new Vector2(220, 64), pos, () =>
                 {
                     _view.ReplaceSave(Inventory.EquipItem(save, _selectedHeroId!, item.Id, _cfg));
                     Rebuild();
@@ -189,13 +189,13 @@ namespace IdleGame.Game
             btn.targetGraphic = img;
             btn.onClick.AddListener(() => onClick());
 
-            go.AddComponent<LayoutElement>().preferredHeight = 34;
+            go.AddComponent<LayoutElement>().preferredHeight = 56;
 
             var label = UiKit.Label(go.transform, $"{it.Rarity} {it.BaseId} (i{it.ItemLevel}){(equippedHere ? "  [E]" : "")}",
-                                    15, TextAnchor.MiddleLeft, Vector2.zero, Vector2.zero);
+                                    20, TextAnchor.MiddleLeft, Vector2.zero, Vector2.zero);
             var lrt = (RectTransform)label.transform;
             lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
-            lrt.offsetMin = new Vector2(10, 0); lrt.offsetMax = new Vector2(-10, 0);
+            lrt.offsetMin = new Vector2(16, 0); lrt.offsetMax = new Vector2(-16, 0);
             label.color = Palette.Rarity(it.Rarity);
         }
 

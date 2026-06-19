@@ -22,21 +22,22 @@ namespace IdleGame.Game
             var canvas = UiKit.CreateCanvas("MainMenuCanvas", transform, sortOrder: 100);
             UiKit.FullScreen(canvas.transform, new Color(0.05f, 0.04f, 0.07f, 1f));
 
-            var panel = UiKit.Panel(canvas.transform, new Vector2(440, 510), new Color(0.10f, 0.10f, 0.14f, 1f));
-            UiKit.Label(panel.transform, "IDLE ARPG", 36, TextAnchor.MiddleCenter, new Vector2(400, 60), new Vector2(0, 195));
+            var panel = UiKit.Panel(canvas.transform, new Vector2(520, 620), new Color(0.10f, 0.10f, 0.14f, 1f));
+            UiKit.Label(panel.transform, "IDLE ARPG", 40, TextAnchor.MiddleCenter, new Vector2(480, 64), new Vector2(0, 240));
 
-            var cont = UiKit.TextButton(panel.transform, "Continue", new Vector2(300, 54), new Vector2(0, 105),
+            var btn = new Vector2(420, 76);
+            var cont = UiKit.TextButton(panel.transform, "Continue", btn, new Vector2(0, 130),
                 () => { CloseAnd(OnContinue); });
             cont.interactable = HasSave;
 
-            UiKit.TextButton(panel.transform, "New Game", new Vector2(300, 54), new Vector2(0, 39), NewGameClicked);
+            UiKit.TextButton(panel.transform, "New Game", btn, new Vector2(0, 42), NewGameClicked);
 
-            UiKit.TextButton(panel.transform, "Exit Game", new Vector2(300, 54), new Vector2(0, -27), Quit);
+            UiKit.TextButton(panel.transform, "Exit Game", btn, new Vector2(0, -46), Quit);
 
-            BuildEffectsToggle(panel.transform, new Vector2(0, -100));
+            BuildEffectsToggle(panel.transform, new Vector2(0, -134));
 
             UiKit.Label(panel.transform, HasSave ? "" : "No save yet — start a new game",
-                        14, TextAnchor.MiddleCenter, new Vector2(400, 24), new Vector2(0, -200));
+                        16, TextAnchor.MiddleCenter, new Vector2(480, 26), new Vector2(0, -250));
         }
 
         private void BuildEffectsToggle(Transform parent, Vector2 pos)
@@ -44,7 +45,7 @@ namespace IdleGame.Game
             string Label() => $"Combat Effects: {(Settings.CombatEffects ? "On" : "Off")}";
 
             UnityEngine.UI.Text? label = null;
-            var btn = UiKit.TextButton(parent, Label(), new Vector2(300, 44), pos, () =>
+            var btn = UiKit.TextButton(parent, Label(), new Vector2(420, 64), pos, () =>
             {
                 Settings.CombatEffects = !Settings.CombatEffects;
                 if (label != null) label.text = Label();
@@ -63,13 +64,13 @@ namespace IdleGame.Game
             var canvas = UiKit.CreateCanvas("ConfirmCanvas", transform, sortOrder: 110);
             UiKit.FullScreen(canvas.transform, new Color(0f, 0f, 0f, 0.6f));
 
-            var panel = UiKit.Panel(canvas.transform, new Vector2(420, 200), new Color(0.12f, 0.10f, 0.10f, 1f));
-            UiKit.Label(panel.transform, "Overwrite your existing save?", 20, TextAnchor.MiddleCenter,
-                        new Vector2(380, 40), new Vector2(0, 50));
+            var panel = UiKit.Panel(canvas.transform, new Vector2(520, 260), new Color(0.12f, 0.10f, 0.10f, 1f));
+            UiKit.Label(panel.transform, "Overwrite your existing save?", 22, TextAnchor.MiddleCenter,
+                        new Vector2(480, 40), new Vector2(0, 60));
 
-            UiKit.TextButton(panel.transform, "Overwrite", new Vector2(160, 48), new Vector2(-90, -40),
+            UiKit.TextButton(panel.transform, "Overwrite", new Vector2(220, 70), new Vector2(-120, -50),
                 () => CloseAnd(OnNewGame));
-            UiKit.TextButton(panel.transform, "Cancel", new Vector2(160, 48), new Vector2(90, -40),
+            UiKit.TextButton(panel.transform, "Cancel", new Vector2(220, 70), new Vector2(120, -50),
                 () => Destroy(canvas.gameObject));
         }
 

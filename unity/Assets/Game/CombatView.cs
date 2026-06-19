@@ -344,11 +344,14 @@ namespace IdleGame.Game
 
         private void DrawControlBar()
         {
-            float y = Screen.height - 46f;
+            const float h = 80f, pad = 16f, gap = 12f;
+            float y = Screen.height - h - pad;
+            float x = pad;
             bool invOpen = _inventory != null && _inventory.IsOpen;
 
-            if (Button(12, y, 120, 34, invOpen ? "Close Bag" : "Inventory")) _inventory?.Toggle();
+            if (Button(x, y, 260, h, invOpen ? "Close Bag" : "Inventory")) _inventory?.Toggle();
             if (invOpen) return; // keep the bar uncluttered while the bag is open
+            x += 260 + gap * 2;
 
             bool running = _combat.Status == CombatStatus.Running;
             if (running && _combat.Kind == EncounterKind.Farm)
@@ -356,18 +359,24 @@ namespace IdleGame.Game
                 int cur = _save.Progress.CurrentStage;
                 int maxStage = Mathf.Min(_save.Progress.HighestStage + 1, _cfg.Stages.Count);
 
-                if (cur > 1 && Button(144, y, 36, 34, "◀")) GoToStage(cur - 1);
-                if (cur < maxStage && Button(264, y, 36, 34, "▶")) GoToStage(cur + 1);
-                if (Button(312, y, 200, 34, "Challenge Miniboss")) ChallengeBoss();
+                if (cur > 1 && Button(x, y, h, h, "◀")) GoToStage(cur - 1);
+                x += h + gap;
+                if (cur < maxStage && Button(x, y, h, h, "▶")) GoToStage(cur + 1);
+                x += h + gap * 2;
+                if (Button(x, y, 420, h, "Challenge Miniboss")) ChallengeBoss();
             }
             else if (running && _combat.Kind == EncounterKind.BossChallenge)
             {
-                if (Button(144, y, 100, 34, "Flee")) FleeToFarm();
+                if (Button(x, y, 260, h, "Flee")) FleeToFarm();
             }
         }
 
+        private GUIStyle? _btnStyle;
+        private GUIStyle BtnStyle => _btnStyle ??= new GUIStyle(GUI.skin.button)
+        { fontSize = 28, fontStyle = FontStyle.Bold };
+
         private bool Button(float x, float y, float w, float h, string label) =>
-            GUI.Button(new Rect(x, y, w, h), label);
+            GUI.Button(new Rect(x, y, w, h), label, BtnStyle);
 
         private void DrawRect(float x, float y, float w, float h, Color c)
         {

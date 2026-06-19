@@ -154,7 +154,7 @@ namespace IdleGame.Game
             rt.sizeDelta = size;
             rt.anchoredPosition = pos;
 
-            Label(go.transform, label, 20, TextAnchor.MiddleCenter, size, Vector2.zero);
+            Label(go.transform, label, 26, TextAnchor.MiddleCenter, size, Vector2.zero);
             return btn;
         }
     }

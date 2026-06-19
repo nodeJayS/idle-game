@@ -46,7 +46,7 @@ namespace IdleGame.Game
 
             _animating = true;
 
-            UiKit.TextButton(panel.transform, "Collect", new Vector2(160, 48), new Vector2(0, -110),
+            UiKit.TextButton(panel.transform, "Collect", new Vector2(240, 70), new Vector2(0, -110),
                 () => Destroy(gameObject));
         }
 
