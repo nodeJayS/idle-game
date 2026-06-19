@@ -186,7 +186,7 @@ namespace IdleGame.GameCore.Tests
         {
             Assert.Equal(2, Cfg.Heroes.Count);
             Assert.Equal(3, Cfg.Monsters.Count);
-            Assert.Equal(50, Cfg.Stages.Count);
+            Assert.Equal(100, Cfg.Stages.Count);
         }
     }
 }

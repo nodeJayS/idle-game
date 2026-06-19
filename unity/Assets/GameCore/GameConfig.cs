@@ -131,6 +131,14 @@ namespace IdleGame.GameCore
         public double WanderMaxMs = 3500;
         public double WanderSpeedMult = 0.5;
 
+        // Difficulty scales GEOMETRICALLY per stage so each stage (and 10-boss wall) is a
+        // real gate and the climb to stage 100 stays long. HP grows steeply (the DPS-check
+        // gate); damage grows gently so trash doesn't one-shot the party. Bosses multiply
+        // HP by BossHpMult on top, and major bosses (every 10th) by MajorBossMult again.
+        public double MonsterHpGrowth = 1.18;  // +18% HP per stage level (×~4.4 by 10, ×~1.3M by 100)
+        public double MonsterDmgGrowth = 1.08; // +8% atk/def per stage level (survivable)
+        public double BossHpMult = 10.0;       // a boss is ~10x a same-stage trash mob
+
         // Base drop weights per rarity, indexed by (int)Rarity ascending:
         // [Normal, Magic, Rare, Unique, Legendary]. Must have one entry per Rarity.
         // The stage's DropRateMult biases this upward — see Loot.RollRarity.
@@ -321,13 +329,13 @@ namespace IdleGame.GameCore
             cfg.Monsters["slime"] = new MonsterDef
             {
                 Id = "slime", Name = "Slime",
-                BaseStats = SB((StatKey.Hp, 18), (StatKey.Atk, 3), (StatKey.Def, 0), (StatKey.MoveSpd, 2.6), (StatKey.AtkSpd, 0.8), (StatKey.CritDmg, 1.5)),
+                BaseStats = SB((StatKey.Hp, 34), (StatKey.Atk, 3), (StatKey.Def, 0), (StatKey.MoveSpd, 2.6), (StatKey.AtkSpd, 0.8), (StatKey.CritDmg, 1.5)),
                 LootTableId = "common", XpReward = 12, GoldReward = 3, Sprite = "slime",
             };
             cfg.Monsters["goblin"] = new MonsterDef
             {
                 Id = "goblin", Name = "Goblin",
-                BaseStats = SB((StatKey.Hp, 28), (StatKey.Atk, 5), (StatKey.Def, 1), (StatKey.MoveSpd, 3.0), (StatKey.AtkSpd, 1.1), (StatKey.CritChance, 0.03), (StatKey.CritDmg, 1.5)),
+                BaseStats = SB((StatKey.Hp, 52), (StatKey.Atk, 5), (StatKey.Def, 1), (StatKey.MoveSpd, 3.0), (StatKey.AtkSpd, 1.1), (StatKey.CritChance, 0.03), (StatKey.CritDmg, 1.5)),
                 LootTableId = "common", XpReward = 20, GoldReward = 6, Sprite = "goblin",
             };
             cfg.Monsters["goblin_king"] = new MonsterDef
@@ -338,7 +346,7 @@ namespace IdleGame.GameCore
                 Skills = new List<string> { "boss_quake" },
             };
 
-            for (int i = 0; i < 50; i++)
+            for (int i = 0; i < 100; i++)
             {
                 int stage = i + 1;
                 int tier = cfg.Balance.Tier(stage);

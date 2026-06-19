@@ -202,6 +202,16 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void TrashGetsTankierWithStage()
+        {
+            var cfg = GameConfig.Default();
+            double FirstMobHp(int stage) =>
+                Combat.InitFarm(new[] { Champ() }, stage, cfg, new Rng(1)).Entities.First(e => e.Team == Team.Enemy).MaxHp;
+            // steep HP curve so leveled heroes still need several hits at depth
+            Assert.True(FirstMobHp(10) > FirstMobHp(1) * 3);
+        }
+
+        [Fact]
         public void BossStartsAggro()
         {
             var s = Combat.InitBossChallenge(new[] { Champ() }, 1, GameConfig.Default(), new Rng(1));

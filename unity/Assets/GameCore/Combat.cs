@@ -39,18 +39,19 @@ namespace IdleGame.GameCore
 
             var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
             s.Loot = LootContext.ForStage(rt);
-            double scale = StageScale(rt);
+            double scale = StageScale(rt, cfg);
 
             for (int j = 0; j < rt.PackCount; j++)
             {
                 var mdef = (j % 2 == 0) ? cfg.Monsters["slime"] : cfg.Monsters["goblin"];
-                s.Entities.Add(MakeMonster(mdef, "E" + j, new Vec2(3, j * 1.5), scale, false));
+                s.Entities.Add(MakeMonster(mdef, "E" + j, new Vec2(3, j * 1.5), scale, false, HpScale(rt, cfg)));
             }
 
             if (cfg.Monsters.TryGetValue(rt.BossId, out var boss))
             {
-                double bossScale = rt.IsMajorBoss ? scale * cfg.Balance.MajorBossMult : scale;
-                s.Entities.Add(MakeMonster(boss, "EBOSS", new Vec2(5, rt.PackCount * 0.75), bossScale, true));
+                double major = rt.IsMajorBoss ? cfg.Balance.MajorBossMult : 1.0;
+                s.Entities.Add(MakeMonster(boss, "EBOSS", new Vec2(5, rt.PackCount * 0.75),
+                    scale * major, true, HpScale(rt, cfg) * cfg.Balance.BossHpMult * major));
             }
 
             return s;
@@ -93,8 +94,9 @@ namespace IdleGame.GameCore
 
             if (cfg.Monsters.TryGetValue(rt.BossId, out var boss))
             {
-                double bossScale = rt.IsMajorBoss ? StageScale(rt) * cfg.Balance.MajorBossMult : StageScale(rt);
-                s.Entities.Add(MakeMonster(boss, "EBOSS", new Vec2(4, 0), bossScale, true));
+                double major = rt.IsMajorBoss ? cfg.Balance.MajorBossMult : 1.0;
+                s.Entities.Add(MakeMonster(boss, "EBOSS", new Vec2(4, 0),
+                    StageScale(rt, cfg) * major, true, HpScale(rt, cfg) * cfg.Balance.BossHpMult * major));
             }
 
             return s;
@@ -184,7 +186,14 @@ namespace IdleGame.GameCore
             }
         }
 
-        private static double StageScale(StageDef rt) => 1.0 + 0.1 * (rt.MonsterLevel - 1);
+        /// <summary>Geometric per-stage atk/def scale (gentle, so trash stays survivable).</summary>
+        private static double StageScale(StageDef rt, GameConfig cfg) =>
+            Math.Pow(cfg.Balance.MonsterDmgGrowth, rt.MonsterLevel - 1);
+
+        /// <summary>Geometric per-stage HP scale (steep, the DPS-check gate). Bosses layer
+        /// BossHpMult (and major bosses MajorBossMult) on top of this.</summary>
+        private static double HpScale(StageDef rt, GameConfig cfg) =>
+            Math.Pow(cfg.Balance.MonsterHpGrowth, rt.MonsterLevel - 1);
 
         /// <summary>Party spawn point: a tight cluster at the map CENTER (mobs now spawn all
         /// around them). The index fans heroes into a small 2-wide grid so they don't stack.</summary>
@@ -231,18 +240,19 @@ namespace IdleGame.GameCore
             double w = cfg.Balance.MapHalfWidth, d = cfg.Balance.MapHalfDepth;
             // scattered across the entire field (both sides), not lined up on the enemy side
             var pos = new Vec2(rng.RandRange(-(w - 1.0), w - 1.0), rng.RandRange(-(d - 1.0), d - 1.0));
-            var mob = MakeMonster(mdef, "E" + s.SpawnCount, pos, StageScale(rt), false);
+            var mob = MakeMonster(mdef, "E" + s.SpawnCount, pos, StageScale(rt, cfg), false, HpScale(rt, cfg));
             mob.Aggro = false; // ambles until a hero hits it
             s.Entities.Add(mob);
             s.SpawnCount++;
         }
 
-        private static CombatEntity MakeMonster(MonsterDef def, string id, Vec2 pos, double scale, bool isBoss)
+        private static CombatEntity MakeMonster(MonsterDef def, string id, Vec2 pos, double scale, bool isBoss, double hpScale = -1)
         {
+            double hs = hpScale < 0 ? scale : hpScale; // trash passes a steeper HP scale; bosses use `scale`
             var stats = new StatBlock();
             foreach (var kv in def.BaseStats) stats[kv.Key] = kv.Value;
             // scale the "size" stats with monster level; leave rate/crit stats as-is
-            stats[StatKey.Hp] = stats.Get(StatKey.Hp) * scale;
+            stats[StatKey.Hp] = stats.Get(StatKey.Hp) * hs;
             stats[StatKey.Atk] = stats.Get(StatKey.Atk) * scale;
             stats[StatKey.Def] = stats.Get(StatKey.Def) * scale;
             double hp = stats.Get(StatKey.Hp);
