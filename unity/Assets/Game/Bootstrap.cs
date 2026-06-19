@@ -177,15 +177,18 @@ namespace IdleGame.Game
             ground.name = "Ground";
             ground.transform.localScale = new Vector3(50f, 1f, 50f);
 
-            // Tiled grid texture so the floor reads as a surface (and gives a motion
-            // reference) instead of a flat void. Tinted green by the material colour.
+            // Organic mottled-grass texture (soft patches of two greens) instead of a grid —
+            // one big non-tiled field so there are no repeating seams. Matte.
             var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-            var groundMat = new Material(shader) { color = new Color(0.30f, 0.52f, 0.40f) }; // soft cozy green
+            var groundMat = new Material(shader) { color = Color.white }; // greens live in the texture
             groundMat.mainTexture = GroundTexture();
-            groundMat.mainTextureScale = new Vector2(100f, 100f); // ~5-unit grid cells across the 500u plane
-            MakeMatte(groundMat); // no plastic specular; Phase 2 replaces this with stylised terrain
+            groundMat.mainTextureScale = Vector2.one;
+            MakeMatte(groundMat);
             var gr = ground.GetComponent<Renderer>();
             if (gr != null) gr.sharedMaterial = groundMat;
+
+            // Scatter procedural low-poly props (rocks/trees/bushes) over the field.
+            Scenery.Build(cfg);
         }
 
         /// <summary>The cozy flat-sky / fog colour shared by the camera clear and distance fog.</summary>
@@ -240,20 +243,27 @@ namespace IdleGame.Game
 
         private static Texture2D _groundTex;
 
-        /// <summary>A repeating grid cell (light fill + darker edge lines) — multiplied by the
-        /// ground's green base colour. Generated once; tiled across the plane.</summary>
+        /// <summary>One big organic grass field: two octaves of low-frequency Perlin noise
+        /// blended between two greens, giving soft patches without any grid/tiling seams
+        /// (sampled non-tiled across the whole plane). Generated once.</summary>
         private static Texture2D GroundTexture()
         {
             if (_groundTex != null) return _groundTex;
-            const int n = 64;
+            const int n = 512;
             var tex = new Texture2D(n, n, TextureFormat.RGB24, true)
-            { wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Bilinear };
-            var fill = new Color(0.95f, 0.95f, 0.95f); // ~base colour after tint
-            var line = new Color(0.62f, 0.62f, 0.62f); // darker grid lines
+            { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var dark = new Color(0.26f, 0.45f, 0.33f);
+            var light = new Color(0.40f, 0.60f, 0.44f);
             var px = new Color[n * n];
             for (int y = 0; y < n; y++)
                 for (int x = 0; x < n; x++)
-                    px[y * n + x] = (x < 2 || y < 2) ? line : fill; // 2px lines on two edges => grid when tiled
+                {
+                    float u = x / (float)n, v = y / (float)n;
+                    float a = Mathf.PerlinNoise(u * 5f, v * 5f);          // big soft patches
+                    float b = Mathf.PerlinNoise(u * 13f + 7f, v * 13f + 7f); // finer break-up
+                    float t = Mathf.Clamp01(a * 0.7f + b * 0.3f);
+                    px[y * n + x] = Color.Lerp(dark, light, t);
+                }
             tex.SetPixels(px);
             tex.Apply();
             _groundTex = tex;
