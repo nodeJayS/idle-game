@@ -50,6 +50,7 @@ namespace IdleGame.GameCore
         public int XpReward;
         public int GoldReward;
         public string Sprite = "";
+        public string SpawnStyle = "pop"; // renderer hint: how this monster animates in
     }
 
     public sealed class StageDef
@@ -222,7 +223,7 @@ namespace IdleGame.GameCore
             {
                 Id = "goblin_king", Name = "Goblin King",
                 BaseStats = SB((StatKey.Hp, 160), (StatKey.Atk, 12), (StatKey.Def, 3), (StatKey.Spd, 0.9), (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.6)),
-                LootTableId = "boss", XpReward = 60, GoldReward = 40, Sprite = "goblin_king",
+                LootTableId = "boss", XpReward = 60, GoldReward = 40, Sprite = "goblin_king", SpawnStyle = "rise",
             };
 
             for (int i = 0; i < 50; i++)

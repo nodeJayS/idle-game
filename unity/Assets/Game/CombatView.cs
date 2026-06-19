@@ -25,6 +25,32 @@ namespace IdleGame.Game
             public GameObject Go = null!;
             public float Height;
             public Color BaseColor;
+            public Vector3 BaseScale;   // full size; spawn anim grows toward this
+            public bool Spawning;
+            public float SpawnT;        // seconds since the view was created
+            public float SpawnDelay;    // per-mob stagger so a wave doesn't pop in unison
+            public System.Action<View, float>? SpawnFx; // per-frame spawn-in visual (progress 0..1)
+        }
+
+        private const float SpawnAnimSec = 0.35f;
+
+        // MonsterDef.SpawnStyle -> spawn-in animation. ADD-ON POINT: register new styles
+        // (spider, ghost, shark, …) here and set the monster's SpawnStyle in GameConfig.
+        private readonly Dictionary<string, System.Action<View, float>> _spawnEffects = new();
+
+        private void BuildSpawnEffects()
+        {
+            // grow with a little overshoot pop
+            _spawnEffects["pop"] = (v, a) => v.Go.transform.localScale = v.BaseScale * EaseOutBack(a);
+
+            // emerge upward out of the ground
+            _spawnEffects["rise"] = (v, a) =>
+            {
+                v.Go.transform.localScale = v.BaseScale * Mathf.Clamp01(a);
+                var p = v.Go.transform.position;
+                p.y = Mathf.Lerp(-v.Height, v.Height, a);
+                v.Go.transform.position = p;
+            };
         }
 
         private static readonly Color DownedColor = new Color(0.30f, 0.30f, 0.34f);
@@ -56,6 +82,7 @@ namespace IdleGame.Game
         {
             _save = save;
             _cfg = cfg;
+            BuildSpawnEffects();
             if (Camera.main != null)
             {
                 _juice = new GameObject("CombatJuice").AddComponent<CombatJuice>();
@@ -184,14 +211,30 @@ namespace IdleGame.Game
             float scale = e.IsBoss ? 1.6f : 1f;
             float height = (type == PrimitiveType.Capsule ? 1f : 0.5f) * scale;
             go.transform.position = new Vector3((float)e.Pos.X, height, (float)e.Pos.Y);
-            go.transform.localScale = new Vector3(0.7f * scale, 0.9f * scale, 0.7f * scale);
+            var baseScale = new Vector3(0.7f * scale, 0.9f * scale, 0.7f * scale);
 
             Color color = isHero
                 ? new Color(0.36f, 0.55f, 0.85f)
                 : (e.IsBoss ? new Color(0.85f, 0.40f, 0.25f) : new Color(0.45f, 0.80f, 0.50f));
             Paint(go, color);
 
-            _views[e.Id] = new View { Go = go, Height = height, BaseColor = color };
+            var view = new View { Go = go, Height = height, BaseColor = color, BaseScale = baseScale };
+
+            // Enemies (trash + boss) animate in per their monster's SpawnStyle; heroes
+            // are placed instantly at run start.
+            if (e.Team == Team.Enemy)
+            {
+                string style = _cfg.Monsters.TryGetValue(e.RefId, out var md) ? md.SpawnStyle : "pop";
+                view.SpawnFx = _spawnEffects.TryGetValue(style, out var fx) ? fx : _spawnEffects["pop"];
+                view.Spawning = true;
+                view.SpawnDelay = Random.Range(0f, 0.45f);
+                go.transform.localScale = Vector3.zero;
+            }
+            else
+            {
+                go.transform.localScale = baseScale;
+            }
+            _views[e.Id] = view;
         }
 
         /// <summary>Add views for new (spawned) entities and drop views for pruned/removed ones.</summary>
@@ -270,7 +313,24 @@ namespace IdleGame.Game
                 if (!_views.TryGetValue(e.Id, out var v) || v.Go == null || !v.Go.activeSelf) continue;
                 var target = new Vector3((float)e.Pos.X, v.Height, (float)e.Pos.Y);
                 v.Go.transform.position = Vector3.Lerp(v.Go.transform.position, target, t);
+                if (v.Spawning) AnimateSpawn(v);
             }
+        }
+
+        /// <summary>Grow a freshly-spawned view from zero to full size with a little pop.</summary>
+        private static void AnimateSpawn(View v)
+        {
+            v.SpawnT += Time.deltaTime;
+            float a = (v.SpawnT - v.SpawnDelay) / SpawnAnimSec;
+            if (a <= 0f) { v.Go.transform.localScale = Vector3.zero; return; }
+            if (a >= 1f) { v.Go.transform.localScale = v.BaseScale; v.Spawning = false; return; }
+            v.SpawnFx?.Invoke(v, a);
+        }
+
+        private static float EaseOutBack(float x)
+        {
+            const float c1 = 1.70158f, c3 = c1 + 1f;
+            return 1f + c3 * Mathf.Pow(x - 1f, 3f) + c1 * Mathf.Pow(x - 1f, 2f);
         }
 
         // ---- IMGUI HUD + control bar (always-on-top; full juice/UI polish later) ----
