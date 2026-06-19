@@ -20,8 +20,8 @@
 | Engine | **Unity (C#)**, 3D URP |
 | Art direction | **2.5D isometric, low-poly 3D** — fixed iso camera over low-poly models; readable, cheap to produce, light on mobile |
 | Sim | **`GameCore`** — pure C# library, no `UnityEngine` refs; Unity is a read-only client |
-| Party | **4 hero slots** drawn from a multi-class roster; start with **1 Warrior**. **Leveling model TBD** — per-hero vs per-slot (see §4) |
-| Classes | Each class has its **own skill set**; skills fire automatically in combat |
+| Party | **4 hero slots** from a multi-class roster; start with **Warrior + Magician**. Leveling is **per-hero** (see §4) |
+| Classes | Each class has its **own skill set**; skills fire automatically in combat (live, M11) |
 | Map / movement | Party **auto-navigates** stages, auto-fights, auto-loots |
 | Stages | **1–50 main ladder**; clear a **miniboss** to advance, **major boss every 10**. Endless & party modes later |
 | Hero death | Heroes are **downed** with a **per-hero respawn timer** (scales up as they get stronger); a full wipe fails the run. No permanent loss. Frequent wipes = the stage is too strong |
@@ -53,7 +53,7 @@ If this feels good with placeholder primitives and grey/blue/yellow item rectang
 ## 2. MVP — the vertical slice (build this and nothing more in v1)
 
 1. **Stage zone** — a small 3D zone the party auto-walks through.
-2. **Auto-combat** — 4-slot party (1 Warrior to start), auto-target nearest monsters, auto-attack/auto-skill on cooldown. Heroes can be **downed**; a full party wipe fails the run.
+2. **Auto-combat** — 4-slot party (Warrior + Magician to start), auto-target nearest monsters, auto-attack/auto-skill on cooldown. Heroes can be **downed**; a full party wipe fails the run.
 3. **Monster packs + a miniboss** — clear the packs, **miniboss gates the next stage**; a **major boss every 10 stages**.
 4. **Loot drops** — monsters drop gear with rarity + random affixes; auto-pickup.
 5. **Equip & stats** — equip gear on a hero; stats recompute; party gets stronger.
@@ -97,17 +97,25 @@ The sim is one assembly (`GameCore.asmdef`, no engine refs) living in
 `gamecore/` compiles those exact files via a csproj glob (no copy).
 ```
 unity/Assets/GameCore/             THE sim (pure C#)
-  Models.cs        heroes, items, stats, save state
+  Models.cs        heroes, items, stats (StatKey/EquipSlot), save state
   Rng.cs           mulberry32 + WeightedPick  (loot now, gacha later)
-  GameConfig.cs    Default() content: heroes/items/affixes/monsters/stages/balance
+  GameConfig.cs    Default() content: heroes/items/affixes/monsters/stages/skills/balance
   Save.cs          NewGame / Migrate (versioned)
   Party.cs         SetPartySlot, AcquireHero (the gacha plug point)
   Stats.cs         ComputeHeroStats / ComputePartyPower
-  Combat.cs        InitCombat / StepCombat / RunToEnd (deterministic auto-battle)
-  CombatModels.cs  transient CombatState / CombatEntity / CombatEvent
+  Inventory.cs     AddLoot (cap + auto-salvage), Equip/Unequip, SalvageItem, CompareForHero
+  Loot.cs          rarity/affix rolls, RollDrop, RollBossDrops (guaranteed bundles)
+  Progression.cs   GrantPartyXp, GrantGold/Currency, stage advance
+  Idle.cs          offline accrual (Preview / Claim)
+  Num.cs           compact number formatting (1.2K / 3.4M …)
+  Combat.cs        InitCombat/Farm/BossChallenge, StepCombat, skill casting, RunToEnd
+  CombatModels.cs  transient CombatState / CombatEntity (mana, buffs, skill cds) / CombatEvent
 unity/Assets/Game/                 MonoBehaviours (read-only client)
-  Bootstrap.cs     builds the scene in code on Play
-  CombatView.cs    drives + visualizes the auto-battle (M1)
+  Bootstrap.cs     builds the scene in code on Play; menu-driven session
+  CombatView.cs    drives + visualizes combat; HUD + Party HUD (IMGUI)
+  EquipmentView / InventoryView    per-hero equip doll + shared bag (uGUI)
+  UiKit / StatDisplay / Palette    code-built widgets, stat presentation, rarity colors
+  ChatPanel / TopBar / IdleClaimModal / Settings / Autosave / SaveStore
 gamecore/GameCore.Tests/           xUnit, compiles Assets/GameCore + Persistence
 gamecore/Adapters/Persistence.cs   System.Text.Json (the one host-specific adapter)
 ```
@@ -117,25 +125,32 @@ gamecore/Adapters/Persistence.cs   System.Text.Json (the one host-specific adapt
 ## 4. Data model
 
 **Hero (owned instance):** `id, defId, level, xp, equipped{slot→itemId}, skillLoadout[]`
-- **Leveling (OPEN QUESTION):** XP from kills levels up your party. Two models on the table:
-  **(a) per-hero** — each hero levels individually (standard, simplest), or **(b) per-slot** —
-  the *slot* carries the level so swapping in a new hero doesn't mean re-grinding from 1.
-  `level` + `growthPerLevel` feed `ComputeHeroStats` either way. Level cap likely grows
-  (maybe ~100 eventually); **curve + cap are tuning to nail down later**.
+- **Leveling:** **per-hero** — each hero levels from kill XP; `level` + `growthPerLevel` feed
+  `ComputeHeroStats`. Cap 100; curve in `Balance`. (Per-slot leveling was considered and dropped.)
 
 **Hero definition (static config):** `defId, name, class, role (Melee/Ranged/Support), baseStats, growthPerLevel, skills[], sprite hint`
-- **Class skills:** each class's `skills[]` is its kit; a `SkillDef` has `cooldown, range, targeting, effect`. Skills fire automatically in combat (added in the skills milestone).
+- **Class skills (live, M11):** each class's `skills[]` is its kit. A `SkillDef` has cooldown,
+  **mana cost**, range, targeting, and an effect — **damage** (single / targeted AoE),
+  **heal** (most-hurt ally), or **self stat-buff** (timed). Skills fire automatically when
+  off cooldown with mana + a target; a cast **replaces that step's basic attack**. Cooldowns
+  scale with `AtkSpd`. Heroes and bosses cast.
 
 **Item (dropped/owned):** `id, baseId, rarity (Normal/Magic/Rare/Unique/Legendary), itemLevel, affixes[{stat, value}], enhanceLevel`
-- **Enhancement:** `enhanceLevel` (0→N) adds stats on top of base + affixes; raised via **scrolls** (§6.1) — a risk/reward gold/currency sink.
+- **Enhancement:** `enhanceLevel` (0→N) adds stats on top of base + affixes; raised via **scrolls** (§6.1) — a risk/reward gold/currency sink. *(Deferred.)*
 
-**Item base (config):** `baseId, slot (weapon/helm/chest/…), baseStats, allowedAffixes`
+**Item base (config):** `baseId, slot, baseStats, allowedAffixes`. **9 equip slots:** Weapon,
+Offhand, Helm, Chest, Gloves, Boots, Cape, Ring, Amulet — each hero equips independently from
+**one shared account bag** (`SaveState.Inventory`; equipping just references an item id, and an
+item can't be worn by two heroes).
 
 **Affix (config):** `stat, weight, valuePerItemLevel range, rarityFloor`
 
-**Stats** — keep small at first: `HP, ATK, DEF, SPD, CRIT%, CRITDMG`. Resist adding 15 stats day one. *(Damage may later split into physical/magic — additive to `StatKey` + the affix pool, no logic change.)*
+**Stats (`StatKey`):** `Hp, Atk, Def, MoveSpd, AtkSpd, CritChance, CritDmg, HpRegen,
+AttackRange, SplashRadius, MaxMana, ManaRegen` — `MoveSpd` = movement, `AtkSpd` = attack/cast
+cadence, mana fuels skills. Player-facing **order, labels, and formatting** live in the client's
+`StatDisplay` (role-grouped). *(Damage may later split phys/magic — additive, no logic change.)*
 
-**Currencies:** a map (`gold` today; `gems`/`tickets`/`shards`/`scrolls` are additive later).
+**Currencies:** a map — `gold` + `scrap` (salvage) today; `gems`/`tickets`/`shards`/`scrolls` additive later.
 
 **Progression:** `highestStage, currentStage, accountLevel, lastClaimAt`.
 
@@ -156,21 +171,29 @@ Add a "quick run" button later: grants e.g. 2h of yield instantly on a daily coo
 
 ### 5.2 Loot rarity + affixes (the dopamine engine)
 
-| Rarity | Drop weight | # affixes |
-|--------|-------------|-----------|
-| Normal (white) | high | 0 |
-| Magic (blue) | medium | 1–2 |
-| Rare (yellow) | low | 3–4 |
-| Unique (orange) | very low | 4–5 |
-| Legendary (gold) | ultra rare | 5–6 |
+| Rarity | Border | # affixes | Source |
+|--------|--------|-----------|--------|
+| Normal | none (gray) | 0 | trash / idle |
+| Magic | teal | 1–2 | trash / idle |
+| Rare | blue | 3–4 | trash / idle (the ceiling for these) |
+| Unique | yellow | 4–5 | **bosses only** |
+| Legendary | green | 5–6 | **bosses only** (~1% within a boss bundle) |
 
-*(Implemented as `Balance.RarityBaseWeights` + `AffixCountByRarity`. Unique/Legendary use random counts for now; hand-authored "fixed special affixes" for true uniques come later.)*
+*(Weights/counts in `Balance.RarityBaseWeights` + `AffixCountByRarity`; rarity colors in the
+client `Palette`. Unique/Legendary use random affix counts for now; hand-authored "fixed
+special affixes" for true uniques come later.)*
 
-- Drop rates and affix values **scale with stage / item level** (a stage's `DropRateMult` biases rarity upward).
-- Affixes rolled from a weighted pool with value ranges → near-infinite item variety.
-- **Loot filter** (later) so high tiers don't drown the player in whites.
-- Implement as a **seeded, testable pure function**; sim 10,000+ drops to verify rates.
-- This weighted-roll engine (`Rng.WeightedPick`) is reused verbatim for gacha later.
+- **Drops are deliberately scarce** (~1 item per few minutes of active farming; `Balance.DropChance`),
+  so each one matters. Trash and idle drops are **capped at Rare**.
+- **Unique/Legendary are boss-exclusive:** each boss drops a guaranteed bundle (major 5–7,
+  mini 1–2) of Unique/Legendary plus a few Normal–Rare extras (`Loot.RollBossDrops`).
+- **Soft inventory cap (100 *loose* items):** live farm pickups stop when full; idle and
+  boss/special drops may **overfill** past it. **Auto-salvage** (opt-in rarity threshold)
+  converts low drops to `scrap` instead of taking a slot — owned items are never auto-destroyed.
+- Drop rates / affix values **scale with stage / item level**; affixes roll from a weighted
+  pool with value ranges → near-infinite variety.
+- **Loot filter** (later) for high stages. Implemented as **seeded, testable pure functions**;
+  the weighted-roll engine (`Rng.WeightedPick`) is reused verbatim for gacha later.
 
 ---
 
@@ -237,16 +260,15 @@ single-player, local game), **Depth** (build variety + retention), **Live-servic
 
 → At the end of Phase A you have a complete, satisfying solo idle ARPG.
 
-### Phase B — Depth (build variety + retention)
-| Milestone | Deliverable |
-|-----------|-------------|
-| **D1 – Class skills** | Per-class skill kits firing in combat (cooldowns/targeting/effects). |
-| **D2 – Roster & classes** | Own multiple heroes across classes; acquire heroes 2–4 via progression. |
-| **D3 – Item enhancement** | Scroll upgrade gamble (§6.1) — gold sink. *End-game; may defer further.* |
-| **D4 – Alt modes** | Endless mode ("deepest stage"); later party / co-op. |
-| **D5 – Crafting / loot filter / sets** | Affix rerolls, more slots + set bonuses, loot filter for high stages. |
-| **D6 – Prestige** | Rebirth reset for a permanent multiplier; economy tuned around it. |
-| **D7 – Retention** | Daily/weekly quests, login rewards, achievements, codex. |
+### Phase B — Depth (build variety + retention) — in progress
+| Milestone | Deliverable | State |
+|-----------|-------------|-------|
+| **M10 – Multi-character foundation** | Mana; 9 per-hero equip slots from one shared bag; inventory cap + auto-salvage (`scrap`); scarce loot with Unique/Legendary **boss-only** (guaranteed bundles); Party HUD + per-hero Equipment HUD; rarity-bordered item tiles; canonical stat display. | ✅ |
+| **M11 – Class skills** | Skills fire in the sim (damage/AoE, heal, self-buff; mana + cooldowns; heroes + bosses); `MoveSpd`/`AtkSpd` split. *Remaining: skill FX + animation speed in Unity; salvage UI.* | ◑ |
+| **Roster & classes** | Field/manage 4 of N heroes; gear benched heroes; acquire heroes 2–4 via progression (gacha later). | |
+| **Crafting / sets / loot filter** | Affix rerolls, set bonuses, enhancement scrolls (§6.1), loot filter. | |
+| **Alt modes** | Endless ("deepest stage"); later party / co-op. | |
+| **Prestige & retention** | Rebirth multiplier; daily/weekly quests, login rewards, achievements, codex. | |
 
 ### Phase C — Live-service (server + global)
 | Milestone | Deliverable |
@@ -314,7 +336,8 @@ Unity IAP, Remote Config, Analytics.
 ---
 
 ## 10. Open next steps
-- **M3 (leveling):** XP from kills → fielded heroes level up → stats scale.
-- **M4 (stages & progression):** miniboss gate, major boss every 10, hero downing/run-fail.
-- Draft the balance numbers in `GameConfig` — XP curve, idle rate, stage scaling, enhance odds.
-- Build a small console/test harness to sim 10k+ drops and verify rates (§5.2).
+- **Skill FX (Unity):** play meteor/fireball/cleave/heal on `SkillCast` events via the
+  `_projectileFx`/`_spawnEffects` seams; scale cast/attack animation speed by `AtkSpd`.
+- **Salvage UI:** manual salvage + the auto-salvage threshold toggle (GameCore logic done).
+- **Roster screen:** field/manage the party and gear benched heroes (equipment tabs are party-only now).
+- **Then:** more heroes/classes, gear depth (sets / enhancement / affix reroll), alt modes; gacha + live-service per §8/§9.

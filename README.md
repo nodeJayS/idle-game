@@ -1,12 +1,14 @@
 # Idle ARPG (Unity)
 
-A low-poly **3D idle ARPG** — Diablo/PoE-style loot & build depth. A 4-hero party (each hero independently equippable) auto-clears dungeons, monsters drop gear, you build out the party and push higher difficulty.
+A low-poly **3D idle ARPG** — Diablo/PoE-style loot & build depth. A 4-hero party (each hero independently equippable from one shared bag) auto-clears dungeons, monsters drop gear, you build out the party and push higher difficulty.
 Progress accrues while you're away.
 
 > **Status:** the simulation lives in a pure-C# `GameCore` library (tested with
-> `dotnet test`) that Unity references as its client. M0 (scene) and M1 (auto-combat)
-> are done; M2 (loot) is complete. Gacha and live-service are deferred; the
-> architecture supports both later.
+> `dotnet test`, 197 passing) that Unity references as its client. **Phase A (core
+> loop, M0–M9) is complete**; **Phase B (depth)** is underway — multi-character
+> foundation (mana, 9 equip slots, shared bag + per-hero equipment, salvage, scarce
+> loot with boss-only Unique/Legendary) and skills firing in combat are in. Gacha and
+> live-service are deferred; the architecture supports both later.
 
 ## Repo layout
 ```
@@ -37,5 +39,6 @@ the scene in code and `CombatView` drives the auto-battle. The sim lives in
 `unity/Assets/GameCore/` under a no-engine-refs `GameCore.asmdef`.
 
 ## Milestones
-M0 scene ✅ · M1 auto-combat ✅ · M2 loot ✅ · M3 stages · M4 idle · M5 persistence · M6 feel.
-Full status and the live-service roadmap are in [`CLAUDE.md`](CLAUDE.md).
+**Phase A (M0–M9) ✅** — auto-combat, loot, leveling, stage ladder + boss gates, idle, persistence, feel pass, ranged class, polish.
+**Phase B (depth)** — M10 multi-character foundation ✅, M11 skills ✅; roster/gacha/live-service ahead.
+Full status and the live-service roadmap are in [`CLAUDE.md`](CLAUDE.md); the durable design is in [`docs/game-design.md`](docs/game-design.md).

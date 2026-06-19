@@ -27,7 +27,8 @@ logic leak into MonoBehaviours** — they spawn/animate/poll, they don't decide 
 ## Repo layout
 ```
 unity/Assets/GameCore/   THE sim — pure C#, no engine refs. SINGLE SOURCE OF TRUTH.
-unity/Assets/Game/       MonoBehaviours, read-only client (Bootstrap, CombatView)
+unity/Assets/Game/       MonoBehaviours, read-only client (Bootstrap, CombatView, Party/
+                         Equipment/Inventory UI, ChatPanel, TopBar, UiKit, StatDisplay)
 gamecore/GameCore.Tests/ xUnit tests — compile the SAME Assets/GameCore sources via a
                          csproj glob (no copy). + gamecore/Adapters/Persistence.cs.
 docs/game-design.md      the durable what/why
@@ -57,23 +58,38 @@ files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sy
   scene in code (camera/light/ground) and `CombatView` drives the auto-battle.
   Play-mode can't be driven headlessly; visual checks are manual.
 
-## Milestones & status
-Engine-independent order, same as the original plan:
+## Status (197 tests passing)
 
-| | Milestone | State |
-|--|--|--|
-| M0 | Iso scene, camera, party lead (placeholder primitives) | ✅ |
-| M1 | Deterministic auto-combat in the client (`CombatView`) | ✅ |
-| M2 | Loot: drops + rarity + affixes, inventory, equip → stats recompute | ✅ |
-| M3 | Leveling: kills grant XP, fielded heroes level, stats scale | ✅ |
-| M4 | Stages & progression: 50-stage ladder, miniboss gate, major boss /10, hero downing | ✅ |
-| M5 | Idle accrual (offline = math off highest cleared stage, claim modal) | ✅ |
-| M6 | Persistence & main menu (save/load, Continue / New Game) | ✅ |
-| M7 | Feel pass (number formatting, juice, item-compare UI) | ✅ |
-| M8 | Farm zones + timed boss gates (endless trash w/ cap, 60s mini/major boss to advance, tiered rates) | ✅ |
-| M9 | Core-loop polish (bigger play area, batch spawns, magician + ranged/AoE, group/solo movement, chat/feed panel) | ✅ |
+**Phase A — core loop — M0–M9 ✅.** Deterministic auto-combat; loot (rarity + affixes,
+equip → stat recompute); per-hero leveling; 50-stage ladder as farm zones with 60s timed
+mini/major boss gates + tiered rates; idle accrual off highest cleared stage + claim modal;
+save/load + menu; feel pass; warrior + magician (ranged/AoE); group/solo movement; chat/feed panel.
 
-Full roadmap (Depth + Live-service phases) is in [`docs/game-design.md`](docs/game-design.md) §8.
+**Phase B — depth — in progress:**
+- **M10 multi-character foundation ✅** — mana resource; **9 equip slots** (Weapon, Offhand,
+  Helm, Chest, Gloves, Boots, Cape, Ring, Amulet) per-hero, drawn from **one shared account
+  bag**; inventory cap (100 *loose* items) + opt-in **auto-salvage → `scrap`**; scarce drops
+  (~1 per few min) with **Unique/Legendary boss-only** (guaranteed bundles: major 5–7, mini
+  1–2), trash/idle capped at Rare; **Party HUD** (HP/mana bars; click a hero → its Equipment
+  doll); rarity-bordered item tiles + grid bag; canonical stat display (`StatDisplay`).
+- **M11 skills (sim) ✅** — skills fire in combat (single/AoE damage, heal most-hurt ally,
+  self stat-buff), cost mana, on cooldowns (scaled by `AtkSpd`); heroes **and bosses** cast;
+  `Spd` split into `MoveSpd` (movement) + new `AtkSpd` (action rate; warrior slower than mage).
+- **Next:** skill **FX in Unity** (`SkillCast` → meteor/fireball/cleave via the
+  `_projectileFx`/`_spawnEffects` seams) + animation speed scaled by `AtkSpd`; **salvage UI**
+  (manual + auto-salvage toggle); **roster screen** (gear benched heroes; tabs are party-only
+  now). Gacha/live-service still deferred.
+
+Full roadmap is in [`docs/game-design.md`](docs/game-design.md) §8.
+
+## Conventions
+- **GameCore-first:** build + `dotnet test` each piece, then wire into Unity (play-mode can't
+  be tested headlessly — the user verifies visually). Milestones split into sequential
+  subtasks; implement one, test, stop for review/commit.
+- The user commits manually and works directly on `main`; end commit messages with
+  `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`. New content (skills, slots,
+  heroes) is set at New Game, so the user starts a fresh game to see it.
+- LF→CRLF git warnings on Windows are normal.
 
 ## Live-service / global roadmap (the long arc)
 Goal: server-authoritative live-service — global chat, multiple servers, leveling
