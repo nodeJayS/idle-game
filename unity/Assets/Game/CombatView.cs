@@ -40,6 +40,13 @@ namespace IdleGame.Game
             // actors snap; LungeDir is a world vector, LungeMag its reach.
             public float LungeT, LungeDur, LungeMag;
             public Vector3 LungeDir;
+
+            // Hit reaction: a brief recoil away from the attacker (same decaying-offset
+            // mechanism as the lunge). LastHitDir is remembered so the death crumple can
+            // knock the corpse back in the direction of the killing blow.
+            public float KnockT, KnockDur, KnockMag;
+            public Vector3 KnockDir;
+            public Vector3 LastHitDir;
         }
 
         private const float BaseLungeSec = 0.18f;
@@ -473,7 +480,7 @@ namespace IdleGame.Game
             foreach (var e in _combat.Entities)
             {
                 present.Add(e.Id);
-                if (!_views.ContainsKey(e.Id)) SpawnView(e);
+                if (!_views.ContainsKey(e.Id) && e.Alive) SpawnView(e); // don't re-spawn a view for a corpse mid-death-fx
             }
 
             List<string>? stale = null;
@@ -511,6 +518,8 @@ namespace IdleGame.Game
                         if (_juice == null || ev.TargetId == null) break;
                         if (!_views.TryGetValue(ev.TargetId, out var hv) || hv.Go == null || !hv.Go.activeSelf) break;
                         var head = hv.Go.transform.position + Vector3.up * (hv.Height + 0.6f);
+
+                        ApplyHitReaction(ev.SourceId, hv); // recoil + remember hit direction (for the death crumple)
 
                         // A skill's damage tick (SkillCast already lunged). A single-target
                         // projectile skill launches its meteor here so the number pops on
@@ -589,8 +598,19 @@ namespace IdleGame.Game
                         if (ev.EntityId != null && _views.TryGetValue(ev.EntityId, out var v) && v.Go != null)
                         {
                             var ent = _combat.Entities.Find(x => x.Id == ev.EntityId);
-                            if (ent != null && ent.Team == Team.Party) Paint(v.Go, DownedColor);
-                            else v.Go.SetActive(false);
+                            if (ent != null && ent.Team == Team.Party)
+                            {
+                                Paint(v.Go, DownedColor); // downed, not dead — keep the view
+                            }
+                            else
+                            {
+                                // Enemy died: detach the view and play a knockback + crumple
+                                // despawn so it doesn't vanish instantly (and lingers long
+                                // enough for an in-flight projectile to land on it).
+                                _views.Remove(ev.EntityId);
+                                v.Go.AddComponent<DeathFx>()
+                                    .Configure(0.45f, v.Go.transform.localScale, v.LastHitDir * 0.6f, sink: 0.4f);
+                            }
                         }
                         break;
                     case CombatEventType.Respawn:
@@ -619,7 +639,7 @@ namespace IdleGame.Game
                 if (!_views.TryGetValue(e.Id, out var v) || v.Go == null || !v.Go.activeSelf) continue;
                 var target = new Vector3((float)e.Pos.X, v.Height, (float)e.Pos.Y);
                 v.SmoothPos = Vector3.Lerp(v.SmoothPos, target, t);
-                v.Go.transform.position = v.SmoothPos + LungeOffset(v);
+                v.Go.transform.position = v.SmoothPos + LungeOffset(v) + KnockOffset(v);
                 if (v.Spawning) AnimateSpawn(v);
             }
         }
@@ -632,6 +652,34 @@ namespace IdleGame.Game
             v.LungeT = Mathf.Max(0f, v.LungeT - Time.deltaTime);
             float p = 1f - (v.LungeDur > 0f ? v.LungeT / v.LungeDur : 1f); // 0 -> 1
             return v.LungeDir * (v.LungeMag * Mathf.Sin(Mathf.Clamp01(p) * Mathf.PI));
+        }
+
+        /// <summary>Advance a view's hit recoil and return its current offset (a quick knock
+        /// away from the attacker, then settle).</summary>
+        private static Vector3 KnockOffset(View v)
+        {
+            if (v.KnockT <= 0f) return Vector3.zero;
+            v.KnockT = Mathf.Max(0f, v.KnockT - Time.deltaTime);
+            float p = 1f - (v.KnockDur > 0f ? v.KnockT / v.KnockDur : 1f); // 0 -> 1
+            return v.KnockDir * (v.KnockMag * Mathf.Sin(Mathf.Clamp01(p) * Mathf.PI));
+        }
+
+        /// <summary>On a hit, recoil the victim away from the attacker and remember the
+        /// direction (so a killing blow's death crumple knocks the corpse the same way).</summary>
+        private void ApplyHitReaction(string? sourceId, View hv)
+        {
+            Vector3 dir = Vector3.back;
+            if (sourceId != null && _views.TryGetValue(sourceId, out var sv) && sv.Go != null)
+            {
+                var d = hv.Go.transform.position - sv.Go.transform.position;
+                d.y = 0f;
+                if (d.sqrMagnitude > 0.0001f) dir = d.normalized;
+            }
+            hv.LastHitDir = dir;
+            hv.KnockDir = dir;
+            hv.KnockMag = 0.18f;
+            hv.KnockDur = 0.14f;
+            hv.KnockT = hv.KnockDur;
         }
 
         /// <summary>Kick off a lunge on the source view toward the target (or upward for a
