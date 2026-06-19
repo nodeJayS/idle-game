@@ -207,10 +207,12 @@ namespace IdleGame.GameCore.Tests
             var cfg = GameConfig.Default();
             var s = Combat.InitFarm(new[] { Champ() }, 1, cfg, new Rng(3));
             Assert.True(s.Entities.Count(e => e.Team == Team.Enemy) > 0);
-            // party starts near the origin; trash should ring it, not scatter across the map
+            // party starts near the origin; the pack should ring it (centre in the ring +
+            // each mob within PackRadius of that centre), not scatter across the map
+            double max = cfg.Balance.SpawnRingOuter + cfg.Balance.PackRadius + 3;
             foreach (var e in s.Entities)
                 if (e.Team == Team.Enemy)
-                    Assert.True(Vec2.Distance(e.Pos, new Vec2(0, 0)) <= cfg.Balance.SpawnRingOuter + 3);
+                    Assert.True(Vec2.Distance(e.Pos, new Vec2(0, 0)) <= max);
         }
 
         [Fact]

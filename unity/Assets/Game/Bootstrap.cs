@@ -130,7 +130,37 @@ namespace IdleGame.Game
             var ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
             ground.name = "Ground";
             ground.transform.localScale = new Vector3(50f, 1f, 50f);
-            CombatView.Paint(ground, new Color(0.18f, 0.35f, 0.22f));
+
+            // Tiled grid texture so the floor reads as a surface (and gives a motion
+            // reference) instead of a flat void. Tinted green by the material colour.
+            var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+            var groundMat = new Material(shader) { color = new Color(0.18f, 0.35f, 0.22f) };
+            groundMat.mainTexture = GroundTexture();
+            groundMat.mainTextureScale = new Vector2(100f, 100f); // ~5-unit grid cells across the 500u plane
+            var gr = ground.GetComponent<Renderer>();
+            if (gr != null) gr.sharedMaterial = groundMat;
+        }
+
+        private static Texture2D _groundTex;
+
+        /// <summary>A repeating grid cell (light fill + darker edge lines) — multiplied by the
+        /// ground's green base colour. Generated once; tiled across the plane.</summary>
+        private static Texture2D GroundTexture()
+        {
+            if (_groundTex != null) return _groundTex;
+            const int n = 64;
+            var tex = new Texture2D(n, n, TextureFormat.RGB24, true)
+            { wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Bilinear };
+            var fill = new Color(0.95f, 0.95f, 0.95f); // ~base colour after tint
+            var line = new Color(0.62f, 0.62f, 0.62f); // darker grid lines
+            var px = new Color[n * n];
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                    px[y * n + x] = (x < 2 || y < 2) ? line : fill; // 2px lines on two edges => grid when tiled
+            tex.SetPixels(px);
+            tex.Apply();
+            _groundTex = tex;
+            return tex;
         }
     }
 }

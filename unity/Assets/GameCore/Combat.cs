@@ -72,7 +72,7 @@ namespace IdleGame.GameCore
             s.Loot = LootContext.ForStage(rt);
 
             int initial = Math.Min(cfg.Balance.SpawnBatchSize, cfg.Balance.MobCap);
-            for (int i = 0; i < initial; i++) SpawnTrash(s, rt, cfg, rng);
+            if (initial > 0) SpawnPack(s, rt, cfg, rng, initial);
 
             s.SpawnTimerMs = cfg.Balance.SpawnIntervalMs;
             return s;
@@ -244,23 +244,32 @@ namespace IdleGame.GameCore
 
         /// <summary>Spawn one trash mob at a random spot anywhere on the map (deterministic
         /// via rng) — mobs surround the centred party rather than arriving as a side wave.</summary>
-        private static void SpawnTrash(CombatState s, StageDef rt, GameConfig cfg, Rng rng)
+        /// <summary>
+        /// Spawn a PACK: <paramref name="count"/> mobs clustered tightly at a single point in
+        /// the ring around the party (PoE-style — packs with quiet gaps between, not an even
+        /// scatter). The pack centre rings the group so packs appear near it wherever it roams.
+        /// </summary>
+        private static void SpawnPack(CombatState s, StageDef rt, GameConfig cfg, Rng rng, int count)
         {
-            var mdef = (s.SpawnCount % 2 == 0) ? cfg.Monsters["slime"] : cfg.Monsters["goblin"];
             double w = cfg.Balance.MapHalfWidth - 1.0, d = cfg.Balance.MapHalfDepth - 1.0;
-            // Spawn in a ring around the party (out near the view edges), so the populated
-            // area follows the group across the big field rather than sitting in a fixed box.
             var c = PartyCentroid(s);
             double ang = rng.RandRange(0, 2.0 * Math.PI);
             double rad = rng.RandRange(cfg.Balance.SpawnRingInner, cfg.Balance.SpawnRingOuter);
-            var pos = new Vec2(Math.Clamp(c.X + Math.Cos(ang) * rad, -w, w),
-                               Math.Clamp(c.Y + Math.Sin(ang) * rad, -d, d));
-            var mob = MakeMonster(mdef, "E" + s.SpawnCount, pos, StageScale(rt, cfg), false, HpScale(rt, cfg));
-            mob.Aggro = false;          // ambles until a hero hits it
-            mob.WanderTarget = pos;     // idle in place until...
-            mob.WanderCdMs = rng.RandRange(0, cfg.Balance.WanderMaxMs); // ...a staggered first repick (no synced waves)
-            s.Entities.Add(mob);
-            s.SpawnCount++;
+            var center = new Vec2(c.X + Math.Cos(ang) * rad, c.Y + Math.Sin(ang) * rad);
+            double pr = cfg.Balance.PackRadius;
+
+            for (int i = 0; i < count; i++)
+            {
+                var mdef = (s.SpawnCount % 2 == 0) ? cfg.Monsters["slime"] : cfg.Monsters["goblin"];
+                var pos = new Vec2(Math.Clamp(center.X + rng.RandRange(-pr, pr), -w, w),
+                                   Math.Clamp(center.Y + rng.RandRange(-pr, pr), -d, d));
+                var mob = MakeMonster(mdef, "E" + s.SpawnCount, pos, StageScale(rt, cfg), false, HpScale(rt, cfg));
+                mob.Aggro = false;          // ambles until a hero hits it
+                mob.WanderTarget = pos;     // idle in place until...
+                mob.WanderCdMs = rng.RandRange(0, cfg.Balance.WanderMaxMs); // ...a staggered first repick
+                s.Entities.Add(mob);
+                s.SpawnCount++;
+            }
         }
 
         private static CombatEntity MakeMonster(MonsterDef def, string id, Vec2 pos, double scale, bool isBoss, double hpScale = -1)
@@ -315,7 +324,7 @@ namespace IdleGame.GameCore
                 }
             }
 
-            // Farm spawning: refill trash one per interval, up to the cap.
+            // Farm spawning: drop a fresh pack near the party each interval, up to the cap.
             if (s.Kind == EncounterKind.Farm)
             {
                 s.SpawnTimerMs -= dtMs;
@@ -326,7 +335,7 @@ namespace IdleGame.GameCore
                     if (n > 0)
                     {
                         var rt = cfg.Stages.Find(r => r.Stage == s.Stage) ?? cfg.Stages[0];
-                        for (int i = 0; i < n; i++) SpawnTrash(s, rt, cfg, rng);
+                        SpawnPack(s, rt, cfg, rng, n);
                     }
                     s.SpawnTimerMs = cfg.Balance.SpawnIntervalMs;
                 }
