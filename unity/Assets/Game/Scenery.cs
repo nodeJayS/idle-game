@@ -117,31 +117,47 @@ namespace IdleGame.Game
         private static void EnsureMaterials()
         {
             if (_trunkMat != null) return;
-            _trunkMat = Mat(new Color(0.36f, 0.26f, 0.18f));
+            // base(bottom) -> top gradient; wind only on foliage. gradHeight/bias map the
+            // gradient onto each mesh's object-space height (cones 0..1.4, bush spheres ±~1).
+            _trunkMat = Sty(new Color(0.34f, 0.25f, 0.17f), new Color(0.42f, 0.31f, 0.21f), 1f, 0f, 0f);
             _foliageMats = new[]
             {
-                Mat(new Color(0.24f, 0.45f, 0.26f)),
-                Mat(new Color(0.30f, 0.50f, 0.30f)),
-                Mat(new Color(0.20f, 0.40f, 0.28f)),
+                Sty(new Color(0.20f, 0.38f, 0.24f), new Color(0.46f, 0.66f, 0.42f), 1.4f, 0.0f, 0.06f),
+                Sty(new Color(0.22f, 0.42f, 0.26f), new Color(0.50f, 0.70f, 0.44f), 1.4f, 0.0f, 0.06f),
+                Sty(new Color(0.18f, 0.34f, 0.26f), new Color(0.42f, 0.62f, 0.40f), 1.4f, 0.0f, 0.06f),
             };
             _rockMats = new[]
             {
-                Mat(new Color(0.50f, 0.52f, 0.54f)),
-                Mat(new Color(0.44f, 0.45f, 0.47f)),
+                Sty(new Color(0.62f, 0.64f, 0.66f), new Color(0.76f, 0.78f, 0.80f), 1.2f, 0.3f, 0f),
+                Sty(new Color(0.56f, 0.58f, 0.60f), new Color(0.70f, 0.72f, 0.74f), 1.2f, 0.3f, 0f),
             };
             _bushMats = new[]
             {
-                Mat(new Color(0.26f, 0.46f, 0.30f)),
-                Mat(new Color(0.22f, 0.42f, 0.27f)),
+                Sty(new Color(0.20f, 0.40f, 0.26f), new Color(0.48f, 0.68f, 0.42f), 1.8f, 0.5f, 0.05f),
+                Sty(new Color(0.18f, 0.36f, 0.24f), new Color(0.42f, 0.62f, 0.40f), 1.8f, 0.5f, 0.05f),
             };
         }
 
-        private static Material Mat(Color c)
+        /// <summary>Build a stylized-shader material (soft wrapped lighting + vertical colour
+        /// gradient + optional wind). Falls back to a matte URP/Lit if the shader is missing.</summary>
+        private static Material Sty(Color baseCol, Color topCol, float gradHeight, float gradBias, float wind)
         {
-            var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-            var m = new Material(shader) { color = c };
-            Bootstrap.MakeMatte(m);
-            m.enableInstancing = true; // hundreds of identical mesh+material -> one batch
+            var sh = Shader.Find("IdleGame/StylizedFoliage");
+            if (sh == null)
+            {
+                var lit = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+                var fb = new Material(lit) { color = baseCol };
+                Bootstrap.MakeMatte(fb);
+                fb.enableInstancing = true;
+                return fb;
+            }
+            var m = new Material(sh);
+            m.SetColor("_BaseColor", baseCol);
+            m.SetColor("_TopColor", topCol);
+            m.SetFloat("_GradHeight", gradHeight);
+            m.SetFloat("_GradBias", gradBias);
+            m.SetFloat("_WindStrength", wind);
+            m.enableInstancing = true; // identical mesh+material -> one batch
             return m;
         }
 
