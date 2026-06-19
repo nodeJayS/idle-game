@@ -12,16 +12,25 @@ namespace IdleGame.Game
     /// </summary>
     public sealed class CameraRig : MonoBehaviour
     {
-        public float MinDistance = 14f;
-        public float MaxDistance = 42f;       // ≈ the old fixed framing distance (max zoom-out)
-        public float ZoomSensitivity = 0.03f; // per scroll unit (~120/notch)
-        public float FollowSmoothing = 6f;
-        public float FollowDeadzone = 6f;     // hold still until the party drifts this far (no constant pan)
+        // Diorama framing at FOV 34°. Distances are tuned so heroes read clearly: at full
+        // zoom-out the camera sits 40u back (~24u of world visible vertically — heroes are
+        // ~2x the size of the first diorama pass). Halve/scale these together with
+        // Bootstrap's cam.fieldOfView if you change the compression.
+        public float MinDistance = 13f;
+        public float MaxDistance = 40f;       // max zoom-out (the default framing)
+        public float ZoomSensitivity = 0.03f; // per scroll unit (~120/notch); scaled to the range
+        // Continuous follow with a small fixed lag: tracks the smoothed party centroid every
+        // frame (no deadzone), so during steady roaming the camera moves at constant velocity
+        // like the characters — it only eases at the start/stop of motion, never mid-roam.
+        // Lower = tighter/more direct; higher = floatier.
+        public float FollowSmoothTime = 0.12f;
 
         private Camera _cam = null!;
         private Vector3 _dir;   // normalized view direction, from the iso rotation
         private float _distance;
         private Vector3 _focus;
+        private Vector3 _targetFocus;
+        private Vector3 _focusVel; // SmoothDamp state
         private bool _hasFocus;
         private float _shake;
 
@@ -30,18 +39,16 @@ namespace IdleGame.Game
             _cam = cam;
             _dir = cam.transform.forward.normalized;
             _distance = MaxDistance;                       // start zoomed out (the familiar framing)
-            _focus = cam.transform.position + _dir * _distance;
+            _focus = _targetFocus = cam.transform.position + _dir * _distance;
         }
 
-        /// <summary>Set the world point to keep centred (the party centroid). Smoothed.</summary>
+        /// <summary>Set the world point to keep centred (the smoothed party centroid). Tracked
+        /// continuously — no deadzone — so the camera never start/stops mid-roam; the ease
+        /// toward it happens every frame in LateUpdate.</summary>
         public void SetFocus(Vector3 worldFocus)
         {
-            if (!_hasFocus) { _focus = worldFocus; _hasFocus = true; return; }
-            // Deadzone: ignore small drifts so the camera holds steady while the group fights
-            // in place, and only eases over when they actually relocate. Kills the constant pan
-            // that makes the whole field look like it's sliding/moving in unison.
-            if (Vector3.Distance(worldFocus, _focus) <= FollowDeadzone) return;
-            _focus = Vector3.Lerp(_focus, worldFocus, 1f - Mathf.Exp(-FollowSmoothing * Time.deltaTime));
+            if (!_hasFocus) { _focus = _targetFocus = worldFocus; _hasFocus = true; return; }
+            _targetFocus = worldFocus;
         }
 
         public void Shake(float magnitude) => _shake = Mathf.Max(_shake, magnitude);
@@ -57,6 +64,11 @@ namespace IdleGame.Game
                 if (Mathf.Abs(scroll) > 0.01f)
                     _distance = Mathf.Clamp(_distance - scroll * ZoomSensitivity, MinDistance, MaxDistance);
             }
+
+            // Critically-damped ease toward the party every frame — smooth and chop-free
+            // regardless of how the focus target was fed (no Lerp-vs-deadzone start/stop).
+            if (_hasFocus)
+                _focus = Vector3.SmoothDamp(_focus, _targetFocus, ref _focusVel, FollowSmoothTime);
 
             var pos = _focus - _dir * _distance;
             if (_shake > 0f)

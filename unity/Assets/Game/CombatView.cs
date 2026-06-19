@@ -18,7 +18,6 @@ namespace IdleGame.Game
     {
         private const float OutcomeDelaySec = 1.5f;
         private const int MaxStepsPerFrame = 8;
-        private const float MoveSmoothing = 12f;
 
         private sealed class View
         {
@@ -31,8 +30,13 @@ namespace IdleGame.Game
             public float SpawnDelay;    // per-mob stagger so a wave doesn't pop in unison
             public System.Action<View, float>? SpawnFx; // per-frame spawn-in visual (progress 0..1)
 
-            // Smoothed sim position (no lunge offset) — kept separate from the rendered
-            // transform so the attack-tell lunge doesn't feed back into the smoothing.
+            // Fixed-timestep render interpolation: the previous and current sim positions
+            // (no lunge offset). Each frame the renderer draws Lerp(PrevPos, CurPos, alpha),
+            // so motion is locked to real time and immune to the sim's 30Hz step cadence.
+            // SmoothPos holds that interpolated result — read by the camera so it tracks the
+            // on-screen centroid, not the raw stepping sim position.
+            public Vector3 PrevPos;
+            public Vector3 CurPos;
             public Vector3 SmoothPos;
 
             // Attack/cast tell (M11): a quick punch toward the target (or upward for a
@@ -225,6 +229,8 @@ namespace IdleGame.Game
         private readonly Dictionary<string, View> _views = new Dictionary<string, View>();
 
         private double _accMs;
+        private bool _steppedThisFrame; // did the sim advance this frame? (rolls render snapshots)
+        private float _renderAlpha;     // 0..1 fraction into the current fixed step, for interpolation
         private float _outcomeTimer;
         private bool _resolved;
         private uint _runCount;
@@ -323,6 +329,7 @@ namespace IdleGame.Game
         private void Update()
         {
             if (_combat == null) return;
+            _steppedThisFrame = false;
 
             if (_combat.Status == CombatStatus.Running)
             {
@@ -335,6 +342,12 @@ namespace IdleGame.Game
                     steps++;
                 }
                 if (steps == MaxStepsPerFrame) _accMs = 0;
+
+                // Render-interpolation bookkeeping: whether the sim advanced (so SyncViews
+                // rolls its position snapshots) and how far into the current step we are, so
+                // units draw Lerp(prev,cur,alpha) locked to real time — no 30Hz step beat.
+                _steppedThisFrame = steps > 0;
+                _renderAlpha = Mathf.Clamp01((float)(_accMs / Combat.DefaultStepMs));
 
                 // Bank progress as it's earned; a level-up recomputes party stats live.
                 if (CommitPending()) Combat.RefreshPartyStats(_combat, _save, _cfg);
@@ -357,14 +370,21 @@ namespace IdleGame.Game
             if (_rig != null && TryPartyCentroid(out var focus)) _rig.SetFocus(focus);
         }
 
-        /// <summary>World-space centre of the living party (camera focus); false if all down.</summary>
+        /// <summary>World-space centre of the living party (camera focus); false if all down.
+        /// Uses the SMOOTHED render positions (view.SmoothPos), not the raw 30Hz sim positions,
+        /// so the camera tracks what's actually on screen and doesn't chop on each sim step
+        /// (or on the per-step body-collision nudges).</summary>
         private bool TryPartyCentroid(out Vector3 centroid)
         {
-            double sx = 0, sz = 0; int n = 0;
+            Vector3 sum = Vector3.zero; int n = 0;
             foreach (var e in _combat.Entities)
-                if (e.Team == Team.Party && e.Alive) { sx += e.Pos.X; sz += e.Pos.Y; n++; }
+            {
+                if (e.Team != Team.Party || !e.Alive) continue;
+                if (_views.TryGetValue(e.Id, out var v) && v.Go != null) { sum += v.SmoothPos; n++; }
+            }
             if (n == 0) { centroid = default; return false; }
-            centroid = new Vector3((float)(sx / n), 0f, (float)(sz / n));
+            centroid = sum / n;
+            centroid.y = 0f;
             return true;
         }
 
@@ -473,7 +493,8 @@ namespace IdleGame.Game
             else color = e.IsBoss ? new Color(0.85f, 0.40f, 0.25f) : new Color(0.45f, 0.80f, 0.50f);
             Paint(go, color);
 
-            var view = new View { Go = go, Height = height, BaseColor = color, BaseScale = baseScale, SmoothPos = go.transform.position };
+            var view = new View { Go = go, Height = height, BaseColor = color, BaseScale = baseScale,
+                                  PrevPos = go.transform.position, CurPos = go.transform.position, SmoothPos = go.transform.position };
 
             // Enemies (trash + boss) animate in per their monster's SpawnStyle (if the
             // toggle is on); heroes are placed instantly at run start.
@@ -652,12 +673,18 @@ namespace IdleGame.Game
 
         private void SyncViews()
         {
-            float t = 1f - Mathf.Exp(-MoveSmoothing * Time.deltaTime);
             foreach (var e in _combat.Entities)
             {
                 if (!_views.TryGetValue(e.Id, out var v) || v.Go == null || !v.Go.activeSelf) continue;
-                var target = new Vector3((float)e.Pos.X, v.Height, (float)e.Pos.Y);
-                v.SmoothPos = Vector3.Lerp(v.SmoothPos, target, t);
+                // On a sim step, roll the snapshot forward; between steps hold prev/cur and
+                // just advance alpha. Drawing Lerp(prev,cur,alpha) is smooth at any framerate
+                // and immune to the 30Hz step beat that made the old exponential ease pulse.
+                if (_steppedThisFrame)
+                {
+                    v.PrevPos = v.CurPos;
+                    v.CurPos = new Vector3((float)e.Pos.X, v.Height, (float)e.Pos.Y);
+                }
+                v.SmoothPos = Vector3.Lerp(v.PrevPos, v.CurPos, _renderAlpha);
                 v.Go.transform.position = v.SmoothPos + LungeOffset(v) + KnockOffset(v);
                 if (v.Spawning) AnimateSpawn(v);
             }
@@ -1066,6 +1093,7 @@ namespace IdleGame.Game
             if (renderer == null) return;
             var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
             var mat = new Material(shader) { color = color };
+            Bootstrap.MakeMatte(mat); // flat, non-plastic shading to match the stylised look
             renderer.sharedMaterial = mat;
         }
 

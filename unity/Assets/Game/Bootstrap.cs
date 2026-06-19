@@ -1,4 +1,6 @@
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using IdleGame.GameCore;
 
 namespace IdleGame.Game
@@ -110,7 +112,22 @@ namespace IdleGame.Game
             }
             cam.transform.position = new Vector3(18f, 30f, -22f);
             cam.transform.rotation = Quaternion.Euler(42f, -45f, 0f);
-            cam.backgroundColor = new Color(0.08f, 0.06f, 0.10f);
+            // Diorama compression (Tunic-ish): a narrow FOV flattens perspective so the
+            // low-poly world reads like a hand-built model. The CameraRig pushes the camera
+            // ~2x further back to keep the same framing — see its Min/MaxDistance. Lower this
+            // for more compression; raise toward 60 for the wide PoE/Diablo overview.
+            cam.fieldOfView = 34f;
+            // A soft flat sky (no procedural skybox) — cozy, Tunic-ish, and the fog below
+            // fades the ground plane's far edge into it so the world reads as endless.
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = SkyColor;
+
+            // URP per-camera post-processing must be opted in (the scene is built in code, so
+            // there's no inspector to tick). SMAA keeps the low-poly edges crisp under bloom.
+            var camData = cam.GetUniversalAdditionalCameraData();
+            camData.renderPostProcessing = true;
+            camData.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
+            camData.antialiasingQuality = AntialiasingQuality.High;
 
             // --- directional light ---
             var light = Object.FindFirstObjectByType<Light>();
@@ -121,7 +138,36 @@ namespace IdleGame.Game
                 light.type = LightType.Directional;
             }
             light.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
-            light.intensity = 1.15f;
+            light.intensity = 1.1f;
+            light.color = new Color(1f, 0.96f, 0.86f); // warm "sun" key
+            // Soft grounded shadows are the single biggest contributor to the cozy diorama
+            // look. Not pitch-black (strength < 1) so shaded sides stay readable.
+            light.shadows = LightShadows.Soft;
+            light.shadowStrength = 0.55f;
+
+            // The diorama framing puts the camera ~40u back at full zoom-out; bump the URP
+            // asset's 50u shadow distance a little so the whole framed view gets shadows.
+            if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset urp)
+                urp.shadowDistance = 90f;
+
+            // Stylized ambient: a cool sky fill + a slightly warm ground bounce, so shaded
+            // faces pick up colour instead of going flat grey (trilight = sky/equator/ground).
+            RenderSettings.ambientMode = AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = new Color(0.56f, 0.64f, 0.70f);
+            RenderSettings.ambientEquatorColor = new Color(0.46f, 0.52f, 0.50f);
+            RenderSettings.ambientGroundColor = new Color(0.34f, 0.34f, 0.30f);
+
+            // Gentle distance fog tinted to the sky, to add depth and dissolve the ground
+            // plane's far edge. Kept far/linear so it never muddies the active play area.
+            RenderSettings.fog = true;
+            RenderSettings.fogMode = FogMode.Linear;
+            RenderSettings.fogColor = SkyColor;
+            // Fog is distance-from-camera; start it beyond the party (~40u back) so the action
+            // stays clear, and let it gently veil mobs further out toward the horizon.
+            RenderSettings.fogStartDistance = 65f;
+            RenderSettings.fogEndDistance = 180f;
+
+            BuildPostFx();
 
             // --- ground plane ---
             // Must cover the whole roam region (Balance.MapHalfWidth/Depth, now ±200×140)
@@ -134,11 +180,62 @@ namespace IdleGame.Game
             // Tiled grid texture so the floor reads as a surface (and gives a motion
             // reference) instead of a flat void. Tinted green by the material colour.
             var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-            var groundMat = new Material(shader) { color = new Color(0.18f, 0.35f, 0.22f) };
+            var groundMat = new Material(shader) { color = new Color(0.30f, 0.52f, 0.40f) }; // soft cozy green
             groundMat.mainTexture = GroundTexture();
             groundMat.mainTextureScale = new Vector2(100f, 100f); // ~5-unit grid cells across the 500u plane
+            MakeMatte(groundMat); // no plastic specular; Phase 2 replaces this with stylised terrain
             var gr = ground.GetComponent<Renderer>();
             if (gr != null) gr.sharedMaterial = groundMat;
+        }
+
+        /// <summary>The cozy flat-sky / fog colour shared by the camera clear and distance fog.</summary>
+        private static readonly Color SkyColor = new Color(0.64f, 0.76f, 0.74f);
+
+        /// <summary>Kill plastic specular so lit surfaces read matte (the stylised look).
+        /// Guards each property since the Standard fallback names smoothness differently.</summary>
+        public static void MakeMatte(Material mat)
+        {
+            if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", 0.05f);
+            if (mat.HasProperty("_Glossiness")) mat.SetFloat("_Glossiness", 0.05f);
+            if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", 0f);
+        }
+
+        /// <summary>
+        /// Build the global post-processing stack in code (no scene Volume to wire up):
+        /// neutral tonemapping, a touch of warm colour grading + bloom, and a soft vignette.
+        /// Deliberately subtle — this sells the mood without crushing readability. All values
+        /// are first-pass guesses to tune by screenshot.
+        /// </summary>
+        private static void BuildPostFx()
+        {
+            var profile = ScriptableObject.CreateInstance<VolumeProfile>();
+
+            var tone = profile.Add<UnityEngine.Rendering.Universal.Tonemapping>();
+            tone.mode.Override(TonemappingMode.Neutral);
+
+            var color = profile.Add<UnityEngine.Rendering.Universal.ColorAdjustments>();
+            color.postExposure.Override(0.05f);
+            color.contrast.Override(6f);
+            color.saturation.Override(14f);                       // a little punchier, cozier
+            color.colorFilter.Override(new Color(1f, 0.98f, 0.94f)); // faint warmth
+
+            var wb = profile.Add<UnityEngine.Rendering.Universal.WhiteBalance>();
+            wb.temperature.Override(8f);                          // warm the whole frame slightly
+
+            var bloom = profile.Add<UnityEngine.Rendering.Universal.Bloom>();
+            bloom.intensity.Override(0.55f);
+            bloom.threshold.Override(0.95f);
+            bloom.scatter.Override(0.6f);
+
+            var vignette = profile.Add<UnityEngine.Rendering.Universal.Vignette>();
+            vignette.intensity.Override(0.22f);
+            vignette.smoothness.Override(0.45f);
+
+            var fxGo = new GameObject("PostFx");
+            var vol = fxGo.AddComponent<Volume>();
+            vol.isGlobal = true;
+            vol.priority = 10f;
+            vol.sharedProfile = profile;
         }
 
         private static Texture2D _groundTex;
