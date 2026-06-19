@@ -98,16 +98,17 @@ namespace IdleGame.Game
 
         private static void BuildEnvironment(GameConfig cfg)
         {
-            float halfW = (float)cfg.Balance.MapHalfWidth;
-
-            // --- camera (iso-ish angle), pulled back to frame the whole field ---
+            // --- camera (iso angle) ---
+            // Fixed iso tilt + a default framing; the runtime CameraRig (added by CombatView)
+            // takes over position to follow the party and handle zoom, treating this framing
+            // as the max zoom-out. Decoupled from map size so zoom feel is stable.
             var cam = Camera.main;
             if (cam == null)
             {
                 var camGo = new GameObject("Main Camera") { tag = "MainCamera" };
                 cam = camGo.AddComponent<Camera>();
             }
-            cam.transform.position = new Vector3(halfW * 0.9f, halfW * 1.5f, -halfW * 1.1f);
+            cam.transform.position = new Vector3(18f, 30f, -22f);
             cam.transform.rotation = Quaternion.Euler(42f, -45f, 0f);
             cam.backgroundColor = new Color(0.08f, 0.06f, 0.10f);
 

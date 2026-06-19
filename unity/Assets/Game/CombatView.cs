@@ -125,7 +125,7 @@ namespace IdleGame.Game
             _skillFx["quake"] = (src, tgt) =>
             {
                 GroundRing(GroundAt(src), 3.2f, new Color(1f, 0.3f, 0.2f), 0.5f);
-                if (_juice != null && Settings.ScreenShake) _juice.Shake(0.25f);
+                if (Settings.ScreenShake) _rig?.Shake(0.25f);
             };
 
             // Mend: a green sparkle that rises off the healed ally (the +N number rides
@@ -193,7 +193,7 @@ namespace IdleGame.Game
         {
             if (_juice == null) return;
             if (Settings.DamageNumbers) _juice.DamageNumber(at, amount, crit);
-            if (crit && Settings.ScreenShake) _juice.Shake(0.15f);
+            if (crit && Settings.ScreenShake) _rig?.Shake(0.15f);
         }
 
         /// <summary>Resolve an attacker's basic-attack visual hint (hero or monster def).</summary>
@@ -218,6 +218,7 @@ namespace IdleGame.Game
         private CombatState _combat = null!;
         private Rng _rng = null!;
         private CombatJuice? _juice;
+        private CameraRig? _rig;
         private InventoryView? _inventory;
         private EquipmentView? _equipment;
         private ChatPanel? _chat;
@@ -276,6 +277,10 @@ namespace IdleGame.Game
                 jgo.transform.SetParent(transform, false);
                 _juice = jgo.AddComponent<CombatJuice>();
                 _juice.Init(Camera.main);
+
+                // the camera persists across Quit-to-Menu, so reuse its rig rather than stacking
+                _rig = Camera.main.GetComponent<CameraRig>() ?? Camera.main.gameObject.AddComponent<CameraRig>();
+                _rig.Init(Camera.main);
             }
             StartFarm();
         }
@@ -303,7 +308,7 @@ namespace IdleGame.Game
         {
             ClearViews();
             _combat = combat;
-            _combat.Tactic = Settings.GroupMovement ? PartyTactic.Group : PartyTactic.Solo;
+            _combat.Tactic = PartyTactic.Group; // the party always moves/fights as a cohesive group
             ReconcileViews();
             _accMs = 0;
             _outcomeTimer = 0;
@@ -347,6 +352,20 @@ namespace IdleGame.Game
 
             ReconcileViews();
             SyncViews();
+
+            // camera follows the party's centre (the group stays cohesive)
+            if (_rig != null && TryPartyCentroid(out var focus)) _rig.SetFocus(focus);
+        }
+
+        /// <summary>World-space centre of the living party (camera focus); false if all down.</summary>
+        private bool TryPartyCentroid(out Vector3 centroid)
+        {
+            double sx = 0, sz = 0; int n = 0;
+            foreach (var e in _combat.Entities)
+                if (e.Team == Team.Party && e.Alive) { sx += e.Pos.X; sz += e.Pos.Y; n++; }
+            if (n == 0) { centroid = default; return false; }
+            centroid = new Vector3((float)(sx / n), 0f, (float)(sz / n));
+            return true;
         }
 
         /// <summary>Bank pending loot/XP/gold into the save. Returns true if XP was
@@ -621,7 +640,7 @@ namespace IdleGame.Game
                         }
                         break;
                     case CombatEventType.BossDefeated:
-                        if (_juice != null && Settings.ScreenShake) _juice.Shake(0.4f);
+                        if (Settings.ScreenShake) _rig?.Shake(0.4f);
                         break;
                     case CombatEventType.LootDrop:
                         if (ev.Item != null && Settings.LootFeed)
@@ -1013,15 +1032,8 @@ namespace IdleGame.Game
             x += 260 + gap;
 
             if (Button(x, y, 170, h, "Heroes")) _equipment?.ToggleDefault();
-            x += 170 + gap;
-
-            // party tactic toggle (applies live + persists). Stage nav + Challenge/Flee live
-            // in the top-centre HUD now (see DrawTopControls).
-            if (Button(x, y, 200, h, _combat.Tactic == PartyTactic.Group ? "Group" : "Solo"))
-            {
-                Settings.GroupMovement = !Settings.GroupMovement;
-                _combat.Tactic = Settings.GroupMovement ? PartyTactic.Group : PartyTactic.Solo;
-            }
+            // (The party always moves as a group now; stage nav + Challenge live in the
+            // top-centre HUD — see DrawTopControls.)
         }
 
         private GUIStyle? _btnStyle;

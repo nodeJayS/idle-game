@@ -110,9 +110,9 @@ namespace IdleGame.GameCore
 
         // Farm zones (M8/M9): max concurrent trash, and how big a wave spawns each
         // interval (scattered across the field) until the cap is reached.
-        public int MobCap = 30;
-        public int SpawnBatchSize = 10;
-        public double SpawnIntervalMs = 10000;
+        public int MobCap = 80;
+        public int SpawnBatchSize = 4;     // small + frequent => a continuous trickle, not periodic waves
+        public double SpawnIntervalMs = 600;
 
         // Boss challenge (M8): seconds to kill the stage's boss and advance.
         public double BossChallengeSeconds = 60;
@@ -120,8 +120,8 @@ namespace IdleGame.GameCore
         // Play area: half-extents of the field. The party starts at the centre; trash
         // spawns scattered across the whole field (~2.5x the old area) so heroes range
         // out to hunt it. Precursor to real terrain/maps later.
-        public double MapHalfWidth = 20;
-        public double MapHalfDepth = 13;
+        public double MapHalfWidth = 48;
+        public double MapHalfDepth = 32;
 
         // Wander (idle trash): a non-aggro mob ambles between random points within
         // WanderRadius of itself, repicking every WanderMin..MaxMs, at WanderSpeedMult of

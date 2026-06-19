@@ -6,23 +6,20 @@ using IdleGame.GameCore;
 namespace IdleGame.Game
 {
     /// <summary>
-    /// Renderer-only combat feedback: floating damage numbers and camera shake. Driven
-    /// by <see cref="CombatEvent"/>s that CombatView already receives — no sim changes,
+    /// Renderer-only combat feedback: floating damage/heal numbers. Driven by
+    /// <see cref="CombatEvent"/>s that CombatView already receives — no sim changes,
     /// determinism untouched. Owns its own constant-pixel overlay canvas (1:1 screen
-    /// mapping) sorted below the menus/modals. (Loot now goes to the chat feed.)
+    /// mapping) sorted below the menus/modals. (Camera follow/zoom/shake lives in
+    /// <see cref="CameraRig"/>; loot goes to the chat feed.)
     /// </summary>
     public sealed class CombatJuice : MonoBehaviour
     {
         private Camera _cam = null!;
         private Canvas _canvas = null!;
-        private Vector3 _camBase;
-
-        private float _shake;
 
         public void Init(Camera cam)
         {
             _cam = cam;
-            _camBase = cam.transform.position;
 
             var go = new GameObject("CombatJuiceCanvas");
             go.transform.SetParent(transform, false);
@@ -52,24 +49,6 @@ namespace IdleGame.Game
             var jitter = new Vector3(Random.Range(-0.2f, 0.2f), 0f, Random.Range(-0.2f, 0.2f));
             label.gameObject.AddComponent<FloatingText>()
                  .Configure(label, _cam, worldHead + jitter, 1.4f, 0.9f, color);
-        }
-
-        public void Shake(float magnitude) => _shake = Mathf.Max(_shake, magnitude);
-
-        // ---- per-frame upkeep ----
-
-        private void LateUpdate()
-        {
-            if (_shake > 0f)
-            {
-                _shake = Mathf.Max(0f, _shake - Time.deltaTime * 2.5f);
-                var off = new Vector3(Random.Range(-1f, 1f), Random.Range(-1f, 1f), Random.Range(-1f, 1f)) * _shake;
-                _cam.transform.position = _camBase + off;
-            }
-            else if (_cam.transform.position != _camBase)
-            {
-                _cam.transform.position = _camBase;
-            }
         }
 
         // ---- factory helpers ----

@@ -241,7 +241,9 @@ namespace IdleGame.GameCore
             // scattered across the entire field (both sides), not lined up on the enemy side
             var pos = new Vec2(rng.RandRange(-(w - 1.0), w - 1.0), rng.RandRange(-(d - 1.0), d - 1.0));
             var mob = MakeMonster(mdef, "E" + s.SpawnCount, pos, StageScale(rt, cfg), false, HpScale(rt, cfg));
-            mob.Aggro = false; // ambles until a hero hits it
+            mob.Aggro = false;          // ambles until a hero hits it
+            mob.WanderTarget = pos;     // idle in place until...
+            mob.WanderCdMs = rng.RandRange(0, cfg.Balance.WanderMaxMs); // ...a staggered first repick (no synced waves)
             s.Entities.Add(mob);
             s.SpawnCount++;
         }
@@ -689,13 +691,18 @@ namespace IdleGame.GameCore
         /// so wanderers never drift out of bounds.</summary>
         private static void Wander(CombatEntity e, GameConfig cfg, double dtMs, Rng rng)
         {
+            // Repick a fresh destination only when the timer elapses (gated purely by the
+            // staggered cooldown, so a batch of spawns doesn't all turn on the same frame).
             e.WanderCdMs -= dtMs;
-            if (e.WanderCdMs <= 0 || Vec2.Distance(e.Pos, e.WanderTarget) <= 0.5)
+            if (e.WanderCdMs <= 0)
             {
-                double w = cfg.Balance.MapHalfWidth, d = cfg.Balance.MapHalfDepth, r = cfg.Balance.WanderRadius;
-                double tx = Math.Clamp(e.Pos.X + rng.RandRange(-r, r), -(w - 0.5), w - 0.5);
-                double ty = Math.Clamp(e.Pos.Y + rng.RandRange(-r, r), -(d - 0.5), d - 0.5);
-                e.WanderTarget = new Vec2(tx, ty);
+                double w = cfg.Balance.MapHalfWidth - 0.5, d = cfg.Balance.MapHalfDepth - 0.5, r = cfg.Balance.WanderRadius;
+                // random local step; if it would leave the field, reflect inward instead of
+                // clamping to the edge (clamping makes mobs pile along / trace the rectangle).
+                double ox = rng.RandRange(-r, r), oy = rng.RandRange(-r, r);
+                double tx = e.Pos.X + ox; if (tx < -w || tx > w) tx = e.Pos.X - ox;
+                double ty = e.Pos.Y + oy; if (ty < -d || ty > d) ty = e.Pos.Y - oy;
+                e.WanderTarget = new Vec2(Math.Clamp(tx, -w, w), Math.Clamp(ty, -d, d));
                 e.WanderCdMs = rng.RandRange(cfg.Balance.WanderMinMs, cfg.Balance.WanderMaxMs);
             }
             double speed = e.EffectiveStat(StatKey.MoveSpd);
