@@ -73,7 +73,6 @@ namespace IdleGame.Game
         private static void BuildEnvironment(GameConfig cfg)
         {
             float halfW = (float)cfg.Balance.MapHalfWidth;
-            float halfD = (float)cfg.Balance.MapHalfDepth;
 
             // --- camera (iso-ish angle), pulled back to frame the whole field ---
             var cam = Camera.main;
@@ -97,10 +96,14 @@ namespace IdleGame.Game
             light.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
             light.intensity = 1.15f;
 
-            // --- ground plane (sized to the field, a Unity plane is 10x10 units) ---
+            // --- ground plane ---
+            // The VISUAL world is huge so the camera never sees the map edge fall off;
+            // the gameplay border (where trash spawns and the party walks) is the
+            // invisible Balance.MapHalfWidth/MapHalfDepth region, independent of this.
+            // (A Unity plane is 10x10 units, so scale 30 => ~300x300 units.)
             var ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
             ground.name = "Ground";
-            ground.transform.localScale = new Vector3((halfW + 3f) / 5f, 1f, (halfD + 3f) / 5f);
+            ground.transform.localScale = new Vector3(30f, 1f, 30f);
             CombatView.Paint(ground, new Color(0.18f, 0.35f, 0.22f));
         }
     }
