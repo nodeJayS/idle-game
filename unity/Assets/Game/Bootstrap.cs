@@ -19,7 +19,7 @@ namespace IdleGame.Game
         public static void Boot()
         {
             var cfg = GameConfig.Default();
-            BuildEnvironment();
+            BuildEnvironment(cfg);
 
             // --- session starters (the menu invokes one of these) ---
             void StartSession(SaveState save, IdleReport idleReport)
@@ -70,17 +70,20 @@ namespace IdleGame.Game
             menu.Open();
         }
 
-        private static void BuildEnvironment()
+        private static void BuildEnvironment(GameConfig cfg)
         {
-            // --- camera (iso-ish angle) ---
+            float halfW = (float)cfg.Balance.MapHalfWidth;
+            float halfD = (float)cfg.Balance.MapHalfDepth;
+
+            // --- camera (iso-ish angle), pulled back to frame the whole field ---
             var cam = Camera.main;
             if (cam == null)
             {
                 var camGo = new GameObject("Main Camera") { tag = "MainCamera" };
                 cam = camGo.AddComponent<Camera>();
             }
-            cam.transform.position = new Vector3(9f, 11f, -9f);
-            cam.transform.rotation = Quaternion.Euler(38f, -45f, 0f);
+            cam.transform.position = new Vector3(halfW * 0.9f, halfW * 1.5f, -halfW * 1.1f);
+            cam.transform.rotation = Quaternion.Euler(42f, -45f, 0f);
             cam.backgroundColor = new Color(0.08f, 0.06f, 0.10f);
 
             // --- directional light ---
@@ -94,10 +97,10 @@ namespace IdleGame.Game
             light.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
             light.intensity = 1.15f;
 
-            // --- ground plane ---
+            // --- ground plane (sized to the field, a Unity plane is 10x10 units) ---
             var ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
             ground.name = "Ground";
-            ground.transform.localScale = new Vector3(2f, 1f, 2f);
+            ground.transform.localScale = new Vector3((halfW + 3f) / 5f, 1f, (halfD + 3f) / 5f);
             CombatView.Paint(ground, new Color(0.18f, 0.35f, 0.22f));
         }
     }

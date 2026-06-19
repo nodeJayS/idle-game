@@ -232,7 +232,8 @@ single-player, local game), **Depth** (build variety + retention), **Live-servic
 | **M5 – Idle** | Offline accrual off **highest cleared stage** + "while you were away" claim modal. | ✅ |
 | **M6 – Persistence & menu** | Save/load + main menu (Continue / New Game, single local account). | ✅ |
 | **M7 – Feel pass** | Number formatting, loot juice, item-compare UI, offline-modal animation. | ✅ |
-| **M8 – Farm zones + boss gates** | Each stage is an endless farm zone (continuous trash, concurrency cap); advancing N→N+1 is a **60s timed boss challenge** (mini boss; **major boss every 10**); loot/XP/gold rates step per stage and jump per 10-tier. Replaces the old "clear pack+boss = win" model. | next |
+| **M8 – Farm zones + boss gates** | Each stage is an endless farm zone (continuous trash, concurrency cap); advancing N→N+1 is a **60s timed boss challenge** (mini boss; **major boss every 10**); loot/XP/gold rates step per stage and jump per 10-tier. Replaces the old "clear pack+boss = win" model. | ✅ |
+| **M9 – Core-loop polish** | Bigger play area (precursor to terrain/maps), batch monster spawns, **magician** ranged class + warrior/magician splash AoE, group-vs-solo party movement, and a left-side chat/feed panel (loot/XP feed as a toggleable tab; social tabs stubbed pending the server). | next |
 
 → At the end of Phase A you have a complete, satisfying solo idle ARPG.
 

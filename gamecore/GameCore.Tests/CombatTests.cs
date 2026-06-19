@@ -187,6 +187,22 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void FarmSpawnsWithinMapBounds()
+        {
+            var cfg = GameConfig.Default();
+            var s = Combat.InitFarm(new[] { Champ() }, 1, cfg, new Rng(5));
+            // a few more waves on top of the initial batch
+            for (int i = 0; i < 60; i++) Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(5));
+
+            foreach (var e in s.Entities)
+            {
+                if (e.Team != Team.Enemy) continue;
+                Assert.True(System.Math.Abs(e.Pos.X) <= cfg.Balance.MapHalfWidth);
+                Assert.True(System.Math.Abs(e.Pos.Y) <= cfg.Balance.MapHalfDepth);
+            }
+        }
+
+        [Fact]
         public void FarmPrunesDeadTrash()
         {
             // a killing party keeps clearing spawns; dead enemies must not accumulate

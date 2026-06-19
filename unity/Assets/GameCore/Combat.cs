@@ -123,6 +123,8 @@ namespace IdleGame.GameCore
 
         private static void AddParty(CombatState s, IReadOnlyList<HeroInstance> party, GameConfig cfg)
         {
+            double px = -cfg.Balance.MapHalfWidth * 0.6; // party lines up on the left
+            int n = party.Count;
             int idx = 0;
             foreach (var hero in party)
             {
@@ -132,7 +134,7 @@ namespace IdleGame.GameCore
                 {
                     Id = "P" + idx + "_" + hero.Id,
                     Team = Team.Party,
-                    Pos = new Vec2(-3, idx * 1.5),
+                    Pos = new Vec2(px, (idx - (n - 1) / 2.0) * 2.0),
                     Stats = stats,
                     Hp = hp,
                     MaxHp = hp,
@@ -149,7 +151,9 @@ namespace IdleGame.GameCore
         private static void SpawnTrash(CombatState s, StageDef rt, GameConfig cfg, Rng rng)
         {
             var mdef = (s.SpawnCount % 2 == 0) ? cfg.Monsters["slime"] : cfg.Monsters["goblin"];
-            var pos = new Vec2(2.5 + rng.RandRange(0.0, 3.0), rng.RandRange(-3.0, 3.0));
+            double w = cfg.Balance.MapHalfWidth, d = cfg.Balance.MapHalfDepth;
+            // scattered across the right/centre of the field
+            var pos = new Vec2(rng.RandRange(0.0, w - 1.0), rng.RandRange(-(d - 1.0), d - 1.0));
             s.Entities.Add(MakeMonster(mdef, "E" + s.SpawnCount, pos, StageScale(rt), false));
             s.SpawnCount++;
         }

@@ -104,6 +104,11 @@ namespace IdleGame.GameCore
         // Boss challenge (M8): seconds to kill the stage's boss and advance.
         public double BossChallengeSeconds = 60;
 
+        // Play area (M9): half-extents of the field. Party stands on the left; trash
+        // spawns scattered across it. Precursor to real terrain/maps later.
+        public double MapHalfWidth = 12;
+        public double MapHalfDepth = 8;
+
         // Base drop weights per rarity, indexed by (int)Rarity ascending:
         // [Normal, Magic, Rare, Unique, Legendary]. Must have one entry per Rarity.
         // The stage's DropRateMult biases this upward — see Loot.RollRarity.

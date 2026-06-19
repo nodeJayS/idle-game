@@ -70,7 +70,8 @@ Engine-independent order, same as the original plan:
 | M5 | Idle accrual (offline = math off highest cleared stage, claim modal) | ✅ |
 | M6 | Persistence & main menu (save/load, Continue / New Game) | ✅ |
 | M7 | Feel pass (number formatting, juice, item-compare UI) | ✅ |
-| M8 | Farm zones + timed boss gates (endless trash w/ cap, 60s mini/major boss to advance, tiered rates) | **next** |
+| M8 | Farm zones + timed boss gates (endless trash w/ cap, 60s mini/major boss to advance, tiered rates) | ✅ |
+| M9 | Core-loop polish (bigger play area, batch spawns, magician + ranged/AoE, group/solo movement, chat/feed panel) | **next** |
 
 Full roadmap (Depth + Live-service phases) is in [`docs/game-design.md`](docs/game-design.md) §8.
 
