@@ -213,6 +213,7 @@ namespace IdleGame.Game
         private CombatJuice? _juice;
         private InventoryView? _inventory;
         private EquipmentView? _equipment;
+        private RosterView? _roster;
         private ChatPanel? _chat;
         private readonly Dictionary<string, View> _views = new Dictionary<string, View>();
 
@@ -232,10 +233,12 @@ namespace IdleGame.Game
         }
         public void BindInventory(InventoryView inv) => _inventory = inv;
         public void BindEquipment(EquipmentView eq) => _equipment = eq;
+        public void BindRoster(RosterView roster) => _roster = roster;
         public void BindChat(ChatPanel chat) => _chat = chat;
 
         private bool AnyPanelOpen => (_inventory != null && _inventory.IsOpen)
-                                  || (_equipment != null && _equipment.IsOpen);
+                                  || (_equipment != null && _equipment.IsOpen)
+                                  || (_roster != null && _roster.IsOpen);
 
         public void Init(SaveState save, GameConfig cfg)
         {
@@ -874,7 +877,8 @@ namespace IdleGame.Game
 
         private void DrawControlBar()
         {
-            if (_equipment != null && _equipment.IsOpen) return; // equipment panel owns the screen
+            // equipment + roster panels own the screen (their own Close buttons dismiss them)
+            if ((_equipment != null && _equipment.IsOpen) || (_roster != null && _roster.IsOpen)) return;
             const float h = 80f, pad = 16f, gap = 12f;
             float sh = Screen.height / UiScale();
             float y = sh - h - pad;
@@ -884,6 +888,9 @@ namespace IdleGame.Game
             if (Button(x, y, 260, h, invOpen ? "Close Bag" : "Inventory")) _inventory?.Toggle();
             if (invOpen) return; // keep the bar uncluttered while the bag is open
             x += 260 + gap;
+
+            if (Button(x, y, 170, h, "Roster")) _roster?.Toggle();
+            x += 170 + gap;
 
             // party tactic toggle (applies live + persists)
             if (Button(x, y, 200, h, _combat.Tactic == PartyTactic.Group ? "Group" : "Solo"))

@@ -60,6 +60,40 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void FieldHeroMovesHeroWithoutDuplicating()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            string h1 = save.Heroes[0].Id; // starts in slot 0
+            var next = Party.FieldHero(save, 2, h1); // move into empty slot 2
+
+            Assert.Null(next.Party[0]);             // pulled out of its old slot
+            Assert.Equal(h1, next.Party[2]);
+            Assert.Single(System.Array.FindAll(next.Party, id => id == h1)); // exactly once
+            Assert.Equal(h1, save.Party[0]);        // original untouched (pure)
+        }
+
+        [Fact]
+        public void FieldHeroBenchesPreviousOccupant()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            string h1 = save.Heroes[0].Id; // slot 0
+            string h2 = save.Heroes[1].Id; // slot 1
+            var next = Party.FieldHero(save, 1, h1); // field h1 where h2 was
+
+            Assert.Equal(h1, next.Party[1]);
+            Assert.Null(next.Party[0]);
+            Assert.DoesNotContain(h2, next.Party); // h2 benched
+        }
+
+        [Fact]
+        public void FieldHeroRejectsOutOfRangeAndUnowned()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            Assert.Throws<ArgumentOutOfRangeException>(() => Party.FieldHero(save, 9, save.Heroes[0].Id));
+            Assert.Throws<InvalidOperationException>(() => Party.FieldHero(save, 0, "nope"));
+        }
+
+        [Fact]
         public void TouchStampsLastClaimAtAndIsPure()
         {
             var save = Save.NewGame(1, Cfg, 1000);

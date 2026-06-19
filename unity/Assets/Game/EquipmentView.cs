@@ -54,7 +54,9 @@ namespace IdleGame.Game
         private void Build()
         {
             var save = _view.CurrentSave;
-            if (_heroId == null || Array.IndexOf(PartyHeroIds(save), _heroId) < 0)
+            // Keep any OWNED hero (the roster can open a benched one to gear it); only fall
+            // back to a party hero when the current id is gone/invalid.
+            if (_heroId == null || !save.Heroes.Exists(h => h.Id == _heroId))
                 _heroId = FirstPartyHeroId(save);
             if (_heroId == null) return;
 
@@ -78,14 +80,21 @@ namespace IdleGame.Game
 
         private void BuildTabs(Transform parent, SaveState save, Vector2 pos)
         {
+            var partyIds = PartyHeroIds(save);
+            var partySet = new HashSet<string>(partyIds);
+            var ids = new List<string>(partyIds);
+            if (_heroId != null && !partySet.Contains(_heroId)) ids.Add(_heroId); // benched hero being geared
+
             float x = pos.x;
-            foreach (var heroId in PartyHeroIds(save))
+            foreach (var heroId in ids)
             {
                 var id = heroId;
                 bool sel = id == _heroId;
-                var b = UiKit.TextButton(parent, HeroName(save, id), new Vector2(150, 50), new Vector2(x, pos.y),
-                    () => { _heroId = id; Rebuild(); }, 18);
+                bool benched = !partySet.Contains(id);
+                var b = UiKit.TextButton(parent, benched ? HeroName(save, id) + " (B)" : HeroName(save, id),
+                    new Vector2(150, 50), new Vector2(x, pos.y), () => { _heroId = id; Rebuild(); }, 18);
                 if (sel) b.GetComponent<Image>().color = new Color(0.30f, 0.45f, 0.65f);
+                else if (benched) b.GetComponent<Image>().color = new Color(0.34f, 0.30f, 0.42f);
                 x += 162f;
             }
         }
