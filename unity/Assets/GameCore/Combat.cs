@@ -18,11 +18,18 @@ namespace IdleGame.GameCore
     public static class Combat
     {
         public const double MeleeRange = 1.0;         // fallback range when an entity has no AttackRange stat
-        public const double MoveSpeedTilesPerSec = 3.0;
+        public const double MoveSpeedTilesPerSec = 3.0; // fallback when an entity has no MoveSpd stat
         public const double DefaultStepMs = 1000.0 / 30.0;
 
-        private static double AttackInterval(StatBlock s)
-            => 1000.0 / Math.Max(0.1, s.Get(StatKey.Spd));
+        // Attack/cast cadence scales with AtkSpd (attacks per second at 1.0). Missing/zero
+        // defaults to 1.0 so synthetic entities still act at a sane rate.
+        private static double AttackSpeedOf(StatBlock s)
+        {
+            double a = s.Get(StatKey.AtkSpd);
+            return a > 0 ? a : 1.0;
+        }
+
+        private static double AttackInterval(StatBlock s) => 1000.0 / AttackSpeedOf(s);
 
         /// <summary>Build the initial battle: party (left) vs the stage's pack + boss (right).</summary>
         public static CombatState InitCombat(IReadOnlyList<HeroInstance> party, int stage, GameConfig cfg, Rng rng)
@@ -313,7 +320,11 @@ namespace IdleGame.GameCore
                 }
                 else
                 {
-                    MoveToward(e, target.Pos, MoveSpeedTilesPerSec * dtMs / 1000.0);
+                {
+                    double moveSpd = e.EffectiveStat(StatKey.MoveSpd);
+                    if (moveSpd <= 0) moveSpd = MoveSpeedTilesPerSec; // fallback for entities w/o the stat
+                    MoveToward(e, target.Pos, moveSpd * dtMs / 1000.0);
+                }
                 }
             }
 
@@ -435,7 +446,9 @@ namespace IdleGame.GameCore
         private static void CastStart(CombatEntity e, SkillDef sk, string? targetId, List<CombatEvent> events)
         {
             e.Mana = Math.Max(0, e.Mana - sk.ManaCost);
-            e.SkillCdMs[sk.Id] = sk.CooldownMs;
+            // Attack speed also quickens casts: higher AtkSpd => shorter effective cooldown.
+            double atkSpd = e.EffectiveStat(StatKey.AtkSpd);
+            e.SkillCdMs[sk.Id] = sk.CooldownMs / (atkSpd > 0 ? atkSpd : 1.0);
             events.Add(new CombatEvent { Type = CombatEventType.SkillCast, SourceId = e.Id, TargetId = targetId, SkillId = sk.Id });
         }
 

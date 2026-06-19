@@ -16,7 +16,8 @@ namespace IdleGame.GameCore.Tests
             var st = new StatBlock
             {
                 [StatKey.Hp] = hp, [StatKey.Atk] = atk, [StatKey.Def] = def,
-                [StatKey.Spd] = spd, [StatKey.CritChance] = critChance, [StatKey.CritDmg] = critDmg,
+                [StatKey.AtkSpd] = spd, [StatKey.MoveSpd] = 3.0, // spd param drives attack rate; movement matches old constant
+                [StatKey.CritChance] = critChance, [StatKey.CritDmg] = critDmg,
             };
             return new CombatEntity
             {
@@ -536,6 +537,42 @@ namespace IdleGame.GameCore.Tests
             var g = s.Entities.First(e => e.Id == "P_glass");
             Assert.True(g.Alive);
             Assert.Equal(80, g.Mana); // came back ready to cast
+        }
+
+        // --- M11.2: attack speed (AtkSpd) vs movement speed (MoveSpd) ---
+
+        [Fact]
+        public void MagicianActsFasterThanWarrior()
+        {
+            var party = new[]
+            {
+                new HeroInstance { Id = "w", DefId = "warrior_basic", Level = 1 },
+                new HeroInstance { Id = "m", DefId = "magician_basic", Level = 1 },
+            };
+            var s = Combat.InitFarm(party, 1, Cfg, new Rng(1));
+            var w = s.Entities.First(e => e.RefId == "w");
+            var m = s.Entities.First(e => e.RefId == "m");
+
+            Assert.True(m.AttackIntervalMs < w.AttackIntervalMs); // higher AtkSpd => shorter interval
+        }
+
+        [Fact]
+        public void HigherMoveSpdCoversMoreGround()
+        {
+            CombatState Walk(double moveSpd)
+            {
+                var p = Ent("P", Team.Party, hp: 100, atk: 0, def: 0, x: 0);
+                p.Stats[StatKey.MoveSpd] = moveSpd;
+                var e = Ent("E", Team.Enemy, hp: 100, atk: 0, def: 0, x: 50); // far -> P walks toward
+                return State(p, e);
+            }
+
+            var fast = Walk(6.0);
+            var slow = Walk(2.0);
+            Combat.StepCombat(fast, Combat.DefaultStepMs, Cfg, new Rng(1));
+            Combat.StepCombat(slow, Combat.DefaultStepMs, Cfg, new Rng(1));
+
+            Assert.True(fast.Entities.First(e => e.Id == "P").Pos.X > slow.Entities.First(e => e.Id == "P").Pos.X);
         }
 
         // --- M9.4: group vs solo party tactic ---

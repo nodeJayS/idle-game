@@ -218,7 +218,8 @@ namespace IdleGame.GameCore
             {
                 DefId = "warrior_basic", Name = "Warrior", Class = "Warrior", Role = "melee",
                 BaseStats = SB((StatKey.Hp, 120), (StatKey.Atk, 14), (StatKey.Def, 8),
-                               (StatKey.Spd, 1.0), (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.5),
+                               (StatKey.MoveSpd, 3.0), (StatKey.AtkSpd, 0.85), // sturdy but swings slower than the mage
+                               (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.5),
                                (StatKey.HpRegen, 1.5),                 // very small sustain (hp/sec)
                                (StatKey.AttackRange, 1.2),             // melee
                                (StatKey.SplashRadius, 1.0),            // slightly wider cleave (melee perk)
@@ -232,7 +233,8 @@ namespace IdleGame.GameCore
                 DefId = "magician_basic", Name = "Magician", Class = "Magician", Role = "ranged",
                 // fragile (low HP/Def) but hits harder from range, with a tighter AoE
                 BaseStats = SB((StatKey.Hp, 72), (StatKey.Atk, 17), (StatKey.Def, 4),
-                               (StatKey.Spd, 1.0), (StatKey.CritChance, 0.07), (StatKey.CritDmg, 1.5),
+                               (StatKey.MoveSpd, 3.0), (StatKey.AtkSpd, 1.15), // fragile but casts/attacks faster
+                               (StatKey.CritChance, 0.07), (StatKey.CritDmg, 1.5),
                                (StatKey.HpRegen, 1.0),
                                (StatKey.AttackRange, 6.0),             // max reach; still fine point-blank
                                (StatKey.SplashRadius, 0.75),           // tight AoE (same as warrior)
@@ -244,7 +246,7 @@ namespace IdleGame.GameCore
             cfg.ItemBases["rusty_sword"] = new ItemBaseDef
             {
                 BaseId = "rusty_sword", Slot = EquipSlot.Weapon, BaseStats = SB((StatKey.Atk, 6)),
-                AllowedAffixes = new List<StatKey> { StatKey.Atk, StatKey.CritChance, StatKey.CritDmg, StatKey.Spd },
+                AllowedAffixes = new List<StatKey> { StatKey.Atk, StatKey.CritChance, StatKey.CritDmg, StatKey.AtkSpd },
                 Sprite = "sword",
             };
             cfg.ItemBases["leather_cap"] = new ItemBaseDef
@@ -265,12 +267,12 @@ namespace IdleGame.GameCore
             cfg.ItemBases["leather_gloves"] = new ItemBaseDef
             {
                 BaseId = "leather_gloves", Slot = EquipSlot.Gloves, BaseStats = SB((StatKey.Def, 2), (StatKey.Atk, 2)),
-                AllowedAffixes = new List<StatKey> { StatKey.Atk, StatKey.Def, StatKey.CritChance }, Sprite = "gloves",
+                AllowedAffixes = new List<StatKey> { StatKey.Atk, StatKey.Def, StatKey.CritChance, StatKey.AtkSpd }, Sprite = "gloves",
             };
             cfg.ItemBases["leather_boots"] = new ItemBaseDef
             {
-                BaseId = "leather_boots", Slot = EquipSlot.Boots, BaseStats = SB((StatKey.Def, 2), (StatKey.Spd, 0.05)),
-                AllowedAffixes = new List<StatKey> { StatKey.Def, StatKey.Hp, StatKey.Spd }, Sprite = "boots",
+                BaseId = "leather_boots", Slot = EquipSlot.Boots, BaseStats = SB((StatKey.Def, 2), (StatKey.MoveSpd, 0.3)),
+                AllowedAffixes = new List<StatKey> { StatKey.Def, StatKey.Hp, StatKey.MoveSpd }, Sprite = "boots",
             };
             cfg.ItemBases["linen_cape"] = new ItemBaseDef
             {
@@ -293,26 +295,27 @@ namespace IdleGame.GameCore
             cfg.AffixPool.Add(new AffixDef { Stat = StatKey.Hp, Weight = 30, ValueMinPerItemLevel = 4, ValueMaxPerItemLevel = 8, RarityFloor = Rarity.Magic });
             cfg.AffixPool.Add(new AffixDef { Stat = StatKey.Atk, Weight = 25, ValueMinPerItemLevel = 1, ValueMaxPerItemLevel = 2, RarityFloor = Rarity.Magic });
             cfg.AffixPool.Add(new AffixDef { Stat = StatKey.Def, Weight = 20, ValueMinPerItemLevel = 1, ValueMaxPerItemLevel = 2, RarityFloor = Rarity.Magic });
-            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.Spd, Weight = 8, ValueMinPerItemLevel = 0.01, ValueMaxPerItemLevel = 0.03, RarityFloor = Rarity.Rare });
+            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.AtkSpd, Weight = 8, ValueMinPerItemLevel = 0.01, ValueMaxPerItemLevel = 0.03, RarityFloor = Rarity.Rare });
+            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.MoveSpd, Weight = 6, ValueMinPerItemLevel = 0.02, ValueMaxPerItemLevel = 0.05, RarityFloor = Rarity.Rare });
             cfg.AffixPool.Add(new AffixDef { Stat = StatKey.CritChance, Weight = 8, ValueMinPerItemLevel = 0.005, ValueMaxPerItemLevel = 0.015, RarityFloor = Rarity.Rare });
             cfg.AffixPool.Add(new AffixDef { Stat = StatKey.CritDmg, Weight = 9, ValueMinPerItemLevel = 0.03, ValueMaxPerItemLevel = 0.08, RarityFloor = Rarity.Rare });
 
             cfg.Monsters["slime"] = new MonsterDef
             {
                 Id = "slime", Name = "Slime",
-                BaseStats = SB((StatKey.Hp, 18), (StatKey.Atk, 3), (StatKey.Def, 0), (StatKey.Spd, 0.8), (StatKey.CritDmg, 1.5)),
+                BaseStats = SB((StatKey.Hp, 18), (StatKey.Atk, 3), (StatKey.Def, 0), (StatKey.MoveSpd, 2.6), (StatKey.AtkSpd, 0.8), (StatKey.CritDmg, 1.5)),
                 LootTableId = "common", XpReward = 12, GoldReward = 3, Sprite = "slime",
             };
             cfg.Monsters["goblin"] = new MonsterDef
             {
                 Id = "goblin", Name = "Goblin",
-                BaseStats = SB((StatKey.Hp, 28), (StatKey.Atk, 5), (StatKey.Def, 1), (StatKey.Spd, 1.1), (StatKey.CritChance, 0.03), (StatKey.CritDmg, 1.5)),
+                BaseStats = SB((StatKey.Hp, 28), (StatKey.Atk, 5), (StatKey.Def, 1), (StatKey.MoveSpd, 3.0), (StatKey.AtkSpd, 1.1), (StatKey.CritChance, 0.03), (StatKey.CritDmg, 1.5)),
                 LootTableId = "common", XpReward = 20, GoldReward = 6, Sprite = "goblin",
             };
             cfg.Monsters["goblin_king"] = new MonsterDef
             {
                 Id = "goblin_king", Name = "Goblin King",
-                BaseStats = SB((StatKey.Hp, 160), (StatKey.Atk, 12), (StatKey.Def, 3), (StatKey.Spd, 0.9), (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.6)),
+                BaseStats = SB((StatKey.Hp, 160), (StatKey.Atk, 12), (StatKey.Def, 3), (StatKey.MoveSpd, 2.6), (StatKey.AtkSpd, 0.9), (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.6)),
                 LootTableId = "boss", XpReward = 60, GoldReward = 40, Sprite = "goblin_king", SpawnStyle = "rise",
                 Skills = new List<string> { "boss_quake" },
             };

@@ -210,7 +210,7 @@ namespace IdleGame.Game
 
         private static string StatVal(StatKey k, double v)
         {
-            bool fractional = k == StatKey.Spd || k == StatKey.CritChance || k == StatKey.CritDmg;
+            bool fractional = k == StatKey.MoveSpd || k == StatKey.AtkSpd || k == StatKey.CritChance || k == StatKey.CritDmg;
             return fractional ? v.ToString("0.##") : Mathf.RoundToInt((float)v).ToString();
         }
 

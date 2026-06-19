@@ -25,8 +25,9 @@ namespace IdleGame.GameCore
     public enum EquipSlot { Weapon, Helm, Chest, Boots, Ring, Amulet, Offhand, Gloves, Cape }
 
     // Appended (not reordered) so persisted StatKey values stay stable across saves.
-    // MaxMana/ManaRegen back the skill resource; basic attacks cost nothing.
-    public enum StatKey { Hp, Atk, Def, Spd, CritChance, CritDmg, HpRegen, AttackRange, SplashRadius, MaxMana, ManaRegen }
+    // MoveSpd = movement (tiles/sec); AtkSpd = action rate (attacks, spells, heals — and
+    // client animation speed). MaxMana/ManaRegen back the skill resource.
+    public enum StatKey { Hp, Atk, Def, MoveSpd, CritChance, CritDmg, HpRegen, AttackRange, SplashRadius, MaxMana, ManaRegen, AtkSpd }
 
     /// <summary>A bag of stat values. Partial blocks simply omit keys.</summary>
     public sealed class StatBlock : Dictionary<StatKey, double>

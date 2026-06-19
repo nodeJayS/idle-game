@@ -16,7 +16,7 @@ namespace IdleGame.GameCore.Tests
             var st = new StatBlock
             {
                 [StatKey.Hp] = hp, [StatKey.Atk] = 10, [StatKey.Def] = 0,
-                [StatKey.Spd] = 1, [StatKey.CritChance] = 0, [StatKey.CritDmg] = 1.5,
+                [StatKey.AtkSpd] = 1, [StatKey.MoveSpd] = 3.0, [StatKey.CritChance] = 0, [StatKey.CritDmg] = 1.5,
             };
             return new CombatEntity
             {
@@ -147,6 +147,25 @@ namespace IdleGame.GameCore.Tests
             Assert.Contains(ev, e => e.Type == CombatEventType.SkillCast && e.SkillId == "boss_quake" && e.SourceId == "E");
             Assert.True(E(s, "P1").Hp < 1000);
             Assert.True(E(s, "P2").Hp < 1000);
+        }
+
+        [Fact]
+        public void AtkSpdShortensSkillCooldown()
+        {
+            CombatState Setup(double atkSpd)
+            {
+                var c = Mk("A", Team.Party, 0, skills: "firebolt");
+                c.Stats[StatKey.AtkSpd] = atkSpd;
+                return St(c, Mk("B", Team.Enemy, 0.5));
+            }
+
+            var fast = Setup(2.0);
+            var slow = Setup(0.5);
+            Step(fast);
+            Step(slow);
+
+            // both cast firebolt; the faster caster's effective cooldown is shorter
+            Assert.True(E(fast, "A").SkillCdMs["firebolt"] < E(slow, "A").SkillCdMs["firebolt"]);
         }
 
         [Fact]
