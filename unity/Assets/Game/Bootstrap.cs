@@ -68,6 +68,11 @@ namespace IdleGame.Game
             topbar.Bind(view, () => QuitToMenu(cfg, session, view));
             topbar.Open();
 
+            var chat = new GameObject("ChatPanel").AddComponent<ChatPanel>();
+            chat.transform.SetParent(session.transform);
+            chat.Open();
+            view.BindChat(chat);
+
             if (!idleReport.IsEmpty)
             {
                 var modal = new GameObject("IdleClaimModal");

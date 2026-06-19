@@ -1,5 +1,4 @@
 #nullable enable
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using IdleGame.GameCore;
@@ -7,10 +6,10 @@ using IdleGame.GameCore;
 namespace IdleGame.Game
 {
     /// <summary>
-    /// Renderer-only combat feedback: floating damage numbers, loot toasts, and camera
-    /// shake. Driven entirely by <see cref="CombatEvent"/>s that CombatView already
-    /// receives — no sim changes, determinism untouched. Owns its own constant-pixel
-    /// overlay canvas (1:1 screen mapping) sorted below the menus/modals.
+    /// Renderer-only combat feedback: floating damage numbers and camera shake. Driven
+    /// by <see cref="CombatEvent"/>s that CombatView already receives — no sim changes,
+    /// determinism untouched. Owns its own constant-pixel overlay canvas (1:1 screen
+    /// mapping) sorted below the menus/modals. (Loot now goes to the chat feed.)
     /// </summary>
     public sealed class CombatJuice : MonoBehaviour
     {
@@ -19,8 +18,6 @@ namespace IdleGame.Game
         private Vector3 _camBase;
 
         private float _shake;
-
-        private readonly List<(Text text, float born, float life)> _toasts = new();
 
         public void Init(Camera cam)
         {
@@ -47,36 +44,9 @@ namespace IdleGame.Game
                  .Configure(label, _cam, worldHead + jitter, crit ? 1.8f : 1.3f, crit ? 1.0f : 0.8f, color);
         }
 
-        public void Toast(string message, Color color)
-        {
-            var t = NewText(message, 18, color);
-            var rt = (RectTransform)t.transform;
-            rt.anchorMin = rt.anchorMax = new Vector2(1f, 1f);
-            rt.pivot = new Vector2(1f, 1f);
-            t.alignment = TextAnchor.MiddleRight;
-            _toasts.Add((t, Time.time, 2.0f));
-        }
-
         public void Shake(float magnitude) => _shake = Mathf.Max(_shake, magnitude);
 
         // ---- per-frame upkeep ----
-
-        private void Update()
-        {
-            // toast stack: newest at top-right, slide down + fade, cull expired
-            float y = -24f;
-            for (int i = _toasts.Count - 1; i >= 0; i--)
-            {
-                var (text, born, life) = _toasts[i];
-                float age = Time.time - born;
-                if (text == null || age >= life) { if (text != null) Destroy(text.gameObject); _toasts.RemoveAt(i); continue; }
-
-                var rt = (RectTransform)text.transform;
-                rt.anchoredPosition = new Vector2(-16f, y);
-                y -= 26f;
-                var c = text.color; c.a = 1f - Mathf.Clamp01(age / life); text.color = c;
-            }
-        }
 
         private void LateUpdate()
         {

@@ -103,6 +103,7 @@ namespace IdleGame.Game
         private Rng _rng = null!;
         private CombatJuice? _juice;
         private InventoryView? _inventory;
+        private ChatPanel? _chat;
         private readonly Dictionary<string, View> _views = new Dictionary<string, View>();
 
         private double _accMs;
@@ -119,6 +120,7 @@ namespace IdleGame.Game
             if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg); // equip applies live
         }
         public void BindInventory(InventoryView inv) => _inventory = inv;
+        public void BindChat(ChatPanel chat) => _chat = chat;
 
         public void Init(SaveState save, GameConfig cfg)
         {
@@ -213,9 +215,11 @@ namespace IdleGame.Game
             }
             if (_combat.PendingXp > 0)
             {
+                int before = PartyLevelSum();
                 _save = Progression.GrantPartyXp(_save, _combat.PendingXp, _cfg);
                 _combat.PendingXp = 0;
                 xp = true;
+                if (PartyLevelSum() > before) _chat?.AddFeed("Level up!", new Color(0.5f, 0.85f, 1f));
             }
             if (_combat.PendingGold > 0)
             {
@@ -231,10 +235,22 @@ namespace IdleGame.Game
 
             if (_combat.Kind == EncounterKind.BossChallenge && _combat.Status == CombatStatus.Won)
             {
-                _save = Progression.OnStageCleared(_save, _combat.Stage);
-                Debug.Log($"[CombatView] Boss cleared — advanced to stage {_save.Progress.CurrentStage} " +
-                          $"(highest {_save.Progress.HighestStage}).");
+                int cleared = _combat.Stage;
+                _save = Progression.OnStageCleared(_save, cleared);
+                _chat?.AddFeed($"Stage {cleared} cleared!", new Color(0.55f, 0.9f, 0.55f));
             }
+        }
+
+        private int PartyLevelSum()
+        {
+            int sum = 0;
+            foreach (var id in _save.Party)
+                if (id != null)
+                {
+                    var h = _save.Heroes.Find(x => x.Id == id);
+                    if (h != null) sum += h.Level;
+                }
+            return sum;
         }
 
         // ---- player controls (called from the IMGUI bar) ----
@@ -367,8 +383,8 @@ namespace IdleGame.Game
                         if (_juice != null && Settings.ScreenShake) _juice.Shake(0.4f);
                         break;
                     case CombatEventType.LootDrop:
-                        if (ev.Item != null && Settings.LootToasts)
-                            _juice?.Toast($"{ev.Item.Rarity} {ev.Item.BaseId}", Palette.Rarity(ev.Item.Rarity));
+                        if (ev.Item != null && Settings.LootFeed)
+                            _chat?.AddFeed($"{ev.Item.Rarity} {ev.Item.BaseId} (i{ev.Item.ItemLevel})", Palette.Rarity(ev.Item.Rarity));
                         break;
                 }
             }

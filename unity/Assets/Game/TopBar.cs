@@ -66,7 +66,7 @@ namespace IdleGame.Game
             float y = 180f;
             ToggleRow(panel.transform, "Damage Numbers", () => Settings.DamageNumbers, v => Settings.DamageNumbers = v, ref y);
             ToggleRow(panel.transform, "Screen Shake", () => Settings.ScreenShake, v => Settings.ScreenShake = v, ref y);
-            ToggleRow(panel.transform, "Loot Notifications", () => Settings.LootToasts, v => Settings.LootToasts = v, ref y);
+            ToggleRow(panel.transform, "Loot Feed", () => Settings.LootFeed, v => Settings.LootFeed = v, ref y);
             ToggleRow(panel.transform, "Projectiles", () => Settings.Projectiles, v => Settings.Projectiles = v, ref y);
             ToggleRow(panel.transform, "Spawn Animations", () => Settings.SpawnAnimations, v => Settings.SpawnAnimations = v, ref y);
 
