@@ -89,7 +89,6 @@ namespace IdleGame.Game
             _combat = combat;
             ReconcileViews();
             _accMs = 0;
-            _commitTimer = 0;
             _outcomeTimer = 0;
             _resolved = false;
             Debug.Log($"[CombatView] {_combat.Kind} start: stage {_combat.Stage}.");
