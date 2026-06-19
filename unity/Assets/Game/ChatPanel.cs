@@ -21,12 +21,13 @@ namespace IdleGame.Game
         private static readonly string[] Tabs = { SystemTab };
         private const int MaxFeed = 60;
 
-        private const float HeaderH = 40f;
-        private const float TabsTop = HeaderH + 6f;   // tabs sit just under the header
-        private const float TabH = 40f;
-        private const float BodyTop = TabsTop + TabH + 6f;
-        private static readonly Vector2 MinSize = new(340f, 170f);
-        private static readonly Vector2 MaxSize = new(620f, 620f);
+        private const float HeaderH = 28f;
+        private const float TabH = 26f;
+        private static bool ShowTabs => Tabs.Length > 1;     // single tab pre-release -> hide the bar
+        private static float TabsTop => HeaderH + 6f;        // tabs sit just under the header
+        private static float ContentTop => HeaderH + 6f + (ShowTabs ? TabH + 6f : 0f);
+        private static readonly Vector2 MinSize = new(210f, 110f);
+        private static readonly Vector2 MaxSize = new(440f, 420f);
 
         private readonly List<(string text, Color color)> _feed = new();
         private readonly Dictionary<string, Button> _tabButtons = new();
@@ -45,6 +46,9 @@ namespace IdleGame.Game
             _canvas = UiKit.CreateCanvas("ChatCanvas", transform, sortOrder: 84);
             _pos = new Vector2(Settings.ChatX, Settings.ChatY);
             _size = new Vector2(Settings.ChatW, Settings.ChatH);
+            // Clamp any persisted size to the (now smaller) bounds so an old large window shrinks.
+            _size.x = Mathf.Clamp(_size.x, MinSize.x, MaxSize.x);
+            _size.y = Mathf.Clamp(_size.y, MinSize.y, MaxSize.y);
             _collapsed = Settings.ChatCollapsed;
             _locked = Settings.ChatLocked;
             Build();
@@ -77,7 +81,7 @@ namespace IdleGame.Game
 
             if (!_collapsed)
             {
-                BuildTabs(panel.transform);
+                if (ShowTabs) BuildTabs(panel.transform);
                 BuildBodyContainer(panel.transform);
                 BuildBody();
                 RefreshTabHighlight();
@@ -101,15 +105,15 @@ namespace IdleGame.Game
             if (!_locked) UiKit.MakeDraggable(go, panelRt, _canvas, p => { _pos = p; Settings.ChatX = p.x; Settings.ChatY = p.y; });
 
             // Title pinned to the left edge.
-            var title = UiKit.Label(go.transform, "Chat", 20, TextAnchor.MiddleLeft, new Vector2(150f, 32f), Vector2.zero);
-            Anchor((RectTransform)title.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(12f, 0f));
+            var title = UiKit.Label(go.transform, "Chat", 14, TextAnchor.MiddleLeft, new Vector2(120f, 22f), Vector2.zero);
+            Anchor((RectTransform)title.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(10f, 0f));
 
             // Lock + minimize pinned to the right edge.
-            var min = UiKit.TextButton(go.transform, _collapsed ? "+" : "—", new Vector2(38f, 32f), Vector2.zero, ToggleCollapse);
+            var min = UiKit.TextButton(go.transform, _collapsed ? "+" : "—", new Vector2(24f, 20f), Vector2.zero, ToggleCollapse, 16);
             Anchor((RectTransform)min.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-6f, 0f));
 
-            var lockBtn = UiKit.TextButton(go.transform, _locked ? "Locked" : "Free", new Vector2(58f, 32f), Vector2.zero, ToggleLock, 15);
-            Anchor((RectTransform)lockBtn.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-50f, 0f));
+            var lockBtn = UiKit.TextButton(go.transform, _locked ? "Locked" : "Free", new Vector2(46f, 20f), Vector2.zero, ToggleLock, 12);
+            Anchor((RectTransform)lockBtn.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-34f, 0f));
             var li = lockBtn.GetComponent<Image>();
             if (li != null) li.color = _locked ? new Color(0.55f, 0.32f, 0.30f) : new Color(0.22f, 0.30f, 0.45f);
         }
@@ -157,7 +161,7 @@ namespace IdleGame.Game
             foreach (var t in Tabs)
             {
                 var tab = t;
-                var b = UiKit.TextButton(panel, t, new Vector2(80f, TabH), Vector2.zero, () => SwitchTab(tab), 22);
+                var b = UiKit.TextButton(panel, t, new Vector2(72f, TabH), Vector2.zero, () => SwitchTab(tab), 13);
                 Anchor((RectTransform)b.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(x, -TabsTop));
                 _tabButtons[t] = b;
                 x += 82f;
@@ -171,8 +175,8 @@ namespace IdleGame.Game
             _body = (RectTransform)bodyGo.transform;
             _body.anchorMin = new Vector2(0f, 0f);
             _body.anchorMax = new Vector2(1f, 1f);
-            _body.offsetMin = new Vector2(8f, 10f);
-            _body.offsetMax = new Vector2(-8f, -BodyTop);
+            _body.offsetMin = new Vector2(6f, 8f);
+            _body.offsetMax = new Vector2(-6f, -ContentTop);
         }
 
         /// <summary>Re-stretch the body to the current panel size (called live while resizing).</summary>
@@ -206,7 +210,7 @@ namespace IdleGame.Game
             else
             {
                 var l = UiKit.Label(_body, "Coming soon — chat arrives with the online update.",
-                                    16, TextAnchor.MiddleCenter, Vector2.zero, Vector2.zero);
+                                    13, TextAnchor.MiddleCenter, Vector2.zero, Vector2.zero);
                 var lrt = (RectTransform)l.transform;
                 lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
                 lrt.offsetMin = lrt.offsetMax = Vector2.zero;
@@ -216,10 +220,10 @@ namespace IdleGame.Game
         private void AppendFeedRow(string text, Color color)
         {
             if (_feedContent == null) return;
-            var label = UiKit.Label(_feedContent, text, 16, TextAnchor.MiddleLeft, Vector2.zero, Vector2.zero);
+            var label = UiKit.Label(_feedContent, text, 13, TextAnchor.MiddleLeft, Vector2.zero, Vector2.zero);
             label.color = color;
             var le = label.gameObject.AddComponent<LayoutElement>();
-            le.preferredHeight = 26;
+            le.preferredHeight = 18;
         }
 
         private void RefreshTabHighlight()

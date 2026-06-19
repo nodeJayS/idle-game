@@ -15,9 +15,19 @@ namespace IdleGame.Game
     public static class UiKit
     {
         private static Font? _font;
-        public static Font Font => _font != null
-            ? _font
-            : (_font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
+        /// <summary>The shared UI font used by every Label/Button. Drop a .ttf at
+        /// Assets/Resources/Fonts/UIFont.ttf to restyle the whole UI (e.g. Nunito/Fredoka);
+        /// falls back to Unity's built-in font if that asset isn't present.</summary>
+        public static Font Font
+        {
+            get
+            {
+                if (_font != null) return _font;
+                _font = Resources.Load<Font>("Fonts/UIFont");
+                if (_font == null) _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                return _font;
+            }
+        }
 
         /// <summary>A screen-space overlay canvas (creates the shared EventSystem if missing).</summary>
         public static Canvas CreateCanvas(string name, Transform? parent, int sortOrder = 0)
