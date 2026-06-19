@@ -8,25 +8,42 @@ namespace IdleGame.Game
     /// <summary>
     /// Left-side chat/activity panel. The "Feed" tab is the live loot/XP log (fed by
     /// CombatView); Global / Friends / Guild are stubs until the online service lands.
-    /// Collapsible so it can stay out of the way. Read-only over game state.
+    /// Drag it by the title bar, resize from the bottom-right grip, minimize to the bar,
+    /// or lock it in place. Position/size/state persist via <see cref="Settings"/>.
+    /// Read-only over game state.
     /// </summary>
     public sealed class ChatPanel : MonoBehaviour
     {
         private static readonly string[] Tabs = { "Feed", "Global", "Friends", "Guild" };
         private const int MaxFeed = 60;
 
+        private const float HeaderH = 40f;
+        private const float TabsTop = HeaderH + 6f;   // tabs sit just under the header
+        private const float TabH = 40f;
+        private const float BodyTop = TabsTop + TabH + 6f;
+        private static readonly Vector2 MinSize = new(340f, 170f);
+        private static readonly Vector2 MaxSize = new(620f, 620f);
+
         private readonly List<(string text, Color color)> _feed = new();
         private readonly Dictionary<string, Button> _tabButtons = new();
 
         private Canvas _canvas = null!;
         private string _active = "Feed";
+        private bool _collapsed;
+        private bool _locked;
+        private Vector2 _pos;   // top-left anchored position (canvas left edge, vertical-centre origin)
+        private Vector2 _size;
         private RectTransform _body = null!;
         private RectTransform? _feedContent;
 
         public void Open()
         {
             _canvas = UiKit.CreateCanvas("ChatCanvas", transform, sortOrder: 84);
-            BuildExpanded();
+            _pos = new Vector2(Settings.ChatX, Settings.ChatY);
+            _size = new Vector2(Settings.ChatW, Settings.ChatH);
+            _collapsed = Settings.ChatCollapsed;
+            _locked = Settings.ChatLocked;
+            Build();
         }
 
         /// <summary>Append a line to the activity feed (newest at the bottom).</summary>
@@ -34,52 +51,132 @@ namespace IdleGame.Game
         {
             _feed.Add((text, color));
             if (_feed.Count > MaxFeed) _feed.RemoveAt(0);
-            if (_active == "Feed" && _feedContent != null) AppendFeedRow(text, color);
+            if (!_collapsed && _active == "Feed" && _feedContent != null) AppendFeedRow(text, color);
         }
 
-        // ---- expanded / collapsed ----
+        // ---- window ----
 
-        private void BuildExpanded()
+        private void Build()
         {
             ClearCanvas();
+            _feedContent = null;
 
-            var panel = UiKit.Panel(_canvas.transform, new Vector2(360, 480), new Color(0.08f, 0.08f, 0.11f, 0.92f));
-            AnchorLeft(panel.rectTransform, new Vector2(190, 0));
+            float h = _collapsed ? HeaderH : _size.y;
+            var panel = UiKit.Panel(_canvas.transform, new Vector2(_size.x, h), new Color(0.08f, 0.08f, 0.11f, 0.92f));
+            var prt = panel.rectTransform;
+            prt.anchorMin = prt.anchorMax = new Vector2(0f, 0.5f);
+            prt.pivot = new Vector2(0f, 1f);            // anchor by the top-left corner
+            prt.anchoredPosition = _pos;
+            prt.anchoredPosition = _pos = UiKit.ClampToCanvas(_pos, prt, _canvas);
 
-            UiKit.Label(panel.transform, "Chat", 22, TextAnchor.MiddleLeft, new Vector2(120, 34), new Vector2(-150, 212));
-            UiKit.TextButton(panel.transform, "Hide", new Vector2(90, 40), new Vector2(130, 212), Collapse);
+            BuildHeader(panel.transform, prt);
 
+            if (!_collapsed)
+            {
+                BuildTabs(panel.transform);
+                BuildBodyContainer(panel.transform);
+                BuildBody();
+                RefreshTabHighlight();
+                if (!_locked) BuildResizeGrip(panel.transform, prt);
+            }
+        }
+
+        private void BuildHeader(Transform panel, RectTransform panelRt)
+        {
+            var go = new GameObject("Header", typeof(RectTransform));
+            go.transform.SetParent(panel, false);
+            var hrt = (RectTransform)go.transform;
+            hrt.anchorMin = new Vector2(0f, 1f);
+            hrt.anchorMax = new Vector2(1f, 1f);
+            hrt.pivot = new Vector2(0.5f, 1f);
+            hrt.sizeDelta = new Vector2(0f, HeaderH);
+            hrt.anchoredPosition = Vector2.zero;
+
+            var img = go.AddComponent<Image>();
+            img.color = _locked ? new Color(0.20f, 0.17f, 0.17f, 0.96f) : new Color(0.16f, 0.18f, 0.24f, 0.96f);
+            if (!_locked) UiKit.MakeDraggable(go, panelRt, _canvas, p => { _pos = p; Settings.ChatX = p.x; Settings.ChatY = p.y; });
+
+            // Title pinned to the left edge.
+            var title = UiKit.Label(go.transform, "Chat", 20, TextAnchor.MiddleLeft, new Vector2(150f, 32f), Vector2.zero);
+            Anchor((RectTransform)title.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(12f, 0f));
+
+            // Lock + minimize pinned to the right edge.
+            var min = UiKit.TextButton(go.transform, _collapsed ? "+" : "—", new Vector2(38f, 32f), Vector2.zero, ToggleCollapse);
+            Anchor((RectTransform)min.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-6f, 0f));
+
+            var lockBtn = UiKit.TextButton(go.transform, _locked ? "Locked" : "Free", new Vector2(58f, 32f), Vector2.zero, ToggleLock, 15);
+            Anchor((RectTransform)lockBtn.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-50f, 0f));
+            var li = lockBtn.GetComponent<Image>();
+            if (li != null) li.color = _locked ? new Color(0.55f, 0.32f, 0.30f) : new Color(0.22f, 0.30f, 0.45f);
+        }
+
+        private void BuildResizeGrip(Transform panel, RectTransform panelRt)
+        {
+            var go = new GameObject("ResizeGrip", typeof(RectTransform));
+            go.transform.SetParent(panel, false);
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(1f, 0f);
+            rt.pivot = new Vector2(1f, 0f);
+            rt.sizeDelta = new Vector2(22f, 22f);
+            rt.anchoredPosition = new Vector2(-2f, 2f);
+
+            var img = go.AddComponent<Image>();
+            img.color = new Color(0.5f, 0.55f, 0.65f, 0.55f);
+            UiKit.MakeResizable(go, panelRt, _canvas, MinSize, MaxSize, s =>
+            {
+                _size = s;
+                Settings.ChatW = s.x; Settings.ChatH = s.y;
+                LayoutBody();
+            });
+        }
+
+        private void ToggleCollapse()
+        {
+            _collapsed = !_collapsed;
+            Settings.ChatCollapsed = _collapsed;
+            Build();
+        }
+
+        private void ToggleLock()
+        {
+            _locked = !_locked;
+            Settings.ChatLocked = _locked;
+            Build();
+        }
+
+        // ---- tabs / body ----
+
+        private void BuildTabs(Transform panel)
+        {
             _tabButtons.Clear();
-            float x = -126;
+            float x = 10f;
             foreach (var t in Tabs)
             {
                 var tab = t;
-                var b = UiKit.TextButton(panel.transform, t, new Vector2(82, 44), new Vector2(x, 162), () => SwitchTab(tab));
+                var b = UiKit.TextButton(panel, t, new Vector2(80f, TabH), Vector2.zero, () => SwitchTab(tab), 22);
+                Anchor((RectTransform)b.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(x, -TabsTop));
                 _tabButtons[t] = b;
-                x += 84;
+                x += 82f;
             }
-
-            var bodyGo = new GameObject("Body", typeof(RectTransform));
-            bodyGo.transform.SetParent(panel.transform, false);
-            _body = (RectTransform)bodyGo.transform;
-            _body.anchorMin = _body.anchorMax = new Vector2(0.5f, 0.5f);
-            _body.sizeDelta = new Vector2(340, 360);
-            _body.anchoredPosition = new Vector2(0, -40);
-
-            BuildBody();
-            RefreshTabHighlight();
         }
 
-        private void Collapse()
+        private void BuildBodyContainer(Transform panel)
         {
-            ClearCanvas();
-            var b = UiKit.TextButton(_canvas.transform, "Chat", new Vector2(120, 48), Vector2.zero, Expand);
-            AnchorLeft(b.GetComponent<RectTransform>(), new Vector2(70, -200));
+            var bodyGo = new GameObject("Body", typeof(RectTransform));
+            bodyGo.transform.SetParent(panel, false);
+            _body = (RectTransform)bodyGo.transform;
+            _body.anchorMin = new Vector2(0f, 0f);
+            _body.anchorMax = new Vector2(1f, 1f);
+            _body.offsetMin = new Vector2(8f, 10f);
+            _body.offsetMax = new Vector2(-8f, -BodyTop);
         }
 
-        private void Expand() => BuildExpanded();
-
-        // ---- tabs / body ----
+        /// <summary>Re-stretch the body to the current panel size (called live while resizing).</summary>
+        private void LayoutBody()
+        {
+            // Body is anchored stretch, so its rect follows the panel automatically; nothing to
+            // recompute. Kept as a seam in case fixed-size children need re-flowing later.
+        }
 
         private void SwitchTab(string tab)
         {
@@ -95,13 +192,20 @@ namespace IdleGame.Game
 
             if (_active == "Feed")
             {
-                _feedContent = UiKit.ScrollColumn(_body, new Vector2(340, 360), Vector2.zero);
+                _feedContent = UiKit.ScrollColumn(_body, Vector2.zero, Vector2.zero);
+                var scrollRoot = (RectTransform)_feedContent.parent;
+                scrollRoot.anchorMin = Vector2.zero;
+                scrollRoot.anchorMax = Vector2.one;
+                scrollRoot.offsetMin = scrollRoot.offsetMax = Vector2.zero;
                 foreach (var (text, color) in _feed) AppendFeedRow(text, color);
             }
             else
             {
-                UiKit.Label(_body, "Coming soon — chat arrives with the online update.",
-                            17, TextAnchor.MiddleCenter, new Vector2(320, 120), Vector2.zero);
+                var l = UiKit.Label(_body, "Coming soon — chat arrives with the online update.",
+                                    16, TextAnchor.MiddleCenter, Vector2.zero, Vector2.zero);
+                var lrt = (RectTransform)l.transform;
+                lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
+                lrt.offsetMin = lrt.offsetMax = Vector2.zero;
             }
         }
 
@@ -129,10 +233,10 @@ namespace IdleGame.Game
                 Destroy(_canvas.transform.GetChild(i).gameObject);
         }
 
-        private static void AnchorLeft(RectTransform rt, Vector2 pos)
+        private static void Anchor(RectTransform rt, Vector2 anchor, Vector2 pivot, Vector2 pos)
         {
-            rt.anchorMin = rt.anchorMax = new Vector2(0f, 0.5f);
-            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchorMin = rt.anchorMax = anchor;
+            rt.pivot = pivot;
             rt.anchoredPosition = pos;
         }
     }

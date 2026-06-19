@@ -191,7 +191,49 @@ namespace IdleGame.Game
             return field;
         }
 
-        public static Button TextButton(Transform parent, string label, Vector2 size, Vector2 pos, Action onClick)
+        /// <summary>Makes <paramref name="handle"/> drag <paramref name="target"/> around its
+        /// canvas (clamped on-screen). <paramref name="onMoved"/> fires with the new anchored
+        /// position so callers can persist it across rebuilds. Pure presentation.</summary>
+        public static void MakeDraggable(GameObject handle, RectTransform target, Canvas canvas, Action<Vector2>? onMoved = null)
+        {
+            var d = handle.AddComponent<DraggableHandle>();
+            d.Target = target;
+            d.Canvas = canvas;
+            d.OnMoved = onMoved;
+        }
+
+        /// <summary>Makes <paramref name="grip"/> resize <paramref name="target"/> (top-left fixed,
+        /// bottom-right follows the cursor), clamped to [min,max]. <paramref name="onResized"/>
+        /// fires with the new size so callers can persist it.</summary>
+        public static void MakeResizable(GameObject grip, RectTransform target, Canvas canvas,
+                                         Vector2 min, Vector2 max, Action<Vector2>? onResized = null)
+        {
+            var r = grip.AddComponent<ResizeHandle>();
+            r.Target = target;
+            r.Canvas = canvas;
+            r.Min = min;
+            r.Max = max;
+            r.OnResized = onResized;
+        }
+
+        /// <summary>Clamps a point-anchored RectTransform's anchored position so the whole rect
+        /// stays within its canvas. Works for any pivot.</summary>
+        public static Vector2 ClampToCanvas(Vector2 pos, RectTransform target, Canvas canvas)
+        {
+            var canvasRect = ((RectTransform)canvas.transform).rect;
+            if (canvasRect.width <= 0f || canvasRect.height <= 0f) return pos; // canvas not laid out yet
+            var size = target.rect.size;
+            float minX = size.x * target.pivot.x;
+            float maxX = canvasRect.width - size.x * (1f - target.pivot.x);
+            float halfH = canvasRect.height / 2f;
+            float maxY = halfH - size.y * (1f - target.pivot.y);
+            float minY = -halfH + size.y * target.pivot.y;
+            pos.x = Mathf.Clamp(pos.x, minX, Mathf.Max(minX, maxX));
+            pos.y = Mathf.Clamp(pos.y, minY, Mathf.Max(minY, maxY));
+            return pos;
+        }
+
+        public static Button TextButton(Transform parent, string label, Vector2 size, Vector2 pos, Action onClick, int fontSize = 26)
         {
             var go = new GameObject("Button", typeof(RectTransform));
             go.transform.SetParent(parent, false);
@@ -208,8 +250,51 @@ namespace IdleGame.Game
             rt.sizeDelta = size;
             rt.anchoredPosition = pos;
 
-            Label(go.transform, label, 26, TextAnchor.MiddleCenter, size, Vector2.zero);
+            Label(go.transform, label, fontSize, TextAnchor.MiddleCenter, size, Vector2.zero);
             return btn;
+        }
+    }
+
+    /// <summary>Drag handler that moves a target RectTransform by the pointer delta, clamped so
+    /// the window stays on the canvas. Added via <see cref="UiKit.MakeDraggable"/>.</summary>
+    public sealed class DraggableHandle : MonoBehaviour, IBeginDragHandler, IDragHandler
+    {
+        public RectTransform Target = null!;
+        public Canvas Canvas = null!;
+        public Action<Vector2>? OnMoved;
+
+        public void OnBeginDrag(PointerEventData e) { }
+
+        public void OnDrag(PointerEventData e)
+        {
+            if (Target == null || Canvas == null) return;
+            float scale = Canvas.scaleFactor <= 0f ? 1f : Canvas.scaleFactor;
+            var pos = UiKit.ClampToCanvas(Target.anchoredPosition + e.delta / scale, Target, Canvas);
+            Target.anchoredPosition = pos;
+            OnMoved?.Invoke(pos);
+        }
+    }
+
+    /// <summary>Drag handler that resizes a target RectTransform from its bottom-right grip
+    /// (top-left stays anchored). Added via <see cref="UiKit.MakeResizable"/>.</summary>
+    public sealed class ResizeHandle : MonoBehaviour, IDragHandler
+    {
+        public RectTransform Target = null!;
+        public Canvas Canvas = null!;
+        public Vector2 Min = new(260f, 160f);
+        public Vector2 Max = new(640f, 640f);
+        public Action<Vector2>? OnResized;
+
+        public void OnDrag(PointerEventData e)
+        {
+            if (Target == null || Canvas == null) return;
+            float scale = Canvas.scaleFactor <= 0f ? 1f : Canvas.scaleFactor;
+            var size = Target.sizeDelta;
+            // Pointer y is up-positive in screen space; the window grows downward as the grip drops.
+            size.x = Mathf.Clamp(size.x + e.delta.x / scale, Min.x, Max.x);
+            size.y = Mathf.Clamp(size.y - e.delta.y / scale, Min.y, Max.y);
+            Target.sizeDelta = size;
+            OnResized?.Invoke(size);
         }
     }
 }

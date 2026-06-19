@@ -24,7 +24,17 @@ namespace IdleGame.Game
         public static bool Projectiles     { get => Get("fxProjectiles"); set => Set("fxProjectiles", value); }
         public static bool SpawnAnimations { get => Get("fxSpawnAnim");   set => Set("fxSpawnAnim", value); }
 
+        // Chat window layout — remembered across runs. X/Y are the window's top-left anchored
+        // position; W/H its size. Locked freezes drag + resize; Collapsed = minimized to the bar.
+        public static float ChatX        { get => PlayerPrefs.GetFloat("chatX", 12f);  set => SetF("chatX", value); }
+        public static float ChatY        { get => PlayerPrefs.GetFloat("chatY", 320f); set => SetF("chatY", value); }
+        public static float ChatW        { get => PlayerPrefs.GetFloat("chatW", 340f); set => SetF("chatW", value); }
+        public static float ChatH        { get => PlayerPrefs.GetFloat("chatH", 320f); set => SetF("chatH", value); }
+        public static bool  ChatLocked   { get => PlayerPrefs.GetInt("chatLock", 0) != 0;      set => Set("chatLock", value); }
+        public static bool  ChatCollapsed { get => PlayerPrefs.GetInt("chatCollapsed", 0) != 0; set => Set("chatCollapsed", value); }
+
         private static bool Get(string key) => PlayerPrefs.GetInt(key, 1) != 0;
         private static void Set(string key, bool v) { PlayerPrefs.SetInt(key, v ? 1 : 0); PlayerPrefs.Save(); }
+        private static void SetF(string key, float v) { PlayerPrefs.SetFloat(key, v); PlayerPrefs.Save(); }
     }
 }
