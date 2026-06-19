@@ -30,7 +30,19 @@ namespace IdleGame.Game
             public float SpawnT;        // seconds since the view was created
             public float SpawnDelay;    // per-mob stagger so a wave doesn't pop in unison
             public System.Action<View, float>? SpawnFx; // per-frame spawn-in visual (progress 0..1)
+
+            // Smoothed sim position (no lunge offset) — kept separate from the rendered
+            // transform so the attack-tell lunge doesn't feed back into the smoothing.
+            public Vector3 SmoothPos;
+
+            // Attack/cast tell (M11): a quick punch toward the target (or upward for a
+            // cast) on each action. Duration scales inversely with AtkSpd, so faster
+            // actors snap; LungeDir is a world vector, LungeMag its reach.
+            public float LungeT, LungeDur, LungeMag;
+            public Vector3 LungeDir;
         }
+
+        private const float BaseLungeSec = 0.18f;
 
         private const float SpawnAnimSec = 0.35f;
 
@@ -70,6 +82,103 @@ namespace IdleGame.Game
                 Glow(go, new Color(1f, 0.5f, 0.1f) * 2.5f); // make it read against the ground
                 go.AddComponent<Projectile>().Launch(from, to, 14f, () => PlayImpact(to, amount, crit));
             };
+
+            // Magician firebolt: a fat, hot meteor lobbed at the target. Routed through the
+            // projectile path (not the cast-time skill FX) so the damage number pops on
+            // IMPACT, in sync with the meteor landing — like the basic fireball does.
+            _projectileFx["firebolt"] = (from, to, amount, crit) =>
+            {
+                var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
+                go.name = "Meteor";
+                go.transform.localScale = Vector3.one * 1.1f;
+                Paint(go, new Color(1f, 0.45f, 0.1f));
+                Glow(go, new Color(1f, 0.4f, 0.05f) * 3.5f);
+                go.AddComponent<Projectile>().Launch(from, to, 16f,
+                    () => { PlayImpact(to, amount, crit); Burst(to, 1.0f, new Color(1f, 0.5f, 0.15f)); }, arc: 2.5f);
+            };
+        }
+
+        // SkillDef.Sprite -> cast flourish (purely cosmetic; the sim already applied the
+        // effect and per-victim damage numbers ride the Hit events, so these draw no
+        // numbers). Keyed by sprite hint so several skills can share a look. ADD-ON
+        // POINT: register a sprite here and set it on the SkillDef in GameConfig.
+        // Args: (caster view, primary-target view) — target == caster for self casts.
+        private readonly Dictionary<string, System.Action<View, View>> _skillFx = new();
+
+        private void BuildSkillEffects()
+        {
+            // (Firebolt's meteor lives in _projectileFx so its number pops on impact;
+            // the entries here are instant/area flourishes drawn at cast time.)
+
+            // Warrior cleave: an expanding orange shockwave on the ground at the target.
+            _skillFx["cleave"] = (src, tgt) => GroundRing(GroundAt(tgt), 1.8f, new Color(1f, 0.65f, 0.2f), 0.35f);
+
+            // Boss quake: a big red ground wave at the boss + a shake.
+            _skillFx["quake"] = (src, tgt) =>
+            {
+                GroundRing(GroundAt(src), 3.2f, new Color(1f, 0.3f, 0.2f), 0.5f);
+                if (_juice != null && Settings.ScreenShake) _juice.Shake(0.25f);
+            };
+
+            // Mend: a green sparkle that rises off the healed ally (the +N number rides
+            // the separate Heal event).
+            _skillFx["mend"] = (src, tgt) =>
+            {
+                var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
+                go.name = "HealSparkle";
+                go.transform.position = HeadOf(tgt);
+                Paint(go, new Color(0.5f, 1f, 0.55f));
+                Glow(go, new Color(0.4f, 1f, 0.45f) * 2.5f);
+                go.AddComponent<TransientFx>().Configure(0.7f, Vector3.one * 0.5f, Vector3.one * 0.1f, rise: 1.6f);
+            };
+
+            // War cry: a gold aura that flares around the caster and tracks it briefly.
+            _skillFx["warcry"] = (src, tgt) =>
+            {
+                if (src.Go == null) return;
+                var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
+                go.name = "WarCryAura";
+                go.transform.position = src.Go.transform.position;
+                Paint(go, new Color(1f, 0.85f, 0.35f));
+                Glow(go, new Color(1f, 0.8f, 0.3f) * 2.5f);
+                go.AddComponent<TransientFx>()
+                  .Configure(0.6f, Vector3.one * 0.4f, Vector3.one * (src.BaseScale.x * 2.6f), follow: src.Go.transform);
+            };
+        }
+
+        // ---- skill-FX geometry helpers (positions read from views) ----
+
+        private static Vector3 HeadOf(View v) => v.Go.transform.position + Vector3.up * (v.Height + 0.6f);
+        private static Vector3 GroundAt(View v) { var p = v.Go.transform.position; p.y = 0.06f; return p; }
+
+        /// <summary>A flat disc that expands outward and fades — a shockwave on the ground.</summary>
+        private void GroundRing(Vector3 at, float radius, Color color, float life)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
+            go.name = "GroundRing";
+            go.transform.position = at;
+            Paint(go, color);
+            Glow(go, color * 2.2f);
+            // Cylinder is 2 units tall at scale 1 and 1 unit wide; flatten it to a disc.
+            var from = new Vector3(0.4f, 0.02f, 0.4f);
+            var to = new Vector3(radius * 2f, 0.02f, radius * 2f);
+            go.AddComponent<TransientFx>().Configure(life, from, to);
+        }
+
+        /// <summary>A quick bright pop at a point (skill impact flash).</summary>
+        private void Burst(Vector3 at, float size, Color color)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
+            go.name = "Burst";
+            go.transform.position = at;
+            Paint(go, color);
+            Glow(go, color * 3f);
+            go.AddComponent<TransientFx>().Configure(0.3f, Vector3.one * (size * 0.4f), Vector3.one * (size * 1.6f));
         }
 
         /// <summary>Impact feedback (damage number + crit shake/flash), each per its toggle.</summary>
@@ -134,6 +243,7 @@ namespace IdleGame.Game
             _cfg = cfg;
             BuildSpawnEffects();
             BuildProjectileEffects();
+            BuildSkillEffects();
             if (Camera.main != null)
             {
                 var jgo = new GameObject("CombatJuice");
@@ -314,7 +424,7 @@ namespace IdleGame.Game
             else color = e.IsBoss ? new Color(0.85f, 0.40f, 0.25f) : new Color(0.45f, 0.80f, 0.50f);
             Paint(go, color);
 
-            var view = new View { Go = go, Height = height, BaseColor = color, BaseScale = baseScale };
+            var view = new View { Go = go, Height = height, BaseColor = color, BaseScale = baseScale, SmoothPos = go.transform.position };
 
             // Enemies (trash + boss) animate in per their monster's SpawnStyle (if the
             // toggle is on); heroes are placed instantly at run start.
@@ -362,6 +472,13 @@ namespace IdleGame.Game
 
         private void HandleEvents(List<CombatEvent> events)
         {
+            // Sources that cast a damage skill this step, mapped to the projectile FX their
+            // hits should use (a key into _projectileFx) or null for instant/area skills.
+            // Their Hit events skip the basic-attack projectile; a single-target projectile
+            // skill (firebolt) launches its meteor so the number pops on impact, while area/
+            // melee skills pop immediately. A SkillCast precedes its Hits in the list.
+            Dictionary<string, string?>? skillHitFx = null;
+
             foreach (var ev in events)
             {
                 switch (ev.Type)
@@ -371,6 +488,26 @@ namespace IdleGame.Game
                         if (_juice == null || ev.TargetId == null) break;
                         if (!_views.TryGetValue(ev.TargetId, out var hv) || hv.Go == null || !hv.Go.activeSelf) break;
                         var head = hv.Go.transform.position + Vector3.up * (hv.Height + 0.6f);
+
+                        // A skill's damage tick (SkillCast already lunged). A single-target
+                        // projectile skill launches its meteor here so the number pops on
+                        // impact; area/melee skills (or projectiles off) pop the number now.
+                        if (ev.SourceId != null && skillHitFx != null && skillHitFx.TryGetValue(ev.SourceId, out var skKey))
+                        {
+                            if (skKey != null && Settings.Projectiles && _projectileFx.TryGetValue(skKey, out var skLaunch)
+                                && _views.TryGetValue(ev.SourceId, out var ssv) && ssv.Go != null)
+                            {
+                                var muzzle = ssv.Go.transform.position + Vector3.up * (ssv.Height + 0.4f);
+                                skLaunch(muzzle, head, (float)ev.Amount, ev.Crit);
+                            }
+                            else
+                            {
+                                PlayImpact(head, ev.Amount, ev.Crit);
+                            }
+                            break;
+                        }
+
+                        TriggerLunge(ev.SourceId, ev.TargetId, towardTarget: true);
 
                         // Ranged attackers launch a projectile (impact pops the number);
                         // melee/projectiles-off pops it instantly.
@@ -386,6 +523,43 @@ namespace IdleGame.Game
                         {
                             PlayImpact(head, ev.Amount, ev.Crit);
                         }
+                        break;
+                    }
+                    case CombatEventType.SkillCast:
+                    {
+                        bool isDamage = false;
+                        if (ev.SkillId != null && _cfg.Skills.TryGetValue(ev.SkillId, out var sk))
+                        {
+                            isDamage = sk.Effect == SkillEffectKind.Damage;
+                            string key = !string.IsNullOrEmpty(sk.Sprite) ? sk.Sprite! : ev.SkillId;
+
+                            // Single-target damage skill with a projectile FX -> defer the visual
+                            // (+ number) to the Hit handler so they land together on impact.
+                            bool isProjectile = isDamage && sk.AoeRadius <= 0 && sk.Targeting != "aoe"
+                                                && _projectileFx.ContainsKey(key);
+
+                            if (isDamage && ev.SourceId != null)
+                                (skillHitFx ??= new Dictionary<string, string?>())[ev.SourceId] = isProjectile ? key : null;
+
+                            // Instant/area flourish drawn now (projectile skills draw on impact).
+                            if (!isProjectile && ev.SourceId != null
+                                && _skillFx.TryGetValue(key, out var play)
+                                && _views.TryGetValue(ev.SourceId, out var csv) && csv.Go != null)
+                            {
+                                string tgtId = ev.TargetId ?? ev.SourceId;
+                                if (_views.TryGetValue(tgtId, out var ctv) && ctv.Go != null)
+                                    play(csv, ctv);
+                            }
+                        }
+                        // lunge toward the foe for offensive skills, a small upward cast-pop otherwise
+                        TriggerLunge(ev.SourceId, ev.TargetId, towardTarget: isDamage);
+                        break;
+                    }
+                    case CombatEventType.Heal:
+                    {
+                        if (_juice == null || ev.TargetId == null || !Settings.DamageNumbers) break;
+                        if (!_views.TryGetValue(ev.TargetId, out var hev) || hev.Go == null || !hev.Go.activeSelf) break;
+                        _juice.HealNumber(hev.Go.transform.position + Vector3.up * (hev.Height + 0.6f), ev.Amount);
                         break;
                     }
                     case CombatEventType.Death:
@@ -421,9 +595,47 @@ namespace IdleGame.Game
             {
                 if (!_views.TryGetValue(e.Id, out var v) || v.Go == null || !v.Go.activeSelf) continue;
                 var target = new Vector3((float)e.Pos.X, v.Height, (float)e.Pos.Y);
-                v.Go.transform.position = Vector3.Lerp(v.Go.transform.position, target, t);
+                v.SmoothPos = Vector3.Lerp(v.SmoothPos, target, t);
+                v.Go.transform.position = v.SmoothPos + LungeOffset(v);
                 if (v.Spawning) AnimateSpawn(v);
             }
+        }
+
+        /// <summary>Advance a view's attack/cast lunge and return its current offset (a
+        /// sin-eased punch out and back). Decays in real time so it scales with AtkSpd.</summary>
+        private static Vector3 LungeOffset(View v)
+        {
+            if (v.LungeT <= 0f) return Vector3.zero;
+            v.LungeT = Mathf.Max(0f, v.LungeT - Time.deltaTime);
+            float p = 1f - (v.LungeDur > 0f ? v.LungeT / v.LungeDur : 1f); // 0 -> 1
+            return v.LungeDir * (v.LungeMag * Mathf.Sin(Mathf.Clamp01(p) * Mathf.PI));
+        }
+
+        /// <summary>Kick off a lunge on the source view toward the target (or upward for a
+        /// self/heal cast). Duration scales inversely with AtkSpd so faster actors snap.</summary>
+        private void TriggerLunge(string? sourceId, string? targetId, bool towardTarget)
+        {
+            if (sourceId == null || !_views.TryGetValue(sourceId, out var sv) || sv.Go == null) return;
+
+            Vector3 dir = Vector3.up;
+            float mag = 0.28f;
+            if (towardTarget && targetId != null && targetId != sourceId
+                && _views.TryGetValue(targetId, out var tv) && tv.Go != null)
+            {
+                var d = tv.Go.transform.position - sv.Go.transform.position;
+                d.y = 0f;
+                if (d.sqrMagnitude > 0.0001f) { dir = d.normalized; mag = 0.38f; }
+            }
+
+            double atkSpd = 1.0;
+            var e = _combat.Entities.Find(x => x.Id == sourceId);
+            if (e != null) atkSpd = e.EffectiveStat(StatKey.AtkSpd);
+            if (atkSpd <= 0.2) atkSpd = 0.2;
+
+            sv.LungeDur = BaseLungeSec / (float)atkSpd;
+            sv.LungeT = sv.LungeDur;
+            sv.LungeDir = dir;
+            sv.LungeMag = mag;
         }
 
         /// <summary>Grow a freshly-spawned view from zero to full size with a little pop.</summary>
@@ -573,6 +785,16 @@ namespace IdleGame.Game
 
                 GUI.Label(new Rect(bx, y + 8, bw, 22), HeroDisplayName(heroId), PartyNameStyle);
 
+                // Skill-ready cue: a pulsing gold dot at the top-right of the chip when a
+                // skill is off-cooldown + affordable.
+                if (e != null && e.Alive && !e.Downed && AnySkillReady(e))
+                {
+                    float pulse = 0.55f + 0.45f * Mathf.PingPong(Time.time * 2f, 1f);
+                    float d = 9f, dx = x + w - d - 10f, dy = y + 10f;
+                    DrawRect(dx - 1.5f, dy - 1.5f, d + 3f, d + 3f, new Color(0f, 0f, 0f, 0.5f * pulse));
+                    DrawRect(dx, dy, d, d, new Color(1f, 0.85f, 0.35f, pulse));
+                }
+
                 // HP bar (with value text)
                 DrawBar(bx, y + 36, bw, 14, maxHp > 0 ? Mathf.Clamp01((float)(hp / maxHp)) : 0f,
                         new Color(0.22f, 0.05f, 0.05f, 0.95f), new Color(0.35f, 0.75f, 1f));
@@ -599,6 +821,20 @@ namespace IdleGame.Game
 
         private CombatEntity? FindHeroEntity(string heroId) =>
             _combat.Entities.Find(e => e.RefKind == "hero" && e.RefId == heroId);
+
+        /// <summary>True if any of the entity's skills is off-cooldown and affordable —
+        /// drives the Party HUD ready cue. Read-only over the live combat entity.</summary>
+        private bool AnySkillReady(CombatEntity e)
+        {
+            foreach (var id in e.Skills)
+            {
+                if (!_cfg.Skills.TryGetValue(id, out var sk)) continue;
+                if (e.SkillCdMs.TryGetValue(id, out var cd) && cd > 0) continue;
+                if (e.Mana < sk.ManaCost) continue;
+                return true;
+            }
+            return false;
+        }
 
         private string HeroDisplayName(string heroId)
         {

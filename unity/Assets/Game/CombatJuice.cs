@@ -44,6 +44,16 @@ namespace IdleGame.Game
                  .Configure(label, _cam, worldHead + jitter, crit ? 1.8f : 1.3f, crit ? 1.0f : 0.8f, color);
         }
 
+        /// <summary>Green "+N" floating above a healed ally (M11 mend skill).</summary>
+        public void HealNumber(Vector3 worldHead, double amount)
+        {
+            var color = new Color(0.45f, 1f, 0.5f);
+            var label = NewText($"+{Num.Compact(amount)}", 20, color);
+            var jitter = new Vector3(Random.Range(-0.2f, 0.2f), 0f, Random.Range(-0.2f, 0.2f));
+            label.gameObject.AddComponent<FloatingText>()
+                 .Configure(label, _cam, worldHead + jitter, 1.4f, 0.9f, color);
+        }
+
         public void Shake(float magnitude) => _shake = Mathf.Max(_shake, magnitude);
 
         // ---- per-frame upkeep ----
