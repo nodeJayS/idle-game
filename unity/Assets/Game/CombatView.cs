@@ -213,7 +213,6 @@ namespace IdleGame.Game
         private CombatJuice? _juice;
         private InventoryView? _inventory;
         private EquipmentView? _equipment;
-        private RosterView? _roster;
         private ChatPanel? _chat;
         private readonly Dictionary<string, View> _views = new Dictionary<string, View>();
 
@@ -252,12 +251,10 @@ namespace IdleGame.Game
         }
         public void BindInventory(InventoryView inv) => _inventory = inv;
         public void BindEquipment(EquipmentView eq) => _equipment = eq;
-        public void BindRoster(RosterView roster) => _roster = roster;
         public void BindChat(ChatPanel chat) => _chat = chat;
 
         private bool AnyPanelOpen => (_inventory != null && _inventory.IsOpen)
-                                  || (_equipment != null && _equipment.IsOpen)
-                                  || (_roster != null && _roster.IsOpen);
+                                  || (_equipment != null && _equipment.IsOpen);
 
         public void Init(SaveState save, GameConfig cfg)
         {
@@ -739,6 +736,7 @@ namespace IdleGame.Game
 
         private void DrawHud(float s)
         {
+            if (AnyPanelOpen) return; // a full-screen panel (Heroes/Inventory) owns the view
             float sw = Screen.width / s, sh = Screen.height / s;
             // Centered at the top so it clears the account chip / Settings button (top-left).
             var style = new GUIStyle(GUI.skin.label)
@@ -896,8 +894,8 @@ namespace IdleGame.Game
 
         private void DrawControlBar()
         {
-            // equipment + roster panels own the screen (their own Close buttons dismiss them)
-            if ((_equipment != null && _equipment.IsOpen) || (_roster != null && _roster.IsOpen)) return;
+            // the Heroes panel owns the screen (its own Close button dismisses it)
+            if (_equipment != null && _equipment.IsOpen) return;
             const float h = 80f, pad = 16f, gap = 12f;
             float sh = Screen.height / UiScale();
             float y = sh - h - pad;
@@ -908,7 +906,7 @@ namespace IdleGame.Game
             if (invOpen) return; // keep the bar uncluttered while the bag is open
             x += 260 + gap;
 
-            if (Button(x, y, 170, h, "Roster")) _roster?.Toggle();
+            if (Button(x, y, 170, h, "Heroes")) _equipment?.ToggleDefault();
             x += 170 + gap;
 
             // party tactic toggle (applies live + persists)

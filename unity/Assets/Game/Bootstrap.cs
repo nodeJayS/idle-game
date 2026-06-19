@@ -67,10 +67,6 @@ namespace IdleGame.Game
             equipment.Bind(view, cfg);
             view.BindEquipment(equipment);
 
-            var roster = director.AddComponent<RosterView>();
-            roster.Bind(view, cfg, equipment);
-            view.BindRoster(roster);
-
             var topbar = new GameObject("TopBar").AddComponent<TopBar>();
             topbar.transform.SetParent(session.transform);
             topbar.Bind(view, () => QuitToMenu(cfg, session, view));

@@ -8,21 +8,24 @@ using IdleGame.GameCore;
 namespace IdleGame.Game
 {
     /// <summary>
-    /// Per-hero "Heroes" screen (uGUI), opened from the Party HUD or Roster. A tab per hero
-    /// up top, then three sub-tabs: <b>Equipment</b> (doll of 9 rarity-bordered slot tiles +
-    /// the shared account bag, with hover-compare and one-click equip), <b>Skills</b> (the
-    /// hero's skills — read-only until the Skills milestone), and <b>Stats</b> (the full stat
-    /// sheet). All gear changes go through the pure <see cref="Inventory"/> reducers via
-    /// <see cref="CombatView.ReplaceSave"/>. (S2 folds the roster's hero selector + field/bench
-    /// in here and retires the separate Roster window.)
+    /// The unified "Heroes" screen (uGUI) — the one hub for managing the roster. Left rail:
+    /// the 4 party slots (who's fielded) over a list of every owned hero; click to select.
+    /// Right pane: the selected hero's header (name/level + Field/Bench, a live farm-only
+    /// swap) and three sub-tabs — <b>Equipment</b> (a body-mapped 9-slot doll + the shared
+    /// account bag, hover-compare, one-click equip), <b>Skills</b> (read-only until the
+    /// Skills milestone), and <b>Stats</b>. Opened from the control bar (no hero ⇒ first
+    /// party hero) or a Party-HUD chip (that hero). All mutations go through the pure
+    /// <see cref="Inventory"/> / <see cref="Party"/> reducers via <see cref="CombatView"/>.
     /// </summary>
     public sealed class EquipmentView : MonoBehaviour
     {
+        // Doll laid out like the body (MapleStory/PoE-ish): helm top-centre, chest centre,
+        // boots at the feet, weapon/offhand at the hands, amulet/cape up top, gloves/ring low.
         private static readonly (EquipSlot slot, int col, int row)[] Cells =
         {
-            (EquipSlot.Helm, 0, 0), (EquipSlot.Amulet, 1, 0), (EquipSlot.Cape, 2, 0),
+            (EquipSlot.Amulet, 0, 0), (EquipSlot.Helm,  1, 0), (EquipSlot.Cape,   2, 0),
             (EquipSlot.Weapon, 0, 1), (EquipSlot.Chest, 1, 1), (EquipSlot.Offhand, 2, 1),
-            (EquipSlot.Gloves, 0, 2), (EquipSlot.Boots, 1, 2), (EquipSlot.Ring, 2, 2),
+            (EquipSlot.Gloves, 0, 2), (EquipSlot.Boots, 1, 2), (EquipSlot.Ring,   2, 2),
         };
 
         private CombatView _view = null!;
@@ -30,10 +33,8 @@ namespace IdleGame.Game
 
         private GameObject? _panel;
         private string? _heroId;
-        private RectTransform? _detail;   // fixed pane, updated on hover/click (no full rebuild)
+        private RectTransform? _detail;   // Equipment-tab compare/detail pane (updated on hover)
 
-        // Per-hero sub-tabs of the Heroes screen. Equipment = doll + bag; Stats = the stat
-        // sheet; Skills = the hero's skills (read-only until the Skills milestone).
         private enum SubTab { Equipment, Skills, Stats }
         private SubTab _subTab = SubTab.Equipment;
 
@@ -41,12 +42,20 @@ namespace IdleGame.Game
 
         public void Bind(CombatView view, GameConfig cfg) { _view = view; _cfg = cfg; }
 
+        /// <summary>Open straight to a specific hero (Party-HUD chip); toggle shut if already on it.</summary>
         public void Toggle(string heroId)
         {
             if (_panel != null && _heroId == heroId) { Close(); return; }
             _heroId = heroId;
-            _subTab = SubTab.Equipment; // opening a hero (e.g. from the Party HUD) lands on gear
+            _subTab = SubTab.Equipment;
             Rebuild();
+        }
+
+        /// <summary>Open/close the hub on the current/first hero (the control-bar "Heroes" button).</summary>
+        public void ToggleDefault()
+        {
+            if (_panel != null) { Close(); return; }
+            Rebuild(); // Build() resolves _heroId to a valid hero
         }
 
         public void Close()
@@ -61,92 +70,150 @@ namespace IdleGame.Game
         private void Build()
         {
             var save = _view.CurrentSave;
-            // Keep any OWNED hero (the roster can open a benched one to gear it); only fall
-            // back to a party hero when the current id is gone/invalid.
             if (_heroId == null || !save.Heroes.Exists(h => h.Id == _heroId))
                 _heroId = FirstPartyHeroId(save);
             if (_heroId == null) return;
 
-            var canvas = UiKit.CreateCanvas("EquipmentCanvas", transform, sortOrder: 96);
+            var canvas = UiKit.CreateCanvas("HeroesCanvas", transform, sortOrder: 96);
             _panel = canvas.gameObject;
-            UiKit.FullScreen(canvas.transform, new Color(0f, 0f, 0f, 0.6f));
+            // Fully opaque backdrop: this is a full-screen management view, so it covers the
+            // HUD chrome (TopBar, chat) behind it instead of letting them bleed through a dim.
+            UiKit.FullScreen(canvas.transform, new Color(0.06f, 0.06f, 0.09f, 1f));
 
-            var panel = UiKit.Panel(canvas.transform, new Vector2(1000, 680), new Color(0.10f, 0.10f, 0.14f, 1f));
-            UiKit.Label(panel.transform, "Heroes", 28, TextAnchor.MiddleLeft, new Vector2(220, 38), new Vector2(-400, 300));
-            UiKit.TextButton(panel.transform, "Close", new Vector2(150, 52), new Vector2(420, 300), Close);
+            var panel = UiKit.Panel(canvas.transform, new Vector2(1160, 680), new Color(0.10f, 0.10f, 0.14f, 1f));
+            // anchoredPosition is the rect CENTRE; offset by half-width so the left-aligned
+            // title sits just inside the panel's left edge instead of hanging off it.
+            UiKit.Label(panel.transform, "Heroes", 28, TextAnchor.MiddleLeft, new Vector2(230, 38), new Vector2(-440, 300));
+            UiKit.TextButton(panel.transform, "Close", new Vector2(140, 48), new Vector2(495, 300), Close, 22);
 
-            BuildTabs(panel.transform, save, new Vector2(-440, 248));
+            BuildSelector(panel.transform, save);
+            BuildHeroHeader(panel.transform, save);
             BuildSubTabs(panel.transform);
 
             switch (_subTab)
             {
-                case SubTab.Skills:
-                    BuildSkillsPane(panel.transform, save);
-                    break;
-                case SubTab.Stats:
-                    BuildStatsPane(panel.transform, save);
-                    break;
-                default: // Equipment: doll + shared bag + detail/compare pane
-                    BuildDoll(panel.transform, save);
-                    BuildBag(panel.transform, save);
-                    var box = UiKit.Panel(panel.transform, new Vector2(280, 480), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(355, -40));
-                    _detail = box.rectTransform;
-                    ShowHeroStats(save); // default pane = the hero's stat sheet
-                    break;
+                case SubTab.Skills: BuildSkillsPane(panel.transform, save); break;
+                case SubTab.Stats:  BuildStatsPane(panel.transform, save);  break;
+                default:            BuildEquipment(panel.transform, save);  break;
             }
         }
 
-        /// <summary>Equipment / Skills / Stats selector for the current hero (top row).</summary>
+        // ---- left rail: party slots + all owned heroes ----
+
+        private void BuildSelector(Transform parent, SaveState save)
+        {
+            const float xL = -462f;
+            int fielded = PartyFieldedCount(save);
+
+            UiKit.Label(parent, $"Party  ·  {fielded}/{save.Party.Length}", 14, TextAnchor.MiddleLeft,
+                        new Vector2(196, 20), new Vector2(xL, 272)).color = new Color(0.7f, 0.74f, 0.8f);
+
+            float y = 242f;
+            for (int i = 0; i < save.Party.Length; i++)
+            {
+                string? id = save.Party[i];
+                bool filled = id != null;
+                string label = filled ? $"{i + 1}.  {HeroName(save, id)}" : $"{i + 1}.  — empty —";
+                var b = UiKit.TextButton(parent, label, new Vector2(196, 32), new Vector2(xL, y),
+                    () => { if (filled) SelectHero(id!); }, 14);
+                var img = b.GetComponent<Image>();
+                if (!filled) img.color = new Color(0.12f, 0.13f, 0.16f);
+                else if (id == _heroId) img.color = new Color(0.30f, 0.45f, 0.65f);
+                y -= 36f;
+            }
+
+            UiKit.Label(parent, "All heroes", 14, TextAnchor.MiddleLeft,
+                        new Vector2(196, 20), new Vector2(xL, 98)).color = new Color(0.7f, 0.74f, 0.8f);
+
+            // Fixed stack for now (rosters are small); becomes a scroll list as it grows.
+            y = 68f;
+            foreach (var hero in save.Heroes)
+            {
+                var id = hero.Id;
+                bool isFielded = Array.IndexOf(save.Party, id) >= 0;
+                var b = UiKit.TextButton(parent, isFielded ? HeroName(save, id) : HeroName(save, id) + "  (B)",
+                    new Vector2(196, 30), new Vector2(xL, y), () => SelectHero(id), 15);
+                var img = b.GetComponent<Image>();
+                if (id == _heroId) img.color = new Color(0.30f, 0.45f, 0.65f);
+                else if (!isFielded) img.color = new Color(0.18f, 0.18f, 0.23f);
+                y -= 34f;
+            }
+        }
+
+        private void SelectHero(string heroId) { _heroId = heroId; Rebuild(); }
+
+        // ---- right pane: hero header + field/bench ----
+
+        private void BuildHeroHeader(Transform parent, SaveState save)
+        {
+            var hero = save.Heroes.Find(h => h.Id == _heroId);
+            if (hero == null) return;
+
+            int slot = Array.IndexOf(save.Party, _heroId);
+            bool fielded = slot >= 0;
+            int fieldedCount = PartyFieldedCount(save);
+            bool canEdit = _view.CanEditParty;
+
+            // Left-aligned in the RIGHT pane: centre = leftEdge(-330) + width/2 so the text
+            // starts at -330 and never reaches back over the left rail (ends ~-364).
+            UiKit.Label(parent, HeroName(save, _heroId), 22, TextAnchor.MiddleLeft, new Vector2(300, 26), new Vector2(-180, 282))
+                .color = new Color(0.85f, 0.9f, 1f);
+            UiKit.Label(parent, fielded ? $"Level {hero.Level} · fielded (slot {slot + 1})" : $"Level {hero.Level} · benched",
+                        13, TextAnchor.MiddleLeft, new Vector2(340, 18), new Vector2(-160, 258))
+                .color = new Color(0.7f, 0.74f, 0.8f);
+
+            // Stacked UNDER Close (top-right) with a gap, not overlapping it.
+            if (fielded)
+                ActionButton(parent, "Bench", new Vector2(140, 44), new Vector2(495, 248), canEdit && fieldedCount > 1,
+                    () => { _view.ApplyPartyEdit(Party.SetPartySlot(save, slot, null)); Rebuild(); });
+            else
+            {
+                int firstEmpty = Array.IndexOf(save.Party, (string?)null);
+                ActionButton(parent, "Field", new Vector2(140, 44), new Vector2(495, 248), canEdit && firstEmpty >= 0,
+                    () => { _view.ApplyPartyEdit(Party.FieldHero(save, firstEmpty, _heroId!)); Rebuild(); });
+            }
+        }
+
         private void BuildSubTabs(Transform parent)
         {
             var defs = new (SubTab tab, string label, float x)[]
             {
-                (SubTab.Equipment, "Equipment", -120f),
-                (SubTab.Skills, "Skills", 40f),
-                (SubTab.Stats, "Stats", 200f),
+                (SubTab.Equipment, "Equipment", -250f),
+                (SubTab.Skills, "Skills", -110f),
+                (SubTab.Stats, "Stats", 30f),
             };
             foreach (var d in defs)
             {
                 var tab = d.tab;
-                var b = UiKit.TextButton(parent, d.label, new Vector2(150, 44), new Vector2(d.x, 300f),
-                    () => { _subTab = tab; Rebuild(); }, 18);
+                var b = UiKit.TextButton(parent, d.label, new Vector2(130, 42), new Vector2(d.x, 214f),
+                    () => { _subTab = tab; Rebuild(); }, 17);
                 if (_subTab == tab) b.GetComponent<Image>().color = new Color(0.30f, 0.45f, 0.65f);
             }
         }
 
-        private void BuildTabs(Transform parent, SaveState save, Vector2 pos)
-        {
-            var partyIds = PartyHeroIds(save);
-            var partySet = new HashSet<string>(partyIds);
-            var ids = new List<string>(partyIds);
-            if (_heroId != null && !partySet.Contains(_heroId)) ids.Add(_heroId); // benched hero being geared
+        // ---- Equipment sub-tab: doll + shared bag + compare pane ----
 
-            float x = pos.x;
-            foreach (var heroId in ids)
-            {
-                var id = heroId;
-                bool sel = id == _heroId;
-                bool benched = !partySet.Contains(id);
-                var b = UiKit.TextButton(parent, benched ? HeroName(save, id) + " (B)" : HeroName(save, id),
-                    new Vector2(150, 50), new Vector2(x, pos.y), () => { _heroId = id; Rebuild(); }, 18);
-                if (sel) b.GetComponent<Image>().color = new Color(0.30f, 0.45f, 0.65f);
-                else if (benched) b.GetComponent<Image>().color = new Color(0.34f, 0.30f, 0.42f);
-                x += 162f;
-            }
+        private void BuildEquipment(Transform parent, SaveState save)
+        {
+            BuildDoll(parent, save);
+            BuildBag(parent, save);
+            var box = UiKit.Panel(parent, new Vector2(270, 440), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(445, -30));
+            _detail = box.rectTransform;
+            ShowHeroStats(save); // default pane = the hero's stat sheet
         }
 
         private void BuildDoll(Transform parent, SaveState save)
         {
             var hero = save.Heroes.Find(h => h.Id == _heroId)!;
-            const float cell = 96f, sp = 110f;
-            float ox = -300f, oy = 130f; // centre of (col1,row0)
+            const float cell = 84f, sp = 92f, ox = -210f, oy = 8f;
 
-            UiKit.Label(parent, HeroName(save, _heroId), 18, TextAnchor.MiddleCenter, new Vector2(330, 24), new Vector2(-300, 205));
+            UiKit.Label(parent, "Equipped", 14, TextAnchor.MiddleCenter, new Vector2(280, 18), new Vector2(-210, 168))
+                .color = new Color(0.7f, 0.74f, 0.8f);
 
             foreach (var (slot, col, row) in Cells)
             {
                 float cx = ox + (col - 1) * sp;
-                float cy = oy - row * sp;
+                float cy = oy - (row - 1) * sp;
 
                 hero.Equipped.TryGetValue(slot, out var itemId);
                 var item = itemId != null ? save.Inventory.Find(i => i.Id == itemId) : null;
@@ -154,16 +221,17 @@ namespace IdleGame.Game
 
                 var tile = UiKit.ItemTile(parent, new Vector2(cell, cell), new Vector2(cx, cy), rarity, UiKit.SlotAbbrev(slot), raycast: true);
                 var captured = item;
-                var btn = tile.AddComponent<Button>();
-                btn.onClick.AddListener(() => ShowDetail(save, captured, slotIfEmpty: slot));
+                tile.AddComponent<Button>().onClick.AddListener(() => ShowDetail(save, captured, slotIfEmpty: slot));
                 UiKit.Hover(tile, () => ShowDetail(save, captured, slotIfEmpty: slot), () => ShowHeroStats(save));
             }
         }
 
         private void BuildBag(Transform parent, SaveState save)
         {
-            UiKit.Label(parent, "Bag", 18, TextAnchor.MiddleLeft, new Vector2(120, 24), new Vector2(-95, 205));
-            var grid = UiKit.ScrollGrid(parent, new Vector2(310, 440), new Vector2(50, -40), new Vector2(72, 72));
+            int loose = Inventory.LooseCount(save);
+            UiKit.Label(parent, $"Bag (shared)  ·  {loose}/{_cfg.Balance.InventoryCap}", 14, TextAnchor.MiddleLeft,
+                        new Vector2(300, 20), new Vector2(140, 170)).color = new Color(0.7f, 0.74f, 0.8f);
+            var grid = UiKit.ScrollGrid(parent, new Vector2(300, 300), new Vector2(140, -26), new Vector2(70, 70));
 
             bool any = false;
             var equipped = EquippedIds(save);
@@ -172,13 +240,13 @@ namespace IdleGame.Game
                 if (equipped.Contains(item.Id)) continue; // only free items can be equipped
                 any = true;
                 var it = item;
-                var tile = UiKit.ItemTile(grid, new Vector2(72, 72), Vector2.zero, it.Rarity, UiKit.SlotAbbrev(SlotOf(it)), raycast: true);
+                var tile = UiKit.ItemTile(grid, new Vector2(70, 70), Vector2.zero, it.Rarity, UiKit.SlotAbbrev(SlotOf(it)), raycast: true);
                 tile.AddComponent<Button>().onClick.AddListener(() => EquipFromBag(save, it)); // one click to equip
                 UiKit.Hover(tile, () => ShowDetail(save, it), () => ShowHeroStats(save));        // hover to compare
             }
             if (!any)
                 UiKit.Label(parent, "No free items in the bag.", 14, TextAnchor.MiddleCenter,
-                            new Vector2(280, 40), new Vector2(50, 60));
+                            new Vector2(280, 40), new Vector2(140, 40));
         }
 
         // ---- detail / compare pane ----
@@ -195,7 +263,7 @@ namespace IdleGame.Game
                 return;
             }
 
-            float y = 200f;
+            float y = 196f;
             UiKit.Label(_detail, $"{item.Rarity} {item.BaseId}", 18, TextAnchor.MiddleLeft,
                         new Vector2(250, 24), new Vector2(0, y)).color = Palette.Rarity(item.Rarity);
             y -= 26f;
@@ -216,7 +284,7 @@ namespace IdleGame.Game
             {
                 UiKit.Label(_detail, "Equipped", 13, TextAnchor.MiddleLeft, new Vector2(250, 18), new Vector2(0, y - 6)).color =
                     new Color(0.6f, 0.85f, 1f);
-                UiKit.TextButton(_detail, "Unequip", new Vector2(200, 50), new Vector2(0, -200),
+                UiKit.TextButton(_detail, "Unequip", new Vector2(200, 50), new Vector2(0, -196),
                     () => { _view.ReplaceSave(Inventory.UnequipItem(save, _heroId!, SlotOf(item))); Rebuild(); });
             }
             else
@@ -240,7 +308,7 @@ namespace IdleGame.Game
                 if (!anyDelta)
                     UiKit.Label(_detail, "No stat change", 13, TextAnchor.MiddleLeft, new Vector2(250, 18), new Vector2(0, y));
 
-                UiKit.TextButton(_detail, "Equip", new Vector2(200, 50), new Vector2(0, -200),
+                UiKit.TextButton(_detail, "Equip", new Vector2(200, 50), new Vector2(0, -196),
                     () => EquipFromBag(save, item));
             }
         }
@@ -251,7 +319,8 @@ namespace IdleGame.Game
             Rebuild();
         }
 
-        /// <summary>Equipment sub-tab default pane: the hero's full stats (into _detail).</summary>
+        // ---- Stats sub-tab ----
+
         private void ShowHeroStats(SaveState save)
         {
             if (_detail == null) return;
@@ -259,25 +328,23 @@ namespace IdleGame.Game
             RenderStatSheet(_detail, save);
         }
 
-        /// <summary>Stats sub-tab: the hero's full stat sheet in its own centered pane.</summary>
         private void BuildStatsPane(Transform parent, SaveState save)
         {
-            var box = UiKit.Panel(parent, new Vector2(340, 500), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(0, -40));
+            var box = UiKit.Panel(parent, new Vector2(380, 430), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(60, -26));
             RenderStatSheet(box.rectTransform, save);
         }
 
-        /// <summary>Render the hero's name, level, and stats (canonical order) into a pane.</summary>
         private void RenderStatSheet(RectTransform into, SaveState save)
         {
             var hero = save.Heroes.Find(h => h.Id == _heroId);
             if (hero == null) return;
             var stats = Stats.ComputeHeroStats(hero, _cfg, Stats.ResolveEquipped(save, hero));
 
-            UiKit.Label(into, HeroName(save, _heroId), 18, TextAnchor.MiddleLeft, new Vector2(250, 24), new Vector2(0, 210))
+            UiKit.Label(into, HeroName(save, _heroId), 18, TextAnchor.MiddleLeft, new Vector2(250, 24), new Vector2(0, 188))
                 .color = new Color(0.85f, 0.9f, 1f);
-            UiKit.Label(into, $"Level {hero.Level}", 12, TextAnchor.MiddleLeft, new Vector2(250, 18), new Vector2(0, 188));
+            UiKit.Label(into, $"Level {hero.Level}", 12, TextAnchor.MiddleLeft, new Vector2(250, 18), new Vector2(0, 166));
 
-            float y = 158f;
+            float y = 138f;
             foreach (var k in StatDisplay.Order)
             {
                 UiKit.Label(into, StatDisplay.Label(k), 13, TextAnchor.MiddleLeft, new Vector2(160, 18), new Vector2(-45, y));
@@ -286,39 +353,49 @@ namespace IdleGame.Game
             }
         }
 
-        /// <summary>
-        /// Skills sub-tab: read-only list of the hero's current skills. Leveling, the
-        /// active/passive split (≤4 active equipped, passives always on), and the skill
-        /// tree land in the dedicated Skills milestone — this is the seed view.
-        /// </summary>
+        // ---- Skills sub-tab (read-only seed; tree/leveling land in the Skills milestone) ----
+
         private void BuildSkillsPane(Transform parent, SaveState save)
         {
             var hero = save.Heroes.Find(h => h.Id == _heroId);
             if (hero == null) return;
 
-            var box = UiKit.Panel(parent, new Vector2(620, 500), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(20, -40));
+            var box = UiKit.Panel(parent, new Vector2(560, 430), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(120, -26));
             UiKit.Label(box.transform, $"{HeroName(save, _heroId)} — Skills", 18, TextAnchor.MiddleLeft,
-                        new Vector2(580, 26), new Vector2(0, 218)).color = new Color(0.85f, 0.9f, 1f);
+                        new Vector2(520, 26), new Vector2(0, 188)).color = new Color(0.85f, 0.9f, 1f);
 
-            float y = 178f;
+            float y = 150f;
             foreach (var id in hero.SkillLoadout)
             {
                 if (!_cfg.Skills.TryGetValue(id, out var sk)) continue;
                 string cd = $"{sk.CooldownMs / 1000.0:0.#}s cd";
                 string meta = sk.ManaCost > 0 ? $"{sk.Effect} · {sk.ManaCost} mana · {cd}" : $"{sk.Effect} · {cd}";
 
-                UiKit.Label(box.transform, sk.Name, 16, TextAnchor.MiddleLeft, new Vector2(580, 22), new Vector2(0, y));
-                UiKit.Label(box.transform, meta, 12, TextAnchor.MiddleLeft, new Vector2(580, 18), new Vector2(0, y - 20f))
+                UiKit.Label(box.transform, sk.Name, 16, TextAnchor.MiddleLeft, new Vector2(520, 22), new Vector2(0, y));
+                UiKit.Label(box.transform, meta, 12, TextAnchor.MiddleLeft, new Vector2(520, 18), new Vector2(0, y - 20f))
                     .color = new Color(0.70f, 0.74f, 0.80f);
                 y -= 50f;
             }
 
             UiKit.Label(box.transform,
                 "Skill leveling, active/passive slots (≤4 active), and skill trees arrive in the Skills update.",
-                13, TextAnchor.MiddleLeft, new Vector2(560, 40), new Vector2(0, -210)).color = new Color(0.95f, 0.8f, 0.5f);
+                13, TextAnchor.MiddleLeft, new Vector2(500, 40), new Vector2(0, -188)).color = new Color(0.95f, 0.8f, 0.5f);
         }
 
         // ---- helpers ----
+
+        /// <summary>A TextButton that renders greyed + inert when <paramref name="enabled"/> is false.</summary>
+        private static Button ActionButton(Transform parent, string label, Vector2 size, Vector2 pos,
+                                           bool enabled, Action onClick, int fontSize = 18)
+        {
+            var b = UiKit.TextButton(parent, label, size, pos, enabled ? onClick : () => { }, fontSize);
+            if (!enabled)
+            {
+                b.interactable = false;
+                b.GetComponent<Image>().color = new Color(0.22f, 0.24f, 0.28f);
+            }
+            return b;
+        }
 
         private EquipSlot SlotOf(Item item) => _cfg.ItemBases[item.BaseId].Slot;
 
@@ -331,11 +408,11 @@ namespace IdleGame.Game
             return heroId;
         }
 
-        private static string[] PartyHeroIds(SaveState save)
+        private static int PartyFieldedCount(SaveState save)
         {
-            var list = new List<string>(4);
-            foreach (var id in save.Party) if (id != null) list.Add(id);
-            return list.ToArray();
+            int n = 0;
+            foreach (var id in save.Party) if (id != null) n++;
+            return n;
         }
 
         private static string? FirstPartyHeroId(SaveState save)
