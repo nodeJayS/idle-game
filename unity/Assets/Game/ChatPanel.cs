@@ -6,15 +6,19 @@ using UnityEngine.UI;
 namespace IdleGame.Game
 {
     /// <summary>
-    /// Left-side chat/activity panel. The "Feed" tab is the live loot/XP log (fed by
-    /// CombatView); Global / Friends / Guild are stubs until the online service lands.
-    /// Drag it by the title bar, resize from the bottom-right grip, minimize to the bar,
-    /// or lock it in place. Position/size/state persist via <see cref="Settings"/>.
-    /// Read-only over game state.
+    /// Left-side chat/activity panel. Only the "System" tab ships pre-release — the live
+    /// loot/XP/event log fed by CombatView. The social tabs (Global, Friends, Guild) and
+    /// per-person Whispers (DMs) are intentionally hidden until the online service lands
+    /// (Phase C), so players aren't shown dead features; re-add them to <see cref="Tabs"/>
+    /// to bring the bar back. Drag by the title bar, resize from the bottom-right grip,
+    /// minimize, or lock. Position/size/state persist via <see cref="Settings"/>. Read-only.
     /// </summary>
     public sealed class ChatPanel : MonoBehaviour
     {
-        private static readonly string[] Tabs = { "Feed", "Global", "Friends", "Guild" };
+        private const string SystemTab = "System";
+        // Pre-release: System only. When the server ships, add the social tabs back here —
+        // "Global", "Friends", "Guild" — plus per-person Whispers (DM threads, opened on demand).
+        private static readonly string[] Tabs = { SystemTab };
         private const int MaxFeed = 60;
 
         private const float HeaderH = 40f;
@@ -28,7 +32,7 @@ namespace IdleGame.Game
         private readonly Dictionary<string, Button> _tabButtons = new();
 
         private Canvas _canvas = null!;
-        private string _active = "Feed";
+        private string _active = SystemTab;
         private bool _collapsed;
         private bool _locked;
         private Vector2 _pos;   // top-left anchored position (canvas left edge, vertical-centre origin)
@@ -51,7 +55,7 @@ namespace IdleGame.Game
         {
             _feed.Add((text, color));
             if (_feed.Count > MaxFeed) _feed.RemoveAt(0);
-            if (!_collapsed && _active == "Feed" && _feedContent != null) AppendFeedRow(text, color);
+            if (!_collapsed && _active == SystemTab && _feedContent != null) AppendFeedRow(text, color);
         }
 
         // ---- window ----
@@ -190,7 +194,7 @@ namespace IdleGame.Game
             for (int i = _body.childCount - 1; i >= 0; i--) Destroy(_body.GetChild(i).gameObject);
             _feedContent = null;
 
-            if (_active == "Feed")
+            if (_active == SystemTab)
             {
                 _feedContent = UiKit.ScrollColumn(_body, Vector2.zero, Vector2.zero);
                 var scrollRoot = (RectTransform)_feedContent.parent;
