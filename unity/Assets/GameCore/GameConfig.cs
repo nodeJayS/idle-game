@@ -130,6 +130,19 @@ namespace IdleGame.GameCore
         public double MapHalfWidth = 200;
         public double MapHalfDepth = 140;
 
+        // Unit bodies (M-feel): every unit occupies a soft circle so two units can't stand
+        // on the same point. Overlapping LIVING units are pushed apart each step — split by
+        // the opposite body's radius, so a boss barely budges while trash is shoved clear.
+        // Bosses are chunkier. Attack/skill ranges count from the target's body edge, so a
+        // big body stays reachable. CollisionIterations relaxation passes per step trade
+        // crowd tightness against cost (O(n^2) per pass; n is small — party + MobCap).
+        // Radii roughly match the client's visual bodies (capsule ~0.35, boss cube ~0.56
+        // half-width) plus a little personal space, so the spacing the player sees matches
+        // the sim. Tune alongside CombatView's primitive scales.
+        public double UnitRadius = 0.45;
+        public double BossRadius = 0.7;
+        public int CollisionIterations = 2;
+
         // Wander (idle trash): a non-aggro mob ambles between random points within
         // WanderRadius of itself, repicking every WanderMin..MaxMs, at WanderSpeedMult of
         // its move speed — until a hero hits it and it aggros.

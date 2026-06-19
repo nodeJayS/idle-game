@@ -50,6 +50,11 @@ namespace IdleGame.GameCore
         public string Id = "";
         public Team Team;
         public Vec2 Pos;
+        // Soft-body radius (M-feel): the unit occupies a circle of this radius, so units
+        // can't stack on the same point — overlaps are pushed apart each step. Set from
+        // Balance.UnitRadius (heroes/trash) or Balance.BossRadius at creation. Attack/skill
+        // ranges count from a target's body edge, so a chunky body stays reachable.
+        public double BodyRadius = 0.45;
         public StatBlock Stats = new StatBlock();
         public double Hp;
         public double MaxHp;

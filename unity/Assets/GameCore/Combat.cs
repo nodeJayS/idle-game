@@ -44,13 +44,13 @@ namespace IdleGame.GameCore
             for (int j = 0; j < rt.PackCount; j++)
             {
                 var mdef = (j % 2 == 0) ? cfg.Monsters["slime"] : cfg.Monsters["goblin"];
-                s.Entities.Add(MakeMonster(mdef, "E" + j, new Vec2(3, j * 1.5), scale, false, HpScale(rt, cfg)));
+                s.Entities.Add(MakeMonster(cfg, mdef, "E" + j, new Vec2(3, j * 1.5), scale, false, HpScale(rt, cfg)));
             }
 
             if (cfg.Monsters.TryGetValue(rt.BossId, out var boss))
             {
                 double major = rt.IsMajorBoss ? cfg.Balance.MajorBossMult : 1.0;
-                s.Entities.Add(MakeMonster(boss, "EBOSS", new Vec2(5, rt.PackCount * 0.75),
+                s.Entities.Add(MakeMonster(cfg, boss, "EBOSS", new Vec2(5, rt.PackCount * 0.75),
                     scale * major, true, HpScale(rt, cfg) * cfg.Balance.BossHpMult * major));
             }
 
@@ -95,7 +95,7 @@ namespace IdleGame.GameCore
             if (cfg.Monsters.TryGetValue(rt.BossId, out var boss))
             {
                 double major = rt.IsMajorBoss ? cfg.Balance.MajorBossMult : 1.0;
-                s.Entities.Add(MakeMonster(boss, "EBOSS", new Vec2(4, 0),
+                s.Entities.Add(MakeMonster(cfg, boss, "EBOSS", new Vec2(4, 0),
                     StageScale(rt, cfg) * major, true, HpScale(rt, cfg) * cfg.Balance.BossHpMult * major));
             }
 
@@ -180,6 +180,7 @@ namespace IdleGame.GameCore
                     AttackIntervalMs = AttackInterval(stats),
                     RefKind = "hero",
                     RefId = hero.Id,
+                    BodyRadius = cfg.Balance.UnitRadius,
                     Skills = new List<string>(hero.SkillLoadout),
                     RespawnDurationMs = cfg.Balance.RespawnBaseMs + cfg.Balance.RespawnPerLevelMs * hero.Level,
                 });
@@ -235,6 +236,7 @@ namespace IdleGame.GameCore
                     AttackIntervalMs = AttackInterval(stats),
                     RefKind = "hero",
                     RefId = hero.Id,
+                    BodyRadius = cfg.Balance.UnitRadius,
                     Skills = new List<string>(hero.SkillLoadout),
                     RespawnDurationMs = cfg.Balance.RespawnBaseMs + cfg.Balance.RespawnPerLevelMs * hero.Level,
                 });
@@ -263,7 +265,7 @@ namespace IdleGame.GameCore
                 var mdef = (s.SpawnCount % 2 == 0) ? cfg.Monsters["slime"] : cfg.Monsters["goblin"];
                 var pos = new Vec2(Math.Clamp(center.X + rng.RandRange(-pr, pr), -w, w),
                                    Math.Clamp(center.Y + rng.RandRange(-pr, pr), -d, d));
-                var mob = MakeMonster(mdef, "E" + s.SpawnCount, pos, StageScale(rt, cfg), false, HpScale(rt, cfg));
+                var mob = MakeMonster(cfg, mdef, "E" + s.SpawnCount, pos, StageScale(rt, cfg), false, HpScale(rt, cfg));
                 mob.Aggro = false;          // ambles until a hero hits it
                 mob.WanderTarget = pos;     // idle in place until...
                 mob.WanderCdMs = rng.RandRange(0, cfg.Balance.WanderMaxMs); // ...a staggered first repick
@@ -272,7 +274,7 @@ namespace IdleGame.GameCore
             }
         }
 
-        private static CombatEntity MakeMonster(MonsterDef def, string id, Vec2 pos, double scale, bool isBoss, double hpScale = -1)
+        private static CombatEntity MakeMonster(GameConfig cfg, MonsterDef def, string id, Vec2 pos, double scale, bool isBoss, double hpScale = -1)
         {
             double hs = hpScale < 0 ? scale : hpScale; // trash passes a steeper HP scale; bosses use `scale`
             var stats = new StatBlock();
@@ -295,6 +297,7 @@ namespace IdleGame.GameCore
                 RefKind = "monster",
                 RefId = def.Id,
                 IsBoss = isBoss,
+                BodyRadius = isBoss ? cfg.Balance.BossRadius : cfg.Balance.UnitRadius,
                 Skills = new List<string>(def.Skills),
             };
         }
@@ -397,6 +400,9 @@ namespace IdleGame.GameCore
                 double dist = Vec2.Distance(e.Pos, target.Pos);
                 double range = e.Stats.Get(StatKey.AttackRange);
                 if (range <= 0) range = MeleeRange;
+                // Reach a target's body, not its centre — so a chunky boss the separation
+                // pass holds at arm's length is still meleeable.
+                range += target.BodyRadius;
 
                 if (dist <= range)
                 {
@@ -428,6 +434,11 @@ namespace IdleGame.GameCore
                 }
                 }
             }
+
+            // Soft-body separation: push overlapping units apart so they occupy space
+            // instead of stacking. Runs AFTER movement/attacks (which already resolved at
+            // their pre-push positions), so it only affects spacing, never hit outcomes.
+            ResolveCollisions(s, cfg);
 
             // A downed hero has Hp 0 (Alive == false), so an all-at-once wipe makes
             // partyAlive false -> Lost.
@@ -567,7 +578,7 @@ namespace IdleGame.GameCore
             {
                 if (!o.Alive || o.Team == e.Team) continue;
                 double d = Vec2.Distance(e.Pos, o.Pos);
-                if (d > sk.Range) continue;
+                if (d > sk.Range + o.BodyRadius) continue; // measured to the target's body edge
                 double key = sk.Targeting == "lowestHp" ? o.Hp : d;
                 if (key < bestKey || (key == bestKey && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
                 {
@@ -697,6 +708,54 @@ namespace IdleGame.GameCore
                 }
             }
             return best;
+        }
+
+        /// <summary>
+        /// Soft-body separation: push overlapping LIVING units apart so two units never
+        /// stand on the same point. Deterministic — pure arithmetic over entities in stable
+        /// Id order (no rng). The push is split by the OPPOSITE body's radius, so a heavy
+        /// boss barely budges while light trash is shoved clear; exactly-stacked units
+        /// separate along a fixed axis (smaller Id moves -x). Pushes are clamped to the map.
+        /// A few relaxation passes (Balance.CollisionIterations) settle dense crowds.
+        /// </summary>
+        private static void ResolveCollisions(CombatState s, GameConfig cfg)
+        {
+            var bodies = s.Entities.Where(e => e.Alive)
+                                   .OrderBy(e => e.Id, StringComparer.Ordinal)
+                                   .ToList();
+            double w = cfg.Balance.MapHalfWidth, d = cfg.Balance.MapHalfDepth;
+            int iters = Math.Max(1, cfg.Balance.CollisionIterations);
+
+            for (int it = 0; it < iters; it++)
+            {
+                for (int i = 0; i < bodies.Count; i++)
+                {
+                    for (int j = i + 1; j < bodies.Count; j++)
+                    {
+                        var a = bodies[i];
+                        var b = bodies[j];
+                        double rsum = a.BodyRadius + b.BodyRadius;
+                        if (rsum <= 0) continue;
+
+                        double dx = b.Pos.X - a.Pos.X, dy = b.Pos.Y - a.Pos.Y;
+                        double d2 = dx * dx + dy * dy;
+                        if (d2 >= rsum * rsum) continue; // not overlapping
+
+                        double dist = Math.Sqrt(d2);
+                        double nx, ny;
+                        if (dist > 1e-9) { nx = dx / dist; ny = dy / dist; }
+                        else { nx = 1; ny = 0; dist = 0; } // exactly stacked: fixed axis (a has smaller Id)
+
+                        double overlap = rsum - dist;
+                        double aShare = b.BodyRadius / rsum; // heavier (bigger) body moves less
+                        double bShare = a.BodyRadius / rsum;
+                        a.Pos = new Vec2(Math.Clamp(a.Pos.X - nx * overlap * aShare, -w, w),
+                                         Math.Clamp(a.Pos.Y - ny * overlap * aShare, -d, d));
+                        b.Pos = new Vec2(Math.Clamp(b.Pos.X + nx * overlap * bShare, -w, w),
+                                         Math.Clamp(b.Pos.Y + ny * overlap * bShare, -d, d));
+                    }
+                }
+            }
         }
 
         private static void MoveToward(CombatEntity e, Vec2 dest, double maxStep)

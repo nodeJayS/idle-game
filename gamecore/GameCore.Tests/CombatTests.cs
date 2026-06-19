@@ -698,6 +698,56 @@ namespace IdleGame.GameCore.Tests
             Assert.True(fast.Entities.First(e => e.Id == "P").Pos.X > slow.Entities.First(e => e.Id == "P").Pos.X);
         }
 
+        // --- soft-body collision: units occupy space and can't stack ---
+
+        [Fact]
+        public void OverlappingUnitsArePushedApart()
+        {
+            // two allies spawned on the exact same point (no enemies, so neither moves);
+            // the separation pass shoves them apart to at least the sum of their radii
+            var a = Ent("P0", Team.Party, hp: 100, atk: 0, def: 0, x: 0, y: 0);
+            var b = Ent("P1", Team.Party, hp: 100, atk: 0, def: 0, x: 0, y: 0);
+            var s = State(a, b);
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+
+            double sep = Vec2.Distance(s.Entities.First(e => e.Id == "P0").Pos,
+                                       s.Entities.First(e => e.Id == "P1").Pos);
+            Assert.True(sep >= a.BodyRadius + b.BodyRadius - 1e-6);
+        }
+
+        [Fact]
+        public void HeavierBodyMovesLessWhenSeparating()
+        {
+            // a chunky body (boss-sized) barely budges; the small one is shoved clear
+            var small = Ent("A", Team.Party, hp: 100, atk: 0, def: 0, x: 0, y: 0);
+            var big = Ent("B", Team.Party, hp: 100, atk: 0, def: 0, x: 0.5, y: 0);
+            small.BodyRadius = 0.45;
+            big.BodyRadius = 1.3;
+            var s = State(small, big);
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+
+            double aMoved = System.Math.Abs(s.Entities.First(e => e.Id == "A").Pos.X - 0.0);
+            double bMoved = System.Math.Abs(s.Entities.First(e => e.Id == "B").Pos.X - 0.5);
+            Assert.True(aMoved > bMoved);
+        }
+
+        [Fact]
+        public void MeleeReachesABodiedTarget()
+        {
+            // a melee attacker (range 1.0) hits a chunky target 2.0 away at the centre:
+            // range counts from the body edge (1.0 + 1.3), so the big body stays meleeable
+            var a = Ent("A", Team.Party, hp: 100, atk: 10, def: 0, x: 0);
+            var b = Ent("B", Team.Enemy, hp: 1000, atk: 0, def: 0, x: 2.0);
+            b.BodyRadius = 1.3;
+            var s = State(a, b);
+
+            var ev = Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+
+            Assert.Contains(ev, e => e.Type == CombatEventType.Hit && e.SourceId == "A" && e.TargetId == "B");
+        }
+
         // --- M9.4: group vs solo party tactic ---
 
         // party spread vertically; one enemy nearest each hero, one nearest the centre
