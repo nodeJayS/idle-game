@@ -7,18 +7,18 @@ using IdleGame.GameCore;
 namespace IdleGame.Game
 {
     /// <summary>
-    /// The shared account bag (uGUI). Lists every owned item (rarity-colored) and shows
-    /// the selected item's details. Equipping is NOT done here — that's the per-hero
-    /// Equipment HUD (<see cref="EquipmentView"/>); this window is purely the bag the whole
-    /// roster draws from. Read-only w.r.t. game rules. (Salvage UI lands later.)
+    /// The shared account bag (uGUI). A grid of rarity-bordered item tiles; hover or click
+    /// a tile to see its details on the right. Equipping is NOT done here — that's the
+    /// per-hero Equipment HUD (<see cref="EquipmentView"/>); this window is purely the bag
+    /// the whole roster draws from. Read-only w.r.t. game rules. (Salvage UI lands later.)
     /// </summary>
     public sealed class InventoryView : MonoBehaviour
     {
         private CombatView _view = null!;
         private GameConfig _cfg = null!;
 
-        private GameObject? _panel;          // the open inventory canvas (null when closed)
-        private string? _selectedItemId;
+        private GameObject? _panel;        // the open inventory canvas (null when closed)
+        private RectTransform? _detail;    // fixed detail pane, updated on hover/click
 
         /// <summary>True while the inventory panel is open (the HUD reads this).</summary>
         public bool IsOpen => _panel != null;
@@ -40,9 +40,8 @@ namespace IdleGame.Game
         {
             if (_panel != null) Destroy(_panel);
             _panel = null;
+            _detail = null;
         }
-
-        private void Rebuild() { Close(); Open(); }
 
         private void Open()
         {
@@ -61,79 +60,60 @@ namespace IdleGame.Game
             if (loose > cap) title.color = new Color(1f, 0.6f, 0.4f); // overfilled (idle/boss spillover)
             UiKit.TextButton(panel.transform, "Close", new Vector2(200, 64), new Vector2(330, 270), Close);
 
-            // left: item list (the shared bag)
-            var content = UiKit.ScrollColumn(panel.transform, new Vector2(440, 500), new Vector2(-230, -20));
-            if (save.Inventory.Count == 0)
-                UiKit.Label(content, "No items yet — go win some loot!", 18, TextAnchor.MiddleCenter,
-                            new Vector2(0, 0), Vector2.zero).gameObject.AddComponent<LayoutElement>().preferredHeight = 56;
+            // left: grid of item tiles (the shared bag)
+            var grid = UiKit.ScrollGrid(panel.transform, new Vector2(520, 520), new Vector2(-170, -20), new Vector2(76, 76));
             foreach (var item in save.Inventory)
             {
                 var it = item; // capture
-                ItemRow(content, save, it, () => { _selectedItemId = it.Id; Rebuild(); });
+                var tile = UiKit.ItemTile(grid, new Vector2(76, 76), Vector2.zero, it.Rarity, UiKit.SlotAbbrev(SlotOf(it)), raycast: true);
+                var btn = tile.AddComponent<Button>();
+                btn.onClick.AddListener(() => ShowDetail(save, it));
+                UiKit.Hover(tile, () => ShowDetail(save, it));
             }
 
             // right: item details
-            BuildDetails(panel.transform, save, new Vector2(240, -20));
+            var box = UiKit.Panel(panel.transform, new Vector2(300, 520), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(310, -20));
+            _detail = box.rectTransform;
+            ShowDetail(save, null); // initial prompt
         }
 
-        private void BuildDetails(Transform parent, SaveState save, Vector2 pos)
+        private void ShowDetail(SaveState save, Item? item)
         {
-            var box = UiKit.Panel(parent, new Vector2(400, 500), new Color(0.07f, 0.07f, 0.10f, 1f), pos);
+            if (_detail == null) return;
+            for (int i = _detail.childCount - 1; i >= 0; i--) Destroy(_detail.GetChild(i).gameObject);
 
-            var selected = _selectedItemId != null ? save.Inventory.Find(i => i.Id == _selectedItemId) : null;
-            if (selected == null)
+            if (item == null)
             {
-                UiKit.Label(box.transform, "Select an item", 16, TextAnchor.MiddleCenter, new Vector2(340, 30), Vector2.zero);
+                UiKit.Label(_detail, "Hover or click an item.", 15, TextAnchor.MiddleCenter, new Vector2(260, 60), Vector2.zero);
                 return;
             }
 
-            float y = 200f;
-            UiKit.Label(box.transform, $"{selected.Rarity} {selected.BaseId}", 18, TextAnchor.MiddleLeft,
-                        new Vector2(330, 26), new Vector2(0, y)).color = Palette.Rarity(selected.Rarity);
+            float y = 210f;
+            UiKit.Label(_detail, $"{item.Rarity} {item.BaseId}", 18, TextAnchor.MiddleLeft,
+                        new Vector2(270, 26), new Vector2(0, y)).color = Palette.Rarity(item.Rarity);
             y -= 28f;
-            UiKit.Label(box.transform, $"Item level {selected.ItemLevel}", 13, TextAnchor.MiddleLeft,
-                        new Vector2(330, 22), new Vector2(0, y));
+            UiKit.Label(_detail, $"{SlotOf(item)} · item level {item.ItemLevel}", 13, TextAnchor.MiddleLeft,
+                        new Vector2(270, 22), new Vector2(0, y));
             y -= 26f;
-            foreach (var a in selected.Affixes)
+            foreach (var a in item.Affixes)
             {
-                UiKit.Label(box.transform, $"+{StatVal(a.Stat, a.Value)} {a.Stat}", 13, TextAnchor.MiddleLeft,
-                            new Vector2(330, 20), new Vector2(0, y));
+                UiKit.Label(_detail, $"+{StatVal(a.Stat, a.Value)} {a.Stat}", 13, TextAnchor.MiddleLeft,
+                            new Vector2(270, 20), new Vector2(0, y));
                 y -= 22f;
             }
 
-            var owner = EquippedByWhom(save, selected.Id);
+            var owner = EquippedByWhom(save, item.Id);
             if (owner != null)
             {
                 y -= 8f;
-                UiKit.Label(box.transform, $"Equipped by {HeroName(save, owner)}", 14, TextAnchor.MiddleLeft,
-                            new Vector2(330, 22), new Vector2(0, y)).color = new Color(0.6f, 0.8f, 1f);
+                UiKit.Label(_detail, $"Equipped by {HeroName(save, owner)}", 14, TextAnchor.MiddleLeft,
+                            new Vector2(270, 22), new Vector2(0, y)).color = new Color(0.6f, 0.8f, 1f);
             }
         }
 
-        // ---- rows + helpers ----
+        // ---- helpers ----
 
-        private void ItemRow(Transform parent, SaveState save, Item it, Action onClick)
-        {
-            var go = new GameObject("Row", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-
-            var img = go.AddComponent<Image>();
-            img.color = it.Id == _selectedItemId ? new Color(0.22f, 0.26f, 0.34f) : new Color(0.15f, 0.16f, 0.20f);
-
-            var btn = go.AddComponent<Button>();
-            btn.targetGraphic = img;
-            btn.onClick.AddListener(() => onClick());
-
-            go.AddComponent<LayoutElement>().preferredHeight = 56;
-
-            bool equipped = EquippedByWhom(save, it.Id) != null;
-            var label = UiKit.Label(go.transform, $"{it.Rarity} {it.BaseId} (i{it.ItemLevel}){(equipped ? "  [E]" : "")}",
-                                    20, TextAnchor.MiddleLeft, Vector2.zero, Vector2.zero);
-            var lrt = (RectTransform)label.transform;
-            lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
-            lrt.offsetMin = new Vector2(16, 0); lrt.offsetMax = new Vector2(-16, 0);
-            label.color = Palette.Rarity(it.Rarity);
-        }
+        private EquipSlot SlotOf(Item item) => _cfg.ItemBases[item.BaseId].Slot;
 
         private static string StatVal(StatKey k, double v)
         {

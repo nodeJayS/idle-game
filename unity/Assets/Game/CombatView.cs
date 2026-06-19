@@ -472,6 +472,7 @@ namespace IdleGame.Game
 
         private void DrawHealthBars(float s)
         {
+            if (AnyPanelOpen) return; // these IMGUI bars draw over uGUI panels — hide them while one's open
             var cam = Camera.main;
             if (cam == null) return;
             foreach (var e in _combat.Entities)
@@ -543,7 +544,8 @@ namespace IdleGame.Game
         {
             if (AnyPanelOpen) return;
 
-            const float w = 230f, rowH = 60f, gap = 8f, pad = 16f;
+            const float w = 280f, rowH = 78f, gap = 10f, pad = 18f;
+            const float ipad = 14f;       // inner horizontal padding
             float sw = Screen.width / s, sh = Screen.height / s;
 
             var ids = _save.Party;
@@ -551,16 +553,17 @@ namespace IdleGame.Game
             float totalH = n * rowH + (n - 1) * gap;
             float x = sw - w - pad;
             float y0 = sh - totalH - pad;
+            float bx = x + ipad, bw = w - ipad * 2f;
 
             for (int i = 0; i < n; i++)
             {
                 float y = y0 + i * (rowH + gap);
                 string? heroId = ids[i];
 
-                DrawRect(x, y, w, rowH, new Color(0.08f, 0.09f, 0.12f, 0.9f));
+                DrawRect(x, y, w, rowH, new Color(0.08f, 0.09f, 0.12f, 0.92f));
                 if (heroId == null)
                 {
-                    GUI.Label(new Rect(x + 10, y + rowH / 2f - 10, w - 20, 20), "— empty —", PartyEmptyStyle);
+                    GUI.Label(new Rect(x, y, w, rowH), "— empty —", PartyEmptyStyle);
                     continue;
                 }
 
@@ -568,18 +571,18 @@ namespace IdleGame.Game
                 double hp = e?.Hp ?? 0, maxHp = e?.MaxHp ?? 1;
                 double mana = e?.Mana ?? 0, maxMana = e?.MaxMana ?? 0;
 
-                GUI.Label(new Rect(x + 10, y + 5, w - 20, 18), HeroDisplayName(heroId), PartyNameStyle);
+                GUI.Label(new Rect(bx, y + 8, bw, 22), HeroDisplayName(heroId), PartyNameStyle);
 
-                // HP bar
-                float bx = x + 10, bw = w - 20;
-                DrawBar(bx, y + 26, bw, 9, maxHp > 0 ? Mathf.Clamp01((float)(hp / maxHp)) : 0f,
-                        new Color(0.2f, 0.05f, 0.05f, 0.9f), new Color(0.35f, 0.75f, 1f));
+                // HP bar (with value text)
+                DrawBar(bx, y + 36, bw, 14, maxHp > 0 ? Mathf.Clamp01((float)(hp / maxHp)) : 0f,
+                        new Color(0.22f, 0.05f, 0.05f, 0.95f), new Color(0.35f, 0.75f, 1f));
+                GUI.Label(new Rect(bx, y + 35, bw, 16), $"{Mathf.CeilToInt((float)hp)}/{Mathf.CeilToInt((float)maxHp)}", PartyBarTextStyle);
                 // Mana bar
-                DrawBar(bx, y + 40, bw, 7, maxMana > 0 ? Mathf.Clamp01((float)(mana / maxMana)) : 0f,
-                        new Color(0.05f, 0.06f, 0.12f, 0.9f), new Color(0.45f, 0.55f, 1f));
+                DrawBar(bx, y + 54, bw, 11, maxMana > 0 ? Mathf.Clamp01((float)(mana / maxMana)) : 0f,
+                        new Color(0.05f, 0.06f, 0.14f, 0.95f), new Color(0.45f, 0.55f, 1f));
 
                 if (e != null && e.Downed)
-                    GUI.Label(new Rect(x + 10, y + 5, w - 20, 18),
+                    GUI.Label(new Rect(bx, y + 8, bw, 22),
                               $"↻ {Mathf.CeilToInt((float)e.RespawnMs / 1000f)}s", PartyDownedStyle);
 
                 // whole chip is a click target -> opens this hero's equipment
@@ -605,16 +608,28 @@ namespace IdleGame.Game
             return heroId;
         }
 
-        private GUIStyle? _partyNameStyle, _partyEmptyStyle, _partyDownedStyle;
-        private GUIStyle PartyNameStyle => _partyNameStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 14, fontStyle = FontStyle.Bold };
-        private GUIStyle PartyEmptyStyle => _partyEmptyStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 13, alignment = TextAnchor.MiddleCenter };
+        private GUIStyle? _partyNameStyle, _partyEmptyStyle, _partyDownedStyle, _partyBarTextStyle;
+        private GUIStyle PartyNameStyle => _partyNameStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 17, fontStyle = FontStyle.Bold };
+        private GUIStyle PartyEmptyStyle => _partyEmptyStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 14, alignment = TextAnchor.MiddleCenter };
+        private GUIStyle PartyBarTextStyle
+        {
+            get
+            {
+                if (_partyBarTextStyle == null)
+                {
+                    _partyBarTextStyle = new GUIStyle(GUI.skin.label) { fontSize = 11, alignment = TextAnchor.MiddleCenter };
+                    _partyBarTextStyle.normal.textColor = new Color(1f, 1f, 1f, 0.9f);
+                }
+                return _partyBarTextStyle;
+            }
+        }
         private GUIStyle PartyDownedStyle
         {
             get
             {
                 if (_partyDownedStyle == null)
                 {
-                    _partyDownedStyle = new GUIStyle(GUI.skin.label) { fontSize = 13, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleRight };
+                    _partyDownedStyle = new GUIStyle(GUI.skin.label) { fontSize = 14, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleRight };
                     _partyDownedStyle.normal.textColor = new Color(1f, 0.85f, 0.4f);
                 }
                 return _partyDownedStyle;

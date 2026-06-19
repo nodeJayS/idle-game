@@ -3,6 +3,7 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using IdleGame.GameCore;
 
 namespace IdleGame.Game
 {
@@ -137,6 +138,97 @@ namespace IdleGame.Game
             return crt;
         }
 
+        /// <summary>A vertical scroll whose content is a wrapping grid of fixed cells. Add
+        /// children (e.g. <see cref="ItemTile"/>); the grid positions them. Returns content.</summary>
+        public static RectTransform ScrollGrid(Transform parent, Vector2 size, Vector2 pos, Vector2 cell, float spacing = 8f)
+        {
+            var go = new GameObject("ScrollGrid", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = size;
+            rt.anchoredPosition = pos;
+
+            var bg = go.AddComponent<Image>();
+            bg.color = new Color(0f, 0f, 0f, 0.25f);
+            go.AddComponent<RectMask2D>();
+
+            var scroll = go.AddComponent<ScrollRect>();
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.scrollSensitivity = 24f;
+            scroll.viewport = rt;
+
+            var content = new GameObject("Content", typeof(RectTransform));
+            content.transform.SetParent(go.transform, false);
+            var crt = (RectTransform)content.transform;
+            crt.anchorMin = new Vector2(0f, 1f);
+            crt.anchorMax = new Vector2(1f, 1f);
+            crt.pivot = new Vector2(0.5f, 1f);
+            crt.anchoredPosition = Vector2.zero;
+
+            const int pad = 8;
+            var grid = content.AddComponent<GridLayoutGroup>();
+            grid.cellSize = cell;
+            grid.spacing = new Vector2(spacing, spacing);
+            grid.padding = new RectOffset(pad, pad, pad, pad);
+            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            grid.constraintCount = Mathf.Max(1, Mathf.FloorToInt((size.x - pad * 2 + spacing) / (cell.x + spacing)));
+
+            var fitter = content.AddComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            scroll.content = crt;
+            return crt;
+        }
+
+        /// <summary>A square item tile: rarity-colored border (none-ish for Normal) around a
+        /// dark cell with a centered label (placeholder until real item icons exist). The
+        /// returned object carries the border Image as its raycast target when
+        /// <paramref name="raycast"/> is true (add a Button/Hover to it).</summary>
+        public static GameObject ItemTile(Transform parent, Vector2 size, Vector2 pos, Rarity? rarity, string text, bool raycast)
+        {
+            var go = new GameObject("Tile", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = size; rt.anchoredPosition = pos;
+
+            var border = go.AddComponent<Image>();
+            bool hasBorder = rarity != null && !Palette.Borderless(rarity.Value);
+            border.color = rarity == null ? new Color(0.24f, 0.26f, 0.31f)
+                         : hasBorder ? Palette.Rarity(rarity.Value)
+                                     : new Color(0.30f, 0.32f, 0.37f);
+            border.raycastTarget = raycast;
+
+            var inner = new GameObject("bg", typeof(RectTransform));
+            inner.transform.SetParent(go.transform, false);
+            var irt = (RectTransform)inner.transform;
+            irt.anchorMin = Vector2.zero; irt.anchorMax = Vector2.one;
+            float b = hasBorder ? 4f : 2f;
+            irt.offsetMin = new Vector2(b, b); irt.offsetMax = new Vector2(-b, -b);
+            var ibg = inner.AddComponent<Image>();
+            ibg.color = new Color(0.12f, 0.13f, 0.16f);
+            ibg.raycastTarget = false;
+
+            int fs = size.x >= 64 ? 13 : 11;
+            var lbl = Label(inner.transform, text, fs, TextAnchor.MiddleCenter, Vector2.zero, Vector2.zero);
+            var lrt = (RectTransform)lbl.transform;
+            lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
+            lrt.offsetMin = new Vector2(2, 2); lrt.offsetMax = new Vector2(-2, -2);
+            lbl.color = rarity != null ? Palette.Rarity(rarity.Value) : new Color(0.55f, 0.58f, 0.63f);
+            lbl.raycastTarget = false;
+            return go;
+        }
+
+        /// <summary>Short tile label for an equip slot (placeholder until real item icons).</summary>
+        public static string SlotAbbrev(EquipSlot s) => s switch
+        {
+            EquipSlot.Weapon => "Wpn", EquipSlot.Offhand => "Off", EquipSlot.Helm => "Helm",
+            EquipSlot.Chest => "Body", EquipSlot.Gloves => "Glov", EquipSlot.Boots => "Boot",
+            EquipSlot.Cape => "Cape", EquipSlot.Ring => "Ring", EquipSlot.Amulet => "Amul", _ => "?",
+        };
+
         private static Sprite? _circle;
 
         /// <summary>A soft-edged white circle sprite (tint via Image.color). Cached.</summary>
@@ -189,6 +281,15 @@ namespace IdleGame.Game
             field.text = value;
             field.onEndEdit.AddListener(s => onEndEdit(s));
             return field;
+        }
+
+        /// <summary>Fire callbacks when the pointer enters/leaves <paramref name="go"/> (e.g. to
+        /// drive a hover compare/tooltip). Requires a raycast-target Graphic on the object.</summary>
+        public static void Hover(GameObject go, Action onEnter, Action? onExit = null)
+        {
+            var h = go.AddComponent<HoverProxy>();
+            h.OnEnter = onEnter;
+            h.OnExit = onExit;
         }
 
         /// <summary>Makes <paramref name="handle"/> drag <paramref name="target"/> around its
@@ -253,6 +354,15 @@ namespace IdleGame.Game
             Label(go.transform, label, fontSize, TextAnchor.MiddleCenter, size, Vector2.zero);
             return btn;
         }
+    }
+
+    /// <summary>Pointer enter/exit relay, added via <see cref="UiKit.Hover"/>.</summary>
+    public sealed class HoverProxy : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+    {
+        public Action? OnEnter;
+        public Action? OnExit;
+        public void OnPointerEnter(PointerEventData e) => OnEnter?.Invoke();
+        public void OnPointerExit(PointerEventData e) => OnExit?.Invoke();
     }
 
     /// <summary>Drag handler that moves a target RectTransform by the pointer delta, clamped so
