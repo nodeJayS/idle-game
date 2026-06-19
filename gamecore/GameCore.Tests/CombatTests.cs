@@ -49,6 +49,49 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void ReconcilePartyRemovesBenchedHero()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            var s = Combat.InitFarm(save.Heroes, 1, Cfg, new Rng(1));
+            Assert.Equal(2, s.Entities.Count(e => e.Team == Team.Party));
+
+            Combat.ReconcileParty(s, Party.SetPartySlot(save, 1, null), Cfg); // bench hero 2
+
+            Assert.Equal(1, s.Entities.Count(e => e.Team == Team.Party));
+            Assert.DoesNotContain(s.Entities, e => e.RefKind == "hero" && e.RefId == save.Heroes[1].Id);
+            Assert.Contains(s.Entities, e => e.RefKind == "hero" && e.RefId == save.Heroes[0].Id);
+        }
+
+        [Fact]
+        public void ReconcilePartyAddsFieldedHeroWithoutDuplicating()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            var s = Combat.InitFarm(save.Heroes, 1, Cfg, new Rng(1));
+
+            var benched = Party.SetPartySlot(save, 1, null);
+            Combat.ReconcileParty(s, benched, Cfg);
+            Assert.Equal(1, s.Entities.Count(e => e.Team == Team.Party));
+
+            var refielded = Party.FieldHero(benched, 2, save.Heroes[1].Id); // bring hero 2 back
+            Combat.ReconcileParty(s, refielded, Cfg);
+
+            Assert.Equal(2, s.Entities.Count(e => e.Team == Team.Party));
+            Assert.Single(s.Entities, e => e.RefKind == "hero" && e.RefId == save.Heroes[1].Id);
+        }
+
+        [Fact]
+        public void ReconcilePartyKeepsExistingHeroLiveState()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            var s = Combat.InitFarm(save.Heroes, 1, Cfg, new Rng(1));
+            s.Entities.First(e => e.RefId == save.Heroes[0].Id).Hp = 5; // took damage mid-run
+
+            Combat.ReconcileParty(s, Party.SetPartySlot(save, 1, null), Cfg); // bench the other hero
+
+            Assert.Equal(5, s.Entities.First(e => e.RefId == save.Heroes[0].Id).Hp); // untouched by the swap
+        }
+
+        [Fact]
         public void StrongPartyBeatsWeakEnemy()
         {
             var s = State(

@@ -231,6 +231,25 @@ namespace IdleGame.Game
             _save = save;
             if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg); // equip applies live
         }
+
+        /// <summary>Party swaps are only allowed mid-run while farming — not during a boss
+        /// challenge or after a wipe. The roster reads this to gate its Field/Bench controls.</summary>
+        public bool CanEditParty => _combat != null
+            && _combat.Kind == EncounterKind.Farm && _combat.Status == CombatStatus.Running;
+
+        /// <summary>Apply a roster field/bench to the LIVE farm without restarting: persist the
+        /// new save and hot-swap the party's combat entities in place so the run continues
+        /// uninterrupted. Outside a running farm it only persists (the roster disables swaps
+        /// there anyway). Safe to call from a UI click handler.</summary>
+        public void ApplyPartyEdit(SaveState save)
+        {
+            _save = save;
+            if (CanEditParty)
+            {
+                Combat.ReconcileParty(_combat, _save, _cfg);
+                ReconcileViews();
+            }
+        }
         public void BindInventory(InventoryView inv) => _inventory = inv;
         public void BindEquipment(EquipmentView eq) => _equipment = eq;
         public void BindRoster(RosterView roster) => _roster = roster;

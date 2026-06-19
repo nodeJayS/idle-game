@@ -133,6 +133,58 @@ namespace IdleGame.GameCore
             }
         }
 
+        /// <summary>
+        /// Hot-swap the live party to match the save's fielded heroes WITHOUT restarting
+        /// the run (roster swaps): benched heroes' entities are removed, and newly-fielded
+        /// heroes get a fresh, fully-statted entity on the party line. Combat keeps running
+        /// around the change. Intended for farm mode. Mutates state; deterministic (combat
+        /// acts in Id order, so entity add order never affects the sim).
+        /// </summary>
+        public static void ReconcileParty(CombatState s, SaveState save, GameConfig cfg)
+        {
+            // fielded hero id -> party slot index (slot only drives spawn placement)
+            var slotOf = new Dictionary<string, int>();
+            for (int i = 0; i < save.Party.Length; i++)
+            {
+                var id = save.Party[i];
+                if (id != null) slotOf[id] = i;
+            }
+
+            // drop benched heroes
+            s.Entities.RemoveAll(e => e.Team == Team.Party && e.RefKind == "hero" && !slotOf.ContainsKey(e.RefId));
+
+            // add newly fielded heroes (skip any already on the field)
+            int n = slotOf.Count;
+            double px = -cfg.Balance.MapHalfWidth * 0.6;
+            foreach (var kv in slotOf)
+            {
+                if (s.Entities.Exists(e => e.Team == Team.Party && e.RefKind == "hero" && e.RefId == kv.Key)) continue;
+                var hero = save.Heroes.Find(h => h.Id == kv.Key);
+                if (hero == null) continue;
+
+                var stats = Stats.ComputeHeroStats(hero, cfg, Stats.ResolveEquipped(save, hero));
+                double hp = stats.Get(StatKey.Hp);
+                double mana = stats.Get(StatKey.MaxMana);
+                int idx = kv.Value;
+                s.Entities.Add(new CombatEntity
+                {
+                    Id = "P" + idx + "_" + hero.Id,
+                    Team = Team.Party,
+                    Pos = new Vec2(px, (idx - (n - 1) / 2.0) * 2.0),
+                    Stats = stats,
+                    Hp = hp,
+                    MaxHp = hp,
+                    Mana = mana,
+                    MaxMana = mana,
+                    AttackIntervalMs = AttackInterval(stats),
+                    RefKind = "hero",
+                    RefId = hero.Id,
+                    Skills = new List<string>(hero.SkillLoadout),
+                    RespawnDurationMs = cfg.Balance.RespawnBaseMs + cfg.Balance.RespawnPerLevelMs * hero.Level,
+                });
+            }
+        }
+
         private static double StageScale(StageDef rt) => 1.0 + 0.1 * (rt.MonsterLevel - 1);
 
         private static void AddParty(CombatState s, IReadOnlyList<HeroInstance> party, GameConfig cfg)
