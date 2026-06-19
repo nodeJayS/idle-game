@@ -53,6 +53,48 @@ namespace IdleGame.Game
             };
         }
 
+        // HeroDef/MonsterDef.AttackFx -> cosmetic projectile. ADD-ON POINT: register new
+        // ones (arrow, meteor, arrow_rain via Launch's arc) here. "melee" (no entry) =
+        // instant damage number, no projectile.
+        private readonly Dictionary<string, System.Action<Vector3, Vector3, float, bool>> _projectileFx = new();
+
+        private void BuildProjectileEffects()
+        {
+            _projectileFx["fireball"] = (from, to, amount, crit) =>
+            {
+                var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
+                go.name = "Fireball";
+                go.transform.localScale = Vector3.one * (crit ? 0.8f : 0.6f);
+                Paint(go, new Color(1f, 0.55f, 0.15f));
+                Glow(go, new Color(1f, 0.5f, 0.1f) * 2.5f); // make it read against the ground
+                go.AddComponent<Projectile>().Launch(from, to, 14f, () => PlayImpact(to, amount, crit));
+            };
+        }
+
+        /// <summary>Impact feedback (damage number + crit shake/flash), each per its toggle.</summary>
+        private void PlayImpact(Vector3 at, double amount, bool crit)
+        {
+            if (_juice == null) return;
+            if (Settings.DamageNumbers) _juice.DamageNumber(at, amount, crit);
+            if (crit && Settings.ScreenShake) _juice.Shake(0.15f);
+        }
+
+        /// <summary>Resolve an attacker's basic-attack visual hint (hero or monster def).</summary>
+        private string AttackFxFor(string? sourceId)
+        {
+            if (sourceId == null) return "melee";
+            var e = _combat.Entities.Find(x => x.Id == sourceId);
+            if (e == null) return "melee";
+            if (e.Team == Team.Party)
+            {
+                var hero = _save.Heroes.Find(h => h.Id == e.RefId);
+                if (hero != null && _cfg.Heroes.TryGetValue(hero.DefId, out var hd)) return hd.AttackFx;
+            }
+            else if (_cfg.Monsters.TryGetValue(e.RefId, out var md)) return md.AttackFx;
+            return "melee";
+        }
+
         private static readonly Color DownedColor = new Color(0.30f, 0.30f, 0.34f);
 
         private GameConfig _cfg = null!;
@@ -83,9 +125,12 @@ namespace IdleGame.Game
             _save = save;
             _cfg = cfg;
             BuildSpawnEffects();
+            BuildProjectileEffects();
             if (Camera.main != null)
             {
-                _juice = new GameObject("CombatJuice").AddComponent<CombatJuice>();
+                var jgo = new GameObject("CombatJuice");
+                jgo.transform.SetParent(transform, false);
+                _juice = jgo.AddComponent<CombatJuice>();
                 _juice.Init(Camera.main);
             }
             StartFarm();
@@ -118,7 +163,11 @@ namespace IdleGame.Game
             _accMs = 0;
             _outcomeTimer = 0;
             _resolved = false;
-            Debug.Log($"[CombatView] {_combat.Kind} start: stage {_combat.Stage}.");
+            var heroDefs = new List<string>();
+            foreach (var e in _combat.Entities)
+                if (e.Team == Team.Party)
+                    heroDefs.Add(_save.Heroes.Find(h => h.Id == e.RefId)?.DefId + ":" + AttackFxFor(e.Id));
+            Debug.Log($"[CombatView] {_combat.Kind} start: stage {_combat.Stage}; party = [{string.Join(", ", heroDefs)}].");
         }
 
         private void Update()
@@ -226,9 +275,9 @@ namespace IdleGame.Game
 
             var view = new View { Go = go, Height = height, BaseColor = color, BaseScale = baseScale };
 
-            // Enemies (trash + boss) animate in per their monster's SpawnStyle; heroes
-            // are placed instantly at run start.
-            if (e.Team == Team.Enemy)
+            // Enemies (trash + boss) animate in per their monster's SpawnStyle (if the
+            // toggle is on); heroes are placed instantly at run start.
+            if (e.Team == Team.Enemy && Settings.SpawnAnimations)
             {
                 string style = _cfg.Monsters.TryGetValue(e.RefId, out var md) ? md.SpawnStyle : "pop";
                 view.SpawnFx = _spawnEffects.TryGetValue(style, out var fx) ? fx : _spawnEffects["pop"];
@@ -277,14 +326,27 @@ namespace IdleGame.Game
                 switch (ev.Type)
                 {
                     case CombatEventType.Hit:
-                        if (_juice != null && Settings.CombatEffects && ev.TargetId != null &&
-                            _views.TryGetValue(ev.TargetId, out var hv) && hv.Go != null && hv.Go.activeSelf)
+                    {
+                        if (_juice == null || ev.TargetId == null) break;
+                        if (!_views.TryGetValue(ev.TargetId, out var hv) || hv.Go == null || !hv.Go.activeSelf) break;
+                        var head = hv.Go.transform.position + Vector3.up * (hv.Height + 0.6f);
+
+                        // Ranged attackers launch a projectile (impact pops the number);
+                        // melee/projectiles-off pops it instantly.
+                        string fx = AttackFxFor(ev.SourceId);
+                        bool hasFx = _projectileFx.TryGetValue(fx, out var launch);
+                        if (Settings.Projectiles && hasFx && ev.SourceId != null &&
+                            _views.TryGetValue(ev.SourceId, out var sv) && sv.Go != null)
                         {
-                            var head = hv.Go.transform.position + Vector3.up * (hv.Height + 0.6f);
-                            _juice.DamageNumber(head, ev.Amount, ev.Crit);
-                            if (ev.Crit) { _juice.Shake(0.15f); _juice.Flash(0.5f, new Color(1f, 0.85f, 0.4f)); }
+                            var muzzle = sv.Go.transform.position + Vector3.up * (sv.Height + 0.4f);
+                            launch!(muzzle, head, (float)ev.Amount, ev.Crit);
+                        }
+                        else
+                        {
+                            PlayImpact(head, ev.Amount, ev.Crit);
                         }
                         break;
+                    }
                     case CombatEventType.Death:
                         if (ev.EntityId != null && _views.TryGetValue(ev.EntityId, out var v) && v.Go != null)
                         {
@@ -301,10 +363,10 @@ namespace IdleGame.Game
                         }
                         break;
                     case CombatEventType.BossDefeated:
-                        if (_juice != null && Settings.CombatEffects) { _juice.Shake(0.4f); _juice.Flash(0.7f, new Color(1f, 0.6f, 0.3f)); }
+                        if (_juice != null && Settings.ScreenShake) _juice.Shake(0.4f);
                         break;
                     case CombatEventType.LootDrop:
-                        if (ev.Item != null)
+                        if (ev.Item != null && Settings.LootToasts)
                             _juice?.Toast($"{ev.Item.Rarity} {ev.Item.BaseId}", Palette.Rarity(ev.Item.Rarity));
                         break;
                 }
@@ -401,11 +463,13 @@ namespace IdleGame.Game
         private void DrawHud(float s)
         {
             float sw = Screen.width / s, sh = Screen.height / s;
-            var style = new GUIStyle(GUI.skin.label) { fontSize = 18, fontStyle = FontStyle.Bold };
+            // Centered at the top so it clears the account chip / Settings button (top-left).
+            var style = new GUIStyle(GUI.skin.label)
+            { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.UpperCenter };
             bool major = _cfg.Stages.Find(st => st.Stage == _combat.Stage)?.IsMajorBoss == true;
             long gold = _save.Currencies.TryGetValue("gold", out var g) ? g : 0;
             string mode = _combat.Kind == EncounterKind.Farm ? "Farming" : (major ? "★ MAJOR BOSS" : "Miniboss");
-            GUI.Label(new Rect(12, 8, 900, 28),
+            GUI.Label(new Rect(0, 8, sw, 28),
                       $"Stage {_combat.Stage} · {mode}  ·  highest {_save.Progress.HighestStage}  ·  {Num.Compact(gold)} gold", style);
 
             if (_combat.Kind == EncounterKind.BossChallenge)
@@ -489,6 +553,16 @@ namespace IdleGame.Game
             var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
             var mat = new Material(shader) { color = color };
             renderer.sharedMaterial = mat;
+        }
+
+        /// <summary>Make a painted object emit light (projectiles read against the ground).</summary>
+        private static void Glow(GameObject go, Color emission)
+        {
+            var renderer = go.GetComponent<Renderer>();
+            if (renderer == null) return;
+            var mat = renderer.sharedMaterial;
+            mat.EnableKeyword("_EMISSION");
+            mat.SetColor("_EmissionColor", emission);
         }
     }
 }

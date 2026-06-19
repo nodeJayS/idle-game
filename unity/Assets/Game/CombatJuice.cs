@@ -7,21 +7,18 @@ using IdleGame.GameCore;
 namespace IdleGame.Game
 {
     /// <summary>
-    /// Renderer-only combat feedback: floating damage numbers, loot toasts, crit flash,
-    /// and camera shake. Driven entirely by <see cref="CombatEvent"/>s that CombatView
-    /// already receives — no sim changes, determinism untouched. Owns its own constant-
-    /// pixel overlay canvas (1:1 screen mapping) sorted below the menus/modals.
+    /// Renderer-only combat feedback: floating damage numbers, loot toasts, and camera
+    /// shake. Driven entirely by <see cref="CombatEvent"/>s that CombatView already
+    /// receives — no sim changes, determinism untouched. Owns its own constant-pixel
+    /// overlay canvas (1:1 screen mapping) sorted below the menus/modals.
     /// </summary>
     public sealed class CombatJuice : MonoBehaviour
     {
         private Camera _cam = null!;
         private Canvas _canvas = null!;
-        private Image _flash = null!;
         private Vector3 _camBase;
 
         private float _shake;
-        private float _flashAlpha;
-        private Color _flashColor = Color.white;
 
         private readonly List<(Text text, float born, float life)> _toasts = new();
 
@@ -36,12 +33,6 @@ namespace IdleGame.Game
             _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             _canvas.sortingOrder = 50; // above combat, below claim(90)/menu(100)
             go.AddComponent<CanvasScaler>(); // default constant-pixel: screen px == anchored px
-
-            _flash = NewImage("CritFlash");
-            var frt = (RectTransform)_flash.transform;
-            frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one;
-            frt.offsetMin = frt.offsetMax = Vector2.zero;
-            _flash.color = new Color(1, 1, 1, 0);
         }
 
         // ---- public feedback API (called from CombatView.HandleEvents) ----
@@ -68,23 +59,10 @@ namespace IdleGame.Game
 
         public void Shake(float magnitude) => _shake = Mathf.Max(_shake, magnitude);
 
-        public void Flash(float alpha, Color color)
-        {
-            _flashColor = color;
-            _flashAlpha = Mathf.Max(_flashAlpha, alpha);
-        }
-
         // ---- per-frame upkeep ----
 
         private void Update()
         {
-            // crit flash decay
-            if (_flashAlpha > 0f)
-            {
-                _flashAlpha = Mathf.Max(0f, _flashAlpha - Time.deltaTime * 4f);
-                _flash.color = new Color(_flashColor.r, _flashColor.g, _flashColor.b, _flashAlpha * 0.5f);
-            }
-
             // toast stack: newest at top-right, slide down + fade, cull expired
             float y = -24f;
             for (int i = _toasts.Count - 1; i >= 0; i--)
@@ -134,15 +112,6 @@ namespace IdleGame.Game
             rt.anchorMin = rt.anchorMax = Vector2.zero; // bottom-left: screen px == anchoredPosition
             rt.sizeDelta = new Vector2(200, 40);
             return t;
-        }
-
-        private Image NewImage(string name)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(_canvas.transform, false);
-            var img = go.AddComponent<Image>();
-            img.raycastTarget = false;
-            return img;
         }
     }
 }

@@ -137,6 +137,60 @@ namespace IdleGame.Game
             return crt;
         }
 
+        private static Sprite? _circle;
+
+        /// <summary>A soft-edged white circle sprite (tint via Image.color). Cached.</summary>
+        public static Sprite CircleSprite()
+        {
+            if (_circle != null) return _circle;
+            const int d = 64;
+            var tex = new Texture2D(d, d, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+            var center = new Vector2(d / 2f, d / 2f);
+            float r = d / 2f - 1f;
+            var px = new Color[d * d];
+            for (int y = 0; y < d; y++)
+                for (int x = 0; x < d; x++)
+                {
+                    float dist = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), center);
+                    px[y * d + x] = new Color(1f, 1f, 1f, Mathf.Clamp01(r - dist + 0.5f));
+                }
+            tex.SetPixels(px);
+            tex.Apply();
+            _circle = Sprite.Create(tex, new Rect(0, 0, d, d), new Vector2(0.5f, 0.5f));
+            return _circle;
+        }
+
+        public static Image Circle(Transform parent, float diameter, Color color, Vector2 pos)
+        {
+            var img = Panel(parent, new Vector2(diameter, diameter), color, pos);
+            img.sprite = CircleSprite();
+            img.type = Image.Type.Simple;
+            return img;
+        }
+
+        public static InputField TextInput(Transform parent, string value, Vector2 size, Vector2 pos, Action<string> onEndEdit)
+        {
+            var go = new GameObject("Input", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var img = go.AddComponent<Image>();
+            img.color = new Color(0.16f, 0.17f, 0.22f);
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = size;
+            rt.anchoredPosition = pos;
+
+            var field = go.AddComponent<InputField>();
+            var text = Label(go.transform, value, 22, TextAnchor.MiddleLeft, size, Vector2.zero);
+            var trt = (RectTransform)text.transform;
+            trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one;
+            trt.offsetMin = new Vector2(12, 0); trt.offsetMax = new Vector2(-12, 0);
+
+            field.textComponent = text;
+            field.text = value;
+            field.onEndEdit.AddListener(s => onEndEdit(s));
+            return field;
+        }
+
         public static Button TextButton(Transform parent, string label, Vector2 size, Vector2 pos, Action onClick)
         {
             var go = new GameObject("Button", typeof(RectTransform));

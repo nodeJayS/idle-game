@@ -22,35 +22,20 @@ namespace IdleGame.Game
             var canvas = UiKit.CreateCanvas("MainMenuCanvas", transform, sortOrder: 100);
             UiKit.FullScreen(canvas.transform, new Color(0.05f, 0.04f, 0.07f, 1f));
 
-            var panel = UiKit.Panel(canvas.transform, new Vector2(520, 620), new Color(0.10f, 0.10f, 0.14f, 1f));
-            UiKit.Label(panel.transform, "IDLE ARPG", 40, TextAnchor.MiddleCenter, new Vector2(480, 64), new Vector2(0, 240));
+            var panel = UiKit.Panel(canvas.transform, new Vector2(520, 540), new Color(0.10f, 0.10f, 0.14f, 1f));
+            UiKit.Label(panel.transform, "IDLE ARPG", 40, TextAnchor.MiddleCenter, new Vector2(480, 64), new Vector2(0, 200));
 
             var btn = new Vector2(420, 76);
-            var cont = UiKit.TextButton(panel.transform, "Continue", btn, new Vector2(0, 130),
+            var cont = UiKit.TextButton(panel.transform, "Continue", btn, new Vector2(0, 110),
                 () => { CloseAnd(OnContinue); });
             cont.interactable = HasSave;
 
-            UiKit.TextButton(panel.transform, "New Game", btn, new Vector2(0, 42), NewGameClicked);
+            UiKit.TextButton(panel.transform, "New Game", btn, new Vector2(0, 22), NewGameClicked);
 
-            UiKit.TextButton(panel.transform, "Exit Game", btn, new Vector2(0, -46), Quit);
-
-            BuildEffectsToggle(panel.transform, new Vector2(0, -134));
+            UiKit.TextButton(panel.transform, "Exit Game", btn, new Vector2(0, -66), Quit);
 
             UiKit.Label(panel.transform, HasSave ? "" : "No save yet — start a new game",
-                        16, TextAnchor.MiddleCenter, new Vector2(480, 26), new Vector2(0, -250));
-        }
-
-        private void BuildEffectsToggle(Transform parent, Vector2 pos)
-        {
-            string Label() => $"Combat Effects: {(Settings.CombatEffects ? "On" : "Off")}";
-
-            UnityEngine.UI.Text? label = null;
-            var btn = UiKit.TextButton(parent, Label(), new Vector2(420, 64), pos, () =>
-            {
-                Settings.CombatEffects = !Settings.CombatEffects;
-                if (label != null) label.text = Label();
-            });
-            label = btn.GetComponentInChildren<UnityEngine.UI.Text>();
+                        16, TextAnchor.MiddleCenter, new Vector2(480, 26), new Vector2(0, -200));
         }
 
         private void NewGameClicked()

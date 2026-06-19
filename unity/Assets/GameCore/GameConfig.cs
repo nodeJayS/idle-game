@@ -20,7 +20,8 @@ namespace IdleGame.GameCore
         public StatBlock BaseStats = new StatBlock();
         public StatBlock GrowthPerLevel = new StatBlock();
         public List<string> Skills = new List<string>();
-        public string Sprite = ""; // renderer hint only
+        public string Sprite = "";        // renderer hint only
+        public string AttackFx = "melee"; // renderer hint: basic-attack visual (e.g. "fireball")
     }
 
     public sealed class ItemBaseDef
@@ -51,6 +52,7 @@ namespace IdleGame.GameCore
         public int GoldReward;
         public string Sprite = "";
         public string SpawnStyle = "pop"; // renderer hint: how this monster animates in
+        public string AttackFx = "melee"; // renderer hint: basic-attack visual
     }
 
     public sealed class StageDef
@@ -195,7 +197,7 @@ namespace IdleGame.GameCore
                                (StatKey.AttackRange, 6.0),             // max reach; still fine point-blank
                                (StatKey.SplashRadius, 1.5)),
                 GrowthPerLevel = SB((StatKey.Hp, 11), (StatKey.Atk, 4), (StatKey.Def, 1)),
-                Skills = new List<string> { "firebolt" }, Sprite = "magician",
+                Skills = new List<string> { "firebolt" }, Sprite = "magician", AttackFx = "fireball",
             };
 
             cfg.ItemBases["rusty_sword"] = new ItemBaseDef

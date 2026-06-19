@@ -20,54 +20,71 @@ namespace IdleGame.Game
         {
             var cfg = GameConfig.Default();
             BuildEnvironment(cfg);
+            ShowMenu(cfg);
+        }
 
-            // --- session starters (the menu invokes one of these) ---
-            void StartSession(SaveState save, IdleReport idleReport)
-            {
-                var director = new GameObject("CombatDirector");
-                var view = director.AddComponent<CombatView>();
-                view.Init(save, cfg);
-
-                // autosave the live save (heartbeat + on pause/quit)
-                director.AddComponent<Autosave>().Bind(view);
-
-                // manual inventory + item-compare screen (opened from the combat HUD)
-                var inventory = director.AddComponent<InventoryView>();
-                inventory.Bind(view, cfg);
-                view.BindInventory(inventory);
-
-                // "while you were away" modal, if the claim yielded anything
-                if (!idleReport.IsEmpty)
-                {
-                    new GameObject("IdleClaimModal").AddComponent<IdleClaimModal>().Show(idleReport);
-                    Debug.Log($"[Bootstrap] Idle claim: {idleReport.Gold} gold, {idleReport.Xp} XP, " +
-                              $"{idleReport.Items.Count} item(s) over {idleReport.ElapsedMs / 3600_000.0:F1}h.");
-                }
-
-                Debug.Log($"[Bootstrap] Session started at stage {save.Progress.CurrentStage}.");
-            }
-
-            void NewGame()
-            {
-                var save = Save.NewGame(Seed, cfg, NowMs());
-                SaveStore.Save(save); // write immediately so Continue works next launch
-                StartSession(save, new IdleReport());
-            }
-
-            void Continue()
-            {
-                var loaded = SaveStore.Load();
-                if (loaded == null) { NewGame(); return; } // corrupt/missing -> fall back
-                var (save, report) = Idle.Claim(loaded, cfg, NowMs()); // real offline gap
-                StartSession(save, report);
-            }
-
-            // --- main menu ---
+        private static void ShowMenu(GameConfig cfg)
+        {
             var menu = new GameObject("MainMenu").AddComponent<MainMenu>();
             menu.HasSave = SaveStore.Exists();
-            menu.OnContinue = Continue;
-            menu.OnNewGame = NewGame;
+            menu.OnContinue = () => Continue(cfg);
+            menu.OnNewGame = () => NewGame(cfg);
             menu.Open();
+        }
+
+        private static void NewGame(GameConfig cfg)
+        {
+            var save = Save.NewGame(Seed, cfg, NowMs());
+            SaveStore.Save(save); // write immediately so Continue works next launch
+            StartSession(cfg, save, new IdleReport());
+        }
+
+        private static void Continue(GameConfig cfg)
+        {
+            var loaded = SaveStore.Load();
+            if (loaded == null) { NewGame(cfg); return; } // corrupt/missing -> fall back
+            var (save, report) = Idle.Claim(loaded, cfg, NowMs()); // real offline gap
+            StartSession(cfg, save, report);
+        }
+
+        // Everything for a play session lives under one "Session" root so Quit-to-Menu
+        // can tear it down cleanly (the EventSystem is separate and persists).
+        private static void StartSession(GameConfig cfg, SaveState save, IdleReport idleReport)
+        {
+            var session = new GameObject("Session");
+
+            var director = new GameObject("CombatDirector");
+            director.transform.SetParent(session.transform);
+            var view = director.AddComponent<CombatView>();
+            view.Init(save, cfg);
+            director.AddComponent<Autosave>().Bind(view);
+
+            var inventory = director.AddComponent<InventoryView>();
+            inventory.Bind(view, cfg);
+            view.BindInventory(inventory);
+
+            var topbar = new GameObject("TopBar").AddComponent<TopBar>();
+            topbar.transform.SetParent(session.transform);
+            topbar.Bind(view, () => QuitToMenu(cfg, session, view));
+            topbar.Open();
+
+            if (!idleReport.IsEmpty)
+            {
+                var modal = new GameObject("IdleClaimModal");
+                modal.transform.SetParent(session.transform);
+                modal.AddComponent<IdleClaimModal>().Show(idleReport);
+                Debug.Log($"[Bootstrap] Idle claim: {idleReport.Gold} gold, {idleReport.Xp} XP, " +
+                          $"{idleReport.Items.Count} item(s) over {idleReport.ElapsedMs / 3600_000.0:F1}h.");
+            }
+
+            Debug.Log($"[Bootstrap] Session started at stage {save.Progress.CurrentStage}.");
+        }
+
+        private static void QuitToMenu(GameConfig cfg, GameObject session, CombatView view)
+        {
+            SaveStore.Save(Save.Touch(view.CurrentSave, NowMs())); // flush progress before leaving
+            Object.Destroy(session);
+            ShowMenu(cfg);
         }
 
         private static void BuildEnvironment(GameConfig cfg)
