@@ -264,11 +264,14 @@ single-player, local game), **Depth** (build variety + retention), **Live-servic
 | Milestone | Deliverable | State |
 |-----------|-------------|-------|
 | **M10 – Multi-character foundation** | Mana; 9 per-hero equip slots from one shared bag; inventory cap + auto-salvage (`scrap`); scarce loot with Unique/Legendary **boss-only** (guaranteed bundles); Party HUD + per-hero Equipment HUD; rarity-bordered item tiles; canonical stat display. | ✅ |
-| **M11 – Class skills** | Skills fire in the sim (damage/AoE, heal, self-buff; mana + cooldowns; heroes + bosses); `MoveSpd`/`AtkSpd` split. *Remaining: skill FX + animation speed in Unity; salvage UI.* | ◑ |
-| **Roster & classes** | Field/manage 4 of N heroes; gear benched heroes; acquire heroes 2–4 via progression (gacha later). | |
+| **M11 – Class skills** | Skills fire in the sim (damage/AoE, heal, self-buff; mana + cooldowns; heroes + bosses); `MoveSpd`/`AtkSpd` split. Client: skill FX + `AtkSpd`-scaled lunge tell + skill-ready cue. | ✅ |
+| **Salvage UI** | Manual salvage (Unique/Legendary confirm) + auto-salvage threshold toggle. | ✅ |
+| **Roster screen** | Field/bench the party + gear any owned hero (incl. benched); swaps apply live during farming (`Combat.ReconcileParty`), disabled in boss/other modes. | ✅ |
+| **Roster growth & classes** | Acquire heroes 2–4 via progression; more classes/kits (gacha later). | |
 | **Crafting / sets / loot filter** | Affix rerolls, set bonuses, enhancement scrolls (§6.1), loot filter. | |
 | **Alt modes** | Endless ("deepest stage"); later party / co-op. | |
 | **Prestige & retention** | Rebirth multiplier; daily/weekly quests, login rewards, achievements, codex. | |
+| **UI/UX polish pass** | Dedicated pass **after the gameplay depth above** — the current screens are functional placeholders (IMGUI HUD + code-built uGUI). Layout/scale/theming, glyph/font audit, control-bar redesign, real item/hero art hooks. | deferred |
 
 ### Phase C — Live-service (server + global)
 | Milestone | Deliverable |
@@ -336,8 +339,15 @@ Unity IAP, Remote Config, Analytics.
 ---
 
 ## 10. Open next steps
-- **Skill FX (Unity):** play meteor/fireball/cleave/heal on `SkillCast` events via the
-  `_projectileFx`/`_spawnEffects` seams; scale cast/attack animation speed by `AtkSpd`.
-- **Salvage UI:** manual salvage + the auto-salvage threshold toggle (GameCore logic done).
-- **Roster screen:** field/manage the party and gear benched heroes (equipment tabs are party-only now).
-- **Then:** more heroes/classes, gear depth (sets / enhancement / affix reroll), alt modes; gacha + live-service per §8/§9.
+Skill FX, salvage UI, and the roster screen (with live farm swaps) are **done** — see §8
+Phase B. Gameplay-first, the next depth work is:
+- **Roster growth & classes:** acquire heroes 2–4 via progression; add classes/kits.
+- **Gear depth:** sets, enhancement scrolls (§6.1), affix reroll, loot filter.
+- **Alt modes:** endless ("deepest stage"), then party/co-op.
+- **Prestige & retention:** rebirth multiplier; daily/weekly quests, login rewards, achievements, codex.
+- **Then** gacha + live-service per §8/§9.
+
+**UI/UX polish is its own milestone, sequenced *after* the depth gameplay above** (decided
+June 2026). Today's screens are deliberately functional placeholders (IMGUI HUD + code-built
+uGUI, primitive art); polish — layout/scale/theming, a glyph/font audit, control-bar redesign,
+and real item/hero art hooks — lands as one focused pass rather than being interleaved now.

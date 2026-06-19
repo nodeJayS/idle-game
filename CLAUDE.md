@@ -58,7 +58,7 @@ files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sy
   scene in code (camera/light/ground) and `CombatView` drives the auto-battle.
   Play-mode can't be driven headlessly; visual checks are manual.
 
-## Status (197 tests passing)
+## Status (203 tests passing)
 
 **Phase A — core loop — M0–M9 ✅.** Deterministic auto-combat; loot (rarity + affixes,
 equip → stat recompute); per-hero leveling; 50-stage ladder as farm zones with 60s timed
@@ -72,13 +72,22 @@ save/load + menu; feel pass; warrior + magician (ranged/AoE); group/solo movemen
   (~1 per few min) with **Unique/Legendary boss-only** (guaranteed bundles: major 5–7, mini
   1–2), trash/idle capped at Rare; **Party HUD** (HP/mana bars; click a hero → its Equipment
   doll); rarity-bordered item tiles + grid bag; canonical stat display (`StatDisplay`).
-- **M11 skills (sim) ✅** — skills fire in combat (single/AoE damage, heal most-hurt ally,
+- **M11 skills ✅** — sim: skills fire in combat (single/AoE damage, heal most-hurt ally,
   self stat-buff), cost mana, on cooldowns (scaled by `AtkSpd`); heroes **and bosses** cast;
   `Spd` split into `MoveSpd` (movement) + new `AtkSpd` (action rate; warrior slower than mage).
-- **Next:** skill **FX in Unity** (`SkillCast` → meteor/fireball/cleave via the
-  `_projectileFx`/`_spawnEffects` seams) + animation speed scaled by `AtkSpd`; **salvage UI**
-  (manual + auto-salvage toggle); **roster screen** (gear benched heroes; tabs are party-only
-  now). Gacha/live-service still deferred.
+  Client: skill **FX** (`SkillCast`→meteor/cleave-ring/quake/heal-sparkle/war-cry-aura; `Heal`→
+  green numbers) + an `AtkSpd`-scaled attack/cast **lunge tell** + a Party-HUD skill-ready cue.
+- **Salvage UI ✅** — manual salvage (Unique/Legendary need a confirm) + an auto-salvage
+  threshold toggle (Off→Normal→Magic→Rare), wired to `Inventory.SalvageItem`/`Settings.AutoSalvageMax`.
+- **Roster screen ✅** — field/bench the party and gear ANY owned hero incl. benched ones;
+  party swaps apply **live during farming** (no restart) via `Combat.ReconcileParty`, and are
+  disabled in boss/other modes (`Party.FieldHero` keeps the party duplicate-free).
+- **Next (depth, gameplay-first):** acquire heroes 2–4 via progression (more classes);
+  crafting/sets/enhancement/loot-filter; alt modes (endless); prestige/retention.
+- **Deferred to its own milestone *after* the depth gameplay:** a dedicated **UI/UX polish**
+  pass (the screens above are functional placeholders — IMGUI HUD + code-built uGUI; known
+  rough spots: control-bar crowding, hand-placed anchors, glyph/font checks). Gacha/live-service
+  still deferred too.
 
 Full roadmap is in [`docs/game-design.md`](docs/game-design.md) §8.
 
