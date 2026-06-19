@@ -279,12 +279,28 @@ namespace IdleGame.Game
         {
             if (_combat == null) return;
             EnsureTextures();
-            DrawHealthBars();
-            DrawHud();
+
+            // Scale the immediate-mode UI by device DPI so the HUD/buttons stay a usable
+            // physical size on phones (uGUI panels already scale via CanvasScaler). All
+            // draw code below works in this scaled "logical" space.
+            float s = UiScale();
+            var prevMatrix = GUI.matrix;
+            GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(s, s, 1f));
+
+            DrawHealthBars(s);
+            DrawHud(s);
             DrawControlBar();
+
+            GUI.matrix = prevMatrix;
         }
 
-        private void DrawHealthBars()
+        private static float UiScale()
+        {
+            float dpi = Screen.dpi;
+            return dpi > 0f ? Mathf.Clamp(dpi / 96f, 1f, 3f) : 1f; // 96dpi desktop => 1x
+        }
+
+        private void DrawHealthBars(float s)
         {
             var cam = Camera.main;
             if (cam == null) return;
@@ -294,18 +310,21 @@ namespace IdleGame.Game
                 var sp = cam.WorldToScreenPoint(v.Go.transform.position + Vector3.up * (v.Height + 0.6f));
                 if (sp.z <= 0) continue;
 
+                // WorldToScreenPoint is in real pixels; convert into the scaled GUI space.
+                float cx = sp.x / s, cy = (Screen.height - sp.y) / s;
+
                 if (e.Downed)
                 {
                     var dl = new GUIStyle(GUI.skin.label) { fontSize = 11, fontStyle = FontStyle.Bold };
                     dl.normal.textColor = new Color(1f, 0.85f, 0.4f);
-                    GUI.Label(new Rect(sp.x - 30, Screen.height - sp.y - 4, 60, 16),
+                    GUI.Label(new Rect(cx - 30, cy - 4, 60, 16),
                               $"↻ {Mathf.CeilToInt((float)e.RespawnMs / 1000f)}s", dl);
                     continue;
                 }
                 if (!e.Alive) continue;
 
                 float w = e.IsBoss ? 56f : 34f, h = 5f;
-                float x = sp.x - w / 2f, y = Screen.height - sp.y;
+                float x = cx - w / 2f, y = cy;
                 float frac = e.MaxHp > 0 ? Mathf.Clamp01((float)(e.Hp / e.MaxHp)) : 0f;
                 DrawRect(x - 1, y - 1, w + 2, h + 2, new Color(0f, 0f, 0f, 0.7f));
                 DrawRect(x, y, w, h, new Color(0.25f, 0.05f, 0.05f, 0.9f));
@@ -313,8 +332,9 @@ namespace IdleGame.Game
             }
         }
 
-        private void DrawHud()
+        private void DrawHud(float s)
         {
+            float sw = Screen.width / s, sh = Screen.height / s;
             var style = new GUIStyle(GUI.skin.label) { fontSize = 18, fontStyle = FontStyle.Bold };
             bool major = _cfg.Stages.Find(st => st.Stage == _combat.Stage)?.IsMajorBoss == true;
             long gold = _save.Currencies.TryGetValue("gold", out var g) ? g : 0;
@@ -328,7 +348,7 @@ namespace IdleGame.Game
                 var timer = new GUIStyle(GUI.skin.label)
                 { fontSize = 30, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
                 timer.normal.textColor = remain <= 10 ? new Color(1f, 0.4f, 0.35f) : Color.white;
-                GUI.Label(new Rect(Screen.width / 2f - 100, 40, 200, 40), $"{remain:0.0}s", timer);
+                GUI.Label(new Rect(sw / 2f - 100, 40, 200, 40), $"{remain:0.0}s", timer);
             }
 
             if (_combat.Status != CombatStatus.Running)
@@ -338,14 +358,15 @@ namespace IdleGame.Game
                     : "PARTY WIPED";
                 var bs = new GUIStyle(GUI.skin.label)
                 { fontSize = 34, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
-                GUI.Label(new Rect(0, Screen.height / 2f - 60, Screen.width, 44), banner, bs);
+                GUI.Label(new Rect(0, sh / 2f - 60, sw, 44), banner, bs);
             }
         }
 
         private void DrawControlBar()
         {
             const float h = 80f, pad = 16f, gap = 12f;
-            float y = Screen.height - h - pad;
+            float sh = Screen.height / UiScale();
+            float y = sh - h - pad;
             float x = pad;
             bool invOpen = _inventory != null && _inventory.IsOpen;
 
