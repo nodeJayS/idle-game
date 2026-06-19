@@ -1,5 +1,5 @@
 #nullable enable
-using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using IdleGame.GameCore;
@@ -95,9 +95,11 @@ namespace IdleGame.Game
             UiKit.Label(_detail, $"{SlotOf(item)} · item level {item.ItemLevel}", 13, TextAnchor.MiddleLeft,
                         new Vector2(270, 22), new Vector2(0, y));
             y -= 26f;
-            foreach (var a in item.Affixes)
+            var affixes = new List<Affix>(item.Affixes);
+            affixes.Sort((x, z) => StatDisplay.Rank(x.Stat).CompareTo(StatDisplay.Rank(z.Stat)));
+            foreach (var a in affixes)
             {
-                UiKit.Label(_detail, $"+{StatVal(a.Stat, a.Value)} {a.Stat}", 13, TextAnchor.MiddleLeft,
+                UiKit.Label(_detail, $"+{StatDisplay.Value(a.Stat, a.Value)} {StatDisplay.Label(a.Stat)}", 13, TextAnchor.MiddleLeft,
                             new Vector2(270, 20), new Vector2(0, y));
                 y -= 22f;
             }
@@ -114,13 +116,6 @@ namespace IdleGame.Game
         // ---- helpers ----
 
         private EquipSlot SlotOf(Item item) => _cfg.ItemBases[item.BaseId].Slot;
-
-        private static string StatVal(StatKey k, double v)
-        {
-            // rate/chance stats are fractional; size stats read as integers
-            bool fractional = k == StatKey.MoveSpd || k == StatKey.AtkSpd || k == StatKey.CritChance || k == StatKey.CritDmg;
-            return fractional ? v.ToString("0.##") : Mathf.RoundToInt((float)v).ToString();
-        }
 
         private string HeroName(SaveState save, string heroId)
         {

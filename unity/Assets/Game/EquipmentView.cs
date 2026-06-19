@@ -73,7 +73,7 @@ namespace IdleGame.Game
             // detail / compare pane (right)
             var box = UiKit.Panel(panel.transform, new Vector2(280, 480), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(355, -40));
             _detail = box.rectTransform;
-            ShowDetail(save, null);
+            ShowHeroStats(save); // default pane = the hero's stat sheet
         }
 
         private void BuildTabs(Transform parent, SaveState save, Vector2 pos)
@@ -111,7 +111,7 @@ namespace IdleGame.Game
                 var captured = item;
                 var btn = tile.AddComponent<Button>();
                 btn.onClick.AddListener(() => ShowDetail(save, captured, slotIfEmpty: slot));
-                UiKit.Hover(tile, () => ShowDetail(save, captured, slotIfEmpty: slot));
+                UiKit.Hover(tile, () => ShowDetail(save, captured, slotIfEmpty: slot), () => ShowHeroStats(save));
             }
         }
 
@@ -129,7 +129,7 @@ namespace IdleGame.Game
                 var it = item;
                 var tile = UiKit.ItemTile(grid, new Vector2(72, 72), Vector2.zero, it.Rarity, UiKit.SlotAbbrev(SlotOf(it)), raycast: true);
                 tile.AddComponent<Button>().onClick.AddListener(() => EquipFromBag(save, it)); // one click to equip
-                UiKit.Hover(tile, () => ShowDetail(save, it));                                  // hover to compare
+                UiKit.Hover(tile, () => ShowDetail(save, it), () => ShowHeroStats(save));        // hover to compare
             }
             if (!any)
                 UiKit.Label(parent, "No free items in the bag.", 14, TextAnchor.MiddleCenter,
@@ -157,9 +157,11 @@ namespace IdleGame.Game
             UiKit.Label(_detail, $"{SlotOf(item)} · item level {item.ItemLevel}", 13, TextAnchor.MiddleLeft,
                         new Vector2(250, 20), new Vector2(0, y));
             y -= 24f;
-            foreach (var a in item.Affixes)
+            var affixes = new List<Affix>(item.Affixes);
+            affixes.Sort((x, z) => StatDisplay.Rank(x.Stat).CompareTo(StatDisplay.Rank(z.Stat)));
+            foreach (var a in affixes)
             {
-                UiKit.Label(_detail, $"+{StatVal(a.Stat, a.Value)} {a.Stat}", 13, TextAnchor.MiddleLeft,
+                UiKit.Label(_detail, $"+{StatDisplay.Value(a.Stat, a.Value)} {StatDisplay.Label(a.Stat)}", 13, TextAnchor.MiddleLeft,
                             new Vector2(250, 18), new Vector2(0, y));
                 y -= 20f;
             }
@@ -180,12 +182,12 @@ namespace IdleGame.Game
                 y -= 22f;
                 var delta = Inventory.CompareForHero(save, _heroId!, item, _cfg);
                 bool anyDelta = false;
-                foreach (StatKey k in Enum.GetValues(typeof(StatKey)))
+                foreach (var k in StatDisplay.Order)
                 {
                     double d = delta.Get(k);
                     if (d == 0) continue;
                     anyDelta = true;
-                    var l = UiKit.Label(_detail, $"{(d > 0 ? "▲" : "▼")} {k}  {(d > 0 ? "+" : "")}{StatVal(k, d)}",
+                    var l = UiKit.Label(_detail, $"{(d > 0 ? "▲" : "▼")} {StatDisplay.Label(k)}  {StatDisplay.Delta(k, d)}",
                                         13, TextAnchor.MiddleLeft, new Vector2(250, 18), new Vector2(0, y));
                     l.color = d > 0 ? new Color(0.45f, 0.9f, 0.5f) : new Color(0.95f, 0.45f, 0.45f);
                     y -= 20f;
@@ -204,15 +206,32 @@ namespace IdleGame.Game
             Rebuild();
         }
 
+        /// <summary>Default pane: the selected hero's full stats in canonical order.</summary>
+        private void ShowHeroStats(SaveState save)
+        {
+            if (_detail == null) return;
+            for (int i = _detail.childCount - 1; i >= 0; i--) Destroy(_detail.GetChild(i).gameObject);
+
+            var hero = save.Heroes.Find(h => h.Id == _heroId);
+            if (hero == null) return;
+            var stats = Stats.ComputeHeroStats(hero, _cfg, Stats.ResolveEquipped(save, hero));
+
+            UiKit.Label(_detail, HeroName(save, _heroId), 18, TextAnchor.MiddleLeft, new Vector2(250, 24), new Vector2(0, 210))
+                .color = new Color(0.85f, 0.9f, 1f);
+            UiKit.Label(_detail, $"Level {hero.Level}", 12, TextAnchor.MiddleLeft, new Vector2(250, 18), new Vector2(0, 188));
+
+            float y = 158f;
+            foreach (var k in StatDisplay.Order)
+            {
+                UiKit.Label(_detail, StatDisplay.Label(k), 13, TextAnchor.MiddleLeft, new Vector2(160, 18), new Vector2(-45, y));
+                UiKit.Label(_detail, StatDisplay.Value(k, stats.Get(k)), 13, TextAnchor.MiddleRight, new Vector2(90, 18), new Vector2(95, y));
+                y -= 22f;
+            }
+        }
+
         // ---- helpers ----
 
         private EquipSlot SlotOf(Item item) => _cfg.ItemBases[item.BaseId].Slot;
-
-        private static string StatVal(StatKey k, double v)
-        {
-            bool fractional = k == StatKey.MoveSpd || k == StatKey.AtkSpd || k == StatKey.CritChance || k == StatKey.CritDmg;
-            return fractional ? v.ToString("0.##") : Mathf.RoundToInt((float)v).ToString();
-        }
 
         private string HeroName(SaveState save, string? heroId)
         {
