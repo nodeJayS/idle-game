@@ -58,6 +58,14 @@ namespace IdleGame.GameCore
         // Monsters leave MaxMana at 0 (they don't cast).
         public double Mana;
         public double MaxMana;
+
+        // Skills (M11): the entity's loadout (skill ids), per-skill cooldown remaining,
+        // and active timed buffs. Heroes get these from their SkillLoadout; bosses from
+        // their MonsterDef. EffectiveStat folds buffs into the read used by combat.
+        public List<string> Skills = new List<string>();
+        public Dictionary<string, double> SkillCdMs = new Dictionary<string, double>();
+        public List<ActiveBuff> Buffs = new List<ActiveBuff>();
+
         public string? TargetId;
         public double AttackCdMs;       // remaining cooldown
         public double AttackIntervalMs; // 1000 / Spd
@@ -73,6 +81,22 @@ namespace IdleGame.GameCore
 
         public bool Alive => Hp > 0;
         public bool Downed => Hp <= 0 && RespawnMs > 0;
+
+        /// <summary>Base stat plus any active buffs on it — the value combat should read.</summary>
+        public double EffectiveStat(StatKey k)
+        {
+            double v = Stats.Get(k);
+            foreach (var b in Buffs) if (b.Stat == k) v += b.Amount;
+            return v;
+        }
+    }
+
+    /// <summary>A timed additive stat buff on a combat entity (M11 skills).</summary>
+    public sealed class ActiveBuff
+    {
+        public StatKey Stat;
+        public double Amount;
+        public double RemainingMs;
     }
 
     public sealed class CombatState
@@ -94,7 +118,7 @@ namespace IdleGame.GameCore
         public int SpawnCount;
     }
 
-    public enum CombatEventType { Hit, Death, LootDrop, LevelUp, WaveCleared, BossDefeated, Respawn }
+    public enum CombatEventType { Hit, Death, LootDrop, LevelUp, WaveCleared, BossDefeated, Respawn, SkillCast, Heal }
 
     /// <summary>Flat event the renderer reacts to (damage numbers, deaths, etc.).</summary>
     public sealed class CombatEvent
@@ -107,5 +131,6 @@ namespace IdleGame.GameCore
         public string? EntityId;
         public int Stage;
         public Item? Item;          // set on LootDrop; EntityId = the monster that dropped it
+        public string? SkillId;     // set on SkillCast: which skill fired (renderer FX hook)
     }
 }

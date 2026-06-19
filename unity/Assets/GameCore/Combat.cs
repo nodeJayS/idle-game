@@ -151,6 +151,7 @@ namespace IdleGame.GameCore
                     AttackIntervalMs = AttackInterval(stats),
                     RefKind = "hero",
                     RefId = hero.Id,
+                    Skills = new List<string>(hero.SkillLoadout),
                     RespawnDurationMs = cfg.Balance.RespawnBaseMs + cfg.Balance.RespawnPerLevelMs * hero.Level,
                 });
                 idx++;
@@ -190,6 +191,7 @@ namespace IdleGame.GameCore
                 RefKind = "monster",
                 RefId = def.Id,
                 IsBoss = isBoss,
+                Skills = new List<string>(def.Skills),
             };
         }
 
@@ -243,10 +245,22 @@ namespace IdleGame.GameCore
                 double regen = e.Stats.Get(StatKey.HpRegen);
                 if (regen > 0) e.Hp = Math.Min(e.MaxHp, e.Hp + regen * dtMs / 1000.0);
 
-                // Mana regen (M10): fills toward MaxMana. Basic attacks don't spend it yet,
-                // so this only ramps the pool until skills consume it.
+                // Mana regen (M10): fills toward MaxMana.
                 double mregen = e.Stats.Get(StatKey.ManaRegen);
                 if (mregen > 0 && e.MaxMana > 0) e.Mana = Math.Min(e.MaxMana, e.Mana + mregen * dtMs / 1000.0);
+
+                // Skill cooldowns + buff durations tick down (M11).
+                for (int i = 0; i < e.Skills.Count; i++)
+                {
+                    var id = e.Skills[i];
+                    if (e.SkillCdMs.TryGetValue(id, out var cd) && cd > 0)
+                        e.SkillCdMs[id] = Math.Max(0, cd - dtMs);
+                }
+                for (int i = e.Buffs.Count - 1; i >= 0; i--)
+                {
+                    e.Buffs[i].RemainingMs -= dtMs;
+                    if (e.Buffs[i].RemainingMs <= 0) e.Buffs.RemoveAt(i);
+                }
             }
 
             var actors = s.Entities.Where(e => e.Alive)
@@ -262,6 +276,9 @@ namespace IdleGame.GameCore
                 if (!e.Alive) continue; // could have died earlier this step
 
                 if (e.AttackCdMs > 0) e.AttackCdMs = Math.Max(0, e.AttackCdMs - dtMs);
+
+                // A ready skill replaces this step's basic attack/move (M11).
+                if (TryCastSkill(s, e, cfg, rng, events)) continue;
 
                 var target = (e.Team == Team.Party && groupTarget != null && groupTarget.Alive)
                     ? groupTarget
@@ -339,13 +356,15 @@ namespace IdleGame.GameCore
             return all;
         }
 
-        /// <summary>Apply one hit (own crit roll) from attacker to victim; handle death.</summary>
+        /// <summary>Apply one hit (own crit roll) from attacker to victim; handle death.
+        /// <paramref name="mult"/> scales the base damage (1.0 = basic attack, &gt;1 = skill).
+        /// Reads EffectiveStat so active buffs (e.g. War Cry) feed into the calc.</summary>
         private static void ApplyHit(CombatState s, CombatEntity attacker, CombatEntity victim,
-                                     GameConfig cfg, Rng rng, List<CombatEvent> events)
+                                     GameConfig cfg, Rng rng, List<CombatEvent> events, double mult = 1.0)
         {
-            double dmg = Math.Max(1.0, attacker.Stats.Get(StatKey.Atk) - victim.Stats.Get(StatKey.Def));
-            bool crit = rng.Next() < attacker.Stats.Get(StatKey.CritChance);
-            if (crit) dmg *= Math.Max(1.0, attacker.Stats.Get(StatKey.CritDmg));
+            double dmg = Math.Max(1.0, attacker.EffectiveStat(StatKey.Atk) - victim.EffectiveStat(StatKey.Def)) * mult;
+            bool crit = rng.Next() < attacker.EffectiveStat(StatKey.CritChance);
+            if (crit) dmg *= Math.Max(1.0, attacker.EffectiveStat(StatKey.CritDmg));
 
             victim.Hp -= dmg;
             events.Add(new CombatEvent
@@ -358,6 +377,113 @@ namespace IdleGame.GameCore
             });
 
             if (victim.Hp <= 0) HandleDeath(s, victim, cfg, rng, events);
+        }
+
+        /// <summary>
+        /// Try to cast the first ready skill in the entity's loadout (off cooldown, mana
+        /// available, valid target). On success: spend mana, set cooldown, apply the
+        /// effect, emit a SkillCast event, and return true (the caller then skips this
+        /// step's basic attack). Deterministic — rng is only used inside ApplyHit.
+        /// </summary>
+        private static bool TryCastSkill(CombatState s, CombatEntity e, GameConfig cfg, Rng rng, List<CombatEvent> events)
+        {
+            foreach (var id in e.Skills)
+            {
+                if (!cfg.Skills.TryGetValue(id, out var sk)) continue;            // unknown id
+                if (e.SkillCdMs.TryGetValue(id, out var cd) && cd > 0) continue;  // on cooldown
+                if (e.Mana < sk.ManaCost) continue;                              // not enough mana
+
+                switch (sk.Effect)
+                {
+                    case SkillEffectKind.Damage:
+                    {
+                        var target = PickDamageTarget(s, e, sk);
+                        if (target == null) continue;
+                        CastStart(e, sk, target.Id, events);
+                        ApplyHit(s, e, target, cfg, rng, events, sk.DamageMult);
+                        if (sk.AoeRadius > 0)
+                        {
+                            foreach (var o in s.Entities)
+                                if (o.Team == target.Team && o.Alive && !ReferenceEquals(o, target)
+                                    && Vec2.Distance(o.Pos, target.Pos) <= sk.AoeRadius)
+                                    ApplyHit(s, e, o, cfg, rng, events, sk.DamageMult);
+                        }
+                        return true;
+                    }
+                    case SkillEffectKind.Heal:
+                    {
+                        var ally = PickHealTarget(s, e, sk);
+                        if (ally == null) continue;
+                        CastStart(e, sk, ally.Id, events);
+                        double heal = Math.Max(1.0, e.EffectiveStat(StatKey.Atk) * sk.DamageMult);
+                        ally.Hp = Math.Min(ally.MaxHp, ally.Hp + heal);
+                        events.Add(new CombatEvent { Type = CombatEventType.Heal, SourceId = e.Id, TargetId = ally.Id, Amount = heal });
+                        return true;
+                    }
+                    case SkillEffectKind.Buff:
+                    {
+                        if (!AnyEnemyAlive(s, e.Team)) continue; // don't waste buffs out of combat
+                        CastStart(e, sk, e.Id, events);
+                        e.Buffs.Add(new ActiveBuff { Stat = sk.BuffStat, Amount = sk.BuffAmount, RemainingMs = sk.BuffDurationMs });
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private static void CastStart(CombatEntity e, SkillDef sk, string? targetId, List<CombatEvent> events)
+        {
+            e.Mana = Math.Max(0, e.Mana - sk.ManaCost);
+            e.SkillCdMs[sk.Id] = sk.CooldownMs;
+            events.Add(new CombatEvent { Type = CombatEventType.SkillCast, SourceId = e.Id, TargetId = targetId, SkillId = sk.Id });
+        }
+
+        /// <summary>Enemy for a damage skill within its range: lowest-HP for "lowestHp",
+        /// otherwise nearest (also the primary for "aoe"). Stable Id tie-break.</summary>
+        private static CombatEntity? PickDamageTarget(CombatState s, CombatEntity e, SkillDef sk)
+        {
+            CombatEntity? best = null;
+            double bestKey = double.MaxValue;
+            foreach (var o in s.Entities)
+            {
+                if (!o.Alive || o.Team == e.Team) continue;
+                double d = Vec2.Distance(e.Pos, o.Pos);
+                if (d > sk.Range) continue;
+                double key = sk.Targeting == "lowestHp" ? o.Hp : d;
+                if (key < bestKey || (key == bestKey && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
+                {
+                    bestKey = key;
+                    best = o;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>The most-hurt living ally (lowest HP fraction) in range; null if none need it.</summary>
+        private static CombatEntity? PickHealTarget(CombatState s, CombatEntity e, SkillDef sk)
+        {
+            CombatEntity? best = null;
+            double bestFrac = 1.0;
+            foreach (var o in s.Entities)
+            {
+                if (!o.Alive || o.Team != e.Team || o.MaxHp <= 0) continue;
+                double frac = o.Hp / o.MaxHp;
+                if (frac >= 1.0) continue;
+                if (Vec2.Distance(e.Pos, o.Pos) > sk.Range) continue;
+                if (frac < bestFrac || (frac == bestFrac && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
+                {
+                    bestFrac = frac;
+                    best = o;
+                }
+            }
+            return best;
+        }
+
+        private static bool AnyEnemyAlive(CombatState s, Team team)
+        {
+            foreach (var o in s.Entities) if (o.Alive && o.Team != team) return true;
+            return false;
         }
 
         /// <summary>Resolve a killed entity: party heroes are downed (respawn); monsters

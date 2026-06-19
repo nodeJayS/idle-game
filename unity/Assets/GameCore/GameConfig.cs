@@ -53,6 +53,7 @@ namespace IdleGame.GameCore
         public string Sprite = "";
         public string SpawnStyle = "pop"; // renderer hint: how this monster animates in
         public string AttackFx = "melee"; // renderer hint: basic-attack visual
+        public List<string> Skills = new List<string>(); // M11: skills this monster casts (e.g. boss signature)
     }
 
     public sealed class StageDef
@@ -68,6 +69,8 @@ namespace IdleGame.GameCore
         public bool IsMajorBoss => Stage % 10 == 0;
     }
 
+    public enum SkillEffectKind { Damage, Heal, Buff }
+
     public sealed class SkillDef
     {
         public string Id = "";
@@ -75,7 +78,13 @@ namespace IdleGame.GameCore
         public double CooldownMs;
         public double Range;
         public string Targeting = "nearest"; // nearest | lowestHp | self | aoe
-        public double DamageMult = 1.0;       // effect shape finalized in M1
+        public SkillEffectKind Effect = SkillEffectKind.Damage;
+        public double ManaCost;               // basic attacks are free; skills cost mana
+        public double DamageMult = 1.0;       // x caster Atk, for Damage and Heal scaling
+        public double AoeRadius;              // Damage: also hit enemies within this of the primary target
+        public StatKey BuffStat;              // Buff: which stat to raise (self)
+        public double BuffAmount;             // Buff: additive amount
+        public double BuffDurationMs;         // Buff: how long it lasts
         public string? Sprite;
     }
 
@@ -215,7 +224,7 @@ namespace IdleGame.GameCore
                                (StatKey.SplashRadius, 1.0),            // slightly wider cleave (melee perk)
                                (StatKey.MaxMana, 50), (StatKey.ManaRegen, 3)), // shallow pool, slow regen
                 GrowthPerLevel = SB((StatKey.Hp, 18), (StatKey.Atk, 3), (StatKey.Def, 1.5), (StatKey.MaxMana, 2)),
-                Skills = new List<string> { "cleave" }, Sprite = "warrior",
+                Skills = new List<string> { "cleave", "warcry" }, Sprite = "warrior",
             };
 
             cfg.Heroes["magician_basic"] = new HeroDef
@@ -229,7 +238,7 @@ namespace IdleGame.GameCore
                                (StatKey.SplashRadius, 0.75),           // tight AoE (same as warrior)
                                (StatKey.MaxMana, 120), (StatKey.ManaRegen, 6)), // deep pool, fast regen (caster)
                 GrowthPerLevel = SB((StatKey.Hp, 11), (StatKey.Atk, 4), (StatKey.Def, 1), (StatKey.MaxMana, 5)),
-                Skills = new List<string> { "firebolt" }, Sprite = "magician", AttackFx = "fireball",
+                Skills = new List<string> { "firebolt", "mend" }, Sprite = "magician", AttackFx = "fireball",
             };
 
             cfg.ItemBases["rusty_sword"] = new ItemBaseDef
@@ -305,6 +314,7 @@ namespace IdleGame.GameCore
                 Id = "goblin_king", Name = "Goblin King",
                 BaseStats = SB((StatKey.Hp, 160), (StatKey.Atk, 12), (StatKey.Def, 3), (StatKey.Spd, 0.9), (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.6)),
                 LootTableId = "boss", XpReward = 60, GoldReward = 40, Sprite = "goblin_king", SpawnStyle = "rise",
+                Skills = new List<string> { "boss_quake" },
             };
 
             for (int i = 0; i < 50; i++)
@@ -320,15 +330,33 @@ namespace IdleGame.GameCore
                 });
             }
 
+            // Warrior: melee cleave (AoE) + a self attack buff. Magician: ranged nuke + a heal.
             cfg.Skills["cleave"] = new SkillDef
             {
-                Id = "cleave", Name = "Cleave", CooldownMs = 3000, Range = 1.5,
-                Targeting = "nearest", DamageMult = 1.4, Sprite = "cleave",
+                Id = "cleave", Name = "Cleave", Effect = SkillEffectKind.Damage, Targeting = "aoe",
+                CooldownMs = 4000, Range = 1.8, AoeRadius = 1.6, DamageMult = 1.6, ManaCost = 15, Sprite = "cleave",
+            };
+            cfg.Skills["warcry"] = new SkillDef
+            {
+                Id = "warcry", Name = "War Cry", Effect = SkillEffectKind.Buff, Targeting = "self",
+                CooldownMs = 9000, Range = 0, BuffStat = StatKey.Atk, BuffAmount = 10, BuffDurationMs = 6000,
+                ManaCost = 20, Sprite = "warcry",
             };
             cfg.Skills["firebolt"] = new SkillDef
             {
-                Id = "firebolt", Name = "Firebolt", CooldownMs = 2500, Range = 6.0,
-                Targeting = "nearest", DamageMult = 1.3, Sprite = "firebolt",
+                Id = "firebolt", Name = "Firebolt", Effect = SkillEffectKind.Damage, Targeting = "nearest",
+                CooldownMs = 3500, Range = 6.0, DamageMult = 1.8, ManaCost = 20, Sprite = "firebolt",
+            };
+            cfg.Skills["mend"] = new SkillDef
+            {
+                Id = "mend", Name = "Mend", Effect = SkillEffectKind.Heal, Targeting = "lowestHp",
+                CooldownMs = 7000, Range = 8.0, DamageMult = 2.0, ManaCost = 30, Sprite = "mend",
+            };
+            // Boss signature: a wide quake (free — bosses have no mana pool).
+            cfg.Skills["boss_quake"] = new SkillDef
+            {
+                Id = "boss_quake", Name = "Quake", Effect = SkillEffectKind.Damage, Targeting = "aoe",
+                CooldownMs = 8000, Range = 3.0, AoeRadius = 3.0, DamageMult = 1.4, ManaCost = 0, Sprite = "quake",
             };
 
             return cfg;
