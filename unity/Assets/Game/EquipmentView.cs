@@ -118,7 +118,7 @@ namespace IdleGame.Game
         private void BuildBag(Transform parent, SaveState save)
         {
             UiKit.Label(parent, "Bag", 18, TextAnchor.MiddleLeft, new Vector2(120, 24), new Vector2(-95, 205));
-            var content = UiKit.ScrollColumn(parent, new Vector2(310, 440), new Vector2(50, -40));
+            var grid = UiKit.ScrollGrid(parent, new Vector2(310, 440), new Vector2(50, -40), new Vector2(72, 72));
 
             bool any = false;
             var equipped = EquippedIds(save);
@@ -127,37 +127,13 @@ namespace IdleGame.Game
                 if (equipped.Contains(item.Id)) continue; // only free items can be equipped
                 any = true;
                 var it = item;
-                BagRow(content, save, it);
+                var tile = UiKit.ItemTile(grid, new Vector2(72, 72), Vector2.zero, it.Rarity, UiKit.SlotAbbrev(SlotOf(it)), raycast: true);
+                tile.AddComponent<Button>().onClick.AddListener(() => EquipFromBag(save, it)); // one click to equip
+                UiKit.Hover(tile, () => ShowDetail(save, it));                                  // hover to compare
             }
             if (!any)
-                UiKit.Label(content, "No free items in the bag.", 15, TextAnchor.MiddleCenter,
-                            Vector2.zero, Vector2.zero).gameObject.AddComponent<LayoutElement>().preferredHeight = 48;
-        }
-
-        private void BagRow(Transform parent, SaveState save, Item item)
-        {
-            var go = new GameObject("Row", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var img = go.AddComponent<Image>();
-            img.color = new Color(0.14f, 0.15f, 0.19f);
-            var btn = go.AddComponent<Button>();
-            btn.targetGraphic = img;
-            btn.onClick.AddListener(() => EquipFromBag(save, item)); // one click to equip
-            UiKit.Hover(go, () => ShowDetail(save, item));            // hover to compare
-            go.AddComponent<LayoutElement>().preferredHeight = 54;
-
-            var tile = UiKit.ItemTile(go.transform, new Vector2(42, 42), Vector2.zero, item.Rarity, UiKit.SlotAbbrev(SlotOf(item)), raycast: false);
-            var trt = (RectTransform)tile.transform;
-            trt.anchorMin = trt.anchorMax = new Vector2(0f, 0.5f);
-            trt.anchoredPosition = new Vector2(30, 0);
-
-            var name = UiKit.Label(go.transform, $"{item.Rarity} {item.BaseId} (i{item.ItemLevel})",
-                                   16, TextAnchor.MiddleLeft, Vector2.zero, Vector2.zero);
-            var nrt = (RectTransform)name.transform;
-            nrt.anchorMin = new Vector2(0f, 0f); nrt.anchorMax = new Vector2(1f, 1f);
-            nrt.offsetMin = new Vector2(58, 0); nrt.offsetMax = new Vector2(-8, 0);
-            name.color = Palette.Rarity(item.Rarity);
-            name.raycastTarget = false;
+                UiKit.Label(parent, "No free items in the bag.", 14, TextAnchor.MiddleCenter,
+                            new Vector2(280, 40), new Vector2(50, 60));
         }
 
         // ---- detail / compare pane ----
