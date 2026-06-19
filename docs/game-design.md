@@ -264,18 +264,20 @@ single-player, local game), **Depth** (build variety + retention), **Live-servic
 | Milestone | Deliverable | State |
 |-----------|-------------|-------|
 | **M10 – Multi-character foundation** | Mana; 9 per-hero equip slots from one shared bag; inventory cap + auto-salvage (`scrap`); scarce loot with Unique/Legendary **boss-only** (guaranteed bundles); Party HUD + per-hero Equipment HUD; rarity-bordered item tiles; canonical stat display. | ✅ |
-| **M11 – Class skills** | Skills fire in the sim (damage/AoE, heal, self-buff; mana + cooldowns; heroes + bosses); `MoveSpd`/`AtkSpd` split. Client: skill FX + `AtkSpd`-scaled lunge tell + skill-ready cue. | ✅ |
+| **M11 – Class skills** | Skills fire in the sim (damage/AoE, heal, self-buff; mana + cooldowns; heroes + bosses); `MoveSpd`/`AtkSpd` split. Client: skill FX + `AtkSpd`-scaled lunge tell + skill-ready cue + **hit-recoil & death-crumple** FX (no instant-vanish). | ✅ |
 | **Salvage UI** | Manual salvage (Unique/Legendary confirm) + auto-salvage threshold toggle. | ✅ |
-| **Roster screen** | Field/bench the party + gear any owned hero (incl. benched); swaps apply live during farming (`Combat.ReconcileParty`), disabled in boss/other modes. | ✅ |
-| **Hero acquisition pipeline** | Start solo (Warrior); `GameConfig.HeroUnlocks` grants heroes on stage clear (stage 3 → Magician) via `Party.AcquireHero` + auto-field. The plug point gacha reuses later. | ✅ |
-| **Heroes hub (unified)** — *next UX* | Merge Roster + Equipment (+ a **Skills** sub-tab) into one **Heroes** screen: pick a hero, then tab Equipment / Skills / Stats. Deep-link from the Party HUD; replaces today's separate Roster + Equipment windows. | |
-| **Skills & skill trees** *(its own milestone)* | Per-hero **unique** skills, leveled with skill points. **Active vs passive**: ≤4 active equipped at once, passives always apply. **Skill tree** — initially linear; a node needs ≥1 point in its prerequisite; more nodes unlock as the hero levels. Builds on the M11 `SkillDef`/loadout seed. | |
+| **Heroes hub (unified)** | One **Heroes** screen: left hero rail (party slots + all owned) + Equipment / Skills (read-only) / Stats sub-tabs + Field/Bench; body-mapped doll. Replaced the separate Roster + Equipment windows; live farm-only swaps via `Combat.ReconcileParty`. | ✅ |
+| **Hero acquisition pipeline** | Start solo (Warrior); `GameConfig.HeroUnlocks` grants heroes on stage clear (stage 3 → Magician) via `Party.AcquireHero` + auto-field (`Party.FieldHero` dedupe-safe). The plug point gacha reuses later. | ✅ |
+| **World & combat feel** | Geometric difficulty (steep HP/dmg growth + `BossHpMult`), **100-stage ladder**; big open field; **party-relative PACK spawning** (clusters ring the group, quiet gaps, sparse, no distance cull); party **always-group**; follow camera + wheel zoom + shake; top-centre stage nav/Challenge + boss-clear popup; grid floor texture. | ✅ |
+| **Pack variety** — *next* | Elite/rare mobs within packs (highlighted, tougher, better loot) — PoE magic/rare-pack feel on the sparse open field. | |
+| **Skills & skill trees** *(its own milestone)* | Per-hero **unique** skills, leveled with skill points. **Active vs passive**: ≤4 active equipped at once, passives always apply. **Skill tree** — initially linear; a node needs ≥1 point in its prerequisite; more nodes unlock as the hero levels. Builds on the M11 `SkillDef`/loadout seed (the Heroes Skills tab is the read-only seed). | |
 | **Roster growth & classes** | More hero unlocks (stage 5/7/…) and new classes/kits beyond Warrior + Magician. | |
 | **Social / chat IA** | Pre-release shows **System only**; Global · Friends · Guild and per-person **Whispers** (DMs) stay hidden until the server (Phase C) so players aren't shown dead features. Target IA + the re-enable seam are documented in `ChatPanel`. | ◑ |
 | **Crafting / sets / loot filter** | Affix rerolls, set bonuses, enhancement scrolls (§6.1), loot filter. | |
 | **Alt modes** | Endless ("deepest stage"); later party / co-op. | |
 | **Prestige & retention** | Rebirth multiplier; daily/weekly quests, login rewards, achievements, codex. | |
-| **UI/UX polish pass** | Dedicated pass **after the gameplay depth above** — the current screens are functional placeholders (IMGUI HUD + code-built uGUI). Layout/scale/theming, glyph/font audit, control-bar redesign, real item/hero art hooks. | deferred |
+| **UI/UX polish pass** | Dedicated pass **after the gameplay depth above** — the current screens are functional placeholders (IMGUI HUD + code-built uGUI, hand-placed coords). The real fix is a **uGUI layout-group refactor**; plus glyph/font audit, theming, real item/hero art hooks. | deferred |
+| **Balance sim (tooling)** | A console runner over pure `GameCore` to chart difficulty vs hero power across stages/levels/gear and find the walls. The steep geometric curves are tuned by feel today, and heroes can out-level a stage and one-shot trash. | deferred |
 
 ### Phase C — Live-service (server + global)
 | Milestone | Deliverable |

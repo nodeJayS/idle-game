@@ -27,8 +27,9 @@ logic leak into MonoBehaviours** — they spawn/animate/poll, they don't decide 
 ## Repo layout
 ```
 unity/Assets/GameCore/   THE sim — pure C#, no engine refs. SINGLE SOURCE OF TRUTH.
-unity/Assets/Game/       MonoBehaviours, read-only client (Bootstrap, CombatView, Party/
-                         Equipment/Inventory UI, ChatPanel, TopBar, UiKit, StatDisplay)
+unity/Assets/Game/       MonoBehaviours, read-only client (Bootstrap, CombatView, CameraRig,
+                         EquipmentView=Heroes hub, InventoryView, ChatPanel, TopBar, UiKit,
+                         StatDisplay, CombatJuice, DeathFx/TransientFx/Projectile FX)
 gamecore/GameCore.Tests/ xUnit tests — compile the SAME Assets/GameCore sources via a
                          csproj glob (no copy). + gamecore/Adapters/Persistence.cs.
 docs/game-design.md      the durable what/why
@@ -58,38 +59,45 @@ files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sy
   scene in code (camera/light/ground) and `CombatView` drives the auto-battle.
   Play-mode can't be driven headlessly; visual checks are manual.
 
-## Status (203 tests passing)
+## Status (213 tests passing)
 
 **Phase A — core loop — M0–M9 ✅.** Deterministic auto-combat; loot (rarity + affixes,
-equip → stat recompute); per-hero leveling; 50-stage ladder as farm zones with 60s timed
+equip → stat recompute); per-hero leveling; stage ladder as farm zones with 60s timed
 mini/major boss gates + tiered rates; idle accrual off highest cleared stage + claim modal;
-save/load + menu; feel pass; warrior + magician (ranged/AoE); group/solo movement; chat/feed panel.
+save/load + menu; feel pass; warrior + magician (ranged/AoE); chat/feed panel.
 
 **Phase B — depth — in progress:**
-- **M10 multi-character foundation ✅** — mana resource; **9 equip slots** (Weapon, Offhand,
-  Helm, Chest, Gloves, Boots, Cape, Ring, Amulet) per-hero, drawn from **one shared account
-  bag**; inventory cap (100 *loose* items) + opt-in **auto-salvage → `scrap`**; scarce drops
-  (~1 per few min) with **Unique/Legendary boss-only** (guaranteed bundles: major 5–7, mini
-  1–2), trash/idle capped at Rare; **Party HUD** (HP/mana bars; click a hero → its Equipment
-  doll); rarity-bordered item tiles + grid bag; canonical stat display (`StatDisplay`).
-- **M11 skills ✅** — sim: skills fire in combat (single/AoE damage, heal most-hurt ally,
-  self stat-buff), cost mana, on cooldowns (scaled by `AtkSpd`); heroes **and bosses** cast;
-  `Spd` split into `MoveSpd` (movement) + new `AtkSpd` (action rate; warrior slower than mage).
-  Client: skill **FX** (`SkillCast`→meteor/cleave-ring/quake/heal-sparkle/war-cry-aura; `Heal`→
-  green numbers) + an `AtkSpd`-scaled attack/cast **lunge tell** + a Party-HUD skill-ready cue.
-- **Salvage UI ✅** — manual salvage (Unique/Legendary need a confirm) + an auto-salvage
-  threshold toggle (Off→Normal→Magic→Rare), wired to `Inventory.SalvageItem`/`Settings.AutoSalvageMax`.
-- **Roster screen ✅** — field/bench the party and gear ANY owned hero incl. benched ones;
-  party swaps apply **live during farming** (no restart) via `Combat.ReconcileParty`, and are
-  disabled in boss/other modes (`Party.FieldHero` keeps the party duplicate-free).
-- **Next (depth, gameplay-first):** acquire heroes 2–4 via progression (more classes);
-  crafting/sets/enhancement/loot-filter; alt modes (endless); prestige/retention.
-- **Deferred to its own milestone *after* the depth gameplay:** a dedicated **UI/UX polish**
-  pass (the screens above are functional placeholders — IMGUI HUD + code-built uGUI; known
-  rough spots: control-bar crowding, hand-placed anchors, glyph/font checks). Gacha/live-service
-  still deferred too.
+- **M10 multi-character foundation ✅** — mana; **9 equip slots** per-hero from one shared
+  account **bag**; inventory cap + opt-in **auto-salvage → `scrap`**; scarce drops with
+  **Unique/Legendary boss-only**; Party HUD; rarity item tiles; canonical `StatDisplay`.
+- **M11 skills ✅** — sim: single/AoE damage, heal, self-buff; mana + `AtkSpd`-scaled cooldowns;
+  heroes + bosses cast; `Spd`→`MoveSpd`+`AtkSpd`. Client: skill **FX** (meteor/cleave/quake/
+  heal-sparkle/war-cry), heal numbers, `AtkSpd` **lunge tell**, skill-ready cue, **hit-recoil +
+  death-crumple** FX (`DeathFx`/`TransientFx`; mobs no longer vanish before projectiles land).
+- **Heroes hub ✅** — one screen (`EquipmentView`): left hero rail (party slots + all owned) +
+  **Equipment / Skills / Stats** sub-tabs + Field/Bench; body-mapped doll; **Salvage UI** (manual
+  + auto-salvage threshold). `RosterView` retired; control-bar button is "Heroes". The Skills
+  tab is **read-only** — the seed for the Skills milestone.
+- **Roster/party ✅** — start **solo Warrior**; `GameConfig.HeroUnlocks` grants heroes on stage
+  clear (3→Magician) via **`Party.AcquireHero`** + auto-field; **`Party.FieldHero`** dedupe-safe;
+  **`Combat.ReconcileParty`** = live party swap (farm-only). Party **always moves as a group**
+  (Solo removed).
+- **World / combat feel ✅** — **geometric difficulty** (steep: `MonsterHpGrowth 1.18` /
+  `MonsterDmgGrowth 1.08` / `BossHpMult 10` / `MajorBossMult 2.5`), **100-stage ladder**; big open
+  field (`MapHalf 200/140`); **party-relative PACK spawning** (clusters ring the group, quiet
+  gaps, sparse `MobCap 20`, no distance cull); follow **`CameraRig`** (party-centroid + wheel zoom
+  + shake, deadzone); top-centre stage nav + Challenge + **boss-clear popup**; grid **floor**
+  texture; chat shows **System tab only** pre-release.
+- **Next (gameplay-first):** **pack variety** (elite/rare mobs + better loot); the **Skills
+  milestone** (active/passive, ≤4 active, skill trees); more hero unlocks/classes; crafting/sets/
+  loot-filter; alt modes; prestige/retention.
+- **Deferred to own milestones:** **UI/UX polish** (uGUI **layout-group refactor** — current
+  screens are functional placeholders with hand-placed coords); a **console balance-sim** to tune
+  the steep curves (heroes can out-level a stage and one-shot trash). Gacha/live-service still deferred.
 
-Full roadmap is in [`docs/game-design.md`](docs/game-design.md) §8.
+Full roadmap is in [`docs/game-design.md`](docs/game-design.md) §8. **NOTE: Unity play-mode can't
+be tested headlessly — the user verifies all visuals/feel by screenshot; client UI is hand-placed
+uGUI/IMGUI coordinates, tuned by feedback.**
 
 ## Conventions
 - **GameCore-first:** build + `dotnet test` each piece, then wire into Unity (play-mode can't
