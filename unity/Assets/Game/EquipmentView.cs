@@ -8,12 +8,13 @@ using IdleGame.GameCore;
 namespace IdleGame.Game
 {
     /// <summary>
-    /// Per-hero equipment screen (uGUI), opened from the Party HUD. A tab per party hero;
-    /// a doll of 9 slot tiles (rarity-bordered) on the left; the shared account bag on the
-    /// right. Low-friction: hovering a bag item shows its stats vs what's equipped in that
-    /// slot; a single click equips it (slot auto-derived). Clicking a doll tile shows the
-    /// worn item with an Unequip button. All changes go through the pure
-    /// <see cref="Inventory"/> reducers via <see cref="CombatView.ReplaceSave"/>.
+    /// Per-hero "Heroes" screen (uGUI), opened from the Party HUD or Roster. A tab per hero
+    /// up top, then three sub-tabs: <b>Equipment</b> (doll of 9 rarity-bordered slot tiles +
+    /// the shared account bag, with hover-compare and one-click equip), <b>Skills</b> (the
+    /// hero's skills — read-only until the Skills milestone), and <b>Stats</b> (the full stat
+    /// sheet). All gear changes go through the pure <see cref="Inventory"/> reducers via
+    /// <see cref="CombatView.ReplaceSave"/>. (S2 folds the roster's hero selector + field/bench
+    /// in here and retires the separate Roster window.)
     /// </summary>
     public sealed class EquipmentView : MonoBehaviour
     {
@@ -31,6 +32,11 @@ namespace IdleGame.Game
         private string? _heroId;
         private RectTransform? _detail;   // fixed pane, updated on hover/click (no full rebuild)
 
+        // Per-hero sub-tabs of the Heroes screen. Equipment = doll + bag; Stats = the stat
+        // sheet; Skills = the hero's skills (read-only until the Skills milestone).
+        private enum SubTab { Equipment, Skills, Stats }
+        private SubTab _subTab = SubTab.Equipment;
+
         public bool IsOpen => _panel != null;
 
         public void Bind(CombatView view, GameConfig cfg) { _view = view; _cfg = cfg; }
@@ -39,6 +45,7 @@ namespace IdleGame.Game
         {
             if (_panel != null && _heroId == heroId) { Close(); return; }
             _heroId = heroId;
+            _subTab = SubTab.Equipment; // opening a hero (e.g. from the Party HUD) lands on gear
             Rebuild();
         }
 
@@ -65,17 +72,46 @@ namespace IdleGame.Game
             UiKit.FullScreen(canvas.transform, new Color(0f, 0f, 0f, 0.6f));
 
             var panel = UiKit.Panel(canvas.transform, new Vector2(1000, 680), new Color(0.10f, 0.10f, 0.14f, 1f));
-            UiKit.Label(panel.transform, "Equipment", 28, TextAnchor.MiddleLeft, new Vector2(300, 38), new Vector2(-340, 300));
+            UiKit.Label(panel.transform, "Heroes", 28, TextAnchor.MiddleLeft, new Vector2(220, 38), new Vector2(-400, 300));
             UiKit.TextButton(panel.transform, "Close", new Vector2(150, 52), new Vector2(420, 300), Close);
 
             BuildTabs(panel.transform, save, new Vector2(-440, 248));
-            BuildDoll(panel.transform, save);
-            BuildBag(panel.transform, save);
+            BuildSubTabs(panel.transform);
 
-            // detail / compare pane (right)
-            var box = UiKit.Panel(panel.transform, new Vector2(280, 480), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(355, -40));
-            _detail = box.rectTransform;
-            ShowHeroStats(save); // default pane = the hero's stat sheet
+            switch (_subTab)
+            {
+                case SubTab.Skills:
+                    BuildSkillsPane(panel.transform, save);
+                    break;
+                case SubTab.Stats:
+                    BuildStatsPane(panel.transform, save);
+                    break;
+                default: // Equipment: doll + shared bag + detail/compare pane
+                    BuildDoll(panel.transform, save);
+                    BuildBag(panel.transform, save);
+                    var box = UiKit.Panel(panel.transform, new Vector2(280, 480), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(355, -40));
+                    _detail = box.rectTransform;
+                    ShowHeroStats(save); // default pane = the hero's stat sheet
+                    break;
+            }
+        }
+
+        /// <summary>Equipment / Skills / Stats selector for the current hero (top row).</summary>
+        private void BuildSubTabs(Transform parent)
+        {
+            var defs = new (SubTab tab, string label, float x)[]
+            {
+                (SubTab.Equipment, "Equipment", -120f),
+                (SubTab.Skills, "Skills", 40f),
+                (SubTab.Stats, "Stats", 200f),
+            };
+            foreach (var d in defs)
+            {
+                var tab = d.tab;
+                var b = UiKit.TextButton(parent, d.label, new Vector2(150, 44), new Vector2(d.x, 300f),
+                    () => { _subTab = tab; Rebuild(); }, 18);
+                if (_subTab == tab) b.GetComponent<Image>().color = new Color(0.30f, 0.45f, 0.65f);
+            }
         }
 
         private void BuildTabs(Transform parent, SaveState save, Vector2 pos)
@@ -215,27 +251,71 @@ namespace IdleGame.Game
             Rebuild();
         }
 
-        /// <summary>Default pane: the selected hero's full stats in canonical order.</summary>
+        /// <summary>Equipment sub-tab default pane: the hero's full stats (into _detail).</summary>
         private void ShowHeroStats(SaveState save)
         {
             if (_detail == null) return;
             for (int i = _detail.childCount - 1; i >= 0; i--) Destroy(_detail.GetChild(i).gameObject);
+            RenderStatSheet(_detail, save);
+        }
 
+        /// <summary>Stats sub-tab: the hero's full stat sheet in its own centered pane.</summary>
+        private void BuildStatsPane(Transform parent, SaveState save)
+        {
+            var box = UiKit.Panel(parent, new Vector2(340, 500), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(0, -40));
+            RenderStatSheet(box.rectTransform, save);
+        }
+
+        /// <summary>Render the hero's name, level, and stats (canonical order) into a pane.</summary>
+        private void RenderStatSheet(RectTransform into, SaveState save)
+        {
             var hero = save.Heroes.Find(h => h.Id == _heroId);
             if (hero == null) return;
             var stats = Stats.ComputeHeroStats(hero, _cfg, Stats.ResolveEquipped(save, hero));
 
-            UiKit.Label(_detail, HeroName(save, _heroId), 18, TextAnchor.MiddleLeft, new Vector2(250, 24), new Vector2(0, 210))
+            UiKit.Label(into, HeroName(save, _heroId), 18, TextAnchor.MiddleLeft, new Vector2(250, 24), new Vector2(0, 210))
                 .color = new Color(0.85f, 0.9f, 1f);
-            UiKit.Label(_detail, $"Level {hero.Level}", 12, TextAnchor.MiddleLeft, new Vector2(250, 18), new Vector2(0, 188));
+            UiKit.Label(into, $"Level {hero.Level}", 12, TextAnchor.MiddleLeft, new Vector2(250, 18), new Vector2(0, 188));
 
             float y = 158f;
             foreach (var k in StatDisplay.Order)
             {
-                UiKit.Label(_detail, StatDisplay.Label(k), 13, TextAnchor.MiddleLeft, new Vector2(160, 18), new Vector2(-45, y));
-                UiKit.Label(_detail, StatDisplay.Value(k, stats.Get(k)), 13, TextAnchor.MiddleRight, new Vector2(90, 18), new Vector2(95, y));
+                UiKit.Label(into, StatDisplay.Label(k), 13, TextAnchor.MiddleLeft, new Vector2(160, 18), new Vector2(-45, y));
+                UiKit.Label(into, StatDisplay.Value(k, stats.Get(k)), 13, TextAnchor.MiddleRight, new Vector2(90, 18), new Vector2(95, y));
                 y -= 22f;
             }
+        }
+
+        /// <summary>
+        /// Skills sub-tab: read-only list of the hero's current skills. Leveling, the
+        /// active/passive split (≤4 active equipped, passives always on), and the skill
+        /// tree land in the dedicated Skills milestone — this is the seed view.
+        /// </summary>
+        private void BuildSkillsPane(Transform parent, SaveState save)
+        {
+            var hero = save.Heroes.Find(h => h.Id == _heroId);
+            if (hero == null) return;
+
+            var box = UiKit.Panel(parent, new Vector2(620, 500), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(20, -40));
+            UiKit.Label(box.transform, $"{HeroName(save, _heroId)} — Skills", 18, TextAnchor.MiddleLeft,
+                        new Vector2(580, 26), new Vector2(0, 218)).color = new Color(0.85f, 0.9f, 1f);
+
+            float y = 178f;
+            foreach (var id in hero.SkillLoadout)
+            {
+                if (!_cfg.Skills.TryGetValue(id, out var sk)) continue;
+                string cd = $"{sk.CooldownMs / 1000.0:0.#}s cd";
+                string meta = sk.ManaCost > 0 ? $"{sk.Effect} · {sk.ManaCost} mana · {cd}" : $"{sk.Effect} · {cd}";
+
+                UiKit.Label(box.transform, sk.Name, 16, TextAnchor.MiddleLeft, new Vector2(580, 22), new Vector2(0, y));
+                UiKit.Label(box.transform, meta, 12, TextAnchor.MiddleLeft, new Vector2(580, 18), new Vector2(0, y - 20f))
+                    .color = new Color(0.70f, 0.74f, 0.80f);
+                y -= 50f;
+            }
+
+            UiKit.Label(box.transform,
+                "Skill leveling, active/passive slots (≤4 active), and skill trees arrive in the Skills update.",
+                13, TextAnchor.MiddleLeft, new Vector2(560, 40), new Vector2(0, -210)).color = new Color(0.95f, 0.8f, 0.5f);
         }
 
         // ---- helpers ----
