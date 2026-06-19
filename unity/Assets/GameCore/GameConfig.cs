@@ -123,9 +123,37 @@ namespace IdleGame.GameCore
         // affix-pool size for the item base — see Loot.RollAffixes.
         public (int min, int max)[] AffixCountByRarity = { (0, 0), (1, 2), (3, 4), (4, 5), (5, 6) };
 
-        // Base chance a common monster drops an item. Bosses always drop. (DropRateMult
-        // biases rarity, not drop chance, to avoid double-dipping.)
-        public double DropChance = 0.35;
+        // Per-kill chance a common monster drops an item — deliberately scarce so active
+        // farming yields roughly one item every few minutes (PRIMARY scarcity dial; tune
+        // to taste). Trash drops are capped at Rare (TrashRarityCap); Unique/Legendary
+        // come only from boss bundles below.
+        public double DropChance = 0.003;
+
+        // Highest rarity a common/trash/idle drop can roll. Unique/Legendary are
+        // boss-exclusive (guaranteed bundles), so the open-world ceiling is Rare.
+        public Rarity TrashRarityCap = Rarity.Rare;
+
+        // Boss guaranteed loot (PoE-style chase items). Each boss drops a bundle of
+        // Unique/Legendary items — count by boss tier — plus a few ordinary extras.
+        // Per bundle item: BossLegendaryChance => Legendary, otherwise Unique.
+        public double BossLegendaryChance = 0.01;
+        public (int min, int max) MajorBossUniques = (5, 7);
+        public (int min, int max) MiniBossUniques = (1, 2);
+        public int MajorBossExtras = 4; // ordinary Normal–Rare extras on top
+        public int MiniBossExtras = 2;
+
+        // Inventory: max LOOSE (unequipped) items the bag holds. Equipped gear doesn't
+        // count. Live farm drops are blocked once full; idle accrual and boss/special
+        // drops are allowed to OVERFILL past it (e.g. 106/100). Auto-salvage (within the
+        // player's threshold) and manual salvage are the ways back under — owned items
+        // are never destroyed automatically.
+        public int InventoryCap = 100;
+
+        // Scrap (salvage currency) yielded per item, indexed by (int)Rarity ascending:
+        // [Normal, Magic, Rare, Unique, Legendary]. Plus the item's level. Tune later.
+        public long[] ScrapValueByRarity = { 1, 3, 8, 20, 50 };
+        public long ScrapValue(Rarity rarity, int itemLevel)
+            => ScrapValueByRarity[(int)rarity] + Math.Max(0, itemLevel);
 
         public long XpCurve(int level) => (long)Math.Floor(100 * Math.Pow(1.15, level - 1));
 
@@ -147,7 +175,9 @@ namespace IdleGame.GameCore
 
         public long GoldPerSec(int stage) => (long)Math.Floor(5 * TierScale(stage));
         public long XpPerSec(int stage) => (long)Math.Floor(3 * TierScale(stage));
-        public double LootRollsPerHour(int stage) => 20 + 5 * (stage - 1) + 40 * Tier(stage);
+        // Idle loot is scarce too (mirrors active farming's slow trickle). Still monotonic
+        // across stages/tiers; long high-stage idles can overfill the bag (allowed).
+        public double LootRollsPerHour(int stage) => 6 + 0.4 * (stage - 1) + 6 * Tier(stage);
 
         /// <summary>Per-kill XP/gold multiplier by stage — deeper stages pay more (same tier curve as idle).</summary>
         public double KillRewardMult(int stage) => TierScale(stage);

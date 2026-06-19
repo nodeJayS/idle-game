@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using IdleGame.GameCore;
 using Xunit;
 
@@ -189,7 +190,8 @@ namespace IdleGame.GameCore.Tests
             var rng = new Rng(2);
             var ctx = Ctx(1.5, 5);
             bool sawNull = false, sawItem = false;
-            for (int i = 0; i < 500; i++)
+            // DropChance is deliberately tiny now, so sample plenty to see at least one drop.
+            for (int i = 0; i < 20000; i++)
             {
                 if (Loot.RollDrop(rng, Common, ctx, Cfg) == null) sawNull = true; else sawItem = true;
             }
@@ -237,6 +239,63 @@ namespace IdleGame.GameCore.Tests
                     Assert.Contains(a.Stat, allowed);
                     Assert.True((int)Def(a.Stat).RarityFloor <= (int)item.Rarity);
                 }
+            }
+        }
+
+        // --- M10.3: rarity cap + boss guaranteed bundles ---
+
+        [Fact]
+        public void RollRarityRespectsMaxRarityCap()
+        {
+            var ctx = new LootContext { ItemLevel = 5, DropRateMult = 5.0, MaxRarity = Rarity.Rare }; // heavy upward bias
+            var rng = new Rng(11);
+            for (int i = 0; i < 5000; i++)
+                Assert.True((int)Loot.RollRarity(rng, ctx, Cfg) <= (int)Rarity.Rare);
+        }
+
+        [Fact]
+        public void ForStageCapsTrashRarityAtRare()
+        {
+            var ctx = LootContext.ForStage(Cfg.Stages.First(s => s.Stage == 50)); // deepest, richest stage
+            var rng = new Rng(12);
+            for (int i = 0; i < 5000; i++)
+                Assert.True((int)Loot.RollRarity(rng, ctx, Cfg) <= (int)Rarity.Rare);
+        }
+
+        private static LootContext BossCtx => new LootContext { ItemLevel = 10, DropRateMult = 1.0, MaxRarity = Rarity.Rare };
+
+        [Fact]
+        public void MajorBossDropsGuaranteedUniqueLegendaryBundlePlusExtras()
+        {
+            var b = Cfg.Balance;
+            var drops = Loot.RollBossDrops(new Rng(1), BossCtx, Cfg, isMajor: true);
+
+            int hi = drops.Count(d => d.Rarity == Rarity.Unique || d.Rarity == Rarity.Legendary);
+            Assert.InRange(hi, b.MajorBossUniques.min, b.MajorBossUniques.max); // guaranteed chase items
+            Assert.Equal(hi + b.MajorBossExtras, drops.Count);                  // plus ordinary extras
+            // extras can never be Unique/Legendary (ctx-capped at Rare)
+            Assert.Equal(b.MajorBossExtras, drops.Count(d => (int)d.Rarity <= (int)Rarity.Rare));
+        }
+
+        [Fact]
+        public void MiniBossDropsFewerThanMajorBoss()
+        {
+            var major = Loot.RollBossDrops(new Rng(2), BossCtx, Cfg, isMajor: true);
+            var mini = Loot.RollBossDrops(new Rng(2), BossCtx, Cfg, isMajor: false);
+            Assert.True(major.Count > mini.Count);
+        }
+
+        [Fact]
+        public void BossDropsAreDeterministic()
+        {
+            var a = Loot.RollBossDrops(new Rng(7), BossCtx, Cfg, isMajor: true);
+            var b = Loot.RollBossDrops(new Rng(7), BossCtx, Cfg, isMajor: true);
+
+            Assert.Equal(a.Count, b.Count);
+            for (int i = 0; i < a.Count; i++)
+            {
+                Assert.Equal(a[i].Id, b[i].Id);
+                Assert.Equal(a[i].Rarity, b[i].Rarity);
             }
         }
 

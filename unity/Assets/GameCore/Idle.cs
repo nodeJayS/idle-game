@@ -16,7 +16,8 @@ namespace IdleGame.GameCore
         public long Gold;
         public long Xp;
         public int LootCount;    // number of items to roll (rolled in Claim)
-        public List<Item> Items = new List<Item>();
+        public List<Item> Items = new List<Item>(); // all rolled items (pre cap/salvage)
+        public long ScrapGained; // scrap from auto-salvaged offline drops
 
         public bool IsEmpty => ElapsedMs <= 0 || (Gold == 0 && Xp == 0 && LootCount == 0);
     }
@@ -67,7 +68,8 @@ namespace IdleGame.GameCore
         /// Loot uses an ephemeral Rng seeded from (RngSeed, LastClaimAt) so the result
         /// is deterministic without touching the persisted combat cursor.
         /// </summary>
-        public static (SaveState next, IdleReport report) Claim(SaveState save, GameConfig cfg, long now)
+        public static (SaveState next, IdleReport report) Claim(SaveState save, GameConfig cfg, long now,
+                                                                Rarity? autoSalvageMax = null)
         {
             var report = Preview(save, cfg, now);
             if (report.ElapsedMs <= 0) return (save, report); // nothing to claim / clock skew
@@ -88,7 +90,9 @@ namespace IdleGame.GameCore
 
             // Reuse the tested reducers, then clone once more for gold + the new clock.
             var next = Progression.GrantPartyXp(save, (int)Math.Min(report.Xp, int.MaxValue), cfg);
-            next = Inventory.AddItems(next, report.Items);
+            var loot = Inventory.AddLoot(next, report.Items, cfg, autoSalvageMax, allowOverflow: true); // idle may overfill
+            next = loot.Save;
+            report.ScrapGained = loot.ScrapGained;
 
             var currencies = new Dictionary<string, long>(next.Currencies);
             currencies["gold"] = currencies.GetValueOrDefault("gold") + report.Gold;

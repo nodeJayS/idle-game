@@ -12,13 +12,99 @@ namespace IdleGame.GameCore
     /// </summary>
     public static class Inventory
     {
-        /// <summary>Append items (e.g. a run's PendingLoot) to the inventory.</summary>
+        /// <summary>
+        /// Raw append — no cap, no salvage. The low-level primitive used for tests and
+        /// admin/grant paths. Real loot drops should go through <see cref="AddLoot"/>.
+        /// </summary>
         public static SaveState AddItems(SaveState save, IReadOnlyList<Item> items)
         {
             var nextInventory = new List<Item>(save.Inventory);
             nextInventory.AddRange(items);
 
             return WithInventory(save, nextInventory);
+        }
+
+        /// <summary>The outcome of committing dropped loot under the cap + auto-salvage.</summary>
+        public sealed class LootResult
+        {
+            public SaveState Save = null!;
+            public List<Item> Stored = new List<Item>();    // went into the bag
+            public List<Item> Salvaged = new List<Item>();  // auto-salvaged to scrap (<= threshold)
+            public List<Item> Rejected = new List<Item>();  // bag full + above threshold => left behind
+            public long ScrapGained;
+            public bool BagFull => Rejected.Count > 0;
+        }
+
+        /// <summary>
+        /// Number of LOOSE (unequipped) items in the bag — what the cap counts. Equipped
+        /// gear stays in the pool but doesn't occupy a bag slot.
+        /// </summary>
+        public static int LooseCount(SaveState save)
+        {
+            var equipped = EquippedIds(save);
+            int n = 0;
+            foreach (var it in save.Inventory)
+                if (!equipped.Contains(it.Id)) n++;
+            return n;
+        }
+
+        /// <summary>
+        /// Commit dropped loot under <see cref="BalanceConstants.InventoryCap"/> (loose
+        /// items only). With auto-salvage on, any drop at or below
+        /// <paramref name="autoSalvageMax"/> converts to scrap instead of taking a slot.
+        /// Remaining items are stored; when the bag is full they're stored anyway if
+        /// <paramref name="allowOverflow"/> (idle / boss / special-stage rewards may push
+        /// past the cap) or otherwise REJECTED (live farm pickups). Items already owned
+        /// are never destroyed. Pure: returns a new save in the result.
+        /// </summary>
+        public static LootResult AddLoot(SaveState save, IReadOnlyList<Item> items, GameConfig cfg,
+                                         Rarity? autoSalvageMax, bool allowOverflow = false)
+        {
+            var result = new LootResult();
+            var nextInventory = new List<Item>(save.Inventory);
+            int loose = LooseCount(save);
+            int cap = cfg.Balance.InventoryCap;
+            long scrap = 0;
+
+            foreach (var item in items)
+            {
+                if (autoSalvageMax != null && item.Rarity <= autoSalvageMax.Value)
+                {
+                    scrap += cfg.Balance.ScrapValue(item.Rarity, item.ItemLevel);
+                    result.Salvaged.Add(item);
+                }
+                else if (allowOverflow || loose < cap)
+                {
+                    nextInventory.Add(item);
+                    loose++;
+                    result.Stored.Add(item);
+                }
+                else
+                {
+                    result.Rejected.Add(item); // bag full + no overflow => left behind, nothing destroyed
+                }
+            }
+
+            result.ScrapGained = scrap;
+            result.Save = Build(save, nextInventory, AddScrap(save.Currencies, scrap));
+            return result;
+        }
+
+        /// <summary>
+        /// Manually salvage one loose item to scrap. Throws on unknown item or one that's
+        /// equipped (so the player can never accidentally scrap worn gear). Pure.
+        /// </summary>
+        public static SaveState SalvageItem(SaveState save, string itemId, GameConfig cfg)
+        {
+            var item = save.Inventory.Find(i => i.Id == itemId)
+                ?? throw new InvalidOperationException($"SalvageItem: item \"{itemId}\" not in inventory");
+            if (IsEquippedAnywhere(save, itemId))
+                throw new InvalidOperationException($"SalvageItem: item \"{itemId}\" is equipped");
+
+            var nextInventory = new List<Item>(save.Inventory);
+            nextInventory.RemoveAll(i => i.Id == itemId);
+            long scrap = cfg.Balance.ScrapValue(item.Rarity, item.ItemLevel);
+            return Build(save, nextInventory, AddScrap(save.Currencies, scrap));
         }
 
         /// <summary>
@@ -95,6 +181,22 @@ namespace IdleGame.GameCore
             return false;
         }
 
+        private static HashSet<string> EquippedIds(SaveState save)
+        {
+            var set = new HashSet<string>();
+            foreach (var h in save.Heroes)
+                foreach (var id in h.Equipped.Values) set.Add(id);
+            return set;
+        }
+
+        /// <summary>Clone the currency map and credit <paramref name="amount"/> scrap (no-op if 0).</summary>
+        private static Dictionary<string, long> AddScrap(Dictionary<string, long> currencies, long amount)
+        {
+            var next = new Dictionary<string, long>(currencies);
+            if (amount != 0) next["scrap"] = (next.TryGetValue("scrap", out var s) ? s : 0) + amount;
+            return next;
+        }
+
         private static HeroInstance CloneHero(HeroInstance hero, Dictionary<EquipSlot, string> equipped) => new HeroInstance
         {
             Id = hero.Id,
@@ -124,7 +226,11 @@ namespace IdleGame.GameCore
             };
         }
 
-        private static SaveState WithInventory(SaveState save, List<Item> nextInventory) => new SaveState
+        private static SaveState WithInventory(SaveState save, List<Item> nextInventory)
+            => Build(save, nextInventory, save.Currencies);
+
+        /// <summary>Copy a save swapping inventory + currencies (everything else shared by ref).</summary>
+        private static SaveState Build(SaveState save, List<Item> nextInventory, Dictionary<string, long> nextCurrencies) => new SaveState
         {
             Version = save.Version,
             RngSeed = save.RngSeed,
@@ -132,7 +238,7 @@ namespace IdleGame.GameCore
             Heroes = save.Heroes,
             Party = save.Party,
             Inventory = nextInventory,
-            Currencies = save.Currencies,
+            Currencies = nextCurrencies,
             Progress = save.Progress,
             LastClaimAt = save.LastClaimAt,
         };

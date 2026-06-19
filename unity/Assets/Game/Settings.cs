@@ -1,5 +1,6 @@
 #nullable enable
 using UnityEngine;
+using IdleGame.GameCore;
 
 namespace IdleGame.Game
 {
@@ -32,6 +33,15 @@ namespace IdleGame.Game
         public static float ChatH        { get => PlayerPrefs.GetFloat("chatH", 320f); set => SetF("chatH", value); }
         public static bool  ChatLocked   { get => PlayerPrefs.GetInt("chatLock", 0) != 0;      set => Set("chatLock", value); }
         public static bool  ChatCollapsed { get => PlayerPrefs.GetInt("chatCollapsed", 0) != 0; set => Set("chatCollapsed", value); }
+
+        /// <summary>Auto-salvage threshold: drops at or below this rarity convert to scrap on
+        /// pickup instead of taking a bag slot. null = off (default — never auto-discards).
+        /// Stored as an int: -1 = off, otherwise (int)Rarity.</summary>
+        public static Rarity? AutoSalvageMax
+        {
+            get { int v = PlayerPrefs.GetInt("autoSalvage", -1); return v < 0 ? (Rarity?)null : (Rarity)v; }
+            set { PlayerPrefs.SetInt("autoSalvage", value == null ? -1 : (int)value.Value); PlayerPrefs.Save(); }
+        }
 
         private static bool Get(string key) => PlayerPrefs.GetInt(key, 1) != 0;
         private static void Set(string key, bool v) { PlayerPrefs.SetInt(key, v ? 1 : 0); PlayerPrefs.Save(); }

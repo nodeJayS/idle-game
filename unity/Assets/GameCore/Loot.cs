@@ -14,11 +14,13 @@ namespace IdleGame.GameCore
     {
         public int ItemLevel;        // power/scaling of dropped items
         public double DropRateMult;  // bias toward higher rarity
+        public Rarity? MaxRarity;    // ceiling for rolled rarity; null = uncapped (Legendary)
 
         public static LootContext ForStage(StageDef stage) => new LootContext
         {
             ItemLevel = stage.AffixItemLevel,
             DropRateMult = stage.DropRateMult,
+            MaxRarity = Rarity.Rare, // trash/idle ceiling; Unique/Legendary are boss-only
         };
     }
 
@@ -44,9 +46,13 @@ namespace IdleGame.GameCore
             double mult = Math.Max(0.0, ctx.DropRateMult);
 
             // weights.Length defines how many rarities are in play; (Rarity)rank maps
-            // the index to the enum (Normal = 0 … Legendary = 4).
-            var entries = new List<(Rarity item, double weight)>(weights.Length);
-            for (int rank = 0; rank < weights.Length; rank++)
+            // the index to the enum (Normal = 0 … Legendary = 4). MaxRarity (when set)
+            // clamps the ceiling so trash/idle can't roll boss-exclusive rarities.
+            int maxRank = weights.Length - 1;
+            if (ctx.MaxRarity != null) maxRank = Math.Min(maxRank, (int)ctx.MaxRarity.Value);
+
+            var entries = new List<(Rarity item, double weight)>(maxRank + 1);
+            for (int rank = 0; rank <= maxRank; rank++)
             {
                 double w = weights[rank] * Math.Pow(mult, rank);
                 entries.Add(((Rarity)rank, w));
@@ -139,13 +145,40 @@ namespace IdleGame.GameCore
         /// </summary>
         public static Item RollContextItem(Rng rng, LootContext ctx, GameConfig cfg)
         {
-            // sort keys for deterministic selection (dictionary order isn't stable)
-            var baseIds = new List<string>(cfg.ItemBases.Keys);
-            baseIds.Sort(StringComparer.Ordinal);
-            string baseId = baseIds[rng.RandInt(0, baseIds.Count - 1)];
-
             var rarity = RollRarity(rng, ctx, cfg);
-            return RollItem(rng, baseId, ctx.ItemLevel, rarity, cfg);
+            return RollItem(rng, PickBaseId(rng, cfg), ctx.ItemLevel, rarity, cfg);
+        }
+
+        /// <summary>
+        /// A boss's guaranteed loot bundle: a count of Unique/Legendary items (by boss
+        /// tier — <paramref name="isMajor"/>) plus a few ordinary Normal–Rare extras.
+        /// Each bundle item rolls Legendary with <see cref="BalanceConstants.BossLegendaryChance"/>,
+        /// otherwise Unique. Deterministic via <paramref name="rng"/>.
+        /// </summary>
+        public static List<Item> RollBossDrops(Rng rng, LootContext ctx, GameConfig cfg, bool isMajor)
+        {
+            var b = cfg.Balance;
+            var (umin, umax) = isMajor ? b.MajorBossUniques : b.MiniBossUniques;
+            int uniques = rng.RandInt(umin, umax);
+            int extras = isMajor ? b.MajorBossExtras : b.MiniBossExtras;
+
+            var items = new List<Item>(uniques + extras);
+            for (int i = 0; i < uniques; i++)
+            {
+                var rarity = rng.Next() < b.BossLegendaryChance ? Rarity.Legendary : Rarity.Unique;
+                items.Add(RollItem(rng, PickBaseId(rng, cfg), ctx.ItemLevel, rarity, cfg));
+            }
+            for (int i = 0; i < extras; i++)
+                items.Add(RollContextItem(rng, ctx, cfg)); // ordinary extras (ctx caps at Rare)
+            return items;
+        }
+
+        /// <summary>Pick an item base uniformly (deterministic: keys sorted first).</summary>
+        private static string PickBaseId(Rng rng, GameConfig cfg)
+        {
+            var baseIds = new List<string>(cfg.ItemBases.Keys);
+            baseIds.Sort(StringComparer.Ordinal); // dictionary order isn't stable
+            return baseIds[rng.RandInt(0, baseIds.Count - 1)];
         }
     }
 }

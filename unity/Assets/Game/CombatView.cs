@@ -110,6 +110,7 @@ namespace IdleGame.Game
         private float _outcomeTimer;
         private bool _resolved;
         private uint _runCount;
+        private bool _bagFullWarned; // throttles the "bag full" feed line
 
         private Texture2D _white = null!;
 
@@ -210,8 +211,26 @@ namespace IdleGame.Game
             bool xp = false;
             if (_combat.PendingLoot.Count > 0)
             {
-                _save = Inventory.AddItems(_save, _combat.PendingLoot);
+                // Live farm trash is capped; boss/special-stage clears may overfill the bag.
+                bool allowOverflow = _combat.Kind != EncounterKind.Farm;
+                var loot = Inventory.AddLoot(_save, _combat.PendingLoot, _cfg, Settings.AutoSalvageMax, allowOverflow);
+                _save = loot.Save;
                 _combat.PendingLoot.Clear();
+
+                // Warn once when the bag overflows; clear the latch when it has room again.
+                if (loot.BagFull)
+                {
+                    if (!_bagFullWarned)
+                    {
+                        _chat?.AddFeed("Bag full — new loot left behind. Salvage or enable auto-salvage.",
+                                       new Color(1f, 0.55f, 0.4f));
+                        _bagFullWarned = true;
+                    }
+                }
+                else if (Inventory.LooseCount(_save) < _cfg.Balance.InventoryCap)
+                {
+                    _bagFullWarned = false;
+                }
             }
             if (_combat.PendingXp > 0)
             {

@@ -127,8 +127,8 @@ namespace IdleGame.GameCore.Tests
 
             Assert.True(report.Gold > 0 && report.LootCount > 0);
             Assert.Equal(report.Gold, next.Currencies["gold"]);
-            Assert.Equal(report.LootCount, report.Items.Count);
-            Assert.Equal(beforeInv + report.LootCount, next.Inventory.Count);
+            Assert.Equal(report.LootCount, report.Items.Count); // all rolls reported
+            Assert.Equal(beforeInv + report.LootCount, next.Inventory.Count); // idle overfills the bag, nothing dropped
             Assert.True(next.Heroes.Find(h => h.Id == "h1")!.Level > 1); // party hero leveled from idle XP
             Assert.Equal(2 * Hour, next.LastClaimAt);
         }

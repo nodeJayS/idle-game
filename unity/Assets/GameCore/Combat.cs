@@ -383,11 +383,25 @@ namespace IdleGame.GameCore
                 s.PendingXp += (int)Math.Floor(mdef.XpReward * mult);
                 s.PendingGold += (long)Math.Floor(mdef.GoldReward * mult);
 
-                var drop = Loot.RollDrop(rng, mdef, s.Loot, cfg);
-                if (drop != null)
+                // Bosses drop a guaranteed Unique/Legendary bundle (+ ordinary extras),
+                // sized by boss tier; trash uses the scarce per-kill chance (Rare-capped).
+                if (target.IsBoss)
                 {
-                    s.PendingLoot.Add(drop);
-                    events.Add(new CombatEvent { Type = CombatEventType.LootDrop, EntityId = target.Id, Item = drop });
+                    bool isMajor = (cfg.Stages.Find(st => st.Stage == s.Stage)?.IsMajorBoss) ?? false;
+                    foreach (var drop in Loot.RollBossDrops(rng, s.Loot, cfg, isMajor))
+                    {
+                        s.PendingLoot.Add(drop);
+                        events.Add(new CombatEvent { Type = CombatEventType.LootDrop, EntityId = target.Id, Item = drop });
+                    }
+                }
+                else
+                {
+                    var drop = Loot.RollDrop(rng, mdef, s.Loot, cfg);
+                    if (drop != null)
+                    {
+                        s.PendingLoot.Add(drop);
+                        events.Add(new CombatEvent { Type = CombatEventType.LootDrop, EntityId = target.Id, Item = drop });
+                    }
                 }
             }
         }
