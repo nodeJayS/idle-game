@@ -70,7 +70,7 @@ namespace IdleGame.GameCore
                 Level = 1,
                 Xp = 0,
                 Equipped = new Dictionary<EquipSlot, string>(),
-                SkillLoadout = new List<string>(def.Skills),
+                SkillLoadout = Skills.DefaultLoadout(def, cfg),
             };
             var nextHeroes = new List<HeroInstance>(save.Heroes) { hero };
 

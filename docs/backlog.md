@@ -81,6 +81,14 @@ target genre is **dense/fast** — reward cadence too low to be addictive. Three
 3. **Decisions + acceleration** — make skills choosable (the PoE "build" pillar; currently
    read-only — likely where lasting addictiveness lives), short-term goals/milestones, and
    visibly accelerating progression (auto-advance out-geared stages).
+   - **Skills milestone (= the planned active/passive/tree milestone), MVP scope = active loadout choice:**
+     - Slice A ✅ GameCore loadout system: `Skills` reducers (`ToggleSkill`/`SetLoadout`/`Known`/
+       `DefaultLoadout`) + `Balance.MaxActiveSkills` (4) cap; `HeroDef.Skills` = known pool,
+       `HeroInstance.SkillLoadout` = chosen subset. No behavior change yet (pools ≤ cap). 8 tests.
+     - Slice B (next) — **skill content**: add skills per class so pool > 4 (makes the choice real);
+       magician is fire-themed ([[magician-is-fire-wizard]]). User is deciding the kit.
+     - Slice C — interactive Skills tab (slot/unslot ≤4 via `ToggleSkill`).
+     - Later: passives, skill ranks/leveling, tree.
 
 Still-open hypotheses to revisit after juice: samey pacing (pack/elite variety), short-term goals.
 

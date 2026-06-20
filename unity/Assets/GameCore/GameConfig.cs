@@ -97,6 +97,10 @@ namespace IdleGame.GameCore
         public double OfflineRate = 0.70;
         public int MaxLevel = 100;
 
+        // Skills (Lever 3): how many of a hero's known skills can be slotted active at once.
+        // HeroDef.Skills is the known pool; HeroInstance.SkillLoadout is the chosen subset.
+        public int MaxActiveSkills = 4;
+
         // A major boss (every 10th stage) multiplies the stage boss's scaled stats
         // on top of the normal monster-level scaling.
         public double MajorBossMult = 2.5;
