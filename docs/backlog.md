@@ -65,13 +65,22 @@ Renderer/UI-only unless noted. GameCore-first for anything touching rules (build
 
 ## D. Design investigation (discuss together)
 
-### D1. "The gameplay loop isn't satisfying"  ·  open-ended
-Worth a dedicated session — watch a play session and isolate which hypothesis bites hardest:
-- **Weak feedback cadence** — kills/loot don't punch (impact, sound, loot beams, crunch).
-- **Illegible progression** — no clear "I just got stronger" moment / visible next goal (B2 helps).
-- **Shallow choice** — skills are read-only, gear upgrades unclear; nothing to optimize toward.
-- **Samey pacing** — uniform trash (pack variety is on the roadmap), few spikes.
-- **No short-term goals** — nothing pulling you forward minute-to-minute (quests/milestones).
+### D1. "The gameplay loop isn't satisfying"  ·  open-ended (in progress)
+Target mash-up: MapleStory-idle loop + PoE2 ARPG depth + MapleStory2 feedback + Tunic look →
+addictive incremental, gacha later. Diagnosis: the game was tuned **sparse/slow** while every
+target genre is **dense/fast** — reward cadence too low to be addictive. Three levers, in order:
+
+1. **Reward cadence + density** ✅ (lever 1) — `DropChance` 0.003→0.12 (~40× loot rain → scrap
+   fountain + occasional keepers), `MobCap` 20→60, `SpawnBatchSize` 6→10, `SpawnIntervalMs`
+   1500→900, spawn ring 16–36→10–26 (packs hug the party = constant combat, no dead walking).
+   Confirmed "better" in playtest. All tunable in `BalanceConstants`.
+2. **Juice the now-frequent moments** — loot beams + pickup chimes, crit hitstop, level-up
+   bursts, boss-kill punch (FX hooks exist in `CombatJuice`). NEXT.
+3. **Decisions + acceleration** — make skills choosable (the PoE "build" pillar; currently
+   read-only — likely where lasting addictiveness lives), short-term goals/milestones, and
+   visibly accelerating progression (auto-advance out-geared stages).
+
+Still-open hypotheses to revisit after juice: samey pacing (pack/elite variety), short-term goals.
 
 ---
 

@@ -110,15 +110,15 @@ namespace IdleGame.GameCore
 
         // Farm zones (M8/M9): max concurrent trash, and how big a wave spawns each
         // interval (scattered across the field) until the cap is reached.
-        public int MobCap = 20;            // deliberately sparse in the early game so each kill matters
-        public int SpawnBatchSize = 6;     // mobs per PACK (a spawn drops a tight cluster, not a scatter)
-        public double SpawnIntervalMs = 1500; // a lull between packs => quiet-stretch → pack rhythm
+        public int MobCap = 60;            // dense packs to mow through (ARPG / MS2 horde feel)
+        public int SpawnBatchSize = 10;    // mobs per PACK (a spawn drops a tight cluster, not a scatter)
+        public double SpawnIntervalMs = 900; // refill fast so the field stays full of things to kill
 
         // Trash spawns as PACKS in a ring around the PARTY (not a fixed box): each spawn is a
         // tight cluster (PackRadius) at one ring point, so packs appear near the group wherever
         // it roams with quiet gaps between. Spawned mobs persist and wander (no distance cull).
-        public double SpawnRingInner = 16;
-        public double SpawnRingOuter = 36;
+        public double SpawnRingInner = 10;  // packs ring closer to the party so there's always
+        public double SpawnRingOuter = 26;  // something in engage range — no dead walking time
         public double PackRadius = 3.5;
 
         // Boss challenge (M8): seconds to kill the stage's boss and advance.
@@ -180,11 +180,11 @@ namespace IdleGame.GameCore
         // affix-pool size for the item base — see Loot.RollAffixes.
         public (int min, int max)[] AffixCountByRarity = { (0, 0), (1, 2), (3, 4), (4, 5), (5, 6) };
 
-        // Per-kill chance a common monster drops an item — deliberately scarce so active
-        // farming yields roughly one item every few minutes (PRIMARY scarcity dial; tune
-        // to taste). Trash drops are capped at Rare (TrashRarityCap); Unique/Legendary
-        // come only from boss bundles below.
-        public double DropChance = 0.003;
+        // Per-kill chance a common monster drops an item. Tuned for a steady loot "rain"
+        // (PoE/Maple cadence): most drops get auto-salvaged to scrap (a number that keeps
+        // climbing), with the occasional keeper. PRIMARY loot-cadence dial. Trash drops are
+        // capped at Rare (TrashRarityCap); Unique/Legendary come only from boss bundles below.
+        public double DropChance = 0.12;
 
         // Highest rarity a common/trash/idle drop can roll. Unique/Legendary are
         // boss-exclusive (guaranteed bundles), so the open-world ceiling is Rare.
