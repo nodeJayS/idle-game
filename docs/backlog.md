@@ -17,15 +17,16 @@ Renderer/UI-only unless noted. GameCore-first for anything touching rules (build
   `save.Party.Length`, so they show 3 with no change.
 - Tests: `MigrateShrinksLongPartyBenchingOverflow` added; length asserts use `Save.PartySize`. 217 pass.
 
-### A2. Derived combat stats — DPS + Effective Life  ·  GameCore ✅ / panel-wiring pending  ·  prereq for B2
-- **Done (GameCore):** `DerivedStats` static class — `Dps(stats)` = max(1,Atk)×AtkSpd×critMult
+### A2. Derived combat stats — DPS + Effective Life  ·  ✅ done (GameCore + UI)  ·  prereq for B2
+- **GameCore:** `DerivedStats` static class — `Dps(stats)` = max(1,Atk)×AtkSpd×critMult
   (sheet DPS vs unarmored, mirrors `ApplyHit`); `EffectiveHp(stats, R)` = Hp×R/max(1, R−Def)
   (sim-exact flat-mitigation survivability); `StageReferenceHit(cfg, stage)` = the stage boss's
   scaled Atk, plus an `EffectiveHp(stats, cfg, stage)` convenience. 10 tests (227 total pass).
   - EHP model decision: **vs a reference hit** (the stage boss's scaled Atk) — the survival gate.
     Flat Def has no reference-free EHP, so the number reads "effective life vs a stage-N boss hit".
-- **Pending (UI):** surface DPS + Effective Life in the Stats tab (`StatDisplay`/`EquipmentView`).
-  Then B2 diffs these between current vs item-swapped `StatBlock`.
+- **UI:** Stats tab + Equipment detail pane (`EquipmentView.RenderStatSheet`) lead with gold DPS
+  + Effective Life rows (EHP vs current stage's boss hit). Next: B2 diffs these current vs
+  item-swapped `StatBlock`.
 
 ## B. UI / UX
 
