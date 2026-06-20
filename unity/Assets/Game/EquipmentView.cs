@@ -344,13 +344,29 @@ namespace IdleGame.Game
                 .color = new Color(0.85f, 0.9f, 1f);
             UiKit.Label(into, $"Level {hero.Level}", 12, TextAnchor.MiddleLeft, new Vector2(250, 18), new Vector2(0, 166));
 
-            float y = 138f;
+            // Headline derived stats (A2): DPS and Effective Life — the at-a-glance "how strong /
+            // how tanky" numbers. EHP is read against the current stage's boss hit (the gate).
+            int stage = save.Progress.CurrentStage;
+            var accent = new Color(1f, 0.86f, 0.45f);
+            DerivedRow(into, "DPS", DerivedStats.Dps(stats).ToString("N0"), 138f, accent);
+            DerivedRow(into, "Effective Life", DerivedStats.EffectiveHp(stats, _cfg, stage).ToString("N0"), 116f, accent);
+            UiKit.Label(into, $"vs stage {stage} boss hit", 10, TextAnchor.MiddleRight, new Vector2(205, 14), new Vector2(22, 101))
+                .color = new Color(0.6f, 0.62f, 0.68f);
+
+            float y = 78f;
             foreach (var k in StatDisplay.Order)
             {
                 UiKit.Label(into, StatDisplay.Label(k), 13, TextAnchor.MiddleLeft, new Vector2(160, 18), new Vector2(-45, y));
                 UiKit.Label(into, StatDisplay.Value(k, stats.Get(k)), 13, TextAnchor.MiddleRight, new Vector2(90, 18), new Vector2(95, y));
                 y -= 22f;
             }
+        }
+
+        /// <summary>A highlighted derived-stat row (DPS / Effective Life) in the stat sheet.</summary>
+        private static void DerivedRow(RectTransform into, string label, string value, float y, Color color)
+        {
+            UiKit.Label(into, label, 14, TextAnchor.MiddleLeft, new Vector2(160, 18), new Vector2(-45, y)).color = color;
+            UiKit.Label(into, value, 14, TextAnchor.MiddleRight, new Vector2(130, 18), new Vector2(75, y)).color = color;
         }
 
         // ---- Skills sub-tab (read-only seed; tree/leveling land in the Skills milestone) ----
