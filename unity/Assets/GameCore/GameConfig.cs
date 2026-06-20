@@ -143,6 +143,11 @@ namespace IdleGame.GameCore
         public double BossRadius = 0.7;
         public int CollisionIterations = 2;
 
+        // Solo party leash: a hero fights enemies within this distance of itself (individual
+        // combat); when nothing is that close, heroes travel together toward the pack nearest
+        // the party centre, so they read as separate units without scattering across the map.
+        public double EngageRadius = 14;
+
         // Wander (idle trash): a non-aggro mob ambles between random points within
         // WanderRadius of itself, repicking every WanderMin..MaxMs, at WanderSpeedMult of
         // its move speed — until a hero hits it and it aggros.

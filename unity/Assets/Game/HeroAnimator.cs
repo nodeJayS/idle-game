@@ -40,6 +40,9 @@ namespace IdleGame.Game
 
             _idleP = Connect(idle, 0); _idleLen = Mathf.Max(0.1f, idle.length);
             _walkP = Connect(walk, 1); _walkLen = Mathf.Max(0.1f, walk.length);
+            // Stagger each hero's cycle so they don't breathe/step in unison (cosmetic only).
+            _idleP.SetTime(Random.Range(0f, _idleLen));
+            _walkP.SetTime(Random.Range(0f, _walkLen));
             if (attack != null)
             {
                 _attackP = Connect(attack, 2);

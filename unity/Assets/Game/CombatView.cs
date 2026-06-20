@@ -319,7 +319,8 @@ namespace IdleGame.Game
         {
             ClearViews();
             _combat = combat;
-            _combat.Tactic = PartyTactic.Group; // the party always moves/fights as a cohesive group
+            _combat.Tactic = PartyTactic.Solo; // each hero picks its own nearest enemy, so they
+                                               // move as individual units instead of in lockstep
             ReconcileViews();
             _accMs = 0;
             _outcomeTimer = 0;

@@ -377,6 +377,10 @@ namespace IdleGame.GameCore
             // In Group tactic the whole party shares one focus target (recomputed each
             // step); Solo and all monsters use their own nearest enemy.
             var groupTarget = s.Tactic == PartyTactic.Group ? FindGroupTarget(s) : null;
+            // Solo party: travel anchor = the enemy pack nearest the party centre (heroes head
+            // here when nothing's in their personal engage range, so the group stays cohesive).
+            var centroid = PartyCentroid(s);
+            var anchor = s.Tactic == PartyTactic.Solo ? FindNearestEnemyTo(s, centroid) : null;
 
             foreach (var e in actors)
             {
@@ -391,9 +395,31 @@ namespace IdleGame.GameCore
                 // A ready skill replaces this step's basic attack/move (M11).
                 if (TryCastSkill(s, e, cfg, rng, events)) continue;
 
-                var target = (e.Team == Team.Party && groupTarget != null && groupTarget.Alive)
-                    ? groupTarget
-                    : FindNearestEnemy(s, e);
+                CombatEntity? target;
+                if (e.Team == Team.Party && s.Tactic == PartyTactic.Solo)
+                {
+                    // Leashed individuality: fight the nearest enemy in personal engage range;
+                    // if none is close, travel toward the pack nearest the party centre so the
+                    // group stays together instead of one hero sprinting off solo.
+                    target = FindNearestEnemyWithin(s, e, cfg.Balance.EngageRadius);
+                    if (target == null)
+                    {
+                        e.TargetId = anchor?.Id;
+                        if (anchor != null)
+                        {
+                            double ms0 = e.EffectiveStat(StatKey.MoveSpd);
+                            if (ms0 <= 0) ms0 = MoveSpeedTilesPerSec;
+                            MoveToward(e, anchor.Pos, ms0 * dtMs / 1000.0);
+                        }
+                        continue;
+                    }
+                }
+                else
+                {
+                    target = (e.Team == Team.Party && groupTarget != null && groupTarget.Alive)
+                        ? groupTarget
+                        : FindNearestEnemy(s, e);
+                }
                 e.TargetId = target?.Id;
                 if (target == null) continue;
 
@@ -683,6 +709,44 @@ namespace IdleGame.GameCore
             {
                 if (!o.Alive || o.Team != Team.Enemy) continue;
                 double d = Vec2.Distance(centre, o.Pos);
+                if (d < bestDist || (d == bestDist && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
+                {
+                    bestDist = d;
+                    best = o;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>The enemy nearest a world point (the Solo party's travel anchor). Stable Id tie-break.</summary>
+        private static CombatEntity? FindNearestEnemyTo(CombatState s, Vec2 point)
+        {
+            CombatEntity? best = null;
+            double bestDist = double.MaxValue;
+            foreach (var o in s.Entities)
+            {
+                if (!o.Alive || o.Team != Team.Enemy) continue;
+                double d = Vec2.Distance(point, o.Pos);
+                if (d < bestDist || (d == bestDist && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
+                {
+                    bestDist = d;
+                    best = o;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>The nearest enemy within <paramref name="radius"/> of <paramref name="self"/>,
+        /// or null if none is that close (Solo party engages individually within range).</summary>
+        private static CombatEntity? FindNearestEnemyWithin(CombatState s, CombatEntity self, double radius)
+        {
+            CombatEntity? best = null;
+            double bestDist = double.MaxValue;
+            foreach (var o in s.Entities)
+            {
+                if (!o.Alive || o.Team == self.Team) continue;
+                double d = Vec2.Distance(self.Pos, o.Pos);
+                if (d > radius) continue;
                 if (d < bestDist || (d == bestDist && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
                 {
                     bestDist = d;
