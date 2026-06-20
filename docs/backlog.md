@@ -45,8 +45,11 @@ Renderer/UI-only unless noted. GameCore-first for anything touching rules (build
   (`DerivedDeltaRow`) before the raw stat deltas; EHP delta is vs the current stage's boss hit.
   Tests: `ComparePairBackingMatchesDeltaAndDrivesDerivedStats` (228 pass).
 
-### B3. Inventory panel off-center  ·  UI only  ·  small
-- Layout fix in `InventoryView` / its `UiKit` placement. (Screenshot pending for the exact offset.)
+### B3. Inventory panel off-center  ·  ✅ done (UI only)
+- Root cause was `UiKit.ScrollGrid`: the content drifted sideways under the scroll mask, clipping
+  the first column (both the Inventory grid and the Heroes "Bag" grid). Fixed in one place — pin
+  content to fill viewport width (`offsetMin/Max.x = 0`) + center the cell block
+  (`childAlignment = UpperCenter`). Both bag grids now sit cleanly inset, no clipping.
 
 ## C. Game feel / juice
 

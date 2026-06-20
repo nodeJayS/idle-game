@@ -176,6 +176,10 @@ namespace IdleGame.Game
             crt.anchorMax = new Vector2(1f, 1f);
             crt.pivot = new Vector2(0.5f, 1f);
             crt.anchoredPosition = Vector2.zero;
+            // Pin the content to exactly fill the viewport width (no horizontal inset/offset) so
+            // the grid can't drift sideways out from under the mask — was clipping the first column.
+            crt.offsetMin = new Vector2(0f, crt.offsetMin.y);
+            crt.offsetMax = new Vector2(0f, crt.offsetMax.y);
 
             const int pad = 8;
             var grid = content.AddComponent<GridLayoutGroup>();
@@ -184,6 +188,9 @@ namespace IdleGame.Game
             grid.padding = new RectOffset(pad, pad, pad, pad);
             grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
             grid.constraintCount = Mathf.Max(1, Mathf.FloorToInt((size.x - pad * 2 + spacing) / (cell.x + spacing)));
+            // Center the cell block within the (wider) content so leftover slack splits evenly
+            // instead of all landing on one side — keeps every column fully inside the viewport.
+            grid.childAlignment = TextAnchor.UpperCenter;
 
             var fitter = content.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
