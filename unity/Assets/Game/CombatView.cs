@@ -39,9 +39,9 @@ namespace IdleGame.Game
             public Vector3 CurPos;
             public Vector3 SmoothPos;
 
-            // Skeletal animation (set for hero models with a Mixamo rig). Idle/Walk blend
-            // by Moving; the attack clip fires on a Hit/SkillCast. Null for capsules/enemies.
-            public HeroAnimator? Anim;
+            // Procedural chibi animation (set for code-built hero puppets). Idle/Walk blend by
+            // Moving; the swing fires on a Hit/SkillCast. Null for capsules/enemies.
+            public ChibiAnimator? Anim;
             public bool Moving;
 
             // Attack/cast tell (M11): a quick punch toward the target (or upward for a
@@ -487,6 +487,7 @@ namespace IdleGame.Game
         };
         private const float HeroModelScale = 1f;    // tune if the model imports too big/small
         private const float HeroModelHeight = 1.7f; // approx model height -> floating health-bar anchor
+        private const float ChibiHeight = 1.35f;    // chibi head height -> floating health-bar anchor
 
         private static AnimationClip? FirstClip(string path)
         {
@@ -523,17 +524,24 @@ namespace IdleGame.Game
             float height;
             Vector3 baseScale;
             Color color = Color.white;
-            HeroAnimator? heroAnim = null;
+            ChibiAnimator? heroAnim = null;
 
-            var model = isHero ? TryLoadHeroModel(e, out heroAnim) : null;
+            GameObject? model = null;
+            if (isHero)
+            {
+                var hero = _save.Heroes.Find(h => h.Id == e.RefId);
+                bool ranged = hero != null && _cfg.Heroes.TryGetValue(hero.DefId, out var hd0) && hd0.Role == "ranged";
+                var built = hero != null ? ChibiHero.Build(hero.DefId, ranged) : null;
+                if (built != null) { model = built.Value.root; heroAnim = built.Value.anim; }
+            }
             if (model != null)
             {
                 go = model;
                 go.name = e.Id;
-                baseScale = new Vector3(HeroModelScale, HeroModelScale, HeroModelScale);
+                baseScale = Vector3.one;
                 go.transform.localScale = baseScale;
-                height = HeroModelHeight * HeroModelScale;
-                go.transform.position = new Vector3((float)e.Pos.X, 0f, (float)e.Pos.Y); // model origin at the feet
+                height = ChibiHeight;
+                go.transform.position = new Vector3((float)e.Pos.X, 0f, (float)e.Pos.Y); // feet at the ground
             }
             else
             {
