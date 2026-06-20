@@ -22,6 +22,7 @@ namespace IdleGame.Game
         private GameObject? _panel;        // the open inventory canvas (null when closed)
         private RectTransform? _detail;    // fixed detail pane, updated on hover/click
         private string? _confirmSalvageId; // two-step confirm guard for Unique/Legendary salvage
+        private bool _autoSalvageOpen;     // auto-salvage dropdown expanded? (kept across Rebuild)
 
         /// <summary>True while the inventory panel is open (the HUD reads this).</summary>
         public bool IsOpen => _panel != null;
@@ -36,6 +37,7 @@ namespace IdleGame.Game
         public void Toggle()
         {
             if (_panel != null) { Close(); return; }
+            _autoSalvageOpen = false; // fresh open starts collapsed
             Open();
         }
 
@@ -70,14 +72,6 @@ namespace IdleGame.Game
             UiKit.Label(panel.transform, $"Scrap: {Num.Compact(scrap)}", 16, TextAnchor.MiddleLeft,
                         new Vector2(170, 30), new Vector2(-125, 274)).color = new Color(0.75f, 0.78f, 0.85f);
 
-            // auto-salvage threshold: drops at/below this rarity convert to scrap on pickup.
-            var asBtn = UiKit.TextButton(panel.transform, AutoSalvageLabel(Settings.AutoSalvageMax),
-                                         new Vector2(300, 46), new Vector2(130, 274), CycleAutoSalvage, 17);
-            var asLbl = asBtn.GetComponentInChildren<Text>();
-            if (asLbl != null)
-                asLbl.color = Settings.AutoSalvageMax == null ? new Color(0.7f, 0.72f, 0.78f)
-                                                              : Palette.Rarity(Settings.AutoSalvageMax.Value);
-
             UiKit.TextButton(panel.transform, "Close", new Vector2(150, 50), new Vector2(375, 274), Close, 22);
 
             // left: grid of item tiles (the shared bag)
@@ -95,6 +89,10 @@ namespace IdleGame.Game
             var box = UiKit.Panel(panel.transform, new Vector2(300, 520), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(310, -20));
             _detail = box.rectTransform;
             ShowDetail(save, null); // initial prompt
+
+            // auto-salvage threshold: drops at/below this rarity convert to scrap on pickup.
+            // Built last so its expanded dropdown renders (and raycasts) on top of the grid.
+            BuildAutoSalvage(panel.transform);
         }
 
         private void ShowDetail(SaveState save, Item? item)
@@ -167,20 +165,62 @@ namespace IdleGame.Game
 
         // ---- auto-salvage threshold control ----
 
-        private static string AutoSalvageLabel(Rarity? max) =>
-            max == null ? "Auto-salvage: Off" : $"Auto-salvage: ≤ {max.Value}";
-
-        /// <summary>Cycle Off → Normal → Magic → Rare → Off. Unique/Legendary are boss-only
-        /// and never auto-salvaged (trash is capped at Rare anyway).</summary>
-        private void CycleAutoSalvage()
+        // The selectable thresholds, low→high. Unique/Legendary are intentionally absent:
+        // they're boss-only chase items and trash is capped at Rare, so auto-salvage never
+        // touches them. "& below" matches Inventory.AddLoot's `Rarity <= max` semantics.
+        private static readonly (Rarity? max, string label)[] AutoSalvageOptions =
         {
-            Settings.AutoSalvageMax = Settings.AutoSalvageMax switch
+            (null, "Off"),
+            (Rarity.Normal, "Normal"),
+            (Rarity.Magic, "Magic & below"),
+            (Rarity.Rare, "Rare & below"),
+        };
+
+        private static string AutoSalvageLabel(Rarity? max)
+        {
+            foreach (var o in AutoSalvageOptions) if (o.max == max) return o.label;
+            return "Off";
+        }
+
+        private static Color AutoSalvageColor(Rarity? max) =>
+            max == null ? new Color(0.7f, 0.72f, 0.78f) : Palette.Rarity(max.Value);
+
+        /// <summary>Header button + an explicit dropdown list of thresholds (replaces the old
+        /// cycling button). Click the header to expand; click an option to set it and collapse.</summary>
+        private void BuildAutoSalvage(Transform parent)
+        {
+            var cur = Settings.AutoSalvageMax;
+            var btn = UiKit.TextButton(parent, $"Auto-salvage: {AutoSalvageLabel(cur)}  {(_autoSalvageOpen ? "▴" : "▾")}",
+                                       new Vector2(300, 46), new Vector2(130, 274),
+                                       () => { _autoSalvageOpen = !_autoSalvageOpen; Rebuild(); }, 17);
+            var lbl = btn.GetComponentInChildren<Text>();
+            if (lbl != null) lbl.color = AutoSalvageColor(cur);
+
+            if (!_autoSalvageOpen) return;
+
+            const float rowH = 40f, firstY = 229f; // first row just under the header button
+            int n = AutoSalvageOptions.Length;
+            // backdrop behind the option rows (added before them, so the buttons sit on top)
+            float panelH = rowH * n + 8f;
+            float panelCY = firstY + rowH / 2f - panelH / 2f;
+            UiKit.Panel(parent, new Vector2(308, panelH), new Color(0.05f, 0.05f, 0.08f, 1f), new Vector2(130, panelCY));
+
+            for (int i = 0; i < n; i++)
             {
-                null => Rarity.Normal,
-                Rarity.Normal => Rarity.Magic,
-                Rarity.Magic => Rarity.Rare,
-                _ => (Rarity?)null,
-            };
+                var (max, label) = AutoSalvageOptions[i];
+                bool selected = max == cur;
+                var ob = UiKit.TextButton(parent, (selected ? "● " : "") + label, new Vector2(292, rowH - 4f),
+                                          new Vector2(130, firstY - rowH * i), () => SelectAutoSalvage(max), 16);
+                if (selected) ob.GetComponent<Image>().color = new Color(0.24f, 0.34f, 0.5f);
+                var ol = ob.GetComponentInChildren<Text>();
+                if (ol != null) ol.color = AutoSalvageColor(max);
+            }
+        }
+
+        private void SelectAutoSalvage(Rarity? max)
+        {
+            Settings.AutoSalvageMax = max;
+            _autoSalvageOpen = false; // collapse after choosing
             Rebuild();
         }
 

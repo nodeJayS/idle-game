@@ -30,11 +30,12 @@ Renderer/UI-only unless noted. GameCore-first for anything touching rules (build
 
 ## B. UI / UX
 
-### B1. Auto-salvage rarity selector (bullet list)  ·  UI only  ·  small–medium
-- Mechanic exists: `Settings.AutoSalvageMax` (`Rarity?`); `Inventory.AddLoot` salvages
-  everything `Rarity <= max` (the "and below" semantics already match). Today it's a
-  cycling button (`InventoryView.cs:73-74`, `AutoSalvageLabel`). Replace with an explicit
-  list: Off / Normal / Magic & below / Rare & below / Unique & below / …
+### B1. Auto-salvage rarity selector (bullet list)  ·  ✅ done (UI only)
+- `InventoryView.BuildAutoSalvage`: header button expands an explicit dropdown list —
+  Off / Normal / Magic & below / Rare & below — current marked with ●, tinted by rarity.
+  Replaces the old cycling button. Built last in `Open()` so the popup renders on top.
+- Unique/Legendary intentionally excluded (boss-only chase items; trash caps at Rare).
+  `& below` matches `Inventory.AddLoot`'s `Rarity <= max`.
 
 ### B2. Equipment hover → stat-delta preview  ·  ✅ done (GameCore + UI)  ·  depended on A2
 - `Inventory.ComparePairForHero` (new) returns the hero's (before, after) `StatBlock` for an
