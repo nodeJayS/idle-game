@@ -103,6 +103,73 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>
+        /// C1 — convert a live farm encounter into the timed boss challenge IN PLACE: despawn all
+        /// trash, restore the party, and make the stage's boss appear a short distance ahead of the
+        /// party on the SAME map (no scene reset / separate arena). Switches Kind and resets the
+        /// challenge timer; the existing BossChallenge step logic then runs the fight. Mutates s.
+        /// </summary>
+        public static void EnterBossChallenge(CombatState s, GameConfig cfg)
+        {
+            s.Entities.RemoveAll(e => e.Team == Team.Enemy); // trash despawns
+            RestoreParty(s);
+
+            var rt = cfg.Stages.Find(r => r.Stage == s.Stage) ?? cfg.Stages[0];
+            s.Loot = LootContext.ForStage(rt);
+            if (cfg.Monsters.TryGetValue(rt.BossId, out var boss))
+            {
+                double major = rt.IsMajorBoss ? cfg.Balance.MajorBossMult : 1.0;
+                var c = PartyCentroid(s);
+                double w = cfg.Balance.MapHalfWidth - 1.0, d = cfg.Balance.MapHalfDepth - 1.0;
+                var pos = new Vec2(Math.Clamp(c.X + cfg.Balance.BossSpawnDistance, -w, w), Math.Clamp(c.Y, -d, d));
+                s.Entities.Add(MakeMonster(cfg, boss, "EBOSS", pos,
+                    StageScale(rt, cfg) * major, true, HpScale(rt, cfg) * cfg.Balance.BossHpMult * major));
+            }
+
+            s.Kind = EncounterKind.BossChallenge;
+            s.TimeMs = 0;
+            s.SpawnTimerMs = 0;
+            s.Status = CombatStatus.Running;
+        }
+
+        /// <summary>
+        /// C1 — return a boss challenge (or a wiped farm) to farming IN PLACE: despawn the boss,
+        /// restore the party, and resume the farm for <paramref name="stage"/> on the same map. The
+        /// first trash pack is gated by <paramref name="spawnDelayMs"/> — a normal beat after a win,
+        /// or a longer anti-spam cooldown after a flee/fail so packs can't be refreshed on demand by
+        /// spamming challenge→flee. Mutates s.
+        /// </summary>
+        public static void ResumeFarm(CombatState s, int stage, GameConfig cfg, double spawnDelayMs)
+        {
+            s.Entities.RemoveAll(e => e.Team == Team.Enemy); // boss / leftovers despawn
+            RestoreParty(s);
+
+            var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
+            s.Stage = stage;
+            s.Loot = LootContext.ForStage(rt);
+            s.Kind = EncounterKind.Farm;
+            s.TimeMs = 0;
+            s.Status = CombatStatus.Running;
+            s.SpawnTimerMs = spawnDelayMs; // lull before the next pack (no instant respawn)
+        }
+
+        /// <summary>Heal the party to full and clear downed / cooldown / buff state — a phase
+        /// transition (farm↔boss) begins a fresh fight on the same map, mirroring the clean slate
+        /// the old rebuild-from-scratch flow gave.</summary>
+        private static void RestoreParty(CombatState s)
+        {
+            foreach (var e in s.Entities)
+            {
+                if (e.Team != Team.Party) continue;
+                e.Hp = e.MaxHp;
+                e.Mana = e.MaxMana;
+                e.RespawnMs = 0;
+                e.AttackCdMs = 0;
+                e.Buffs.Clear();
+                e.SkillCdMs.Clear();
+            }
+        }
+
+        /// <summary>
         /// Re-derive each living party hero's combat stats from the current save (level
         /// + equipped gear), so leveling up or swapping gear takes effect immediately
         /// without restarting the encounter. An increase in max HP also heals by the

@@ -123,6 +123,12 @@ namespace IdleGame.GameCore
 
         // Boss challenge (M8): seconds to kill the stage's boss and advance.
         public double BossChallengeSeconds = 60;
+        // Boss challenge (C1): pressing Challenge despawns the trash and the boss appears this far
+        // ahead of the party on the SAME map (a step or two away — not a separate arena). After a
+        // flee/fail, trash stays gone for BossFleeCooldownMs before repopulating, so spamming
+        // challenge→flee can't be used to refresh packs on demand.
+        public double BossSpawnDistance = 8;
+        public double BossFleeCooldownMs = 4000;
 
         // Play area: half-extents of the field. The party starts at the centre; trash
         // spawns scattered across the whole field (~2.5x the old area) so heroes range

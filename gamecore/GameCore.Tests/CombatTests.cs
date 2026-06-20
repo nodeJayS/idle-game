@@ -458,6 +458,67 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(s1.TimeMs, s2.TimeMs);
         }
 
+        // --- C1: in-place boss challenge (same map, no arena swap) ---
+
+        [Fact]
+        public void EnterBossChallengeSwapsTrashForBossInPlace()
+        {
+            var cfg = GameConfig.Default();
+            var s = Combat.InitFarm(new[] { Champ() }, 3, cfg, new Rng(1));
+            Assert.Contains(s.Entities, e => e.Team == Team.Enemy && !e.IsBoss); // farm has trash
+            var hero = s.Entities.First(e => e.Team == Team.Party);
+            var heroPos = hero.Pos;
+
+            Combat.EnterBossChallenge(s, cfg);
+
+            Assert.Equal(EncounterKind.BossChallenge, s.Kind);
+            Assert.Equal(0, s.TimeMs);                                   // challenge timer reset
+            Assert.Single(s.Entities, e => e.Team == Team.Enemy);        // only the boss remains
+            Assert.Single(s.Entities, e => e.IsBoss);
+            Assert.Equal(heroPos.X, hero.Pos.X, 6);                      // party stays put (same map)
+            Assert.Equal(heroPos.Y, hero.Pos.Y, 6);
+            var boss = s.Entities.First(e => e.IsBoss);
+            Assert.Equal(heroPos.X + cfg.Balance.BossSpawnDistance, boss.Pos.X, 6); // boss appears just ahead
+        }
+
+        [Fact]
+        public void EnterBossChallengeRestoresDownedParty()
+        {
+            var cfg = GameConfig.Default();
+            var s = Combat.InitFarm(new[] { Champ() }, 1, cfg, new Rng(1));
+            var hero = s.Entities.First(e => e.Team == Team.Party);
+            hero.Hp = 0; hero.RespawnMs = 2000; // downed during farm
+
+            Combat.EnterBossChallenge(s, cfg);
+
+            Assert.Equal(hero.MaxHp, hero.Hp); // healed for a clean boss fight
+            Assert.Equal(0, hero.RespawnMs);
+        }
+
+        [Fact]
+        public void ResumeFarmDespawnsBossAndGatesNextPackByCooldown()
+        {
+            var cfg = GameConfig.Default();
+            var s = Combat.InitFarm(new[] { Champ() }, 2, cfg, new Rng(1));
+            Combat.EnterBossChallenge(s, cfg);
+            Assert.Single(s.Entities, e => e.IsBoss);
+
+            double cooldown = cfg.Balance.BossFleeCooldownMs; // 4s anti-spam lull
+            Combat.ResumeFarm(s, 2, cfg, cooldown);
+
+            Assert.Equal(EncounterKind.Farm, s.Kind);
+            Assert.DoesNotContain(s.Entities, e => e.Team == Team.Enemy); // boss gone, no instant trash
+            Assert.Equal(cooldown, s.SpawnTimerMs, 6);
+
+            // step ~3s (< cooldown): still no trash — flee-spam can't refresh packs
+            for (int i = 0; i < 90; i++) Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+            Assert.DoesNotContain(s.Entities, e => e.Team == Team.Enemy);
+
+            // step past the cooldown: a pack finally repopulates
+            for (int i = 0; i < 60; i++) Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+            Assert.Contains(s.Entities, e => e.Team == Team.Enemy);
+        }
+
         // --- M8: live stat refresh (real-time leveling / gear) ---
 
         [Fact]

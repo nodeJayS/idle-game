@@ -311,7 +311,6 @@ namespace IdleGame.Game
         }
 
         private void StartFarm() => Begin(Combat.InitFarm(BuildParty(), _save.Progress.CurrentStage, _cfg, NewRng()));
-        private void StartBoss() => Begin(Combat.InitBossChallenge(BuildParty(), _save.Progress.CurrentStage, _cfg, NewRng()));
 
         private Rng NewRng() => _rng = new Rng((uint)(_save.RngSeed + _runCount));
 
@@ -366,7 +365,15 @@ namespace IdleGame.Game
                 // which fast-forwards the timer); losses use the longer banner delay.
                 bool bossWin = _combat.Kind == EncounterKind.BossChallenge && _combat.Status == CombatStatus.Won;
                 float delay = bossWin ? 1.0f : OutcomeDelaySec;
-                if (_outcomeTimer >= delay) { _runCount++; StartFarm(); return; }
+                if (_outcomeTimer >= delay)
+                {
+                    // Back to farming on the SAME map (no rebuild). A win farms the next stage at
+                    // normal cadence; a fail/wipe re-farms the current stage after the anti-spam
+                    // cooldown before trash returns.
+                    double spawnDelay = bossWin ? _cfg.Balance.SpawnIntervalMs : _cfg.Balance.BossFleeCooldownMs;
+                    ResumeFarmInPlace(_save.Progress.CurrentStage, spawnDelay);
+                    return;
+                }
             }
 
             ReconcileViews();
@@ -471,8 +478,30 @@ namespace IdleGame.Game
             CommitPending(); _runCount++; StartFarm();
         }
 
-        private void ChallengeBoss() { CommitPending(); _runCount++; StartBoss(); }
-        private void FleeToFarm() { CommitPending(); _runCount++; StartFarm(); }
+        // C1: the boss fight happens IN PLACE on the current farm map — trash despawns and the
+        // boss appears — rather than swapping to a fresh arena.
+        private void ChallengeBoss()
+        {
+            CommitPending();
+            Combat.EnterBossChallenge(_combat, _cfg);
+            _accMs = 0; _outcomeTimer = 0; _resolved = false;
+            ReconcileViews();
+        }
+
+        private void FleeToFarm()
+        {
+            CommitPending();
+            ResumeFarmInPlace(_save.Progress.CurrentStage, _cfg.Balance.BossFleeCooldownMs);
+        }
+
+        /// <summary>Resume farming on the same map (no scene reset), gating the next trash pack by
+        /// <paramref name="spawnDelayMs"/>. Used by flee, boss-fail, and the post-win advance.</summary>
+        private void ResumeFarmInPlace(int stage, double spawnDelayMs)
+        {
+            Combat.ResumeFarm(_combat, stage, _cfg, spawnDelayMs);
+            _accMs = 0; _outcomeTimer = 0; _resolved = false;
+            ReconcileViews();
+        }
 
         // ---- views ----
 

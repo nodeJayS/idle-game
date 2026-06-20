@@ -53,10 +53,15 @@ Renderer/UI-only unless noted. GameCore-first for anything touching rules (build
 
 ## C. Game feel / juice
 
-### C1. Challenge-Miniboss travel indicator  ·  renderer + flow  ·  medium
-- Entering the boss challenge transitions instantly today. Want the party to visibly
-  **move to the boss** (walk-in / camera lead-in) instead of teleporting. Touches the
-  challenge transition in `CombatView`/`Bootstrap` flow + `CameraRig`.
+### C1. Challenge boss in place (no arena swap)  ·  ✅ done (GameCore + UI)
+- Final design (walk-in arena was rejected): the boss challenge happens **on the same farm
+  map**. Pressing Challenge despawns trash and the boss appears `BossSpawnDistance` (8) ahead
+  of the party — no scene reset, camera stays put. Win → advance + next-stage trash returns at
+  normal cadence; flee/fail/wipe → back to farming after a `BossFleeCooldownMs` (4s) lull so
+  spamming challenge→flee can't refresh packs.
+- Pure GameCore mutators `Combat.EnterBossChallenge` / `Combat.ResumeFarm` (+ `RestoreParty`);
+  `CombatView` calls them in place, `ReconcileViews` syncs views. `InitBossChallenge` kept for
+  tests. 3 tests added (231 pass).
 
 ## D. Design investigation (discuss together)
 
