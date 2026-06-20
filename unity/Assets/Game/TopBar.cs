@@ -33,8 +33,8 @@ namespace IdleGame.Game
                                      new Vector2(300, 30), Vector2.zero);
             Anchor((RectTransform)_nameLabel.transform, new Vector2(84, -30));
 
-            var gear = UiKit.TextButton(canvas.transform, "Settings", new Vector2(150, 52), Vector2.zero, ToggleSettings);
-            Anchor((RectTransform)gear.transform, new Vector2(16, -84));
+            var gear = UiKit.TextButton(canvas.transform, "Settings", new Vector2(104, 34), Vector2.zero, ToggleSettings, 18);
+            Anchor((RectTransform)gear.transform, new Vector2(16, -80));
         }
 
         private static void Anchor(RectTransform rt, Vector2 pos)

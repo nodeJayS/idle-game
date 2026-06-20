@@ -852,11 +852,13 @@ namespace IdleGame.Game
             { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.UpperCenter };
             bool major = _cfg.Stages.Find(st => st.Stage == _combat.Stage)?.IsMajorBoss == true;
             long gold = _save.Currencies.TryGetValue("gold", out var g) ? g : 0;
-            string mode = _combat.Kind == EncounterKind.Farm
-                ? "Farming"
-                : (major ? $"★ MAJOR BOSS — Stage {_combat.Stage}" : $"Miniboss — Stage {_combat.Stage}");
-            GUI.Label(new Rect(0, 8, sw, 28),
-                      $"{mode}  ·  highest {_save.Progress.HighestStage}  ·  {Num.Compact(gold)} gold", style);
+            // Farm: just the gold readout (the current stage shows in DrawTopControls below).
+            // Boss challenge: the boss context (which names the stage) plus gold.
+            string ctx = _combat.Kind == EncounterKind.Farm
+                ? $"{Num.Compact(gold)} gold"
+                : (major ? $"★ MAJOR BOSS — Stage {_combat.Stage}" : $"Miniboss — Stage {_combat.Stage}")
+                    + $"  ·  {Num.Compact(gold)} gold";
+            GUI.Label(new Rect(0, 8, sw, 28), ctx, style);
 
             if (_combat.Kind == EncounterKind.BossChallenge)
             {
@@ -885,7 +887,7 @@ namespace IdleGame.Game
                 if (cur < maxStage && Button(cx + 116, 46, 46, 38, "▶")) GoToStage(cur + 1);
 
                 bool major = _cfg.Stages.Find(x => x.Stage == cur)?.IsMajorBoss == true;
-                if (Button(cx - 150, 90, 300, 44, major ? "Challenge ★ Major Boss" : "Challenge Miniboss")) ChallengeBoss();
+                if (Button(cx - 185, 90, 370, 46, major ? "Challenge ★ Major Boss" : "Challenge Miniboss", BtnStyleSm)) ChallengeBoss();
             }
             else if (_combat.Kind == EncounterKind.BossChallenge)
             {
@@ -933,8 +935,8 @@ namespace IdleGame.Game
         {
             if (AnyPanelOpen) return;
 
-            const float w = 280f, rowH = 78f, gap = 10f, pad = 18f;
-            const float ipad = 14f;       // inner horizontal padding
+            const float w = 340f, rowH = 92f, gap = 10f, pad = 18f;
+            const float ipad = 16f;       // inner horizontal padding
             float sw = Screen.width / s, sh = Screen.height / s;
 
             var ids = _save.Party;
@@ -960,28 +962,28 @@ namespace IdleGame.Game
                 double hp = e?.Hp ?? 0, maxHp = e?.MaxHp ?? 1;
                 double mana = e?.Mana ?? 0, maxMana = e?.MaxMana ?? 0;
 
-                GUI.Label(new Rect(bx, y + 8, bw, 22), HeroDisplayName(heroId), PartyNameStyle);
+                GUI.Label(new Rect(bx, y + 10, bw, 26), HeroDisplayName(heroId), PartyNameStyle);
 
                 // Skill-ready cue: a pulsing gold dot at the top-right of the chip when a
                 // skill is off-cooldown + affordable.
                 if (e != null && e.Alive && !e.Downed && AnySkillReady(e))
                 {
                     float pulse = 0.55f + 0.45f * Mathf.PingPong(Time.time * 2f, 1f);
-                    float d = 9f, dx = x + w - d - 10f, dy = y + 10f;
+                    float d = 11f, dx = x + w - d - 12f, dy = y + 12f;
                     DrawRect(dx - 1.5f, dy - 1.5f, d + 3f, d + 3f, new Color(0f, 0f, 0f, 0.5f * pulse));
                     DrawRect(dx, dy, d, d, new Color(1f, 0.85f, 0.35f, pulse));
                 }
 
                 // HP bar (with value text)
-                DrawBar(bx, y + 36, bw, 14, maxHp > 0 ? Mathf.Clamp01((float)(hp / maxHp)) : 0f,
+                DrawBar(bx, y + 46, bw, 16, maxHp > 0 ? Mathf.Clamp01((float)(hp / maxHp)) : 0f,
                         new Color(0.22f, 0.05f, 0.05f, 0.95f), new Color(0.35f, 0.75f, 1f));
-                GUI.Label(new Rect(bx, y + 35, bw, 16), $"{Mathf.CeilToInt((float)hp)}/{Mathf.CeilToInt((float)maxHp)}", PartyBarTextStyle);
+                GUI.Label(new Rect(bx, y + 45, bw, 18), $"{Mathf.CeilToInt((float)hp)}/{Mathf.CeilToInt((float)maxHp)}", PartyBarTextStyle);
                 // Mana bar
-                DrawBar(bx, y + 54, bw, 11, maxMana > 0 ? Mathf.Clamp01((float)(mana / maxMana)) : 0f,
+                DrawBar(bx, y + 68, bw, 13, maxMana > 0 ? Mathf.Clamp01((float)(mana / maxMana)) : 0f,
                         new Color(0.05f, 0.06f, 0.14f, 0.95f), new Color(0.45f, 0.55f, 1f));
 
                 if (e != null && e.Downed)
-                    GUI.Label(new Rect(bx, y + 8, bw, 22),
+                    GUI.Label(new Rect(bx, y + 10, bw, 26),
                               $"↻ {Mathf.CeilToInt((float)e.RespawnMs / 1000f)}s", PartyDownedStyle);
 
                 // whole chip is a click target -> opens this hero's equipment
@@ -1022,15 +1024,15 @@ namespace IdleGame.Game
         }
 
         private GUIStyle? _partyNameStyle, _partyEmptyStyle, _partyDownedStyle, _partyBarTextStyle;
-        private GUIStyle PartyNameStyle => _partyNameStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 17, fontStyle = FontStyle.Bold };
-        private GUIStyle PartyEmptyStyle => _partyEmptyStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 14, alignment = TextAnchor.MiddleCenter };
+        private GUIStyle PartyNameStyle => _partyNameStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 22, fontStyle = FontStyle.Bold };
+        private GUIStyle PartyEmptyStyle => _partyEmptyStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 18, alignment = TextAnchor.MiddleCenter };
         private GUIStyle PartyBarTextStyle
         {
             get
             {
                 if (_partyBarTextStyle == null)
                 {
-                    _partyBarTextStyle = new GUIStyle(GUI.skin.label) { fontSize = 11, alignment = TextAnchor.MiddleCenter };
+                    _partyBarTextStyle = new GUIStyle(GUI.skin.label) { fontSize = 13, alignment = TextAnchor.MiddleCenter };
                     _partyBarTextStyle.normal.textColor = new Color(1f, 1f, 1f, 0.9f);
                 }
                 return _partyBarTextStyle;
@@ -1042,7 +1044,7 @@ namespace IdleGame.Game
             {
                 if (_partyDownedStyle == null)
                 {
-                    _partyDownedStyle = new GUIStyle(GUI.skin.label) { fontSize = 14, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleRight };
+                    _partyDownedStyle = new GUIStyle(GUI.skin.label) { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleRight };
                     _partyDownedStyle.normal.textColor = new Color(1f, 0.85f, 0.4f);
                 }
                 return _partyDownedStyle;
@@ -1072,8 +1074,15 @@ namespace IdleGame.Game
         private GUIStyle BtnStyle => _btnStyle ??= new GUIStyle(GUI.skin.button)
         { fontSize = 28, fontStyle = FontStyle.Bold };
 
+        private GUIStyle? _btnStyleSm;
+        private GUIStyle BtnStyleSm => _btnStyleSm ??= new GUIStyle(GUI.skin.button)
+        { fontSize = 20, fontStyle = FontStyle.Bold };
+
         private bool Button(float x, float y, float w, float h, string label) =>
             GUI.Button(new Rect(x, y, w, h), label, BtnStyle);
+
+        private bool Button(float x, float y, float w, float h, string label, GUIStyle style) =>
+            GUI.Button(new Rect(x, y, w, h), label, style);
 
         private void DrawRect(float x, float y, float w, float h, Color c)
         {
