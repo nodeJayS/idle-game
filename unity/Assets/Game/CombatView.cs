@@ -476,46 +476,7 @@ namespace IdleGame.Game
 
         // ---- views ----
 
-        // Per-class animated Mixamo models (Resources/Characters/Mixamo). The Idle FBX is the
-        // skinned model (and supplies the idle clip); Walk/Attack supply their clips, retargeted
-        // via the shared Humanoid avatar. Falls back to the coloured capsule if anything is missing.
-        private sealed class HeroAssets { public string Model = "", Walk = "", Attack = ""; }
-        private static readonly System.Collections.Generic.Dictionary<string, HeroAssets> HeroModels = new()
-        {
-            { "warrior_basic",  new HeroAssets { Model = "Characters/Mixamo/Warrior_Idle", Walk = "Characters/Mixamo/Warrior_Walk", Attack = "Characters/Mixamo/Warrior_Attack" } },
-            { "magician_basic", new HeroAssets { Model = "Characters/Mixamo/Mage_Idle",    Walk = "Characters/Mixamo/Mage_Walk",    Attack = "Characters/Mixamo/Mage_Attack" } },
-        };
-        private const float HeroModelScale = 1f;    // tune if the model imports too big/small
-        private const float HeroModelHeight = 1.7f; // approx model height -> floating health-bar anchor
-        private const float ChibiHeight = 1.35f;    // chibi head height -> floating health-bar anchor
-
-        private static AnimationClip? FirstClip(string path)
-        {
-            foreach (var c in Resources.LoadAll<AnimationClip>(path))
-                if (c != null && !c.name.StartsWith("__preview")) return c;
-            return null;
-        }
-
-        private GameObject? TryLoadHeroModel(CombatEntity e, out HeroAnimator? anim)
-        {
-            anim = null;
-            var hero = _save.Heroes.Find(h => h.Id == e.RefId);
-            if (hero == null || !HeroModels.TryGetValue(hero.DefId, out var a)) return null;
-            var prefab = Resources.Load<GameObject>(a.Model);
-            if (prefab == null) return null;
-            var go = Instantiate(prefab);
-            foreach (var col in go.GetComponentsInChildren<Collider>()) Destroy(col); // no physics needed
-
-            var animator = go.GetComponentInChildren<Animator>();
-            var idle = FirstClip(a.Model);
-            var walk = FirstClip(a.Walk);
-            if (animator != null && idle != null && walk != null)
-            {
-                anim = go.AddComponent<HeroAnimator>();
-                anim.Init(animator, idle, walk, FirstClip(a.Attack));
-            }
-            return go;
-        }
+        private const float ChibiHeight = 1.35f; // chibi head height -> floating health-bar anchor
 
         private void SpawnView(CombatEntity e)
         {
