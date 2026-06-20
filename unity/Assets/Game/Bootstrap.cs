@@ -15,6 +15,11 @@ namespace IdleGame.Game
     {
         private const uint Seed = 12345u;
 
+        // Tunic dappled-lighting: a procedural drifting light cookie on the sun. Flip off if it
+        // reads wrong — the rest of the lighting cleanup stands on its own.
+        private const bool EnableDappleCookie = true;
+        private const float CookieWorldSize = 50f; // world units the cookie tile spans (tune by eye)
+
         private static long NowMs() => System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -138,61 +143,61 @@ namespace IdleGame.Game
                 light.type = LightType.Directional;
             }
             light.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
-            light.intensity = 1.1f;
-            light.color = new Color(1f, 0.96f, 0.86f); // warm "sun" key
-            // Soft grounded shadows are the single biggest contributor to the cozy diorama
-            // look. Not pitch-black (strength < 1) so shaded sides stay readable.
+            light.intensity = 1.35f;                    // brighter, clean Tunic key (was 1.1)
+            light.color = new Color(1f, 0.97f, 0.90f);  // warm sun, less yellow than before
+            // Crisp grounded shadows read as Tunic, not the old soft murky haze. Still < 1 so
+            // shaded sides stay readable (the TunicSurface shader also caps shadow impact).
             light.shadows = LightShadows.Soft;
-            light.shadowStrength = 0.55f;
+            light.shadowStrength = 0.8f;                 // firmer contact (was 0.55)
+
+            // Dappled "sun through canopy" light cookie (reimplemented in code from the Tunic
+            // dappled-lighting reference — procedural, no shipped textures). Drifts via
+            // LightCookieScroll so soft light pools slide across the world.
+            if (EnableDappleCookie)
+            {
+                light.cookie = DappleCookie();
+                var ald = light.GetUniversalAdditionalLightData();
+                ald.lightCookieSize = new Vector2(CookieWorldSize, CookieWorldSize);
+                ald.lightCookieOffset = Vector2.zero;
+                if (light.GetComponent<LightCookieScroll>() == null)
+                    light.gameObject.AddComponent<LightCookieScroll>();
+            }
 
             // The diorama framing puts the camera ~40u back at full zoom-out; bump the URP
             // asset's 50u shadow distance a little so the whole framed view gets shadows.
             if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset urp)
                 urp.shadowDistance = 90f;
 
-            // Stylized ambient: a cool sky fill + a slightly warm ground bounce, so shaded
-            // faces pick up colour instead of going flat grey (trilight = sky/equator/ground).
+            // Clean, brighter ambient: de-greened sky fill + a warm ground bounce so shaded
+            // faces pick up light colour instead of the old murky green (trilight = sky/eq/ground).
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.56f, 0.64f, 0.70f);
-            RenderSettings.ambientEquatorColor = new Color(0.46f, 0.52f, 0.50f);
-            RenderSettings.ambientGroundColor = new Color(0.34f, 0.34f, 0.30f);
+            RenderSettings.ambientSkyColor = new Color(0.62f, 0.70f, 0.82f);     // clean cool sky
+            RenderSettings.ambientEquatorColor = new Color(0.62f, 0.60f, 0.56f); // near-neutral
+            RenderSettings.ambientGroundColor = new Color(0.42f, 0.38f, 0.32f);  // warm earth bounce
 
-            // Gentle distance fog tinted to the sky, to add depth and dissolve the ground
-            // plane's far edge. Kept far/linear so it never muddies the active play area.
+            // Distance fog only veils the far horizon now — pushed well past the action so the
+            // play area stays crisp and bright (the old 65u start was the main source of haze).
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = SkyColor;
-            // Fog is distance-from-camera; start it beyond the party (~40u back) so the action
-            // stays clear, and let it gently veil mobs further out toward the horizon.
-            RenderSettings.fogStartDistance = 65f;
-            RenderSettings.fogEndDistance = 180f;
+            RenderSettings.fogStartDistance = 130f;   // was 65 — keep the near field clear
+            RenderSettings.fogEndDistance = 300f;     // dissolves the ground edge (±250) into sky
 
             BuildPostFx();
 
-            // --- ground plane ---
-            // Must cover the whole roam region (Balance.MapHalfWidth/Depth, now ±200×140)
-            // plus margin so the party never walks off onto the void. A Unity plane is
-            // 10x10 units, so scale 50 => 500x500 units (±250).
-            var ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
-            ground.name = "Ground";
-            ground.transform.localScale = new Vector3(50f, 1f, 50f);
-
-            // Organic mottled-grass texture (soft patches of two greens) instead of a grid —
-            // one big non-tiled field so there are no repeating seams. Matte.
-            var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-            var groundMat = new Material(shader) { color = Color.white }; // greens live in the texture
-            groundMat.mainTexture = GroundTexture();
-            groundMat.mainTextureScale = Vector2.one;
-            MakeMatte(groundMat);
-            var gr = ground.GetComponent<Renderer>();
-            if (gr != null) gr.sharedMaterial = groundMat;
+            // --- ground ---
+            // Faceted, flat-shaded, vertex-coloured grass on the TunicSurface shader (no texture).
+            // Covers the roam region (Balance.MapHalfWidth/Depth) plus margin so the party never
+            // walks off onto the void; the far edge dissolves into fog.
+            Ground.Build(cfg);
 
             // Scatter procedural low-poly props (rocks/trees/bushes) over the field.
             Scenery.Build(cfg);
         }
 
-        /// <summary>The cozy flat-sky / fog colour shared by the camera clear and distance fog.</summary>
-        private static readonly Color SkyColor = new Color(0.64f, 0.76f, 0.74f);
+        /// <summary>The flat-sky / fog colour shared by the camera clear and distance fog.
+        /// A clean, bright, slightly-warm sky-blue (was a murky green-teal) — the Tunic re-pass.</summary>
+        private static readonly Color SkyColor = new Color(0.60f, 0.76f, 0.88f);
 
         /// <summary>Kill plastic specular so lit surfaces read matte (the stylised look).
         /// Guards each property since the Standard fallback names smoothness differently.</summary>
@@ -217,22 +222,22 @@ namespace IdleGame.Game
             tone.mode.Override(TonemappingMode.Neutral);
 
             var color = profile.Add<UnityEngine.Rendering.Universal.ColorAdjustments>();
-            color.postExposure.Override(0.05f);
-            color.contrast.Override(6f);
-            color.saturation.Override(14f);                       // a little punchier, cozier
-            color.colorFilter.Override(new Color(1f, 0.98f, 0.94f)); // faint warmth
+            color.postExposure.Override(0.0f);                    // brightness now comes from the key
+            color.contrast.Override(8f);                          // a touch more pop for crisp facets
+            color.saturation.Override(10f);                       // punchy but not the old over-cozy green
+            color.colorFilter.Override(new Color(1f, 0.99f, 0.96f)); // very faint warmth
 
             var wb = profile.Add<UnityEngine.Rendering.Universal.WhiteBalance>();
-            wb.temperature.Override(8f);                          // warm the whole frame slightly
+            wb.temperature.Override(4f);                          // gentle warmth (was a heavy +8)
 
             var bloom = profile.Add<UnityEngine.Rendering.Universal.Bloom>();
-            bloom.intensity.Override(0.55f);
-            bloom.threshold.Override(0.95f);
+            bloom.intensity.Override(0.5f);
+            bloom.threshold.Override(1.05f);                      // only true highlights (fire orbs) bloom
             bloom.scatter.Override(0.6f);
 
             var vignette = profile.Add<UnityEngine.Rendering.Universal.Vignette>();
-            vignette.intensity.Override(0.22f);
-            vignette.smoothness.Override(0.45f);
+            vignette.intensity.Override(0.15f);                   // lighter — less murk at the edges
+            vignette.smoothness.Override(0.5f);
 
             var fxGo = new GameObject("PostFx");
             var vol = fxGo.AddComponent<Volume>();
@@ -241,33 +246,45 @@ namespace IdleGame.Game
             vol.sharedProfile = profile;
         }
 
-        private static Texture2D _groundTex;
+        private static Texture2D _dappleTex;
 
-        /// <summary>One big organic grass field: two octaves of low-frequency Perlin noise
-        /// blended between two greens, giving soft patches without any grid/tiling seams
-        /// (sampled non-tiled across the whole plane). Generated once.</summary>
-        private static Texture2D GroundTexture()
+        /// <summary>A seamless, tiling "dappled sunlight" cookie generated in code (no shipped
+        /// photo). Built from a sum of integer-frequency sinusoids — exactly periodic over the
+        /// tile, so it repeats with no seam — shaped into soft light pools. Values stay in
+        /// [floor, 1] so the cookie only ever dims the sun in patches, never blackens it.</summary>
+        private static Texture2D DappleCookie()
         {
-            if (_groundTex != null) return _groundTex;
-            const int n = 512;
+            if (_dappleTex != null) return _dappleTex;
+            const int n = 256;
+            const float floor = 0.55f; // darkest dapple keeps 55% of the sun
             var tex = new Texture2D(n, n, TextureFormat.RGB24, true)
-            { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
-            var dark = new Color(0.26f, 0.45f, 0.33f);
-            var light = new Color(0.40f, 0.60f, 0.44f);
+            { wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Bilinear };
+
+            // (freqX, freqY, phase, amplitude) — integer freqs => tileable; amps sum to 1.
+            var waves = new[]
+            {
+                (1, 2, 0.0f, 0.30f), (2, 3, 1.7f, 0.25f), (3, 1, 0.5f, 0.20f),
+                (4, 2, 2.3f, 0.15f), (2, 5, 4.1f, 0.10f),
+            };
+            const float TAU = 6.2831853f;
             var px = new Color[n * n];
             for (int y = 0; y < n; y++)
                 for (int x = 0; x < n; x++)
                 {
                     float u = x / (float)n, v = y / (float)n;
-                    float a = Mathf.PerlinNoise(u * 5f, v * 5f);          // big soft patches
-                    float b = Mathf.PerlinNoise(u * 13f + 7f, v * 13f + 7f); // finer break-up
-                    float t = Mathf.Clamp01(a * 0.7f + b * 0.3f);
-                    px[y * n + x] = Color.Lerp(dark, light, t);
+                    float s = 0f;
+                    foreach (var (fx, fy, ph, amp) in waves)
+                        s += amp * Mathf.Sin(TAU * fx * u + ph) * Mathf.Sin(TAU * fy * v + ph * 0.7f);
+                    float t = s * 0.5f + 0.5f;                    // [-1,1] -> [0,1]
+                    float light = Mathf.SmoothStep(0.25f, 0.75f, t); // soft pools
+                    float val = Mathf.Lerp(floor, 1f, light);
+                    px[y * n + x] = new Color(val, val * 0.99f, val * 0.96f); // faint warmth in the light
                 }
             tex.SetPixels(px);
             tex.Apply();
-            _groundTex = tex;
+            _dappleTex = tex;
             return tex;
         }
+
     }
 }

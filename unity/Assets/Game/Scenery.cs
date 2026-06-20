@@ -37,10 +37,10 @@ namespace IdleGame.Game
 
             EnsureMaterials();
 
-            // Cache shared meshes — instances only vary by transform + material. Subdivisions
-            // are kept fairly high (still flat-shaded) so silhouettes read round, not chunky.
-            var trunkMesh = BuildFlatMesh(FrustumData(8, 0.16f, 0.12f, 1f));
-            var canopyMesh = BuildFlatMesh(FrustumData(12, 1f, 0f, 1.4f)); // rounder cone
+            // Cache shared meshes — instances only vary by transform + material. LOW segment
+            // counts + flat shading give crisp faceted Tunic silhouettes (not soft round blobs).
+            var trunkMesh = BuildFlatMesh(FrustumData(5, 0.16f, 0.12f, 1f));  // 5-sided angular trunk
+            var canopyMesh = BuildFlatMesh(FrustumData(6, 1f, 0f, 1.5f));     // 6-sided faceted cone
             var bushMeshes = new Mesh[6];
             for (int i = 0; i < bushMeshes.Length; i++) bushMeshes[i] = BuildBush(rng);
             var rockMeshes = new Mesh[6];
@@ -117,45 +117,52 @@ namespace IdleGame.Game
         private static void EnsureMaterials()
         {
             if (_trunkMat != null) return;
-            // base(bottom) -> top gradient; wind only on foliage. gradHeight/bias map the
-            // gradient onto each mesh's object-space height (cones 0..1.4, bush spheres ±~1).
-            _trunkMat = Sty(new Color(0.34f, 0.25f, 0.17f), new Color(0.42f, 0.31f, 0.21f), 1f, 0f, 0f);
+            // TunicSurface paints by facet normal: top colour on up-facing facets, side colour on
+            // the slopes/sides. Rocks get MOSS on top + stone sides; foliage a lit top fading to a
+            // dark underside; trunks read as bark. (slopeLo/Hi set where the top colour gives way.)
+            _trunkMat = Tun(new Color(0.34f, 0.30f, 0.18f), new Color(0.27f, 0.20f, 0.13f), 0.55f, 0.90f, 0.30f, 0f);
+            // Foliage/bush: lit top fading only on the UNDERSIDE (slopeLo negative so the sides
+            // still catch top-green) — keeps leafy blobs bright, not dark.
             _foliageMats = new[]
             {
-                Sty(new Color(0.20f, 0.38f, 0.24f), new Color(0.46f, 0.66f, 0.42f), 1.4f, 0.0f, 0.06f),
-                Sty(new Color(0.22f, 0.42f, 0.26f), new Color(0.50f, 0.70f, 0.44f), 1.4f, 0.0f, 0.06f),
-                Sty(new Color(0.18f, 0.34f, 0.26f), new Color(0.42f, 0.62f, 0.40f), 1.4f, 0.0f, 0.06f),
+                Tun(new Color(0.44f, 0.62f, 0.30f), new Color(0.19f, 0.33f, 0.18f), -0.3f, 0.5f, 0.30f, 0.06f),
+                Tun(new Color(0.48f, 0.66f, 0.32f), new Color(0.22f, 0.37f, 0.20f), -0.3f, 0.5f, 0.30f, 0.06f),
+                Tun(new Color(0.40f, 0.56f, 0.30f), new Color(0.17f, 0.30f, 0.18f), -0.3f, 0.5f, 0.30f, 0.06f),
             };
+            // Rocks: moss only on the near-flat tops (high slopeLo), stone on the sides.
             _rockMats = new[]
             {
-                Sty(new Color(0.62f, 0.64f, 0.66f), new Color(0.76f, 0.78f, 0.80f), 1.2f, 0.3f, 0f),
-                Sty(new Color(0.56f, 0.58f, 0.60f), new Color(0.70f, 0.72f, 0.74f), 1.2f, 0.3f, 0f),
+                Tun(new Color(0.40f, 0.50f, 0.28f), new Color(0.56f, 0.57f, 0.58f), 0.55f, 0.85f, 0.35f, 0f),
+                Tun(new Color(0.36f, 0.46f, 0.26f), new Color(0.50f, 0.51f, 0.52f), 0.55f, 0.85f, 0.35f, 0f),
             };
             _bushMats = new[]
             {
-                Sty(new Color(0.20f, 0.40f, 0.26f), new Color(0.48f, 0.68f, 0.42f), 1.8f, 0.5f, 0.05f),
-                Sty(new Color(0.18f, 0.36f, 0.24f), new Color(0.42f, 0.62f, 0.40f), 1.8f, 0.5f, 0.05f),
+                Tun(new Color(0.42f, 0.60f, 0.30f), new Color(0.18f, 0.32f, 0.18f), -0.3f, 0.5f, 0.30f, 0.05f),
+                Tun(new Color(0.38f, 0.54f, 0.28f), new Color(0.16f, 0.28f, 0.17f), -0.3f, 0.5f, 0.30f, 0.05f),
             };
         }
 
-        /// <summary>Build a stylized-shader material (soft wrapped lighting + vertical colour
-        /// gradient + optional wind). Falls back to a matte URP/Lit if the shader is missing.</summary>
-        private static Material Sty(Color baseCol, Color topCol, float gradHeight, float gradBias, float wind)
+        /// <summary>Build a TunicSurface material (normal-driven top/side colour + inked facet
+        /// edges + crisp light). Falls back to a matte URP/Lit if the shader is missing.</summary>
+        private static Material Tun(Color top, Color side, float slopeLo, float slopeHi, float edgeDark, float wind)
         {
-            var sh = Shader.Find("IdleGame/StylizedFoliage");
+            var sh = Shader.Find("IdleGame/TunicSurface");
             if (sh == null)
             {
                 var lit = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-                var fb = new Material(lit) { color = baseCol };
+                var fb = new Material(lit) { color = top };
                 Bootstrap.MakeMatte(fb);
                 fb.enableInstancing = true;
                 return fb;
             }
             var m = new Material(sh);
-            m.SetColor("_BaseColor", baseCol);
-            m.SetColor("_TopColor", topCol);
-            m.SetFloat("_GradHeight", gradHeight);
-            m.SetFloat("_GradBias", gradBias);
+            m.SetColor("_TopColor", top);
+            m.SetColor("_SideColor", side);
+            m.SetFloat("_SlopeLo", slopeLo);
+            m.SetFloat("_SlopeHi", slopeHi);
+            m.SetFloat("_EdgeDark", edgeDark);
+            m.SetFloat("_EdgeSharp", 6f);
+            m.SetFloat("_ShadowImpact", 0.7f);
             m.SetFloat("_WindStrength", wind);
             m.enableInstancing = true; // identical mesh+material -> one batch
             return m;
@@ -170,12 +177,12 @@ namespace IdleGame.Game
         {
             var verts = new List<Vector3>();
             var tris = new List<int>();
-            int lumps = 3 + rng.Next(3); // 3..5
+            int lumps = 3 + rng.Next(2); // 3..4 chunky lumps
             for (int k = 0; k < lumps; k++)
             {
-                float lr = Range(rng, 0.5f, 0.85f);
+                float lr = Range(rng, 0.5f, 0.9f);
                 var c = new Vector3(Range(rng, -0.5f, 0.5f), Range(rng, 0f, 0.55f), Range(rng, -0.5f, 0.5f));
-                var (sv, st) = SphereData(4, 8, lr);
+                var (sv, st) = SphereData(2, 5, lr); // low-poly = angular leafy clump
                 int off = verts.Count;
                 for (int i = 0; i < sv.Length; i++) verts.Add(sv[i] + c);
                 for (int i = 0; i < st.Length; i++) tris.Add(st[i] + off);
@@ -188,12 +195,12 @@ namespace IdleGame.Game
         /// and the shell stays closed; a per-rock noise offset gives each a distinct silhouette.</summary>
         private static Mesh BuildRock(System.Random rng)
         {
-            var (verts, tris) = SphereData(5, 9, 1f);
+            var (verts, tris) = SphereData(3, 6, 1f); // coarse = angular faceted boulder
             float ox = (float)rng.NextDouble() * 100f, oz = (float)rng.NextDouble() * 100f;
             for (int i = 0; i < verts.Length; i++)
             {
                 var v = verts[i];
-                float f = 0.7f + 0.5f * Mathf.PerlinNoise(v.x * 1.6f + ox, v.z * 1.6f + oz);
+                float f = 0.55f + 0.8f * Mathf.PerlinNoise(v.x * 1.6f + ox, v.z * 1.6f + oz); // stronger jitter
                 verts[i] = v * f;
             }
             return BuildFlatMesh((verts, tris));
@@ -224,6 +231,11 @@ namespace IdleGame.Game
             var m = new Mesh { vertices = fv, triangles = ft };
             m.RecalculateNormals();
             m.RecalculateBounds();
+            // TunicSurface multiplies albedo by vertex colour; an absent colour channel can read
+            // as black on some GPUs, so stamp white (tint = no-op) on every generated prop mesh.
+            var cols = new Color[fv.Length];
+            for (int i = 0; i < cols.Length; i++) cols[i] = Color.white;
+            m.colors = cols;
             return m;
         }
 
