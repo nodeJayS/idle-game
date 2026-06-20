@@ -233,6 +233,24 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void AtkSpdBuffSpeedsBasicAttacks()
+        {
+            // A +AtkSpd buff (e.g. Frenzy/Haste) shortens the basic-attack cooldown, not just skills.
+            double CdAfterAttack(double atkSpdBuff)
+            {
+                var atk = Ent("A", Team.Party, hp: 100, atk: 10, def: 0, spd: 1.0, x: 0);
+                var tgt = Ent("B", Team.Enemy, hp: 100000, atk: 0, def: 0, x: 0); // adjacent, tanky
+                if (atkSpdBuff > 0)
+                    atk.Buffs.Add(new ActiveBuff { Stat = StatKey.AtkSpd, Amount = atkSpdBuff, RemainingMs = 100000 });
+                var s = State(atk, tgt);
+                Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1)); // A attacks B
+                return s.Entities.First(e => e.Id == "A").AttackCdMs;
+            }
+
+            Assert.True(CdAfterAttack(1.0) < CdAfterAttack(0.0)); // buffed cooldown is shorter
+        }
+
+        [Fact]
         public void HittingAnEnemyAggrosIt()
         {
             var hero = Ent("A", Team.Party, hp: 100, atk: 5, def: 0, x: 0);

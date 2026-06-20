@@ -282,7 +282,8 @@ namespace IdleGame.GameCore
                                (StatKey.SplashRadius, 1.0),            // slightly wider cleave (melee perk)
                                (StatKey.MaxMana, 50), (StatKey.ManaRegen, 3)), // shallow pool, slow regen
                 GrowthPerLevel = SB((StatKey.Hp, 18), (StatKey.Atk, 3), (StatKey.Def, 1.5), (StatKey.MaxMana, 2)),
-                Skills = new List<string> { "cleave", "warcry" }, Sprite = "warrior",
+                // Known pool (6); first MaxActiveSkills are the starting active bar (see Skills.DefaultLoadout).
+                Skills = new List<string> { "cleave", "bash", "warcry", "whirlwind", "bulwark", "frenzy" }, Sprite = "warrior",
             };
 
             cfg.Heroes["magician_basic"] = new HeroDef
@@ -297,7 +298,8 @@ namespace IdleGame.GameCore
                                (StatKey.SplashRadius, 0.75),           // tight AoE (same as warrior)
                                (StatKey.MaxMana, 120), (StatKey.ManaRegen, 6)), // deep pool, fast regen (caster)
                 GrowthPerLevel = SB((StatKey.Hp, 11), (StatKey.Atk, 4), (StatKey.Def, 1), (StatKey.MaxMana, 5)),
-                Skills = new List<string> { "firebolt", "mend" }, Sprite = "magician", AttackFx = "fireball",
+                // Known pool (6); first MaxActiveSkills are the starting active bar (see Skills.DefaultLoadout).
+                Skills = new List<string> { "firebolt", "fireball", "mend", "scorch", "inferno", "haste" }, Sprite = "magician", AttackFx = "fireball",
             };
 
             // Progression unlocks: you start with just the Warrior; clearing stage 3 adds
@@ -416,6 +418,55 @@ namespace IdleGame.GameCore
                 Id = "mend", Name = "Mend", Effect = SkillEffectKind.Heal, Targeting = "lowestHp",
                 CooldownMs = 7000, Range = 8.0, DamageMult = 2.0, ManaCost = 30, Sprite = "mend",
             };
+
+            // Lever 3 expanded kits (6 known per hero, pick 4). Sprites reuse existing FX for now;
+            // bespoke VFX is a later polish pass. All use the existing damage/heal/buff effect kinds.
+            // Warrior — single-target burst, big AoE, a defensive cooldown, an attack-speed tempo buff.
+            cfg.Skills["bash"] = new SkillDef
+            {
+                Id = "bash", Name = "Bash", Effect = SkillEffectKind.Damage, Targeting = "nearest",
+                CooldownMs = 3000, Range = 1.4, DamageMult = 2.4, ManaCost = 15, Sprite = "cleave",
+            };
+            cfg.Skills["whirlwind"] = new SkillDef
+            {
+                Id = "whirlwind", Name = "Whirlwind", Effect = SkillEffectKind.Damage, Targeting = "aoe",
+                CooldownMs = 6000, Range = 1.8, AoeRadius = 2.6, DamageMult = 1.4, ManaCost = 28, Sprite = "cleave",
+            };
+            cfg.Skills["bulwark"] = new SkillDef
+            {
+                Id = "bulwark", Name = "Bulwark", Effect = SkillEffectKind.Buff, Targeting = "self",
+                CooldownMs = 12000, Range = 0, BuffStat = StatKey.Def, BuffAmount = 15, BuffDurationMs = 6000,
+                ManaCost = 20, Sprite = "warcry",
+            };
+            cfg.Skills["frenzy"] = new SkillDef
+            {
+                Id = "frenzy", Name = "Frenzy", Effect = SkillEffectKind.Buff, Targeting = "self",
+                CooldownMs = 10000, Range = 0, BuffStat = StatKey.AtkSpd, BuffAmount = 0.5, BuffDurationMs = 6000,
+                ManaCost = 25, Sprite = "warcry",
+            };
+            // Fire Wizard — AoE fireball, a heavy single nuke, a big AoE ultimate, an attack-speed buff.
+            cfg.Skills["fireball"] = new SkillDef
+            {
+                Id = "fireball", Name = "Fireball", Effect = SkillEffectKind.Damage, Targeting = "aoe",
+                CooldownMs = 5000, Range = 6.0, AoeRadius = 2.2, DamageMult = 1.6, ManaCost = 30, Sprite = "firebolt",
+            };
+            cfg.Skills["scorch"] = new SkillDef
+            {
+                Id = "scorch", Name = "Scorch", Effect = SkillEffectKind.Damage, Targeting = "nearest",
+                CooldownMs = 4500, Range = 6.0, DamageMult = 2.6, ManaCost = 28, Sprite = "firebolt",
+            };
+            cfg.Skills["inferno"] = new SkillDef
+            {
+                Id = "inferno", Name = "Inferno", Effect = SkillEffectKind.Damage, Targeting = "aoe",
+                CooldownMs = 12000, Range = 6.0, AoeRadius = 3.2, DamageMult = 2.2, ManaCost = 50, Sprite = "quake",
+            };
+            cfg.Skills["haste"] = new SkillDef
+            {
+                Id = "haste", Name = "Haste", Effect = SkillEffectKind.Buff, Targeting = "self",
+                CooldownMs = 10000, Range = 0, BuffStat = StatKey.AtkSpd, BuffAmount = 0.6, BuffDurationMs = 6000,
+                ManaCost = 25, Sprite = "warcry",
+            };
+
             // Boss signature: a wide quake (free — bosses have no mana pool).
             cfg.Skills["boss_quake"] = new SkillDef
             {

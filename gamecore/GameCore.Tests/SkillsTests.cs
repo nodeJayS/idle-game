@@ -41,10 +41,22 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void DefaultLoadoutTakesWholePoolWhenUnderCap()
         {
-            // The real Warrior knows 2 skills (< cap) — loadout should be both, unchanged behavior.
+            // A class knowing fewer skills than the cap starts with all of them.
             var cfg = GameConfig.Default();
+            var def = new HeroDef { DefId = "x", Skills = new List<string> { "cleave", "warcry" } };
+            Assert.Equal(def.Skills, Skills.DefaultLoadout(def, cfg));
+        }
+
+        [Fact]
+        public void RealHeroesKnowMoreThanTheyCanSlot()
+        {
+            // The expanded kits (6 known) exceed the 4-slot cap, so the loadout is a real choice.
+            var cfg = GameConfig.Default();
+            Assert.True(cfg.Heroes["warrior_basic"].Skills.Count > cfg.Balance.MaxActiveSkills);
+            Assert.True(cfg.Heroes["magician_basic"].Skills.Count > cfg.Balance.MaxActiveSkills);
+
             var save = Save.NewGame(1, cfg, 0);
-            Assert.Equal(cfg.Heroes["warrior_basic"].Skills, Loadout(save, save.Heroes[0].Id));
+            Assert.Equal(cfg.Balance.MaxActiveSkills, Loadout(save, save.Heroes[0].Id).Count);
         }
 
         [Fact]

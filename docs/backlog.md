@@ -85,9 +85,12 @@ target genre is **dense/fast** — reward cadence too low to be addictive. Three
      - Slice A ✅ GameCore loadout system: `Skills` reducers (`ToggleSkill`/`SetLoadout`/`Known`/
        `DefaultLoadout`) + `Balance.MaxActiveSkills` (4) cap; `HeroDef.Skills` = known pool,
        `HeroInstance.SkillLoadout` = chosen subset. No behavior change yet (pools ≤ cap). 8 tests.
-     - Slice B (next) — **skill content**: add skills per class so pool > 4 (makes the choice real);
-       magician is fire-themed ([[magician-is-fire-wizard]]). User is deciding the kit.
-     - Slice C — interactive Skills tab (slot/unslot ≤4 via `ToggleSkill`).
+     - Slice B ✅ — **skill content**: each hero now knows 6 (pool > 4 = real choice). Warrior:
+       cleave/bash/warcry/whirlwind/bulwark(+Def)/frenzy(+AtkSpd). Fire Wizard: firebolt/fireball/
+       mend/scorch/inferno/haste(+AtkSpd). Fully unique kits per hero (class = tag only; ice wizard
+       will be a separate hero). New skills reuse existing FX for now. Also fixed: basic attacks now
+       read *effective* AtkSpd so AtkSpd buffs/gear speed them live. Default loadout = first 4. Tests.
+     - Slice C (next) — interactive Skills tab (slot/unslot ≤4 via `ToggleSkill`).
      - Later: passives, skill ranks/leveling, tree.
 
 Still-open hypotheses to revisit after juice: samey pacing (pack/elite variety), short-term goals.

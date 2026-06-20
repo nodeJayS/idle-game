@@ -31,6 +31,14 @@ namespace IdleGame.GameCore
 
         private static double AttackInterval(StatBlock s) => 1000.0 / AttackSpeedOf(s);
 
+        // Attack cadence at action time, folding in active buffs (e.g. a Frenzy AtkSpd buff) and
+        // current gear — so attack-speed boosts actually quicken basic attacks, not just skills.
+        private static double EffectiveAttackIntervalMs(CombatEntity e)
+        {
+            double aps = e.EffectiveStat(StatKey.AtkSpd);
+            return 1000.0 / (aps > 0 ? aps : 1.0);
+        }
+
         /// <summary>Build the initial battle: party (left) vs the stage's pack + boss (right).</summary>
         public static CombatState InitCombat(IReadOnlyList<HeroInstance> party, int stage, GameConfig cfg, Rng rng)
         {
@@ -501,7 +509,7 @@ namespace IdleGame.GameCore
                 {
                     if (e.AttackCdMs <= 0)
                     {
-                        e.AttackCdMs = e.AttackIntervalMs;
+                        e.AttackCdMs = EffectiveAttackIntervalMs(e);
                         ApplyHit(s, e, target, cfg, rng, events);
 
                         // Splash: the same swing also strikes enemies near the target
