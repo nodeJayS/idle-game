@@ -470,28 +470,66 @@ namespace IdleGame.Game
 
         // ---- views ----
 
+        // Per-class low-poly models (in Resources/Characters/, built by tools/blender).
+        // Falls back to the coloured capsule if a model is missing.
+        private static readonly System.Collections.Generic.Dictionary<string, string> HeroModels = new()
+        {
+            { "warrior_basic", "Warrior" },
+            { "magician_basic", "Mage" },
+        };
+        private const float HeroModelScale = 1f;    // tune if the model imports too big/small
+        private const float HeroModelHeight = 1.7f; // approx model height -> floating health-bar anchor
+
+        private GameObject? TryLoadHeroModel(CombatEntity e)
+        {
+            var hero = _save.Heroes.Find(h => h.Id == e.RefId);
+            if (hero == null || !HeroModels.TryGetValue(hero.DefId, out var name)) return null;
+            var prefab = Resources.Load<GameObject>("Characters/" + name);
+            if (prefab == null) return null;
+            var go = Instantiate(prefab);
+            foreach (var col in go.GetComponentsInChildren<Collider>()) Destroy(col); // no physics needed
+            return go;
+        }
+
         private void SpawnView(CombatEntity e)
         {
             bool isHero = e.Team == Team.Party;
-            var type = (!isHero && e.IsBoss) ? PrimitiveType.Cube : PrimitiveType.Capsule;
-            var go = GameObject.CreatePrimitive(type);
-            go.name = e.Id;
+            GameObject go;
+            float height;
+            Vector3 baseScale;
+            Color color = Color.white;
 
-            float scale = e.IsBoss ? 1.6f : 1f;
-            float height = (type == PrimitiveType.Capsule ? 1f : 0.5f) * scale;
-            go.transform.position = new Vector3((float)e.Pos.X, height, (float)e.Pos.Y);
-            var baseScale = new Vector3(0.7f * scale, 0.9f * scale, 0.7f * scale);
-
-            Color color;
-            if (isHero)
+            var model = isHero ? TryLoadHeroModel(e) : null;
+            if (model != null)
             {
-                var hero = _save.Heroes.Find(h => h.Id == e.RefId);
-                bool ranged = hero != null && _cfg.Heroes.TryGetValue(hero.DefId, out var hd) && hd.Role == "ranged";
-                color = ranged ? new Color(0.62f, 0.45f, 0.92f)   // magician = violet
-                               : new Color(0.36f, 0.55f, 0.85f);  // melee = blue
+                go = model;
+                go.name = e.Id;
+                baseScale = new Vector3(HeroModelScale, HeroModelScale, HeroModelScale);
+                go.transform.localScale = baseScale;
+                height = HeroModelHeight * HeroModelScale;
+                go.transform.position = new Vector3((float)e.Pos.X, 0f, (float)e.Pos.Y); // model origin at the feet
             }
-            else color = e.IsBoss ? new Color(0.85f, 0.40f, 0.25f) : new Color(0.45f, 0.80f, 0.50f);
-            Paint(go, color);
+            else
+            {
+                var type = (!isHero && e.IsBoss) ? PrimitiveType.Cube : PrimitiveType.Capsule;
+                go = GameObject.CreatePrimitive(type);
+                go.name = e.Id;
+
+                float scale = e.IsBoss ? 1.6f : 1f;
+                height = (type == PrimitiveType.Capsule ? 1f : 0.5f) * scale;
+                go.transform.position = new Vector3((float)e.Pos.X, height, (float)e.Pos.Y);
+                baseScale = new Vector3(0.7f * scale, 0.9f * scale, 0.7f * scale);
+
+                if (isHero)
+                {
+                    var hero = _save.Heroes.Find(h => h.Id == e.RefId);
+                    bool ranged = hero != null && _cfg.Heroes.TryGetValue(hero.DefId, out var hd) && hd.Role == "ranged";
+                    color = ranged ? new Color(0.62f, 0.45f, 0.92f)   // magician = violet
+                                   : new Color(0.36f, 0.55f, 0.85f);  // melee = blue
+                }
+                else color = e.IsBoss ? new Color(0.85f, 0.40f, 0.25f) : new Color(0.45f, 0.80f, 0.50f);
+                Paint(go, color);
+            }
 
             var view = new View { Go = go, Height = height, BaseColor = color, BaseScale = baseScale,
                                   PrevPos = go.transform.position, CurPos = go.transform.position, SmoothPos = go.transform.position };

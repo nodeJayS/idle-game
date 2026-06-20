@@ -55,3 +55,5 @@ unity/Assets/Resources/Fonts/UIFont.ttf.meta
 # ===== Blender character pipeline: keep the .py recipes, ignore asset binaries/outputs =====
 tools/blender/base/
 tools/blender/out/
+# Generated hero models (derived from the downloaded base mesh — regenerate via the scripts)
+unity/Assets/Resources/Characters/

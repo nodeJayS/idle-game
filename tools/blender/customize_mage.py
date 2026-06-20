@@ -1,12 +1,12 @@
-# Customize the downloaded low-poly base character into the Warrior. Colours the
-# single-material body by region using the rig's vertex groups, adds a hair cap
-# (top of the head), a waist belt, and a sword in the right hand. Renders a
-# preview. Never writes the source .blend (open -> edit in memory -> render).
+# Customize the downloaded low-poly base character into the Fire Wizard (Magician).
+# Crimson robe (body + a flared robe skirt over the legs), hood, gold sash, bare
+# hands, and a fire-orb staff in the right hand. Renders a preview. Never writes
+# the source .blend (open -> edit in memory -> render).
 import bpy, os, mathutils
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BLEND = os.path.join(HERE, "base", "base-character.blend")  # pristine source (never written)
-PREVIEW = os.path.join(HERE, "out", "warrior_preview.png")
+PREVIEW = os.path.join(HERE, "out", "mage_preview.png")
 os.makedirs(os.path.dirname(PREVIEW), exist_ok=True)
 
 bpy.ops.wm.open_mainfile(filepath=BLEND)
@@ -23,11 +23,11 @@ def mat(name, rgb):
     m.diffuse_color = (*rgb, 1.0)
     return m
 
-# Brighter, livelier hero palette.
-SKIN, SHIRT, PANTS, BOOT, HAIR, BELT = range(6)
-mats = [mat("Skin",  (1.00, 0.82, 0.64)), mat("Shirt", (0.18, 0.58, 1.00)),
-        mat("Pants", (0.93, 0.69, 0.24)), mat("Boot",  (0.45, 0.28, 0.15)),
-        mat("Hair",  (0.40, 0.24, 0.12)), mat("Belt",  (0.32, 0.20, 0.11))]
+# Fire-wizard palette.
+SKIN, ROBE, BOOT, HOOD, SASH = range(5)
+mats = [mat("Skin", (1.00, 0.82, 0.64)), mat("Robe", (0.66, 0.13, 0.11)),
+        mat("Boot", (0.30, 0.20, 0.12)), mat("Hood", (0.45, 0.09, 0.08)),
+        mat("Sash", (0.96, 0.62, 0.16))]
 obj.data.materials.clear()
 for m in mats:
     obj.data.materials.append(m)
@@ -37,16 +37,14 @@ vg = [g.name for g in obj.vertex_groups]
 def region(gname):
     n = gname.lower()
     if any(k in n for k in ("foot", "toe", "heel")): return BOOT
-    if any(k in n for k in ("thigh", "shin", "leg", "hip", "pelvis", "knee", "butt")): return PANTS
-    if any(k in n for k in ("forearm", "hand", "finger", "palm", "wrist", "pinky")): return SKIN
-    if any(k in n for k in ("spine", "chest", "breast", "shoulder", "upper_arm", "clavicle", "collar", "torso", "arm")): return SHIRT
-    if any(k in n for k in ("head", "face", "neck", "jaw")): return SKIN
-    return SKIN
+    if any(k in n for k in ("hand", "finger", "palm", "wrist", "pinky")): return SKIN   # bare hands
+    if any(k in n for k in ("head", "face", "neck", "jaw")): return SKIN                 # face (hood added below)
+    # everything else (torso, arms incl. forearms=long sleeves, legs/hips) = robe
+    return ROBE
 
 me = obj.data
 M = obj.matrix_world
 
-# dominant vertex group (name) per vertex
 vdom = []
 for v in me.vertices:
     if v.groups:
@@ -54,15 +52,14 @@ for v in me.vertices:
         vdom.append(vg[g.group] if g.weight > 0 else "")
     else:
         vdom.append("")
-vreg = [region(n) if n else SKIN for n in vdom]
+vreg = [region(n) if n else ROBE for n in vdom]
 
-# head Z range (for the hair cap) and waist Z (for the belt)
+zmin = min((M @ v.co).z for v in me.vertices)
+zmax = max((M @ v.co).z for v in me.vertices)
+Hz = zmax - zmin
 head_z = [(M @ me.vertices[i].co).z for i in range(len(me.vertices)) if "head" in vdom[i].lower()]
-hair_z = (min(head_z) + 0.50 * (max(head_z) - min(head_z))) if head_z else 1e9
-shirt_lo = [ (M @ me.vertices[i].co).z for i in range(len(me.vertices)) if vreg[i] == SHIRT and abs((M @ me.vertices[i].co).x) < 0.18 ]
-pants_hi = [ (M @ me.vertices[i].co).z for i in range(len(me.vertices)) if vreg[i] == PANTS ]
-waist = (min(shirt_lo) + max(pants_hi)) / 2 if shirt_lo and pants_hi else -1e9
-Hz = max((M @ v.co).z for v in me.vertices) - min((M @ v.co).z for v in me.vertices)
+hood_z = (min(head_z) + 0.42 * (max(head_z) - min(head_z))) if head_z else 1e9
+waist = zmin + 0.52 * Hz
 
 for p in me.polygons:
     cz = (M @ p.center).z
@@ -72,35 +69,42 @@ for p in me.polygons:
         counts[vreg[vi]] = counts.get(vreg[vi], 0) + 1
     r = max(counts, key=counts.get)
     head_face = sum(1 for vi in p.vertices if "head" in vdom[vi].lower()) > len(p.vertices) / 2
-    if head_face and cz > hair_z:
-        r = HAIR
-    elif r in (SHIRT, PANTS) and abs(cz - waist) < 0.028 * Hz and abs(cx) < 0.22:
-        r = BELT
+    if head_face and cz > hood_z:
+        r = HOOD
+    elif r == ROBE and abs(cz - waist) < 0.030 * Hz and abs(cx) < 0.22:
+        r = SASH
     p.material_index = r
 
-# ---- sword in the right hand ----------------------------------------------
+extras = []   # meshes to add (robe skirt + staff)
+def add_active(name, material):
+    o = bpy.context.active_object
+    o.name = name
+    o.data.materials.clear(); o.data.materials.append(material)
+    extras.append(o); return o
+
+# flared robe skirt (cone) over the legs: wide at the hem, narrow at the waist
+bpy.ops.mesh.primitive_cone_add(vertices=12, radius1=0.36, radius2=0.17,
+                                depth=(waist - (zmin + 0.06 * Hz)),
+                                location=(0, 0, (waist + zmin + 0.06 * Hz) / 2))
+skirt = add_active("RobeSkirt", mats[ROBE])
+skirt.scale = (1.0, 0.85, 1.0)  # slightly flatter front-to-back
+
+# fire-orb staff in the right hand (held upright)
 hand_pts = [M @ me.vertices[i].co for i in range(len(me.vertices))
             if "hand.r" in vdom[i].lower() or ("hand" in vdom[i].lower() and (M @ me.vertices[i].co).x > 0)]
 hand_c = (sum(hand_pts, mathutils.Vector((0, 0, 0))) / len(hand_pts)) if hand_pts else mathutils.Vector((0.6, 0, 1.2))
+WOOD = mat("Staff", (0.34, 0.22, 0.12)); ORB = mat("FireOrb", (1.00, 0.45, 0.10)); ORBG = mat("OrbGlow", (1.00, 0.78, 0.30))
 
-BLADE = mat("Blade", (0.82, 0.85, 0.90)); GUARDM = mat("Guard", (0.50, 0.40, 0.18)); GRIPM = mat("Grip", (0.28, 0.16, 0.09))
-sword = []
-def wbox(name, offset, dims, material):
-    c = hand_c + mathutils.Vector(offset)
-    bpy.ops.mesh.primitive_cube_add(size=1.0, location=c)
-    o = bpy.context.active_object
-    o.name = name; o.scale = dims
-    o.data.materials.clear(); o.data.materials.append(material)
-    sword.append(o); return o
+bpy.ops.mesh.primitive_cylinder_add(vertices=8, radius=0.028, depth=1.30,
+                                    location=hand_c + mathutils.Vector((0, 0, 0.40)))
+add_active("StaffPole", WOOD)
+bpy.ops.mesh.primitive_uv_sphere_add(segments=14, ring_count=9, radius=0.085,
+                                     location=hand_c + mathutils.Vector((0, 0, 1.06)))
+orb = add_active("FireOrb", ORB)
+for pp in orb.data.polygons: pp.use_smooth = True
 
-# blade hangs downward (-Z) from the hand; crossguard across X
-wbox("Pommel", (0, 0, 0.09), (0.05, 0.05, 0.05), GUARDM)
-wbox("Grip",   (0, 0, 0.00), (0.04, 0.04, 0.16), GRIPM)
-wbox("Guard",  (0, 0, -0.10), (0.24, 0.06, 0.05), GUARDM)
-wbox("Blade",  (0, 0, -0.52), (0.06, 0.025, 0.78), BLADE)
-
-# ---- clean render: character mesh + sword only -----------------------------
-show = {obj, *sword}
+# ---- clean render: character + extras only ---------------------------------
+show = {obj, *extras}
 for o in bpy.data.objects:
     o.hide_render = o not in show
 
@@ -129,8 +133,8 @@ scene.render.filepath = PREVIEW
 bpy.ops.render.render(write_still=True)
 print("PREVIEW:", PREVIEW)
 
-# ---- export a static, Unity-oriented FBX (mesh + sword) --------------------
-FBX = os.path.normpath(os.path.join(HERE, "..", "..", "unity", "Assets", "Resources", "Characters", "Warrior.fbx"))
+# ---- export a static, Unity-oriented FBX (mesh + robe skirt + staff) -------
+FBX = os.path.normpath(os.path.join(HERE, "..", "..", "unity", "Assets", "Resources", "Characters", "Mage.fbx"))
 os.makedirs(os.path.dirname(FBX), exist_ok=True)
 for o in bpy.data.objects:
     o.select_set(o in show)
