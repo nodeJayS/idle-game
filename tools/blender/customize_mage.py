@@ -143,3 +143,15 @@ bpy.ops.export_scene.fbx(filepath=FBX, use_selection=True, object_types={'MESH'}
                          use_mesh_modifiers=True, apply_unit_scale=True, bake_space_transform=True,
                          mesh_smooth_type='FACE', path_mode='COPY')
 print("FBX:", FBX)
+
+# ---- robe body (no staff) in T-pose, for Mixamo auto-rigging ----------------
+MIX = os.path.join(HERE, "out", "mixamo", "Mage_base.fbx")
+os.makedirs(os.path.dirname(MIX), exist_ok=True)
+body = {obj, skirt}
+for o in bpy.data.objects:
+    o.select_set(o in body)
+bpy.context.view_layer.objects.active = obj
+bpy.ops.export_scene.fbx(filepath=MIX, use_selection=True, object_types={'MESH'},
+                         use_mesh_modifiers=True, apply_unit_scale=True,
+                         mesh_smooth_type='FACE', path_mode='COPY')
+print("MIXAMO:", MIX)

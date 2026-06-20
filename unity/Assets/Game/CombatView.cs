@@ -39,6 +39,11 @@ namespace IdleGame.Game
             public Vector3 CurPos;
             public Vector3 SmoothPos;
 
+            // Skeletal animation (set for hero models with a Mixamo rig). Idle/Walk blend
+            // by Moving; the attack clip fires on a Hit/SkillCast. Null for capsules/enemies.
+            public HeroAnimator? Anim;
+            public bool Moving;
+
             // Attack/cast tell (M11): a quick punch toward the target (or upward for a
             // cast) on each action. Duration scales inversely with AtkSpd, so faster
             // actors snap; LungeDir is a world vector, LungeMag its reach.
@@ -470,24 +475,43 @@ namespace IdleGame.Game
 
         // ---- views ----
 
-        // Per-class low-poly models (in Resources/Characters/, built by tools/blender).
-        // Falls back to the coloured capsule if a model is missing.
-        private static readonly System.Collections.Generic.Dictionary<string, string> HeroModels = new()
+        // Per-class animated Mixamo models (Resources/Characters/Mixamo). The Idle FBX is the
+        // skinned model (and supplies the idle clip); Walk/Attack supply their clips, retargeted
+        // via the shared Humanoid avatar. Falls back to the coloured capsule if anything is missing.
+        private sealed class HeroAssets { public string Model = "", Walk = "", Attack = ""; }
+        private static readonly System.Collections.Generic.Dictionary<string, HeroAssets> HeroModels = new()
         {
-            { "warrior_basic", "Warrior" },
-            { "magician_basic", "Mage" },
+            { "warrior_basic",  new HeroAssets { Model = "Characters/Mixamo/Warrior_Idle", Walk = "Characters/Mixamo/Warrior_Walk", Attack = "Characters/Mixamo/Warrior_Attack" } },
+            { "magician_basic", new HeroAssets { Model = "Characters/Mixamo/Mage_Idle",    Walk = "Characters/Mixamo/Mage_Walk",    Attack = "Characters/Mixamo/Mage_Attack" } },
         };
         private const float HeroModelScale = 1f;    // tune if the model imports too big/small
         private const float HeroModelHeight = 1.7f; // approx model height -> floating health-bar anchor
 
-        private GameObject? TryLoadHeroModel(CombatEntity e)
+        private static AnimationClip? FirstClip(string path)
         {
+            foreach (var c in Resources.LoadAll<AnimationClip>(path))
+                if (c != null && !c.name.StartsWith("__preview")) return c;
+            return null;
+        }
+
+        private GameObject? TryLoadHeroModel(CombatEntity e, out HeroAnimator? anim)
+        {
+            anim = null;
             var hero = _save.Heroes.Find(h => h.Id == e.RefId);
-            if (hero == null || !HeroModels.TryGetValue(hero.DefId, out var name)) return null;
-            var prefab = Resources.Load<GameObject>("Characters/" + name);
+            if (hero == null || !HeroModels.TryGetValue(hero.DefId, out var a)) return null;
+            var prefab = Resources.Load<GameObject>(a.Model);
             if (prefab == null) return null;
             var go = Instantiate(prefab);
             foreach (var col in go.GetComponentsInChildren<Collider>()) Destroy(col); // no physics needed
+
+            var animator = go.GetComponentInChildren<Animator>();
+            var idle = FirstClip(a.Model);
+            var walk = FirstClip(a.Walk);
+            if (animator != null && idle != null && walk != null)
+            {
+                anim = go.AddComponent<HeroAnimator>();
+                anim.Init(animator, idle, walk, FirstClip(a.Attack));
+            }
             return go;
         }
 
@@ -498,8 +522,9 @@ namespace IdleGame.Game
             float height;
             Vector3 baseScale;
             Color color = Color.white;
+            HeroAnimator? heroAnim = null;
 
-            var model = isHero ? TryLoadHeroModel(e) : null;
+            var model = isHero ? TryLoadHeroModel(e, out heroAnim) : null;
             if (model != null)
             {
                 go = model;
@@ -532,7 +557,8 @@ namespace IdleGame.Game
             }
 
             var view = new View { Go = go, Height = height, BaseColor = color, BaseScale = baseScale,
-                                  PrevPos = go.transform.position, CurPos = go.transform.position, SmoothPos = go.transform.position };
+                                  PrevPos = go.transform.position, CurPos = go.transform.position, SmoothPos = go.transform.position,
+                                  Anim = heroAnim };
 
             // Enemies (trash + boss) animate in per their monster's SpawnStyle (if the
             // toggle is on); heroes are placed instantly at run start.
@@ -725,6 +751,13 @@ namespace IdleGame.Game
                 v.SmoothPos = Vector3.Lerp(v.PrevPos, v.CurPos, _renderAlpha);
                 v.Go.transform.position = v.SmoothPos + LungeOffset(v) + KnockOffset(v);
                 if (v.Spawning) AnimateSpawn(v);
+
+                // Skeletal heroes: blend idle<->walk from whether the sim moved them this step.
+                if (v.Anim != null)
+                {
+                    if (_steppedThisFrame) v.Moving = (v.CurPos - v.PrevPos).sqrMagnitude > 0.0004f;
+                    v.Anim.SetMoving(v.Moving);
+                }
             }
         }
 
@@ -771,6 +804,9 @@ namespace IdleGame.Game
         private void TriggerLunge(string? sourceId, string? targetId, bool towardTarget)
         {
             if (sourceId == null || !_views.TryGetValue(sourceId, out var sv) || sv.Go == null) return;
+
+            // Skeletal heroes play their swing/cast clip instead of the capsule lunge.
+            if (sv.Anim != null) { sv.Anim.TriggerAttack(); return; }
 
             Vector3 dir = Vector3.up;
             float mag = 0.28f;
