@@ -59,45 +59,38 @@ files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sy
   scene in code (camera/light/ground) and `CombatView` drives the auto-battle.
   Play-mode can't be driven headlessly; visual checks are manual.
 
-## Status (213 tests passing)
+## Status (216 tests passing)
 
-**Phase A — core loop — M0–M9 ✅.** Deterministic auto-combat; loot (rarity + affixes,
-equip → stat recompute); per-hero leveling; stage ladder as farm zones with 60s timed
-mini/major boss gates + tiered rates; idle accrual off highest cleared stage + claim modal;
-save/load + menu; feel pass; warrior + magician (ranged/AoE); chat/feed panel.
+**Phase A — core loop (M0–M9) ✅** — deterministic auto-combat; loot (rarity + affixes, equip →
+stat recompute); per-hero leveling; farm-zone stage ladder with 60s mini/major boss gates + tiered
+rates; idle accrual + claim modal; save/load + menu; feel pass; warrior + (ranged/AoE) magician;
+chat/feed panel.
 
-**Phase B — depth — in progress:**
-- **M10 multi-character foundation ✅** — mana; **9 equip slots** per-hero from one shared
-  account **bag**; inventory cap + opt-in **auto-salvage → `scrap`**; scarce drops with
-  **Unique/Legendary boss-only**; Party HUD; rarity item tiles; canonical `StatDisplay`.
-- **M11 skills ✅** — sim: single/AoE damage, heal, self-buff; mana + `AtkSpd`-scaled cooldowns;
-  heroes + bosses cast; `Spd`→`MoveSpd`+`AtkSpd`. Client: skill **FX** (meteor/cleave/quake/
-  heal-sparkle/war-cry), heal numbers, `AtkSpd` **lunge tell**, skill-ready cue, **hit-recoil +
-  death-crumple** FX (`DeathFx`/`TransientFx`; mobs no longer vanish before projectiles land).
-- **Heroes hub ✅** — one screen (`EquipmentView`): left hero rail (party slots + all owned) +
-  **Equipment / Skills / Stats** sub-tabs + Field/Bench; body-mapped doll; **Salvage UI** (manual
-  + auto-salvage threshold). `RosterView` retired; control-bar button is "Heroes". The Skills
-  tab is **read-only** — the seed for the Skills milestone.
-- **Roster/party ✅** — start **solo Warrior**; `GameConfig.HeroUnlocks` grants heroes on stage
-  clear (3→Magician) via **`Party.AcquireHero`** + auto-field; **`Party.FieldHero`** dedupe-safe;
-  **`Combat.ReconcileParty`** = live party swap (farm-only). Party **always moves as a group**
-  (Solo removed).
-- **World / combat feel ✅** — **geometric difficulty** (steep: `MonsterHpGrowth 1.18` /
-  `MonsterDmgGrowth 1.08` / `BossHpMult 10` / `MajorBossMult 2.5`), **100-stage ladder**; big open
-  field (`MapHalf 200/140`); **party-relative PACK spawning** (clusters ring the group, quiet
-  gaps, sparse `MobCap 20`, no distance cull); follow **`CameraRig`** (party-centroid + wheel zoom
-  + shake, deadzone); top-centre stage nav + Challenge + **boss-clear popup**; grid **floor**
-  texture; chat shows **System tab only** pre-release.
-- **Next (gameplay-first):** **pack variety** (elite/rare mobs + better loot); the **Skills
-  milestone** (active/passive, ≤4 active, skill trees); more hero unlocks/classes; crafting/sets/
-  loot-filter; alt modes; prestige/retention.
-- **Deferred to own milestones:** **UI/UX polish** (uGUI **layout-group refactor** — current
-  screens are functional placeholders with hand-placed coords); a **console balance-sim** to tune
-  the steep curves (heroes can out-level a stage and one-shot trash). Gacha/live-service still deferred.
+**Phase B — depth (in progress):**
+- **M10 multi-character ✅** — mana; 9 per-hero equip slots from one shared bag; inventory cap +
+  auto-salvage → `scrap`; boss-only Unique/Legendary; Party HUD; rarity tiles; `StatDisplay`.
+- **M11 skills ✅** — sim damage/AoE/heal/buff on mana + `AtkSpd` cooldowns (heroes + bosses);
+  `Spd`→`MoveSpd`/`AtkSpd`. Client: skill FX, heal numbers, lunge tell, hit-recoil/death FX.
+- **Heroes hub ✅** — one `EquipmentView` screen: hero rail + Equipment/Skills(read-only)/Stats
+  tabs + Field/Bench + body doll + Salvage UI (`RosterView` retired).
+- **Roster/party ✅** — start solo Warrior; `GameConfig.HeroUnlocks` grant heroes on stage clear
+  (3→Magician) via `Party.AcquireHero`; `Combat.ReconcileParty` live-swaps; party moves as a group.
+- **World/combat feel ✅** — geometric difficulty; 100-stage ladder; big open field (`MapHalf
+  200/140`); party-relative pack spawning; follow `CameraRig` (wheel zoom + shake); top-centre
+  stage nav + boss-clear popup.
+- **Art direction — Tunic pivot ✅** — `TunicSurface` shader (normal-driven grass-top/dirt-side
+  blend + inked facet edges + crisp light); faceted vertex-coloured `Ground` + props (`Scenery`);
+  clean lighting + procedural dappled light cookie (`Bootstrap`/`LightCookieScroll`). Heroes are
+  **code-built chibi placeholders** (`ChibiHero`/`ChibiAnimator`); Blender skinned models are the
+  eventual goal, plugging into the `CombatView` spawn/animator seam. Mixamo fully removed.
 
-Full roadmap is in [`docs/game-design.md`](docs/game-design.md) §8. **NOTE: Unity play-mode can't
-be tested headlessly — the user verifies all visuals/feel by screenshot; client UI is hand-placed
-uGUI/IMGUI coordinates, tuned by feedback.**
+**Next (gameplay-first):** pack variety (elite/rare mobs + loot); the Skills milestone
+(active/passive, ≤4 active, trees); more hero unlocks/classes; crafting/sets/loot-filter; alt modes;
+prestige. **Deferred:** real Blender hero models; UI/UX layout-group refactor; console balance-sim.
+Gacha/live-service still deferred.
+
+Full roadmap: [`docs/game-design.md`](docs/game-design.md) §8. **Unity play-mode can't be tested
+headlessly — visuals are verified by screenshot; client UI is hand-placed uGUI/IMGUI coords.**
 
 ## Conventions
 - **GameCore-first:** build + `dotnet test` each piece, then wire into Unity (play-mode can't

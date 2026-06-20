@@ -4,12 +4,11 @@ using UnityEngine;
 namespace IdleGame.Game
 {
     /// <summary>
-    /// Procedural animation for a code-built chibi hero (no rig/clips) — a drop-in for the old
-    /// Mixamo <c>HeroAnimator</c>: CombatView only calls <see cref="SetMoving"/> and
-    /// <see cref="TriggerAttack"/>, and rotates the whole root to face movement/target itself.
-    /// We just swing the puppet's joints: a gentle idle bob, a walk cycle (legs + counter-arms),
-    /// and a one-shot weapon-arm swing on attack. Movement cancels an in-progress swing so the
-    /// hero never slides while attack-posed (same rule as the old animator).
+    /// Procedural animation for a code-built chibi hero (no rig/clips). CombatView only calls
+    /// <see cref="SetMoving"/> and <see cref="TriggerAttack"/>, and rotates the whole root to
+    /// face movement/target itself. We just swing the puppet's joints: a gentle idle bob, a walk
+    /// cycle (legs + counter-arms), and a one-shot weapon-arm swing on attack. Movement cancels
+    /// an in-progress swing so the hero never slides while attack-posed.
     /// </summary>
     public sealed class ChibiAnimator : MonoBehaviour
     {
@@ -22,9 +21,6 @@ namespace IdleGame.Game
         private float _phase;        // per-hero desync so they don't move in unison
         private float _t;
         private Vector3 _bodyBase;
-
-        /// <summary>True while the weapon-arm swing is playing (parity with HeroAnimator; unused by CombatView).</summary>
-        public bool Attacking => _attackLeft > 0f;
 
         /// <summary>Capture rest pose + randomise the cycle phase. Call after the parts are wired.</summary>
         public void Setup()

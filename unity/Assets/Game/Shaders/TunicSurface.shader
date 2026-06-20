@@ -19,9 +19,7 @@ Shader "IdleGame/TunicSurface"
         _SlopeHi     ("Slope Blend High (N.y)", Range(-1,1)) = 0.80
         _EdgeSharp   ("Edge Ink Sharpness", Float)      = 6.0
         _EdgeDark    ("Edge Ink Strength", Range(0,1))  = 0.35
-        _Bands       ("Toon Banding", Range(0,1))       = 0.0
         _ShadowImpact("Shadow Strength", Range(0,1))    = 0.7
-        _AmbientFloor("Ambient Floor", Range(0,1))      = 0.0
         _WindStrength("Wind Strength", Float)           = 0.0
         _WindSpeed   ("Wind Speed", Float)              = 1.5
     }
@@ -55,9 +53,7 @@ Shader "IdleGame/TunicSurface"
                 float _SlopeHi;
                 float _EdgeSharp;
                 float _EdgeDark;
-                float _Bands;
                 float _ShadowImpact;
-                float _AmbientFloor;
                 float _WindStrength;
                 float _WindSpeed;
             CBUFFER_END
@@ -123,11 +119,8 @@ Shader "IdleGame/TunicSurface"
                 // multiplies the main light — the plain GetMainLight(shadowCoord) ignores it.
                 Light mainLight = GetMainLight(shadowCoord, IN.positionWS, half4(1, 1, 1, 1));
 
-                // Crisp flat lighting: a hard N·L, optionally posterized into two bands.
+                // Crisp flat lighting: a hard N·L (no soft wrap).
                 half ndl = saturate(dot(N, mainLight.direction));
-                half banded = smoothstep(0.42, 0.58, ndl);
-                ndl = lerp(ndl, banded, _Bands);
-                ndl = max(ndl, _AmbientFloor); // keep shaded sides from going to pure ambient
                 half shadow = lerp(1.0, mainLight.shadowAttenuation, _ShadowImpact);
 
                 half3 ambient = SampleSH(N);
@@ -157,7 +150,7 @@ Shader "IdleGame/TunicSurface"
             CBUFFER_START(UnityPerMaterial)
                 float4 _TopColor; float4 _SideColor;
                 float _SlopeLo; float _SlopeHi; float _EdgeSharp; float _EdgeDark;
-                float _Bands; float _ShadowImpact; float _AmbientFloor;
+                float _ShadowImpact;
                 float _WindStrength; float _WindSpeed;
             CBUFFER_END
 
@@ -203,7 +196,7 @@ Shader "IdleGame/TunicSurface"
             CBUFFER_START(UnityPerMaterial)
                 float4 _TopColor; float4 _SideColor;
                 float _SlopeLo; float _SlopeHi; float _EdgeSharp; float _EdgeDark;
-                float _Bands; float _ShadowImpact; float _AmbientFloor;
+                float _ShadowImpact;
                 float _WindStrength; float _WindSpeed;
             CBUFFER_END
 
