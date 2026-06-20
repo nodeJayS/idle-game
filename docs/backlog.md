@@ -74,8 +74,10 @@ target genre is **dense/fast** — reward cadence too low to be addictive. Three
    fountain + occasional keepers), `MobCap` 20→60, `SpawnBatchSize` 6→10, `SpawnIntervalMs`
    1500→900, spawn ring 16–36→10–26 (packs hug the party = constant combat, no dead walking).
    Confirmed "better" in playtest. All tunable in `BalanceConstants`.
-2. **Juice the now-frequent moments** — loot beams + pickup chimes, crit hitstop, level-up
-   bursts, boss-kill punch (FX hooks exist in `CombatJuice`). NEXT.
+2. **Juice the now-frequent moments** — in progress. Done: crit "!" removed (reads via color
+   + size), world loot-pop for Rare+ keepers at the drop site (`CombatJuice.LootPop`),
+   `LEVEL UP!` burst over heroes (`CombatJuice.LevelUpBurst`). Remaining: boss-kill flash,
+   hitstop on big crits, kill-streak, and SOUND (no audio assets in repo yet — deferred).
 3. **Decisions + acceleration** — make skills choosable (the PoE "build" pillar; currently
    read-only — likely where lasting addictiveness lives), short-term goals/milestones, and
    visibly accelerating progression (auto-advance out-geared stages).

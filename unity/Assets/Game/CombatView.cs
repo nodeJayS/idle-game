@@ -435,7 +435,14 @@ namespace IdleGame.Game
                 _save = Progression.GrantPartyXp(_save, _combat.PendingXp, _cfg);
                 _combat.PendingXp = 0;
                 xp = true;
-                if (PartyLevelSum() > before) _chat?.AddFeed("Level up!", new Color(0.5f, 0.85f, 1f));
+                if (PartyLevelSum() > before)
+                {
+                    _chat?.AddFeed("Level up!", new Color(0.5f, 0.85f, 1f));
+                    if (_juice != null)
+                        foreach (var e in _combat.Entities)
+                            if (e.Team == Team.Party && e.Alive && _views.TryGetValue(e.Id, out var lv) && lv.Go != null)
+                                _juice.LevelUpBurst(lv.Go.transform.position + Vector3.up * (lv.Height + 0.9f));
+                }
             }
             if (_combat.PendingGold > 0)
             {
@@ -611,6 +618,9 @@ namespace IdleGame.Game
             // skill (firebolt) launches its meteor so the number pops on impact, while area/
             // melee skills pop immediately. A SkillCast precedes its Hits in the list.
             Dictionary<string, string?>? skillHitFx = null;
+            // Where each enemy died this step, so a keeper's loot pop appears at the drop site
+            // (the corpse's view is detached on Death, before the LootDrop event is handled).
+            Dictionary<string, Vector3>? deathPos = null;
 
             foreach (var ev in events)
             {
@@ -710,6 +720,7 @@ namespace IdleGame.Game
                                 // Enemy died: detach the view and play a knockback + crumple
                                 // despawn so it doesn't vanish instantly (and lingers long
                                 // enough for an in-flight projectile to land on it).
+                                (deathPos ??= new Dictionary<string, Vector3>())[ev.EntityId] = v.Go.transform.position;
                                 _views.Remove(ev.EntityId);
                                 v.Go.AddComponent<DeathFx>()
                                     .Configure(0.45f, v.Go.transform.localScale, v.LastHitDir * 0.6f, sink: 0.4f);
@@ -728,7 +739,14 @@ namespace IdleGame.Game
                         break;
                     case CombatEventType.LootDrop:
                         if (ev.Item != null && Settings.LootFeed)
+                        {
                             _chat?.AddFeed($"{ev.Item.Rarity} {ev.Item.BaseId} (i{ev.Item.ItemLevel})", Palette.Rarity(ev.Item.Rarity));
+                            // Keepers (Rare+) also pop in the world at the drop site — the
+                            // standout beat in the loot rain; commons stay feed-only.
+                            if (_juice != null && ev.Item.Rarity >= Rarity.Rare && ev.EntityId != null
+                                && deathPos != null && deathPos.TryGetValue(ev.EntityId, out var dp))
+                                _juice.LootPop(dp + Vector3.up * 0.8f, $"{ev.Item.Rarity} {ev.Item.BaseId}", ev.Item.Rarity);
+                        }
                         break;
                 }
             }

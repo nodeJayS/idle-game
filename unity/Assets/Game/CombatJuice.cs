@@ -34,11 +34,30 @@ namespace IdleGame.Game
         public void DamageNumber(Vector3 worldHead, double amount, bool crit)
         {
             var color = crit ? new Color(1f, 0.78f, 0.25f) : new Color(1f, 0.95f, 0.9f);
-            var label = NewText(crit ? $"{Num.Compact(amount)}!" : Num.Compact(amount),
-                                crit ? 30 : 20, color);
+            // Crit reads from color (gold) + bigger font/pop, not punctuation.
+            var label = NewText(Num.Compact(amount), crit ? 30 : 20, color);
             var jitter = new Vector3(Random.Range(-0.25f, 0.25f), 0f, Random.Range(-0.25f, 0.25f));
             label.gameObject.AddComponent<FloatingText>()
                  .Configure(label, _cam, worldHead + jitter, crit ? 1.8f : 1.3f, crit ? 1.0f : 0.8f, color);
+        }
+
+        /// <summary>A rarity-colored item name that pops at a world point when a keeper drops —
+        /// the standout moment in the loot rain (commons just go to the feed / auto-salvage).</summary>
+        public void LootPop(Vector3 worldPos, string text, Rarity rarity)
+        {
+            var color = Palette.Rarity(rarity);
+            var label = NewText(text, rarity >= Rarity.Unique ? 26 : 22, color);
+            label.gameObject.AddComponent<FloatingText>()
+                 .Configure(label, _cam, worldPos, 2.0f, 1.5f, color); // rises higher, lingers
+        }
+
+        /// <summary>A "LEVEL UP!" burst above a hero when the party gains a level.</summary>
+        public void LevelUpBurst(Vector3 worldPos)
+        {
+            var color = new Color(0.55f, 0.85f, 1f);
+            var label = NewText("LEVEL UP!", 26, color);
+            label.gameObject.AddComponent<FloatingText>()
+                 .Configure(label, _cam, worldPos, 1.6f, 1.2f, color);
         }
 
         /// <summary>Green "+N" floating above a healed ally (M11 mend skill).</summary>
