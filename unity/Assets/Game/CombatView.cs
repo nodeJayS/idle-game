@@ -752,11 +752,23 @@ namespace IdleGame.Game
                 v.Go.transform.position = v.SmoothPos + LungeOffset(v) + KnockOffset(v);
                 if (v.Spawning) AnimateSpawn(v);
 
-                // Skeletal heroes: blend idle<->walk from whether the sim moved them this step.
+                // Skeletal heroes: drive idle/walk (movement cancels a swing/cast inside
+                // SetMoving) + face where they're going, or their target when standing.
                 if (v.Anim != null)
                 {
                     if (_steppedThisFrame) v.Moving = (v.CurPos - v.PrevPos).sqrMagnitude > 0.0004f;
                     v.Anim.SetMoving(v.Moving);
+
+                    Vector3 face = Vector3.zero;
+                    if (v.Moving) face = v.CurPos - v.PrevPos;
+                    else if (e.TargetId != null && _views.TryGetValue(e.TargetId, out var tv) && tv.Go != null)
+                        face = tv.SmoothPos - v.SmoothPos;
+                    face.y = 0f;
+                    if (face.sqrMagnitude > 0.0001f)
+                    {
+                        var rot = Quaternion.LookRotation(face.normalized, Vector3.up);
+                        v.Go.transform.rotation = Quaternion.RotateTowards(v.Go.transform.rotation, rot, 540f * Time.deltaTime);
+                    }
                 }
             }
         }
