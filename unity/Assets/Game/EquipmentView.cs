@@ -9,7 +9,7 @@ namespace IdleGame.Game
 {
     /// <summary>
     /// The unified "Heroes" screen (uGUI) — the one hub for managing the roster. Left rail:
-    /// the 4 party slots (who's fielded) over a list of every owned hero; click to select.
+    /// the party slots (who's fielded) over a list of every owned hero; click to select.
     /// Right pane: the selected hero's header (name/level + Field/Bench, a live farm-only
     /// swap) and three sub-tabs — <b>Equipment</b> (a body-mapped 9-slot doll + the shared
     /// account bag, hover-compare, one-click equip), <b>Skills</b> (read-only until the

@@ -8,11 +8,12 @@ namespace IdleGame.GameCore
     public static class Save
     {
         public const int SaveVersion = 1;
+        public const int PartySize = 3; // fielded party slots; the bag holds the rest
         public const string StarterHeroDef = "warrior_basic";
         public const string StarterMageDef = "magician_basic";
 
         /// <summary>
-        /// A fresh game: just a Warrior in slot 0 (three empty slots). More heroes are
+        /// A fresh game: just a Warrior in slot 0 (the rest empty). More heroes are
         /// earned through progression — e.g. the Magician unlocks at stage 3
         /// (<see cref="GameConfig.HeroUnlocks"/>). `now` (epoch ms) is passed in, not read
         /// from the clock, to keep game-core pure/testable.
@@ -21,13 +22,16 @@ namespace IdleGame.GameCore
         {
             var warrior = MakeHero("h1", StarterHeroDef, cfg);
 
+            var party = new string?[PartySize];
+            party[0] = warrior.Id; // Warrior fielded; remaining slots empty
+
             return new SaveState
             {
                 Version = SaveVersion,
                 RngSeed = seed,
                 RngCursor = 0,
                 Heroes = new List<HeroInstance> { warrior },
-                Party = new string?[] { warrior.Id, null, null, null },
+                Party = party,
                 Inventory = new List<Item>(),
                 Currencies = new Dictionary<string, long> { ["gold"] = 0 },
                 Progress = new ProgressState { HighestStage = 0, CurrentStage = 1, AccountLevel = 1 },
@@ -92,8 +96,19 @@ namespace IdleGame.GameCore
             save.Inventory ??= new List<Item>();
             save.Currencies ??= new Dictionary<string, long>();
             save.Progress ??= new ProgressState();
-            if (save.Party == null || save.Party.Length != 4)
-                save.Party = new string?[4];
+
+            // Normalize the party to PartySize, preserving the first slots. An older save
+            // with a longer party (the cap was once 4) keeps its first PartySize heroes;
+            // anyone in an overflow slot is benched (they stay owned in Heroes).
+            if (save.Party == null)
+                save.Party = new string?[PartySize];
+            else if (save.Party.Length != PartySize)
+            {
+                var resized = new string?[PartySize];
+                int copy = Math.Min(PartySize, save.Party.Length);
+                for (int i = 0; i < copy; i++) resized[i] = save.Party[i];
+                save.Party = resized;
+            }
 
             return save;
         }

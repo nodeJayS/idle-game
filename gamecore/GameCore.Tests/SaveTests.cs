@@ -14,7 +14,9 @@ namespace IdleGame.GameCore.Tests
             var save = Save.NewGame(123, Cfg, 1000);
             Assert.Single(save.Heroes);
             Assert.Equal(Save.StarterHeroDef, save.Heroes[0].DefId);
-            Assert.Equal(new string?[] { save.Heroes[0].Id, null, null, null }, save.Party);
+            Assert.Equal(Save.PartySize, save.Party.Length);
+            Assert.Equal(save.Heroes[0].Id, save.Party[0]); // Warrior fielded in slot 0
+            for (int i = 1; i < save.Party.Length; i++) Assert.Null(save.Party[i]); // rest empty
             Assert.Equal(0, save.Currencies["gold"]);
             Assert.Equal(1000, save.LastClaimAt);
         }
@@ -153,7 +155,7 @@ namespace IdleGame.GameCore.Tests
             Assert.NotNull(save.Inventory);
             Assert.NotNull(save.Currencies);
             Assert.NotNull(save.Progress);
-            Assert.Equal(4, save.Party.Length);
+            Assert.Equal(Save.PartySize, save.Party.Length);
         }
 
         [Fact]
@@ -161,7 +163,22 @@ namespace IdleGame.GameCore.Tests
         {
             var json = $"{{\"Version\":{Save.SaveVersion},\"Party\":[]}}";
             var save = Persistence.Deserialize(json);
-            Assert.Equal(4, save.Party.Length);
+            Assert.Equal(Save.PartySize, save.Party.Length);
+        }
+
+        [Fact]
+        public void MigrateShrinksLongPartyBenchingOverflow()
+        {
+            // A legacy save from when the party cap was 4: four fielded heroes. Migration
+            // keeps the first PartySize slots and benches the overflow (still owned).
+            var json = $"{{\"Version\":{Save.SaveVersion},\"Party\":[\"h1\",\"h2\",\"h3\",\"h4\"]}}";
+            var save = Persistence.Deserialize(json);
+
+            Assert.Equal(Save.PartySize, save.Party.Length);
+            Assert.Equal("h1", save.Party[0]);
+            Assert.Equal("h2", save.Party[1]);
+            Assert.Equal("h3", save.Party[2]);
+            Assert.DoesNotContain("h4", save.Party); // overflow hero benched, not fielded
         }
 
         [Fact]

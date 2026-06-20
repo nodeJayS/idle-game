@@ -1,6 +1,6 @@
 # Idle ARPG — Game Design
 
-> A Diablo 3 / Path of Exile–style **idle ARPG**: a 4-hero party auto-clears
+> A Diablo 3 / Path of Exile–style **idle ARPG**: a 3-hero party auto-clears
 > dungeons, monsters drop loot, you build out gear/skills and push higher difficulty.
 > Scope: personal/for-fun game first, **architected to scale to a global live-service
 > mobile release later** without a rewrite.
@@ -20,7 +20,7 @@
 | Engine | **Unity (C#)**, 3D URP |
 | Art direction | **2.5D isometric, low-poly 3D** — fixed iso camera over low-poly models; readable, cheap to produce, light on mobile |
 | Sim | **`GameCore`** — pure C# library, no `UnityEngine` refs; Unity is a read-only client |
-| Party | **4 hero slots** from a multi-class roster; start with **Warrior + Magician**. Leveling is **per-hero** (see §4) |
+| Party | **3 hero slots** from a multi-class roster; **start solo (Warrior)**, unlock the **Magician at stage 3**. Leveling is **per-hero** (see §4) |
 | Classes | Each class has its **own skill set**; skills fire automatically in combat (live, M11) |
 | Map / movement | Party **auto-navigates** stages, auto-fights, auto-loots |
 | Stages | **1–50 main ladder**; clear a **miniboss** to advance, **major boss every 10**. Endless & party modes later |
@@ -53,7 +53,7 @@ If this feels good with placeholder primitives and grey/blue/yellow item rectang
 ## 2. MVP — the vertical slice (build this and nothing more in v1)
 
 1. **Stage zone** — a small 3D zone the party auto-walks through.
-2. **Auto-combat** — 4-slot party (Warrior + Magician to start), auto-target nearest monsters, auto-attack/auto-skill on cooldown. Heroes can be **downed**; a full party wipe fails the run.
+2. **Auto-combat** — 3-slot party (start solo Warrior; Magician unlocks at stage 3), auto-target nearest monsters, auto-attack/auto-skill on cooldown. Heroes can be **downed**; a full party wipe fails the run.
 3. **Monster packs + a miniboss** — clear the packs, **miniboss gates the next stage**; a **major boss every 10 stages**.
 4. **Loot drops** — monsters drop gear with rarity + random affixes; auto-pickup.
 5. **Equip & stats** — equip gear on a hero; stats recompute; party gets stronger.

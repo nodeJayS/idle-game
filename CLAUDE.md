@@ -1,7 +1,7 @@
 # Idle ARPG — working context
 
 A cozy low-poly **3D idle ARPG** (Diablo/PoE-style loot & build depth, *Tunic*-ish
-look). A 4-hero party auto-clears dungeons, monsters drop gear, you build the party
+look). A 3-hero party auto-clears dungeons, monsters drop gear, you build the party
 and push higher difficulty; progress accrues while away. Built in **Unity (C#)**.
 Gacha and global/live-service are deferred but the architecture keeps the door open.
 

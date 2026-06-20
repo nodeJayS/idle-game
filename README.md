@@ -1,6 +1,6 @@
 # Idle ARPG (Unity)
 
-A low-poly **3D idle ARPG** — Diablo/PoE-style loot & build depth. A 4-hero party (each hero independently equippable from one shared bag) auto-clears dungeons, monsters drop gear, you build out the party and push higher difficulty.
+A low-poly **3D idle ARPG** — Diablo/PoE-style loot & build depth. A 3-hero party (each hero independently equippable from one shared bag) auto-clears dungeons, monsters drop gear, you build out the party and push higher difficulty.
 Progress accrues while you're away.
 
 > **Status:** the simulation lives in a pure-C# `GameCore` library (tested with

@@ -76,7 +76,7 @@ namespace IdleGame.GameCore
         public uint RngSeed;
         public int RngCursor;
         public List<HeroInstance> Heroes = new List<HeroInstance>();
-        public string?[] Party = new string?[4]; // length 4; null = empty slot
+        public string?[] Party = new string?[Save.PartySize]; // null = empty slot
         public List<Item> Inventory = new List<Item>();
         public Dictionary<string, long> Currencies = new Dictionary<string, long>();
         public ProgressState Progress = new ProgressState();

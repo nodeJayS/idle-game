@@ -12,7 +12,7 @@ namespace IdleGame.GameCore
     public static class Party
     {
         /// <summary>
-        /// Place an owned hero into one of the 4 party slots (or null to clear).
+        /// Place an owned hero into one of the party slots (or null to clear).
         /// Pure: returns a new SaveState; the input is not mutated.
         /// </summary>
         public static SaveState SetPartySlot(SaveState save, int slot, string? heroId)

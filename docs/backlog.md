@@ -6,13 +6,16 @@ Renderer/UI-only unless noted. GameCore-first for anything touching rules (build
 
 ## A. Systems / GameCore (rules + data model)
 
-### A1. Party cap 4 → 3  ·  GameCore + UI  ·  medium
-- Core is two array sizes: `Models.cs:79` and `Save.cs:96` (`new string?[4]` → `[3]`).
-  The rest of GameCore reads `save.Party.Length` (`Party.cs`, `Combat.ReconcileParty`),
-  so it adapts automatically.
-- Careful part: a **save migration** in `Save.Migrate` — existing saves have a length-4
-  array (maybe 4 fielded heroes); resize to 3 and bench the overflow hero.
-- UI: party HUD + `EquipmentView` field slots show 4 (the two "— empty —" rows) → 3.
+### A1. Party cap 4 → 3  ·  GameCore + UI  ·  ✅ done
+- New `Save.PartySize` constant (= 3) is the single source; `Models.SaveState.Party` and
+  `Save.NewGame` build to it. The rest of GameCore already reads `save.Party.Length`
+  (`Party.cs`, `Combat.ReconcileParty`), so it adapted automatically.
+- `Save.Migrate` now resizes the party to `PartySize`, **preserving the first slots** and
+  benching any overflow hero (a legacy length-4 save keeps its first 3 fielded heroes;
+  the 4th stays owned in `Heroes`). Previously it blanked a mismatched-length party.
+- UI: party HUD (`CombatView.DrawPartyHud`) + `EquipmentView` field slots already iterate
+  `save.Party.Length`, so they show 3 with no change.
+- Tests: `MigrateShrinksLongPartyBenchingOverflow` added; length asserts use `Save.PartySize`. 217 pass.
 
 ### A2. Derived combat stats — DPS + Effective Life  ·  GameCore  ·  medium  ·  prereq for B2
 - `StatBlock` holds raw stats; `Combat.cs` has `AttackSpeedOf`/`AttackInterval`, but no
