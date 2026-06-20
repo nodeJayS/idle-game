@@ -143,16 +143,19 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>
-        /// Stat delta (after − before) of equipping <paramref name="candidate"/> on a
-        /// hero, swapping it into its slot. Drives the green▲/red▼ compare UI later.
+        /// The hero's stat blocks <b>before</b> (current gear) and <b>after</b> swapping
+        /// <paramref name="candidate"/> into its slot. The shared basis for both the raw-stat
+        /// compare (<see cref="CompareForHero"/>) and the derived DPS/Effective-Life deltas (B2) —
+        /// derived stats are non-linear in the raw stats, so the hover preview needs both full
+        /// blocks, not just the delta.
         /// </summary>
-        public static StatBlock CompareForHero(SaveState save, string heroId, Item candidate, GameConfig cfg)
+        public static (StatBlock before, StatBlock after) ComparePairForHero(SaveState save, string heroId, Item candidate, GameConfig cfg)
         {
             var hero = save.Heroes.Find(h => h.Id == heroId)
-                ?? throw new InvalidOperationException($"CompareForHero: hero \"{heroId}\" not owned");
+                ?? throw new InvalidOperationException($"ComparePairForHero: hero \"{heroId}\" not owned");
 
             if (!cfg.ItemBases.TryGetValue(candidate.BaseId, out var candBase))
-                throw new InvalidOperationException($"CompareForHero: unknown item base \"{candidate.BaseId}\"");
+                throw new InvalidOperationException($"ComparePairForHero: unknown item base \"{candidate.BaseId}\"");
 
             var current = Stats.ResolveEquipped(save, hero);
             var before = Stats.ComputeHeroStats(hero, cfg, current);
@@ -164,6 +167,16 @@ namespace IdleGame.GameCore
                     after.Add(it);
             after.Add(candidate);
             var afterStats = Stats.ComputeHeroStats(hero, cfg, after);
+            return (before, afterStats);
+        }
+
+        /// <summary>
+        /// Stat delta (after − before) of equipping <paramref name="candidate"/> on a
+        /// hero, swapping it into its slot. Drives the green▲/red▼ compare UI.
+        /// </summary>
+        public static StatBlock CompareForHero(SaveState save, string heroId, Item candidate, GameConfig cfg)
+        {
+            var (before, afterStats) = ComparePairForHero(save, heroId, candidate, cfg);
 
             var delta = new StatBlock();
             foreach (StatKey k in Enum.GetValues(typeof(StatKey)))

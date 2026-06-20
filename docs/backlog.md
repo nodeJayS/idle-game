@@ -36,10 +36,13 @@ Renderer/UI-only unless noted. GameCore-first for anything touching rules (build
   cycling button (`InventoryView.cs:73-74`, `AutoSalvageLabel`). Replace with an explicit
   list: Off / Normal / Magic & below / Rare & below / Unique & below / …
 
-### B2. Equipment hover → stat-delta preview  ·  GameCore + UI  ·  medium  ·  depends on A2
-- Hovering an item for the selected hero shows the **change** (e.g. "+DPS, +Life").
-  Recompute the hero's `StatBlock` with the item swapped in, diff vs current, render the
-  deltas via the A2 derived stats. Builds on the existing item-compare UI.
+### B2. Equipment hover → stat-delta preview  ·  ✅ done (GameCore + UI)  ·  depended on A2
+- `Inventory.ComparePairForHero` (new) returns the hero's (before, after) `StatBlock` for an
+  item swap — the shared basis behind the raw compare + the derived preview (derived stats are
+  non-linear, so the diff needs both full blocks). `CompareForHero` now wraps it.
+- `EquipmentView` compare pane leads with bright ▲/▼ **ΔDPS** and **ΔEff. Life** rows
+  (`DerivedDeltaRow`) before the raw stat deltas; EHP delta is vs the current stage's boss hit.
+  Tests: `ComparePairBackingMatchesDeltaAndDrivesDerivedStats` (228 pass).
 
 ### B3. Inventory panel off-center  ·  UI only  ·  small
 - Layout fix in `InventoryView` / its `UiKit` placement. (Screenshot pending for the exact offset.)

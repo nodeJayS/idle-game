@@ -122,6 +122,22 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(5, Inventory.CompareForHero(save2, heroId2, candidate, Cfg).Get(StatKey.Atk), 3);
         }
 
+        [Fact]
+        public void ComparePairBackingMatchesDeltaAndDrivesDerivedStats()
+        {
+            // ComparePairForHero is the (before, after) basis behind CompareForHero + the B2
+            // DPS/Life hover preview. after-before must agree with the raw delta, and a sword
+            // with +Atk must raise derived DPS.
+            var (save, heroId) = Setup();
+            var candidate = Mk("c1", "rusty_sword", Rarity.Magic, 5, (StatKey.Atk, 7));
+
+            var (before, after) = Inventory.ComparePairForHero(save, heroId, candidate, Cfg);
+            double rawDelta = Inventory.CompareForHero(save, heroId, candidate, Cfg).Get(StatKey.Atk);
+            Assert.Equal(rawDelta, after.Get(StatKey.Atk) - before.Get(StatKey.Atk), 9);
+
+            Assert.True(DerivedStats.Dps(after) > DerivedStats.Dps(before)); // more Atk => more DPS
+        }
+
         // --- M10.4: full MapleStory-style slot set ---
 
         [Fact]

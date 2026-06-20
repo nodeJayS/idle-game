@@ -293,11 +293,21 @@ namespace IdleGame.Game
                 UiKit.Label(_detail, $"vs {HeroName(save, _heroId)}'s {SlotOf(item)}:", 13, TextAnchor.MiddleLeft,
                             new Vector2(250, 18), new Vector2(0, y));
                 y -= 22f;
-                var delta = Inventory.CompareForHero(save, _heroId!, item, _cfg);
+
+                var (before, after) = Inventory.ComparePairForHero(save, _heroId!, item, _cfg);
+
+                // Headline derived deltas first (B2): what equipping does to power + survivability.
+                int stage = save.Progress.CurrentStage;
+                y = DerivedDeltaRow(_detail, "DPS", DerivedStats.Dps(after) - DerivedStats.Dps(before), y);
+                y = DerivedDeltaRow(_detail, "Eff. Life",
+                        DerivedStats.EffectiveHp(after, _cfg, stage) - DerivedStats.EffectiveHp(before, _cfg, stage), y);
+                y -= 4f;
+
+                // Raw stat deltas
                 bool anyDelta = false;
                 foreach (var k in StatDisplay.Order)
                 {
-                    double d = delta.Get(k);
+                    double d = after.Get(k) - before.Get(k);
                     if (d == 0) continue;
                     anyDelta = true;
                     var l = UiKit.Label(_detail, $"{(d > 0 ? "▲" : "▼")} {StatDisplay.Label(k)}  {StatDisplay.Delta(k, d)}",
@@ -367,6 +377,18 @@ namespace IdleGame.Game
         {
             UiKit.Label(into, label, 14, TextAnchor.MiddleLeft, new Vector2(160, 18), new Vector2(-45, y)).color = color;
             UiKit.Label(into, value, 14, TextAnchor.MiddleRight, new Vector2(130, 18), new Vector2(75, y)).color = color;
+        }
+
+        /// <summary>A headline derived-stat delta row (DPS / Effective Life) in the compare pane.
+        /// Rounds to a whole number; an effectively-zero change reads as a dim "±0". Returns next y.</summary>
+        private static float DerivedDeltaRow(RectTransform into, string label, double delta, float y)
+        {
+            long r = (long)System.Math.Round(delta);
+            string arrow = r > 0 ? "▲" : r < 0 ? "▼" : "·";
+            string val = (r > 0 ? "+" : r < 0 ? "-" : "±") + System.Math.Abs(r).ToString("N0");
+            var l = UiKit.Label(into, $"{arrow} {label}  {val}", 14, TextAnchor.MiddleLeft, new Vector2(250, 18), new Vector2(0, y));
+            l.color = r > 0 ? new Color(0.55f, 1f, 0.6f) : r < 0 ? new Color(1f, 0.5f, 0.5f) : new Color(0.6f, 0.62f, 0.68f);
+            return y - 22f;
         }
 
         // ---- Skills sub-tab (read-only seed; tree/leveling land in the Skills milestone) ----
