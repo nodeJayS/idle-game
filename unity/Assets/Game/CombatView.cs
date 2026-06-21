@@ -288,6 +288,7 @@ namespace IdleGame.Game
         {
             _save = save;
             _cfg = cfg;
+            _save = Quests.EnsureBoard(_save, _cfg); // backfill the goal board (new field on older saves)
             BuildSpawnEffects();
             BuildProjectileEffects();
             BuildSkillEffects();
@@ -411,6 +412,31 @@ namespace IdleGame.Game
             return true;
         }
 
+        /// <summary>Record progress toward the goal board and surface any completions. Goals can
+        /// grant party XP, so a completion refreshes live party stats. Safe to call with 0/none.</summary>
+        private void AdvanceQuest(QuestKind kind, long amount)
+        {
+            if (amount <= 0) return;
+            var (next, completed) = Quests.Advance(_save, kind, amount, _cfg);
+            _save = next;
+            if (completed.Count == 0) return;
+
+            foreach (var q in completed)
+                _chat?.AddFeed($"Goal complete: {QuestLabel(q)}  (+{Num.Compact(q.RewardGold)} gold)",
+                               new Color(1f, 0.85f, 0.35f));
+            if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg); // quest XP may have leveled a hero
+        }
+
+        private static string QuestLabel(Quest q) => q.Kind switch
+        {
+            QuestKind.KillMonsters => $"Slay {Num.Compact(q.Target)} monsters",
+            QuestKind.SalvageItems => $"Salvage {Num.Compact(q.Target)} items",
+            QuestKind.EarnGold     => $"Earn {Num.Compact(q.Target)} gold",
+            QuestKind.ClearStages  => $"Clear {Num.Compact(q.Target)} stages",
+            QuestKind.FindRarePlus => $"Find {Num.Compact(q.Target)} Rare+ items",
+            _ => "Goal",
+        };
+
         /// <summary>Bank pending loot/XP/gold into the save. Returns true if XP was
         /// granted (so the caller can refresh live party stats).</summary>
         private bool CommitPending()
@@ -418,11 +444,18 @@ namespace IdleGame.Game
             bool xp = false;
             if (_combat.PendingLoot.Count > 0)
             {
+                // Count Rare+ drops before the bag swallows them (goal: find Rare+ items).
+                int rarePlus = 0;
+                foreach (var it in _combat.PendingLoot) if (it.Rarity >= Rarity.Rare) rarePlus++;
+
                 // Live farm trash is capped; boss/special-stage clears may overfill the bag.
                 bool allowOverflow = _combat.Kind != EncounterKind.Farm;
                 var loot = Inventory.AddLoot(_save, _combat.PendingLoot, _cfg, Settings.AutoSalvageMax, allowOverflow);
                 _save = loot.Save;
                 _combat.PendingLoot.Clear();
+
+                AdvanceQuest(QuestKind.FindRarePlus, rarePlus);
+                AdvanceQuest(QuestKind.SalvageItems, loot.Salvaged.Count); // auto-salvaged this batch
 
                 // Warn once when the bag overflows; clear the latch when it has room again.
                 if (loot.BagFull)
@@ -456,8 +489,10 @@ namespace IdleGame.Game
             }
             if (_combat.PendingGold > 0)
             {
-                _save = Progression.GrantGold(_save, _combat.PendingGold);
+                long earned = _combat.PendingGold;
+                _save = Progression.GrantGold(_save, earned);
                 _combat.PendingGold = 0;
+                AdvanceQuest(QuestKind.EarnGold, earned);
             }
             return xp;
         }
@@ -471,6 +506,7 @@ namespace IdleGame.Game
                 int cleared = _combat.Stage;
                 _save = Progression.OnStageCleared(_save, cleared, _cfg);
                 _chat?.AddFeed($"Stage {cleared} cleared!", new Color(0.55f, 0.9f, 0.55f));
+                AdvanceQuest(QuestKind.ClearStages, 1);
             }
         }
 
@@ -636,6 +672,7 @@ namespace IdleGame.Game
             // Where each enemy died this step, so a keeper's loot pop appears at the drop site
             // (the corpse's view is detached on Death, before the LootDrop event is handled).
             Dictionary<string, Vector3>? deathPos = null;
+            int enemyKills = 0; // batched into the goal board after the loop
 
             foreach (var ev in events)
             {
@@ -737,6 +774,7 @@ namespace IdleGame.Game
                                 // enough for an in-flight projectile to land on it).
                                 (deathPos ??= new Dictionary<string, Vector3>())[ev.EntityId] = v.Go.transform.position;
                                 _views.Remove(ev.EntityId);
+                                enemyKills++;
                                 v.Go.AddComponent<DeathFx>()
                                     .Configure(0.45f, v.Go.transform.localScale, v.LastHitDir * 0.6f, sink: 0.4f);
                             }
@@ -765,6 +803,7 @@ namespace IdleGame.Game
                         break;
                 }
             }
+            if (enemyKills > 0) AdvanceQuest(QuestKind.KillMonsters, enemyKills);
         }
 
         private void SyncViews()
@@ -910,6 +949,7 @@ namespace IdleGame.Game
 
             DrawHealthBars(s);
             DrawHud(s);
+            DrawGoals(s);
             DrawTopControls(s);
             DrawOutcome(s);
             DrawPartyHud(s);
@@ -987,6 +1027,43 @@ namespace IdleGame.Game
                 GUI.Label(new Rect(sw / 2f - 100, 40, 200, 40), $"{remain:0.0}s", timer);
             }
         }
+
+        /// <summary>Top-left goal board: the rolling short-term carrots with progress bars.</summary>
+        private void DrawGoals(float s)
+        {
+            if (AnyPanelOpen) return;
+            var board = _save.Quests;
+            if (board == null || board.Active.Count == 0) return;
+
+            const float x = 12f, w = 240f, pad = 8f, rowH = 34f, headH = 22f;
+            float y = 92f; // below the top-left account chip / settings
+            float h = pad * 2 + headH + board.Active.Count * rowH;
+            DrawRect(x, y, w, h, new Color(0.05f, 0.06f, 0.09f, 0.72f));
+
+            var head = _goalHeadStyle ??= new GUIStyle(GUI.skin.label)
+            { fontSize = 14, fontStyle = FontStyle.Bold };
+            head.normal.textColor = new Color(0.95f, 0.86f, 0.45f);
+            GUI.Label(new Rect(x + pad, y + 4, w - pad * 2, headH - 2), "Goals", head);
+
+            var nameStyle = _goalNameStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 12 };
+            nameStyle.normal.textColor = new Color(0.86f, 0.89f, 0.96f);
+            var numStyle = _goalNumStyle ??= new GUIStyle(GUI.skin.label)
+            { fontSize = 10, alignment = TextAnchor.MiddleRight };
+            numStyle.normal.textColor = new Color(0.7f, 0.75f, 0.82f);
+
+            float ry = y + pad + headH;
+            foreach (var q in board.Active)
+            {
+                GUI.Label(new Rect(x + pad, ry, w - pad * 2, 15), QuestLabel(q), nameStyle);
+                GUI.Label(new Rect(x + pad, ry, w - pad * 2, 15), $"{Num.Compact(q.Progress)}/{Num.Compact(q.Target)}", numStyle);
+                float frac = q.Target > 0 ? Mathf.Clamp01((float)((double)q.Progress / q.Target)) : 0f;
+                DrawBar(x + pad, ry + 17f, w - pad * 2, 7f,
+                        frac, new Color(0.15f, 0.16f, 0.20f), new Color(0.40f, 0.72f, 0.46f));
+                ry += rowH;
+            }
+        }
+
+        private GUIStyle? _goalHeadStyle, _goalNameStyle, _goalNumStyle;
 
         /// <summary>Top-centre stage nav + boss challenge/flee, under the context line.</summary>
         private void DrawTopControls(float s)
