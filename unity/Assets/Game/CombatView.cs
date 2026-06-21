@@ -242,6 +242,11 @@ namespace IdleGame.Game
         // Auto-advance (push): while on, the party auto-challenges each stage's boss and chains
         // clears with no input, until a boss run FAILS (timeout or wipe) — which clears the flag.
         // A manual flee also clears it. Transient (a push session), not a persisted preference.
+        //
+        // SHELVED for now (off): each stage should feel meaningful, so we don't want a one-tap
+        // skip past the boss walls. The toggle button and the auto-challenge loop are gated on
+        // this flag — flip it true to bring the feature back wholesale.
+        private const bool AutoAdvanceEnabled = false;
         private bool _autoAdvance;
         private uint _runCount;
         private bool _bagFullWarned; // throttles the "bag full" feed line
@@ -378,7 +383,7 @@ namespace IdleGame.Game
                 // Auto-advance: while pushing, the moment we're back to farming (run start, or
                 // after a win's resume) launch the next boss challenge — chaining clears with no
                 // input. A fail clears _autoAdvance (see ResolveOutcome), ending the loop here.
-                if (_autoAdvance && _combat.Kind == EncounterKind.Farm && _combat.Status == CombatStatus.Running)
+                if (AutoAdvanceEnabled && _autoAdvance && _combat.Kind == EncounterKind.Farm && _combat.Status == CombatStatus.Running)
                     ChallengeBoss();
             }
             else
@@ -1076,10 +1081,14 @@ namespace IdleGame.Game
 
             // Auto-push toggle — always available while running so it can be armed or cancelled
             // mid-fight. When on it chains boss challenges automatically until one fails.
-            var autoStyle = new GUIStyle(BtnStyleSm);
-            if (_autoAdvance) autoStyle.normal.textColor = new Color(0.55f, 0.9f, 0.6f);
-            if (Button(cx - 130, 144, 260, 36, _autoAdvance ? "■ Stop Auto-Advance" : "▶ Auto-Advance", autoStyle))
-                ToggleAutoAdvance();
+            // (Shelved: hidden unless AutoAdvanceEnabled — see the field's note.)
+            if (AutoAdvanceEnabled)
+            {
+                var autoStyle = new GUIStyle(BtnStyleSm);
+                if (_autoAdvance) autoStyle.normal.textColor = new Color(0.55f, 0.9f, 0.6f);
+                if (Button(cx - 130, 144, 260, 36, _autoAdvance ? "■ Stop Auto-Advance" : "▶ Auto-Advance", autoStyle))
+                    ToggleAutoAdvance();
+            }
         }
 
         /// <summary>Outcome overlay: a success popup on a boss win (auto-advances ~1s or OK),
