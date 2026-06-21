@@ -340,12 +340,13 @@ namespace IdleGame.Game
         {
             var canvasRect = ((RectTransform)canvas.transform).rect;
             if (canvasRect.width <= 0f || canvasRect.height <= 0f) return pos; // canvas not laid out yet
+            const float m = 8f; // keep a small margin so a panel never sits flush against (or off) an edge
             var size = target.rect.size;
-            float minX = size.x * target.pivot.x;
-            float maxX = canvasRect.width - size.x * (1f - target.pivot.x);
+            float minX = m + size.x * target.pivot.x;
+            float maxX = canvasRect.width - m - size.x * (1f - target.pivot.x);
             float halfH = canvasRect.height / 2f;
-            float maxY = halfH - size.y * (1f - target.pivot.y);
-            float minY = -halfH + size.y * target.pivot.y;
+            float maxY = halfH - m - size.y * (1f - target.pivot.y);
+            float minY = -halfH + m + size.y * target.pivot.y;
             pos.x = Mathf.Clamp(pos.x, minX, Mathf.Max(minX, maxX));
             pos.y = Mathf.Clamp(pos.y, minY, Mathf.Max(minY, maxY));
             return pos;

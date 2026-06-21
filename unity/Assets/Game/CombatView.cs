@@ -1028,22 +1028,24 @@ namespace IdleGame.Game
             }
         }
 
-        /// <summary>Top-left goal board: the rolling short-term carrots with progress bars.</summary>
+        /// <summary>Top-right quest board: the rolling short-term carrots with progress bars.</summary>
         private void DrawGoals(float s)
         {
             if (AnyPanelOpen) return;
             var board = _save.Quests;
             if (board == null || board.Active.Count == 0) return;
 
-            const float x = 12f, w = 240f, pad = 8f, rowH = 34f, headH = 22f;
-            float y = 92f; // below the top-left account chip / settings
+            const float w = 240f, pad = 8f, rowH = 34f, headH = 22f;
+            float sw = Screen.width / s;
+            float x = sw - w - 12f; // top-right, clear of the top-left account chip / settings
+            float y = 12f;
             float h = pad * 2 + headH + board.Active.Count * rowH;
             DrawRect(x, y, w, h, new Color(0.05f, 0.06f, 0.09f, 0.72f));
 
             var head = _goalHeadStyle ??= new GUIStyle(GUI.skin.label)
             { fontSize = 14, fontStyle = FontStyle.Bold };
             head.normal.textColor = new Color(0.95f, 0.86f, 0.45f);
-            GUI.Label(new Rect(x + pad, y + 4, w - pad * 2, headH - 2), "Goals", head);
+            GUI.Label(new Rect(x + pad, y + 4, w - pad * 2, headH - 2), "Quests", head);
 
             var nameStyle = _goalNameStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 12 };
             nameStyle.normal.textColor = new Color(0.86f, 0.89f, 0.96f);

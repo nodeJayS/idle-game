@@ -76,6 +76,7 @@ namespace IdleGame.Game
             prt.pivot = new Vector2(0f, 1f);            // anchor by the top-left corner
             prt.anchoredPosition = _pos;
             prt.anchoredPosition = _pos = UiKit.ClampToCanvas(_pos, prt, _canvas);
+            Settings.ChatX = _pos.x; Settings.ChatY = _pos.y; // heal a previously off-screen saved position
 
             BuildHeader(panel.transform, prt);
 
