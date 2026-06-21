@@ -27,13 +27,18 @@ namespace IdleGame.Game
         {
             bool mage = defId == "magician_basic" || ranged;
             bool warrior = defId == "warrior_basic";
-            if (!mage && !warrior) return null;
+            bool thief = defId == "thief_basic";
+            if (!mage && !warrior && !thief) return null;
 
             // Palette
             Color skin = new Color(0.95f, 0.80f, 0.66f);
-            Color tunic = mage ? new Color(0.66f, 0.13f, 0.15f) : new Color(0.20f, 0.40f, 0.78f);
-            Color limb = mage ? new Color(0.55f, 0.11f, 0.13f) : new Color(0.17f, 0.32f, 0.62f);
-            Color boot = new Color(0.30f, 0.22f, 0.15f);
+            Color tunic = mage ? new Color(0.66f, 0.13f, 0.15f)
+                        : thief ? new Color(0.16f, 0.22f, 0.20f)   // dark hunter-green leathers
+                        : new Color(0.20f, 0.40f, 0.78f);
+            Color limb = mage ? new Color(0.55f, 0.11f, 0.13f)
+                       : thief ? new Color(0.12f, 0.16f, 0.15f)
+                       : new Color(0.17f, 0.32f, 0.62f);
+            Color boot = thief ? new Color(0.10f, 0.09f, 0.09f) : new Color(0.30f, 0.22f, 0.15f);
 
             var root = new GameObject("chibi");
             var body = Joint("body", root.transform, new Vector3(0f, Hip, 0f));
@@ -58,9 +63,18 @@ namespace IdleGame.Game
             // The hand sits at the bottom of the weapon arm.
             var hand = Joint("hand", armR, new Vector3(0f, -ArmLen, 0f));
             if (warrior) BuildSword(hand);
+            else if (thief) BuildDagger(hand);
             else BuildStaff(hand);
 
+            // The thief is a dual-dagger duelist: a second blade in the off hand.
+            if (thief)
+            {
+                var handL = Joint("handL", armL, new Vector3(0f, -ArmLen, 0f));
+                BuildDagger(handL);
+            }
+
             if (mage) BuildHat(head, tunic);
+            else if (thief) BuildHood(head, tunic);
 
             var anim = root.AddComponent<ChibiAnimator>();
             anim.Body = body; anim.Head = head;
@@ -92,6 +106,26 @@ namespace IdleGame.Game
         {
             var hat = Mat(new Color(robe.r * 0.85f, robe.g * 0.85f, robe.b * 0.85f));
             PartMesh(Cone(7, 0.30f, 0.50f), head, new Vector3(0f, HeadR * 0.7f, 0f), Vector3.one, hat);
+        }
+
+        /// <summary>A short twin dagger: stubby blade off the warrior's full sword build.</summary>
+        private static void BuildDagger(Transform hand)
+        {
+            var grip = Mat(new Color(0.20f, 0.16f, 0.12f));
+            var steel = Mat(new Color(0.78f, 0.80f, 0.84f));
+            var guard = Mat(new Color(0.30f, 0.30f, 0.34f));
+            Part(PrimitiveType.Cube, hand, new Vector3(0f, -0.02f, 0f), new Vector3(0.045f, 0.11f, 0.045f), grip);
+            Part(PrimitiveType.Cube, hand, new Vector3(0f, -0.08f, 0f), new Vector3(0.16f, 0.035f, 0.05f), guard);
+            Part(PrimitiveType.Cube, hand, new Vector3(0f, -0.26f, 0f), new Vector3(0.06f, 0.34f, 0.025f), steel); // short blade
+        }
+
+        /// <summary>A pointed hood: a darker cone tilted back so the face still shows.</summary>
+        private static void BuildHood(Transform head, Color cloth)
+        {
+            var hood = Mat(new Color(cloth.r * 0.7f, cloth.g * 0.7f, cloth.b * 0.7f));
+            var t = PartMesh(Cone(7, HeadR * 1.12f, HeadR * 1.9f), head,
+                             new Vector3(0f, -HeadR * 0.18f, -HeadR * 0.15f), Vector3.one, hood);
+            t.localRotation = Quaternion.Euler(-18f, 0f, 0f); // lean the point back; leaves the face open
         }
 
         // --- builders / helpers ---------------------------------------------
