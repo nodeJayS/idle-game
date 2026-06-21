@@ -221,12 +221,21 @@ namespace IdleGame.Game
         private void AppendFeedRow(string text, Color color)
         {
             if (_feedContent == null) return;
-            // Default text wrap (NOT Overflow) — wrapping keeps each line inside the column;
-            // forcing Overflow earlier pushed long lines off the left and clipped their start.
-            var label = UiKit.Label(_feedContent, text, 14, TextAnchor.MiddleLeft, Vector2.zero, Vector2.zero);
+            // The vertical layout group drives its DIRECT child's size and forces its anchor to
+            // top-left; a Text placed there gets mis-sized so its left edge falls off the panel
+            // (the start of every line was clipped). So the layout's child is a plain container
+            // row, and the Text fills it via stretch anchors — which the layout never touches —
+            // so it's reliably pinned to the column's left edge.
+            var row = new GameObject("FeedRow", typeof(RectTransform));
+            row.transform.SetParent(_feedContent, false);
+            var le = row.AddComponent<LayoutElement>();
+            le.minHeight = 20; le.preferredHeight = 20;
+
+            var label = UiKit.Label(row.transform, text, 14, TextAnchor.MiddleLeft, Vector2.zero, Vector2.zero);
             label.color = color;
-            var le = label.gameObject.AddComponent<LayoutElement>();
-            le.preferredHeight = 20;
+            var lrt = (RectTransform)label.transform;
+            lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one; // fill the row, edge to edge
+            lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
         }
 
         private void RefreshTabHighlight()
