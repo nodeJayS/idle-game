@@ -223,8 +223,13 @@ namespace IdleGame.Game
             if (_feedContent == null) return;
             var label = UiKit.Label(_feedContent, text, 14, TextAnchor.MiddleLeft, Vector2.zero, Vector2.zero);
             label.color = color;
-            // Single line, left-aligned: the RectMask2D clips any overrun on the RIGHT, instead of
-            // wrapping (which, with a fixed row height, dropped lines and looked left-misaligned).
+            // The vertical layout group controls child width assuming a TOP-LEFT-anchored child;
+            // UiKit.Label centers it, which made the layout over-size the rect so its left edge
+            // fell off the panel (the start of each line was clipped). Re-anchor to top-left.
+            var rt = (RectTransform)label.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0f, 1f);
+            rt.pivot = new Vector2(0f, 1f);
+            // Single line, left-aligned; the RectMask2D clips any overrun on the RIGHT (no wrap).
             label.horizontalOverflow = HorizontalWrapMode.Overflow;
             label.verticalOverflow = VerticalWrapMode.Truncate;
             var le = label.gameObject.AddComponent<LayoutElement>();
