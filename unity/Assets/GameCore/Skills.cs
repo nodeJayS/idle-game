@@ -85,6 +85,7 @@ namespace IdleGame.GameCore
                 RngCursor = save.RngCursor,
                 Heroes = heroes,
                 Party = save.Party,
+                LeaderHeroId = save.LeaderHeroId,
                 Inventory = save.Inventory,
                 Currencies = save.Currencies,
                 Progress = save.Progress,

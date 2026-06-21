@@ -122,6 +122,9 @@ namespace IdleGame.GameCore
         public int Stage;
         public EncounterKind Kind = EncounterKind.Encounter;
         public PartyTactic Tactic = PartyTactic.Solo;
+        // Chosen formation leader (a hero RefId), mirrored from SaveState.LeaderHeroId. null
+        // (or a downed/absent hero) => the lowest-slot living hero leads. See StepCombat.
+        public string? LeaderRefId;
         public LootContext Loot;       // set by InitCombat; mode-agnostic drop params
         public List<CombatEntity> Entities = new List<CombatEntity>();
         public CombatStatus Status = CombatStatus.Running;

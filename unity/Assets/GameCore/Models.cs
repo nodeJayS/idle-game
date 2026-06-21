@@ -77,6 +77,9 @@ namespace IdleGame.GameCore
         public int RngCursor;
         public List<HeroInstance> Heroes = new List<HeroInstance>();
         public string?[] Party = new string?[Save.PartySize]; // null = empty slot
+        // Chosen formation leader (a fielded hero id). null = auto: the lowest-slot living
+        // hero leads. The combat sim reads this via CombatState.LeaderRefId.
+        public string? LeaderHeroId;
         public List<Item> Inventory = new List<Item>();
         public Dictionary<string, long> Currencies = new Dictionary<string, long>();
         public ProgressState Progress = new ProgressState();

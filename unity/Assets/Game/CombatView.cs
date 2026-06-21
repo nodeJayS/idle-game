@@ -268,6 +268,15 @@ namespace IdleGame.Game
                 ReconcileViews();
             }
         }
+        /// <summary>Set (or clear, via null) the party's formation leader from the roster UI:
+        /// persists the choice and applies it to the live fight immediately — it only changes
+        /// who the others fall in behind, so no entity reconcile is needed.</summary>
+        public void SetLeader(string? heroId)
+        {
+            _save = Party.SetLeader(_save, heroId);
+            if (_combat != null) _combat.LeaderRefId = _save.LeaderHeroId;
+        }
+
         public void BindInventory(InventoryView inv) => _inventory = inv;
         public void BindEquipment(EquipmentView eq) => _equipment = eq;
         public void BindChat(ChatPanel chat) => _chat = chat;
@@ -318,8 +327,9 @@ namespace IdleGame.Game
         {
             ClearViews();
             _combat = combat;
-            _combat.Tactic = PartyTactic.Solo; // formation travel: slot-0 hero leads, the rest
-                                               // hold a triangle behind it (see PartyTactic.Solo)
+            _combat.Tactic = PartyTactic.Solo;        // formation travel: the leader heads for
+            _combat.LeaderRefId = _save.LeaderHeroId; // the pack, the rest hold a triangle behind
+                                                      // it (chosen leader, else lowest slot)
             ReconcileViews();
             _accMs = 0;
             _outcomeTimer = 0;

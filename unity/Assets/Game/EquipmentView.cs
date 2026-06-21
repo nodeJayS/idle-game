@@ -104,6 +104,7 @@ namespace IdleGame.Game
         {
             const float xL = -462f;
             int fielded = PartyFieldedCount(save);
+            string? leaderId = EffectiveLeaderId(save); // ★ marks who leads the formation
 
             UiKit.Label(parent, $"Party  ·  {fielded}/{save.Party.Length}", 14, TextAnchor.MiddleLeft,
                         new Vector2(196, 20), new Vector2(xL, 272)).color = new Color(0.7f, 0.74f, 0.8f);
@@ -113,7 +114,9 @@ namespace IdleGame.Game
             {
                 string? id = save.Party[i];
                 bool filled = id != null;
-                string label = filled ? $"{i + 1}.  {HeroName(save, id)}" : $"{i + 1}.  — empty —";
+                string label = filled
+                    ? $"{i + 1}.  {(id == leaderId ? "★ " : "")}{HeroName(save, id)}"
+                    : $"{i + 1}.  — empty —";
                 var b = UiKit.TextButton(parent, label, new Vector2(196, 32), new Vector2(xL, y),
                     () => { if (filled) SelectHero(id!); }, 14);
                 var img = b.GetComponent<Image>();
@@ -164,8 +167,16 @@ namespace IdleGame.Game
 
             // Stacked UNDER Close (top-right) with a gap, not overlapping it.
             if (fielded)
+            {
                 ActionButton(parent, "Bench", new Vector2(140, 44), new Vector2(495, 248), canEdit && fieldedCount > 1,
                     () => { _view.ApplyPartyEdit(Party.SetPartySlot(save, slot, null)); Rebuild(); });
+
+                // Leader toggle: the chosen hero leads the formation; the rest fall in behind.
+                // Safe to change any time (it only re-points who's followed), so not farm-gated.
+                bool isLeader = _heroId == EffectiveLeaderId(save);
+                ActionButton(parent, isLeader ? "★ Leader" : "Make Leader", new Vector2(140, 40), new Vector2(495, 198), !isLeader,
+                    () => { _view.SetLeader(_heroId); Rebuild(); });
+            }
             else
             {
                 int firstEmpty = Array.IndexOf(save.Party, (string?)null);
@@ -480,6 +491,13 @@ namespace IdleGame.Game
             foreach (var id in save.Party) if (id != null) return id;
             return null;
         }
+
+        /// <summary>Who actually leads the formation: the chosen leader if it's still fielded,
+        /// otherwise the auto fallback (lowest-slot fielded hero) — mirrors the sim's rule.</summary>
+        private static string? EffectiveLeaderId(SaveState save)
+            => (save.LeaderHeroId != null && Array.IndexOf(save.Party, save.LeaderHeroId) >= 0)
+               ? save.LeaderHeroId
+               : FirstPartyHeroId(save);
 
         private static HashSet<string> EquippedIds(SaveState save)
         {

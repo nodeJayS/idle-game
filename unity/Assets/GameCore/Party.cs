@@ -81,6 +81,7 @@ namespace IdleGame.GameCore
                 RngCursor = save.RngCursor,
                 Heroes = nextHeroes,
                 Party = save.Party,
+                LeaderHeroId = save.LeaderHeroId,
                 Inventory = save.Inventory,
                 Currencies = save.Currencies,
                 Progress = save.Progress,
@@ -88,13 +89,30 @@ namespace IdleGame.GameCore
             };
         }
 
-        private static SaveState WithParty(SaveState save, string?[] nextParty) => new SaveState
+        /// <summary>
+        /// Choose the party's formation leader — the hero the others fall in behind (Solo
+        /// tactic). Must be a currently-fielded hero; pass null to revert to auto (the
+        /// lowest-slot living hero leads). Pure. Throws if the hero isn't fielded.
+        /// </summary>
+        public static SaveState SetLeader(SaveState save, string? heroId)
+        {
+            if (heroId != null && Array.IndexOf(save.Party, heroId) < 0)
+                throw new InvalidOperationException($"SetLeader: hero \"{heroId}\" is not fielded");
+            if (save.LeaderHeroId == heroId) return save; // no-op, share the ref
+            return WithParty(save, save.Party, heroId);
+        }
+
+        private static SaveState WithParty(SaveState save, string?[] nextParty)
+            => WithParty(save, nextParty, save.LeaderHeroId);
+
+        private static SaveState WithParty(SaveState save, string?[] nextParty, string? leaderHeroId) => new SaveState
         {
             Version = save.Version,
             RngSeed = save.RngSeed,
             RngCursor = save.RngCursor,
             Heroes = save.Heroes,
             Party = nextParty,
+            LeaderHeroId = leaderHeroId,
             Inventory = save.Inventory,
             Currencies = save.Currencies,
             Progress = save.Progress,

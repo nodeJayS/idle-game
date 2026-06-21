@@ -220,6 +220,8 @@ namespace IdleGame.GameCore
         /// </summary>
         public static void ReconcileParty(CombatState s, SaveState save, GameConfig cfg)
         {
+            s.LeaderRefId = save.LeaderHeroId; // keep the chosen formation leader in sync
+
             // fielded hero id -> party slot index (slot only drives spawn placement)
             var slotOf = new Dictionary<string, int>();
             for (int i = 0; i < save.Party.Length; i++)
@@ -484,7 +486,8 @@ namespace IdleGame.GameCore
                                      .ToList();
                 if (line.Count > 0)
                 {
-                    leader = line[0];
+                    // The player-chosen leader if it's alive on the field, else the lowest slot.
+                    leader = (s.LeaderRefId != null ? line.Find(e => e.RefId == s.LeaderRefId) : null) ?? line[0];
                     leaderPack = FindNearestEnemy(s, leader);
                     if (leaderPack != null)
                     {
@@ -493,7 +496,9 @@ namespace IdleGame.GameCore
                         if (hl > 1e-6) heading = new Vec2(hx / hl, hy / hl);
                     }
                     followerRank = new Dictionary<string, int>();
-                    for (int i = 1; i < line.Count; i++) followerRank[line[i].Id] = i - 1;
+                    int rank = 0;
+                    foreach (var f in line)
+                        if (!ReferenceEquals(f, leader)) followerRank[f.Id] = rank++;
                 }
             }
 

@@ -115,6 +115,39 @@ namespace IdleGame.GameCore.Tests
             Assert.Throws<InvalidOperationException>(() => Party.FieldHero(save, 0, "nope"));
         }
 
+        // h1 (warrior) in slot 0, h2 (magician) in slot 1 — for leader/party tests.
+        private static SaveState TwoHeroSave()
+        {
+            var save = Party.AcquireHero(Save.NewGame(1, Cfg, 0), "magician_basic", Cfg, "h2");
+            return Party.FieldHero(save, 1, "h2");
+        }
+
+        [Fact]
+        public void SetLeaderRequiresFieldedHeroAndClearsToNull()
+        {
+            var save = TwoHeroSave(); // h1 slot 0, h2 slot 1
+
+            var led = Party.SetLeader(save, "h2");
+            Assert.Equal("h2", led.LeaderHeroId);
+            Assert.Null(save.LeaderHeroId); // pure: original untouched
+
+            Assert.Null(Party.SetLeader(led, null).LeaderHeroId); // null reverts to auto
+
+            var benched = Party.SetPartySlot(save, 0, null); // h1 no longer fielded
+            Assert.Throws<InvalidOperationException>(() => Party.SetLeader(benched, "h1"));
+        }
+
+        [Fact]
+        public void LeaderSurvivesUnrelatedReducers()
+        {
+            // Guards the LeaderHeroId copy-through in every SaveState reducer: an unrelated
+            // change (gold, a skill toggle) must not silently reset the chosen leader.
+            var save = Party.SetLeader(TwoHeroSave(), "h2");
+            Assert.Equal("h2", Progression.GrantGold(save, 10).LeaderHeroId);
+            Assert.Equal("h2", Progression.GrantPartyXp(save, 50, Cfg).LeaderHeroId);
+            Assert.Equal("h2", Skills.ToggleSkill(save, "h2", "firebolt", Cfg).LeaderHeroId);
+        }
+
         [Fact]
         public void TouchStampsLastClaimAtAndIsPure()
         {

@@ -104,6 +104,7 @@ namespace IdleGame.GameCore
                 RngCursor = next.RngCursor,
                 Heroes = next.Heroes,
                 Party = next.Party,
+                LeaderHeroId = next.LeaderHeroId,
                 Inventory = next.Inventory,
                 Currencies = currencies,
                 Progress = next.Progress,

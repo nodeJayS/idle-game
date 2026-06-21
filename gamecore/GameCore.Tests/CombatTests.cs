@@ -140,6 +140,42 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void ChosenLeaderLeadsTheFormationNotSlotZero()
+        {
+            var cfg = GameConfig.Default();
+            var party = new[]
+            {
+                new HeroInstance { Id = "h1", DefId = "warrior_basic",  Level = 1 },
+                new HeroInstance { Id = "h2", DefId = "magician_basic", Level = 1 },
+                new HeroInstance { Id = "h3", DefId = "thief_basic",    Level = 1 },
+            };
+            var s = Combat.InitFarm(party, 1, cfg, new Rng(1));
+            s.Tactic = PartyTactic.Solo;
+            s.LeaderRefId = "h3";   // slot 2 leads, not slot 0
+            s.Entities.RemoveAll(e => e.Team == Team.Enemy);
+            s.SpawnTimerMs = double.MaxValue;
+
+            var h1 = s.Entities.First(e => e.RefId == "h1");
+            var h2 = s.Entities.First(e => e.RefId == "h2");
+            var leader = s.Entities.First(e => e.RefId == "h3");
+            leader.Pos = new Vec2(0, 0);
+            h1.Pos = new Vec2(13, 10);
+            h2.Pos = new Vec2(-12, -9);
+            var leaderStart = leader.Pos;
+            double b1 = Vec2.Distance(h1.Pos, leader.Pos), b2 = Vec2.Distance(h2.Pos, leader.Pos);
+
+            for (int i = 0; i < 300; i++) Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            // The two non-leaders fall in behind the CHOSEN leader (h3), which itself idles.
+            Assert.True(Vec2.Distance(h1.Pos, leader.Pos) < b1 && Vec2.Distance(h2.Pos, leader.Pos) < b2);
+            double span = cfg.Balance.FormationBack + cfg.Balance.FormationSide + 1.0;
+            Assert.True(Vec2.Distance(h1.Pos, leader.Pos) <= span && Vec2.Distance(h2.Pos, leader.Pos) <= span);
+            // Leader has no pack to chase, so it holds near its start (only small collision
+            // nudges from the wings settling in behind it — it never marches off).
+            Assert.True(Vec2.Distance(leader.Pos, leaderStart) < 2.0, $"leader wandered to {leader.Pos.X:0.0},{leader.Pos.Y:0.0}");
+        }
+
+        [Fact]
         public void StrongPartyBeatsWeakEnemy()
         {
             var s = State(
