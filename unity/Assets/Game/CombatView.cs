@@ -239,6 +239,10 @@ namespace IdleGame.Game
         private float _renderAlpha;     // 0..1 fraction into the current fixed step, for interpolation
         private float _outcomeTimer;
         private bool _resolved;
+        // Auto-advance (push): while on, the party auto-challenges each stage's boss and chains
+        // clears with no input, until a boss run FAILS (timeout or wipe) — which clears the flag.
+        // A manual flee also clears it. Transient (a push session), not a persisted preference.
+        private bool _autoAdvance;
         private uint _runCount;
         private bool _bagFullWarned; // throttles the "bag full" feed line
 
@@ -370,6 +374,12 @@ namespace IdleGame.Game
 
                 // Bank progress as it's earned; a level-up recomputes party stats live.
                 if (CommitPending()) Combat.RefreshPartyStats(_combat, _save, _cfg);
+
+                // Auto-advance: while pushing, the moment we're back to farming (run start, or
+                // after a win's resume) launch the next boss challenge — chaining clears with no
+                // input. A fail clears _autoAdvance (see ResolveOutcome), ending the loop here.
+                if (_autoAdvance && _combat.Kind == EncounterKind.Farm && _combat.Status == CombatStatus.Running)
+                    ChallengeBoss();
             }
             else
             {
@@ -501,6 +511,13 @@ namespace IdleGame.Game
                 _chat?.AddFeed($"Stage {cleared} cleared!", new Color(0.55f, 0.9f, 0.55f));
                 AdvanceQuest(QuestKind.ClearStages, 1);
             }
+            // A failed boss run (timeout or wipe) ends an auto-push: drop back to manual farming.
+            else if (_autoAdvance && _combat.Kind == EncounterKind.BossChallenge && _combat.Status == CombatStatus.Lost)
+            {
+                _autoAdvance = false;
+                _chat?.AddFeed($"Auto-advance stopped — failed Stage {_combat.Stage}'s boss.",
+                               new Color(1f, 0.6f, 0.4f));
+            }
         }
 
         private int PartyLevelSum()
@@ -536,8 +553,21 @@ namespace IdleGame.Game
 
         private void FleeToFarm()
         {
+            _autoAdvance = false; // a manual flee is an explicit stop to any auto-push
             CommitPending();
             ResumeFarmInPlace(_save.Progress.CurrentStage, _cfg.Balance.BossFleeCooldownMs);
+        }
+
+        /// <summary>Flip the auto-push toggle (top-centre HUD). On = chain boss challenges until a
+        /// fail; off = back to manual. The Update loop does the actual challenging.</summary>
+        private void ToggleAutoAdvance()
+        {
+            _autoAdvance = !_autoAdvance;
+            if (_autoAdvance)
+                _chat?.AddFeed("Auto-advance on — pushing stages until a boss run fails.",
+                               new Color(0.6f, 0.85f, 1f));
+            else
+                _chat?.AddFeed("Auto-advance off.", new Color(0.72f, 0.76f, 0.82f));
         }
 
         /// <summary>Resume farming on the same map (no scene reset), gating the next trash pack by
@@ -1043,6 +1073,13 @@ namespace IdleGame.Game
             {
                 if (Button(cx - 90, 90, 180, 44, "Flee")) FleeToFarm();
             }
+
+            // Auto-push toggle — always available while running so it can be armed or cancelled
+            // mid-fight. When on it chains boss challenges automatically until one fails.
+            var autoStyle = new GUIStyle(BtnStyleSm);
+            if (_autoAdvance) autoStyle.normal.textColor = new Color(0.55f, 0.9f, 0.6f);
+            if (Button(cx - 130, 144, 260, 36, _autoAdvance ? "■ Stop Auto-Advance" : "▶ Auto-Advance", autoStyle))
+                ToggleAutoAdvance();
         }
 
         /// <summary>Outcome overlay: a success popup on a boss win (auto-advances ~1s or OK),

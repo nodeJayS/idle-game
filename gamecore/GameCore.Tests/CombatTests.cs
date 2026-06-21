@@ -1260,6 +1260,43 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void BossChallengeHeroDoesNotRespawn()
+        {
+            // A hero downed during a boss challenge stays dead (no respawn timer) — the boss
+            // is a real wall, unlike farm where heroes go down and come back.
+            var hero = Ent("P", Team.Party, hp: 5, atk: 0, def: 0, x: 0);
+            hero.RespawnDurationMs = 100; // would respawn quickly in farm
+            var tank = Ent("P_tank", Team.Party, hp: 100000, atk: 0, def: 0, x: -50); // keeps the run alive
+            var s = State(hero, tank,
+                Ent("EBOSS", Team.Enemy, hp: 1000, atk: 100, def: 0, spd: 5, x: 0.5));
+            s.Kind = EncounterKind.BossChallenge;
+
+            for (int i = 0; i < 10; i++) // well past the 100ms farm respawn window
+                Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+
+            var p = s.Entities.First(e => e.Id == "P");
+            Assert.False(p.Alive);
+            Assert.False(p.Downed);          // no frozen respawn timer — just dead
+            Assert.Equal(0, p.RespawnMs);
+        }
+
+        [Fact]
+        public void BossChallengeWipesWhenEveryHeroDies()
+        {
+            // No respawns during a boss => once every hero is down the run is Lost.
+            var s = State(
+                Ent("P1", Team.Party, hp: 5, atk: 0, def: 0, x: 0.5),
+                Ent("P2", Team.Party, hp: 5, atk: 0, def: 0, x: 0.6),
+                Ent("EBOSS", Team.Enemy, hp: 100000, atk: 100, def: 0, spd: 5, x: 0));
+            s.Kind = EncounterKind.BossChallenge;
+
+            Combat.RunToEnd(s, Cfg, new Rng(1), maxSteps: 5000);
+
+            Assert.Equal(CombatStatus.Lost, s.Status);
+            Assert.DoesNotContain(s.Entities, e => e.Team == Team.Party && e.Alive);
+        }
+
+        [Fact]
         public void RunTimesOutToLoss()
         {
             var cfg = GameConfig.Default();
