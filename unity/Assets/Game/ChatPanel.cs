@@ -106,7 +106,7 @@ namespace IdleGame.Game
             if (!_locked) UiKit.MakeDraggable(go, panelRt, _canvas, p => { _pos = p; Settings.ChatX = p.x; Settings.ChatY = p.y; });
 
             // Title pinned to the left edge.
-            var title = UiKit.Label(go.transform, "Chat", 14, TextAnchor.MiddleLeft, new Vector2(120f, 22f), Vector2.zero);
+            var title = UiKit.Label(go.transform, "Chat", 15, TextAnchor.MiddleLeft, new Vector2(120f, 22f), Vector2.zero);
             Anchor((RectTransform)title.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(10f, 0f));
 
             // Lock + minimize pinned to the right edge.
@@ -221,10 +221,14 @@ namespace IdleGame.Game
         private void AppendFeedRow(string text, Color color)
         {
             if (_feedContent == null) return;
-            var label = UiKit.Label(_feedContent, text, 13, TextAnchor.MiddleLeft, Vector2.zero, Vector2.zero);
+            var label = UiKit.Label(_feedContent, text, 14, TextAnchor.MiddleLeft, Vector2.zero, Vector2.zero);
             label.color = color;
+            // Single line, left-aligned: the RectMask2D clips any overrun on the RIGHT, instead of
+            // wrapping (which, with a fixed row height, dropped lines and looked left-misaligned).
+            label.horizontalOverflow = HorizontalWrapMode.Overflow;
+            label.verticalOverflow = VerticalWrapMode.Truncate;
             var le = label.gameObject.AddComponent<LayoutElement>();
-            le.preferredHeight = 18;
+            le.preferredHeight = 20;
         }
 
         private void RefreshTabHighlight()

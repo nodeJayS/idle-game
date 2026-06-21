@@ -34,6 +34,15 @@ namespace IdleGame.Game
         public static bool  ChatLocked   { get => PlayerPrefs.GetInt("chatLock", 0) != 0;      set => Set("chatLock", value); }
         public static bool  ChatCollapsed { get => PlayerPrefs.GetInt("chatCollapsed", 0) != 0; set => Set("chatCollapsed", value); }
 
+        // Quest window layout — same convention as chat. Defaults sit it top-right (the canvas
+        // is a fixed 1280 logical units wide, match-width, so X is stable across resolutions).
+        public static float QuestX        { get => PlayerPrefs.GetFloat("questX", 1002f); set => SetF("questX", value); }
+        public static float QuestY        { get => PlayerPrefs.GetFloat("questY", 332f);  set => SetF("questY", value); }
+        public static float QuestW        { get => PlayerPrefs.GetFloat("questW", 264f);  set => SetF("questW", value); }
+        public static float QuestH        { get => PlayerPrefs.GetFloat("questH", 168f);  set => SetF("questH", value); }
+        public static bool  QuestLocked    { get => PlayerPrefs.GetInt("questLock", 0) != 0;      set => Set("questLock", value); }
+        public static bool  QuestCollapsed { get => PlayerPrefs.GetInt("questCollapsed", 0) != 0; set => Set("questCollapsed", value); }
+
         /// <summary>Auto-salvage threshold: drops at or below this rarity convert to scrap on
         /// pickup instead of taking a bag slot. null = off (default — never auto-discards).
         /// Stored as an int: -1 = off, otherwise (int)Rarity.</summary>

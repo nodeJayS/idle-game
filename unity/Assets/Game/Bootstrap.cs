@@ -84,6 +84,11 @@ namespace IdleGame.Game
             chat.Open();
             view.BindChat(chat);
 
+            var quests = new GameObject("QuestPanel").AddComponent<QuestPanel>();
+            quests.transform.SetParent(session.transform);
+            quests.Open();
+            view.BindQuests(quests);
+
             if (!idleReport.IsEmpty)
             {
                 var modal = new GameObject("IdleClaimModal");
