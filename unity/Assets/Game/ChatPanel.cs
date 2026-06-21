@@ -39,7 +39,11 @@ namespace IdleGame.Game
         private Vector2 _pos;   // top-left anchored position (canvas left edge, vertical-centre origin)
         private Vector2 _size;
         private RectTransform _body = null!;
-        private RectTransform? _feedContent;
+        // The feed is ONE rich-text label (colors via <color> tags) that is the scroll content,
+        // stretch-anchored to the viewport width. No per-row layout group — that was mis-sizing
+        // rows and pushing their left edge off the panel, clipping the start of every line.
+        private Text? _feedText;
+        private ScrollRect? _feedScroll;
 
         public void Open()
         {
@@ -59,7 +63,7 @@ namespace IdleGame.Game
         {
             _feed.Add((text, color));
             if (_feed.Count > MaxFeed) _feed.RemoveAt(0);
-            if (!_collapsed && _active == SystemTab && _feedContent != null) AppendFeedRow(text, color);
+            if (!_collapsed && _active == SystemTab && _feedText != null) RefreshFeed();
         }
 
         // ---- window ----
@@ -67,7 +71,7 @@ namespace IdleGame.Game
         private void Build()
         {
             ClearCanvas();
-            _feedContent = null;
+            _feedText = null; _feedScroll = null;
 
             float h = _collapsed ? HeaderH : _size.y;
             var panel = UiKit.Panel(_canvas.transform, new Vector2(_size.x, h), new Color(0.08f, 0.08f, 0.11f, 0.92f));
@@ -197,16 +201,12 @@ namespace IdleGame.Game
         private void BuildBody()
         {
             for (int i = _body.childCount - 1; i >= 0; i--) Destroy(_body.GetChild(i).gameObject);
-            _feedContent = null;
+            _feedText = null; _feedScroll = null;
 
             if (_active == SystemTab)
             {
-                _feedContent = UiKit.ScrollColumn(_body, Vector2.zero, Vector2.zero);
-                var scrollRoot = (RectTransform)_feedContent.parent;
-                scrollRoot.anchorMin = Vector2.zero;
-                scrollRoot.anchorMax = Vector2.one;
-                scrollRoot.offsetMin = scrollRoot.offsetMax = Vector2.zero;
-                foreach (var (text, color) in _feed) AppendFeedRow(text, color);
+                BuildFeedScroll(_body);
+                RefreshFeed();
             }
             else
             {
@@ -218,24 +218,63 @@ namespace IdleGame.Game
             }
         }
 
-        private void AppendFeedRow(string text, Color color)
+        /// <summary>A vertical scroll whose content is a single wrapping rich-text label (the
+        /// whole feed). Because the label IS the content — stretch-anchored to the viewport width,
+        /// not a layout-group child — its left edge is pinned to the column and never clips.</summary>
+        private void BuildFeedScroll(Transform parent)
         {
-            if (_feedContent == null) return;
-            // The vertical layout group drives its DIRECT child's size and forces its anchor to
-            // top-left; a Text placed there gets mis-sized so its left edge falls off the panel
-            // (the start of every line was clipped). So the layout's child is a plain container
-            // row, and the Text fills it via stretch anchors — which the layout never touches —
-            // so it's reliably pinned to the column's left edge.
-            var row = new GameObject("FeedRow", typeof(RectTransform));
-            row.transform.SetParent(_feedContent, false);
-            var le = row.AddComponent<LayoutElement>();
-            le.minHeight = 20; le.preferredHeight = 20;
+            var go = new GameObject("Feed", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var vp = (RectTransform)go.transform;
+            vp.anchorMin = Vector2.zero; vp.anchorMax = Vector2.one;
+            vp.offsetMin = vp.offsetMax = Vector2.zero;
+            go.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.25f);
+            go.AddComponent<RectMask2D>();
 
-            var label = UiKit.Label(row.transform, text, 14, TextAnchor.MiddleLeft, Vector2.zero, Vector2.zero);
-            label.color = color;
-            var lrt = (RectTransform)label.transform;
-            lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one; // fill the row, edge to edge
-            lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
+            var scroll = go.AddComponent<ScrollRect>();
+            scroll.horizontal = false; scroll.vertical = true; scroll.scrollSensitivity = 18f;
+            scroll.viewport = vp;
+
+            var content = new GameObject("Content", typeof(RectTransform));
+            content.transform.SetParent(go.transform, false);
+            var crt = (RectTransform)content.transform;
+            crt.anchorMin = new Vector2(0f, 1f); crt.anchorMax = new Vector2(1f, 1f); // stretch wide, top-pinned
+            crt.pivot = new Vector2(0.5f, 1f);
+            crt.offsetMin = new Vector2(8f, 0f); crt.offsetMax = new Vector2(-8f, 0f); // side padding
+            crt.anchoredPosition = Vector2.zero;
+
+            var text = content.AddComponent<Text>();
+            text.font = UiKit.Font;
+            text.fontSize = 14;
+            text.alignment = TextAnchor.UpperLeft;
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
+            text.supportRichText = true;
+            text.color = Color.white;
+
+            var fitter = content.AddComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            scroll.content = crt;
+            _feedScroll = scroll;
+            _feedText = text;
+        }
+
+        /// <summary>Rebuild the feed label from the line buffer (one rich-text string) and pin the
+        /// view to the newest line at the bottom.</summary>
+        private void RefreshFeed()
+        {
+            if (_feedText == null) return;
+            var sb = new System.Text.StringBuilder();
+            foreach (var (text, color) in _feed)
+            {
+                if (sb.Length > 0) sb.Append('\n');
+                sb.Append("<color=#").Append(ColorUtility.ToHtmlStringRGB(color)).Append('>').Append(text).Append("</color>");
+            }
+            _feedText.text = sb.ToString();
+
+            Canvas.ForceUpdateCanvases();
+            if (_feedScroll != null) _feedScroll.verticalNormalizedPosition = 0f; // scroll to newest
         }
 
         private void RefreshTabHighlight()
