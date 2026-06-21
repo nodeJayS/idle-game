@@ -233,6 +233,23 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void RefreshPartyStatsSyncsActiveSkillLoadout()
+        {
+            // Editing a hero's active loadout takes effect live (RefreshPartyStats re-syncs the
+            // combat entity's skills), so the Skills tab doesn't need a run restart.
+            var cfg = GameConfig.Default();
+            var save = Save.NewGame(1, cfg, 0);
+            var heroId = save.Heroes[0].Id;
+            var s = Combat.InitFarm(new[] { save.Heroes[0] }, 1, cfg, new Rng(1));
+
+            var save2 = Skills.SetLoadout(save, heroId, new[] { "bash" }, cfg);
+            Combat.RefreshPartyStats(s, save2, cfg);
+
+            var ent = s.Entities.First(e => e.Team == Team.Party && e.RefId == heroId);
+            Assert.Equal(new[] { "bash" }, ent.Skills);
+        }
+
+        [Fact]
         public void AtkSpdBuffSpeedsBasicAttacks()
         {
             // A +AtkSpd buff (e.g. Frenzy/Haste) shortens the basic-attack cooldown, not just skills.

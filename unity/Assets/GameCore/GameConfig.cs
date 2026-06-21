@@ -172,7 +172,7 @@ namespace IdleGame.GameCore
         // HP by BossHpMult on top, and major bosses (every 10th) by MajorBossMult again.
         public double MonsterHpGrowth = 1.18;  // +18% HP per stage level (×~4.4 by 10, ×~1.3M by 100)
         public double MonsterDmgGrowth = 1.08; // +8% atk/def per stage level (survivable)
-        public double BossHpMult = 10.0;       // a boss is ~10x a same-stage trash mob
+        public double BossHpMult = 5.0;        // a boss is ~5x a same-stage trash mob (halved from 10 for pacing)
 
         // Base drop weights per rarity, indexed by (int)Rarity ascending:
         // [Normal, Magic, Rare, Unique, Legendary]. Must have one entry per Rarity.

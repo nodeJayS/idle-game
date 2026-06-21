@@ -391,7 +391,7 @@ namespace IdleGame.Game
             return y - 22f;
         }
 
-        // ---- Skills sub-tab (read-only seed; tree/leveling land in the Skills milestone) ----
+        // ---- Skills sub-tab: pick the active loadout from the hero's known pool (≤ cap) ----
 
         private void BuildSkillsPane(Transform parent, SaveState save)
         {
@@ -399,25 +399,47 @@ namespace IdleGame.Game
             if (hero == null) return;
 
             var box = UiKit.Panel(parent, new Vector2(560, 430), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(120, -26));
+
+            var known = Skills.Known(hero, _cfg);
+            int active = hero.SkillLoadout.Count;
+            int cap = _cfg.Balance.MaxActiveSkills;
+
             UiKit.Label(box.transform, $"{HeroName(save, _heroId)} — Skills", 18, TextAnchor.MiddleLeft,
-                        new Vector2(520, 26), new Vector2(0, 188)).color = new Color(0.85f, 0.9f, 1f);
+                        new Vector2(340, 26), new Vector2(-100, 188)).color = new Color(0.85f, 0.9f, 1f);
+            UiKit.Label(box.transform, $"Active {active}/{cap}", 14, TextAnchor.MiddleRight,
+                        new Vector2(180, 22), new Vector2(180, 188)).color =
+                active >= cap ? new Color(1f, 0.82f, 0.4f) : new Color(0.7f, 0.74f, 0.8f);
 
             float y = 150f;
-            foreach (var id in hero.SkillLoadout)
+            foreach (var id in known)
             {
                 if (!_cfg.Skills.TryGetValue(id, out var sk)) continue;
+                bool on = hero.SkillLoadout.Contains(id);
                 string cd = $"{sk.CooldownMs / 1000.0:0.#}s cd";
                 string meta = sk.ManaCost > 0 ? $"{sk.Effect} · {sk.ManaCost} mana · {cd}" : $"{sk.Effect} · {cd}";
 
-                UiKit.Label(box.transform, sk.Name, 16, TextAnchor.MiddleLeft, new Vector2(520, 22), new Vector2(0, y));
-                UiKit.Label(box.transform, meta, 12, TextAnchor.MiddleLeft, new Vector2(520, 18), new Vector2(0, y - 20f))
-                    .color = new Color(0.70f, 0.74f, 0.80f);
-                y -= 50f;
+                if (on) // tint the row for slotted skills (drawn first so labels sit on top)
+                    UiKit.Panel(box.transform, new Vector2(540, 48), new Color(0.18f, 0.28f, 0.42f, 0.55f), new Vector2(0, y - 9f));
+
+                UiKit.Label(box.transform, sk.Name, 16, TextAnchor.MiddleLeft, new Vector2(360, 22), new Vector2(-80, y))
+                    .color = on ? new Color(0.85f, 0.92f, 1f) : new Color(0.78f, 0.80f, 0.85f);
+                UiKit.Label(box.transform, meta, 12, TextAnchor.MiddleLeft, new Vector2(360, 18), new Vector2(-80, y - 18f))
+                    .color = new Color(0.66f, 0.70f, 0.78f);
+
+                // Active -> click to remove; inactive -> "Slot" (disabled when the bar is full).
+                string capturedId = id;
+                bool clickable = on || active < cap;
+                var btn = ActionButton(box.transform, on ? "Active ✓" : (active < cap ? "Slot" : "Full"),
+                    new Vector2(120, 38), new Vector2(195, y - 8f), clickable,
+                    () => { _view.ReplaceSave(Skills.ToggleSkill(save, _heroId!, capturedId, _cfg)); Rebuild(); }, 15);
+                if (on) btn.GetComponent<Image>().color = new Color(0.30f, 0.45f, 0.65f);
+
+                y -= 56f;
             }
 
             UiKit.Label(box.transform,
-                "Skill leveling, active/passive slots (≤4 active), and skill trees arrive in the Skills update.",
-                13, TextAnchor.MiddleLeft, new Vector2(500, 40), new Vector2(0, -188)).color = new Color(0.95f, 0.8f, 0.5f);
+                $"Pick up to {cap} active skills — heroes auto-cast their slotted skills in combat. Changes apply live.",
+                12, TextAnchor.MiddleLeft, new Vector2(540, 30), new Vector2(0, -194)).color = new Color(0.7f, 0.74f, 0.8f);
         }
 
         // ---- helpers ----

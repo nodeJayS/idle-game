@@ -90,8 +90,11 @@ target genre is **dense/fast** — reward cadence too low to be addictive. Three
        mend/scorch/inferno/haste(+AtkSpd). Fully unique kits per hero (class = tag only; ice wizard
        will be a separate hero). New skills reuse existing FX for now. Also fixed: basic attacks now
        read *effective* AtkSpd so AtkSpd buffs/gear speed them live. Default loadout = first 4. Tests.
-     - Slice C (next) — interactive Skills tab (slot/unslot ≤4 via `ToggleSkill`).
+     - Slice C ✅ — interactive Skills tab: lists the 6 known skills with an Active N/4 counter,
+       slot/unslot via `Skills.ToggleSkill`; `RefreshPartyStats` re-syncs combat skills so edits
+       apply live. **Skills MVP (active loadout choice) complete.**
      - Later: passives, skill ranks/leveling, tree.
+   - Boss HP halved: `BossHpMult` 10 → 5 (better pacing with the denser loop).
 
 Still-open hypotheses to revisit after juice: samey pacing (pack/elite variety), short-term goals.
 

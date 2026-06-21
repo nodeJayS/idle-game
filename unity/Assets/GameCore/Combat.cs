@@ -199,6 +199,7 @@ namespace IdleGame.GameCore
                 double newMaxMana = stats.Get(StatKey.MaxMana);
 
                 e.Stats = stats;
+                e.Skills = new List<string>(hero.SkillLoadout); // active-loadout edits apply live
                 e.MaxHp = newMax;
                 e.AttackIntervalMs = AttackInterval(stats);
                 if (e.Hp > 0) e.Hp = Math.Min(newMax, e.Hp + Math.Max(0.0, newMax - oldMax));
