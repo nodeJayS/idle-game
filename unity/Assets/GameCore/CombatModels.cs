@@ -39,9 +39,11 @@ namespace IdleGame.GameCore
     public enum EncounterKind { Encounter, Farm, BossChallenge }
 
     /// <summary>
-    /// How the party picks targets (M9). Solo = each hero independently goes for its
-    /// own nearest enemy (they spread out). Group = the whole party focus-fires the
-    /// enemy nearest the party's centre and clusters on it.
+    /// How the party moves/targets. Solo = formation travel: the lowest-slot living hero
+    /// LEADS toward the nearest pack and the rest hold a triangle behind it, only breaking
+    /// off to fight an enemy that's right next to them — so the team reads as a cohesive
+    /// unit instead of fanning out. Group = the whole party focus-fires the enemy nearest
+    /// the party's centre and clusters on it.
     /// </summary>
     public enum PartyTactic { Solo, Group }
 
@@ -77,6 +79,9 @@ namespace IdleGame.GameCore
         public string RefKind = "";     // "hero" | "monster"
         public string RefId = "";       // heroId or monster defId
         public bool IsBoss;
+        // Party slot (0 = first slot). The lowest-slot living hero leads the Solo formation;
+        // the rest follow in a triangle behind it. Non-heroes leave this at int.MaxValue.
+        public int Slot = int.MaxValue;
 
         // Aggro (M-combat): a non-aggro enemy ambles randomly (WanderTarget) and ignores the
         // party until something hits it (then it fights back). Defaults TRUE so heroes, bosses,

@@ -256,6 +256,7 @@ namespace IdleGame.GameCore
                     AttackIntervalMs = AttackInterval(stats),
                     RefKind = "hero",
                     RefId = hero.Id,
+                    Slot = idx,
                     BodyRadius = cfg.Balance.UnitRadius,
                     Skills = new List<string>(hero.SkillLoadout),
                     RespawnDurationMs = cfg.Balance.RespawnBaseMs + cfg.Balance.RespawnPerLevelMs * hero.Level,
@@ -291,6 +292,21 @@ namespace IdleGame.GameCore
             return new Vec2((col - 0.5) * s, (row - 0.5) * s);
         }
 
+        /// <summary>A follower's home in the leader's triangle: <paramref name="rank"/> 0 sits
+        /// back-left, 1 back-right, then each further pair steps another row back. <paramref
+        /// name="heading"/> is the unit vector the leader faces (toward the pack), so the wing
+        /// always trails behind it.</summary>
+        private static Vec2 FormationHome(CombatEntity leader, Vec2 heading, int rank, GameConfig cfg)
+        {
+            var perp = new Vec2(-heading.Y, heading.X);     // 90° to the heading = the wing axis
+            double sideSign = (rank % 2 == 0) ? 1.0 : -1.0; // alternate left / right
+            double back = cfg.Balance.FormationBack * (1 + rank / 2);
+            double side = cfg.Balance.FormationSide;
+            return new Vec2(
+                leader.Pos.X - heading.X * back + perp.X * side * sideSign,
+                leader.Pos.Y - heading.Y * back + perp.Y * side * sideSign);
+        }
+
         private static void AddParty(CombatState s, IReadOnlyList<HeroInstance> party, GameConfig cfg)
         {
             int idx = 0;
@@ -312,6 +328,7 @@ namespace IdleGame.GameCore
                     AttackIntervalMs = AttackInterval(stats),
                     RefKind = "hero",
                     RefId = hero.Id,
+                    Slot = idx,
                     BodyRadius = cfg.Balance.UnitRadius,
                     Skills = new List<string>(hero.SkillLoadout),
                     RespawnDurationMs = cfg.Balance.RespawnBaseMs + cfg.Balance.RespawnPerLevelMs * hero.Level,
@@ -453,10 +470,32 @@ namespace IdleGame.GameCore
             // In Group tactic the whole party shares one focus target (recomputed each
             // step); Solo and all monsters use their own nearest enemy.
             var groupTarget = s.Tactic == PartyTactic.Group ? FindGroupTarget(s) : null;
-            // Solo party: travel anchor = the enemy pack nearest the party centre (heroes head
-            // here when nothing's in their personal engage range, so the group stays cohesive).
-            var centroid = PartyCentroid(s);
-            var anchor = s.Tactic == PartyTactic.Solo ? FindNearestEnemyTo(s, centroid) : null;
+
+            // Solo formation: the lowest-slot living hero LEADS toward the nearest pack; the
+            // rest hold a triangle behind it (heading = leader→pack). Computed once per step.
+            CombatEntity? leader = null;
+            CombatEntity? leaderPack = null;
+            Vec2 heading = new Vec2(0, 1);
+            Dictionary<string, int>? followerRank = null;
+            if (s.Tactic == PartyTactic.Solo)
+            {
+                var line = s.Entities.Where(e => e.Team == Team.Party && e.Alive)
+                                     .OrderBy(e => e.Slot).ThenBy(e => e.Id, StringComparer.Ordinal)
+                                     .ToList();
+                if (line.Count > 0)
+                {
+                    leader = line[0];
+                    leaderPack = FindNearestEnemy(s, leader);
+                    if (leaderPack != null)
+                    {
+                        double hx = leaderPack.Pos.X - leader.Pos.X, hy = leaderPack.Pos.Y - leader.Pos.Y;
+                        double hl = Math.Sqrt(hx * hx + hy * hy);
+                        if (hl > 1e-6) heading = new Vec2(hx / hl, hy / hl);
+                    }
+                    followerRank = new Dictionary<string, int>();
+                    for (int i = 1; i < line.Count; i++) followerRank[line[i].Id] = i - 1;
+                }
+            }
 
             foreach (var e in actors)
             {
@@ -474,19 +513,34 @@ namespace IdleGame.GameCore
                 CombatEntity? target;
                 if (e.Team == Team.Party && s.Tactic == PartyTactic.Solo)
                 {
-                    // Leashed individuality: fight the nearest enemy in personal engage range;
-                    // if none is close, travel toward the pack nearest the party centre so the
-                    // group stays together instead of one hero sprinting off solo.
-                    target = FindNearestEnemyWithin(s, e, cfg.Balance.EngageRadius);
+                    bool isLeader = leader == null || ReferenceEquals(e, leader);
+                    // The leader fights anything within its wide engage reach (it draws the team
+                    // onto the pack); followers only break formation for an enemy right on top of
+                    // them, so the triangle holds together until it collapses onto the pack.
+                    double reach = isLeader ? cfg.Balance.EngageRadius : cfg.Balance.FormationBreakRadius;
+                    target = FindNearestEnemyWithin(s, e, reach);
                     if (target == null)
                     {
-                        e.TargetId = anchor?.Id;
-                        if (anchor != null)
+                        // No enemy to fight: the leader advances on the nearest pack; followers
+                        // travel to their triangle slot behind the leader (deadzoned so they
+                        // settle instead of jittering — and never march in perfect lockstep).
+                        Vec2 dest;
+                        if (isLeader)
                         {
-                            double ms0 = e.EffectiveStat(StatKey.MoveSpd);
-                            if (ms0 <= 0) ms0 = MoveSpeedTilesPerSec;
-                            MoveToward(e, anchor.Pos, ms0 * dtMs / 1000.0);
+                            if (leaderPack == null) { e.TargetId = null; continue; } // field clear: idle
+                            dest = leaderPack.Pos;
+                            e.TargetId = leaderPack.Id;
                         }
+                        else
+                        {
+                            int rank = followerRank != null && followerRank.TryGetValue(e.Id, out var r) ? r : 0;
+                            dest = FormationHome(leader!, heading, rank, cfg);
+                            e.TargetId = null;
+                            if (Vec2.Distance(e.Pos, dest) <= cfg.Balance.FormationDeadzone) continue;
+                        }
+                        double ms0 = e.EffectiveStat(StatKey.MoveSpd);
+                        if (ms0 <= 0) ms0 = MoveSpeedTilesPerSec;
+                        MoveToward(e, dest, ms0 * dtMs / 1000.0);
                         continue;
                     }
                 }
@@ -785,24 +839,6 @@ namespace IdleGame.GameCore
             {
                 if (!o.Alive || o.Team != Team.Enemy) continue;
                 double d = Vec2.Distance(centre, o.Pos);
-                if (d < bestDist || (d == bestDist && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
-                {
-                    bestDist = d;
-                    best = o;
-                }
-            }
-            return best;
-        }
-
-        /// <summary>The enemy nearest a world point (the Solo party's travel anchor). Stable Id tie-break.</summary>
-        private static CombatEntity? FindNearestEnemyTo(CombatState s, Vec2 point)
-        {
-            CombatEntity? best = null;
-            double bestDist = double.MaxValue;
-            foreach (var o in s.Entities)
-            {
-                if (!o.Alive || o.Team != Team.Enemy) continue;
-                double d = Vec2.Distance(point, o.Pos);
                 if (d < bestDist || (d == bestDist && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
                 {
                     bestDist = d;

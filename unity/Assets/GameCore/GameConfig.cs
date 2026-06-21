@@ -153,10 +153,19 @@ namespace IdleGame.GameCore
         public double BossRadius = 0.7;
         public int CollisionIterations = 2;
 
-        // Solo party leash: a hero fights enemies within this distance of itself (individual
-        // combat); when nothing is that close, heroes travel together toward the pack nearest
-        // the party centre, so they read as separate units without scattering across the map.
+        // Solo party leash: the LEADER (lowest slot) heads for any pack within this distance
+        // and pulls the team onto it; followers stay in formation unless an enemy comes within
+        // FormationBreakRadius, so the group advances as one and only spreads to fight up close.
         public double EngageRadius = 14;
+
+        // Formation (Solo): the followers hold a triangle behind the leader, facing the pack.
+        // Back = how far behind the leader the rank sits; Side = its left/right spread; pairs
+        // step back another Back per row. Deadzone = stop fidgeting once roughly in slot.
+        // FormationBreakRadius = a follower only abandons formation for an enemy this close.
+        public double FormationBack = 1.8;
+        public double FormationSide = 1.6;
+        public double FormationDeadzone = 0.6;
+        public double FormationBreakRadius = 6.0;
 
         // Wander (idle trash): a non-aggro mob ambles between random points within
         // WanderRadius of itself, repicking every WanderMin..MaxMs, at WanderSpeedMult of

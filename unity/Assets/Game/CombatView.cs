@@ -318,8 +318,8 @@ namespace IdleGame.Game
         {
             ClearViews();
             _combat = combat;
-            _combat.Tactic = PartyTactic.Solo; // each hero picks its own nearest enemy, so they
-                                               // move as individual units instead of in lockstep
+            _combat.Tactic = PartyTactic.Solo; // formation travel: slot-0 hero leads, the rest
+                                               // hold a triangle behind it (see PartyTactic.Solo)
             ReconcileViews();
             _accMs = 0;
             _outcomeTimer = 0;

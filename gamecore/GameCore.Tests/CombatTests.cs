@@ -104,6 +104,42 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void SoloFollowersRegroupBehindLeaderInsteadOfScattering()
+        {
+            var cfg = GameConfig.Default();
+            var party = new[]
+            {
+                new HeroInstance { Id = "h1", DefId = "warrior_basic",  Level = 1 }, // slot 0 -> leader
+                new HeroInstance { Id = "h2", DefId = "magician_basic", Level = 1 },
+                new HeroInstance { Id = "h3", DefId = "thief_basic",    Level = 1 },
+            };
+            var s = Combat.InitFarm(party, 1, cfg, new Rng(1));
+            s.Tactic = PartyTactic.Solo;
+            s.Entities.RemoveAll(e => e.Team == Team.Enemy); // isolate formation travel from combat
+            s.SpawnTimerMs = double.MaxValue;                // freeze trash spawns during the test
+
+            var lead = s.Entities.First(e => e.RefId == "h1");
+            var f2 = s.Entities.First(e => e.RefId == "h2");
+            var f3 = s.Entities.First(e => e.RefId == "h3");
+            lead.Pos = new Vec2(0, 0);
+            f2.Pos = new Vec2(14, 9);    // scattered far from the leader, opposite sides
+            f3.Pos = new Vec2(-11, -8);
+            double before2 = Vec2.Distance(f2.Pos, lead.Pos);
+            double before3 = Vec2.Distance(f3.Pos, lead.Pos);
+
+            for (int i = 0; i < 300; i++) Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1)); // ~10s
+
+            // Both wings collapse from far away into the triangle behind the (idle) leader,
+            // rather than each wandering off on its own.
+            Assert.True(Vec2.Distance(f2.Pos, lead.Pos) < before2 && Vec2.Distance(f3.Pos, lead.Pos) < before3);
+            double span = cfg.Balance.FormationBack + cfg.Balance.FormationSide + 1.0; // triangle + margin
+            Assert.True(Vec2.Distance(f2.Pos, lead.Pos) <= span, $"f2 still scattered: {Vec2.Distance(f2.Pos, lead.Pos):0.0}");
+            Assert.True(Vec2.Distance(f3.Pos, lead.Pos) <= span, $"f3 still scattered: {Vec2.Distance(f3.Pos, lead.Pos):0.0}");
+            // And the wings sit BEHIND the leader (negative along the default heading +Y).
+            Assert.True(f2.Pos.Y < lead.Pos.Y && f3.Pos.Y < lead.Pos.Y);
+        }
+
+        [Fact]
         public void StrongPartyBeatsWeakEnemy()
         {
             var s = State(
