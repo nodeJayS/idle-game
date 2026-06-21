@@ -176,6 +176,34 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void FollowerHoldsSlotAndIgnoresEnemyFarFromIt()
+        {
+            // Repro for "the Thief wanders off": a follower used to chase any enemy near ITSELF,
+            // drifting away while the leader fought a different pack. Now it's leashed to its
+            // slot, so a stray enemy away from that slot must not pull it out of formation.
+            var leaderE = Ent("P0", Team.Party, hp: 200, atk: 0, def: 0, x: 0, y: 0);
+            leaderE.Slot = 0;
+            // The follower starts already drifted far from the team, with stray enemy B right on
+            // top of it but ~12 tiles from its formation slot (near the origin, behind the leader).
+            var follower = Ent("P1", Team.Party, hp: 200, atk: 0, def: 0, x: 0, y: -10);
+            follower.Slot = 1;
+            // Tanky, damage-less enemies so nobody dies and the matchup stays put: A keeps the
+            // leader anchored near the origin; B is the lone bait next to the drifted follower.
+            var a = Ent("A", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 2, y: 0);
+            var b = Ent("B", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: -11);
+            var s = State(leaderE, follower, a, b);
+            s.Tactic = PartyTactic.Solo;
+
+            for (int i = 0; i < 150; i++) Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1)); // ~5s
+
+            // The follower climbs back from y=-10 and rejoins the leader near the origin, rather
+            // than sticking to bait B far from its slot (which the old self-anchored engage did).
+            double distToLeader = Vec2.Distance(follower.Pos, leaderE.Pos);
+            Assert.True(follower.Pos.Y > -3.0 && distToLeader < 4.0,
+                $"follower=({follower.Pos.X:0.0},{follower.Pos.Y:0.0}) didn't rejoin leader=({leaderE.Pos.X:0.0},{leaderE.Pos.Y:0.0}) distLeader={distToLeader:0.0}");
+        }
+
+        [Fact]
         public void StrongPartyBeatsWeakEnemy()
         {
             var s = State(
@@ -929,14 +957,17 @@ namespace IdleGame.GameCore.Tests
             Ent("EB", Team.Enemy, hp: 1000, atk: 0, def: 0, x: 1, y: 9)); // near P1
 
         [Fact]
-        public void SoloTacticTargetsIndividually()
+        public void SoloTacticLeaderLeadsFollowersDoNotPeelOff()
         {
             var s = TacticSetup();
             s.Tactic = PartyTactic.Solo;
             Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
 
+            // The leader (lowest slot/id = P0) engages the enemy nearest it...
             Assert.Equal("EA", s.Entities.First(e => e.Id == "P0").TargetId);
-            Assert.Equal("EB", s.Entities.First(e => e.Id == "P1").TargetId);
+            // ...while the follower holds formation rather than peeling off to EB — the enemy
+            // nearest ITSELF — which was the old "each hero targets individually" behavior.
+            Assert.NotEqual("EB", s.Entities.First(e => e.Id == "P1").TargetId);
         }
 
         [Fact]

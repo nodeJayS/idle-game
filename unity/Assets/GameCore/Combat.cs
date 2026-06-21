@@ -519,34 +519,40 @@ namespace IdleGame.GameCore
                 if (e.Team == Team.Party && s.Tactic == PartyTactic.Solo)
                 {
                     bool isLeader = leader == null || ReferenceEquals(e, leader);
-                    // The leader fights anything within its wide engage reach (it draws the team
-                    // onto the pack); followers only break formation for an enemy right on top of
-                    // them, so the triangle holds together until it collapses onto the pack.
-                    double reach = isLeader ? cfg.Balance.EngageRadius : cfg.Balance.FormationBreakRadius;
-                    target = FindNearestEnemyWithin(s, e, reach);
-                    if (target == null)
+                    if (isLeader)
                     {
-                        // No enemy to fight: the leader advances on the nearest pack; followers
-                        // travel to their triangle slot behind the leader (deadzoned so they
-                        // settle instead of jittering — and never march in perfect lockstep).
-                        Vec2 dest;
-                        if (isLeader)
+                        // The leader fights anything within its wide engage reach and otherwise
+                        // advances on the nearest pack — it pulls the whole triangle along.
+                        target = FindNearestEnemyWithin(s, e, cfg.Balance.EngageRadius);
+                        if (target == null)
                         {
                             if (leaderPack == null) { e.TargetId = null; continue; } // field clear: idle
-                            dest = leaderPack.Pos;
+                            double ms = e.EffectiveStat(StatKey.MoveSpd);
+                            if (ms <= 0) ms = MoveSpeedTilesPerSec;
                             e.TargetId = leaderPack.Id;
+                            MoveToward(e, leaderPack.Pos, ms * dtMs / 1000.0);
+                            continue;
                         }
-                        else
+                    }
+                    else
+                    {
+                        // A follower is leashed to its triangle SLOT, not its own position: it
+                        // only fights enemies near that slot and otherwise slides back to it. This
+                        // stops fast melee (e.g. the Thief) from chain-chasing packs across the map.
+                        int rank = followerRank != null && followerRank.TryGetValue(e.Id, out var r) ? r : 0;
+                        Vec2 home = FormationHome(leader!, heading, rank, cfg);
+                        target = FindNearestEnemyNear(s, home, cfg.Balance.FormationBreakRadius);
+                        if (target == null)
                         {
-                            int rank = followerRank != null && followerRank.TryGetValue(e.Id, out var r) ? r : 0;
-                            dest = FormationHome(leader!, heading, rank, cfg);
                             e.TargetId = null;
-                            if (Vec2.Distance(e.Pos, dest) <= cfg.Balance.FormationDeadzone) continue;
+                            if (Vec2.Distance(e.Pos, home) > cfg.Balance.FormationDeadzone)
+                            {
+                                double ms = e.EffectiveStat(StatKey.MoveSpd);
+                                if (ms <= 0) ms = MoveSpeedTilesPerSec;
+                                MoveToward(e, home, ms * dtMs / 1000.0);
+                            }
+                            continue;
                         }
-                        double ms0 = e.EffectiveStat(StatKey.MoveSpd);
-                        if (ms0 <= 0) ms0 = MoveSpeedTilesPerSec;
-                        MoveToward(e, dest, ms0 * dtMs / 1000.0);
-                        continue;
                     }
                 }
                 else
@@ -863,6 +869,26 @@ namespace IdleGame.GameCore
             {
                 if (!o.Alive || o.Team == self.Team) continue;
                 double d = Vec2.Distance(self.Pos, o.Pos);
+                if (d > radius) continue;
+                if (d < bestDist || (d == bestDist && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
+                {
+                    bestDist = d;
+                    best = o;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>The enemy nearest a world point but no farther than <paramref name="radius"/>,
+        /// or null if none qualifies. Used to leash a follower's combat to its formation slot.</summary>
+        private static CombatEntity? FindNearestEnemyNear(CombatState s, Vec2 point, double radius)
+        {
+            CombatEntity? best = null;
+            double bestDist = double.MaxValue;
+            foreach (var o in s.Entities)
+            {
+                if (!o.Alive || o.Team != Team.Enemy) continue;
+                double d = Vec2.Distance(point, o.Pos);
                 if (d > radius) continue;
                 if (d < bestDist || (d == bestDist && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
                 {
