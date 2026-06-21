@@ -101,6 +101,10 @@ namespace IdleGame.GameCore
         // HeroDef.Skills is the known pool; HeroInstance.SkillLoadout is the chosen subset.
         public int MaxActiveSkills = 4;
 
+        // Goal ladder: how many short-term goals sit on the rolling board at once (always a
+        // few near-term carrots). Targets/rewards scale with highest stage in Quests.cs.
+        public int QuestBoardSize = 3;
+
         // A major boss (every 10th stage) multiplies the stage boss's scaled stats
         // on top of the normal monster-level scaling.
         public double MajorBossMult = 2.5;

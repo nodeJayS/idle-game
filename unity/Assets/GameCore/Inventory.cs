@@ -236,6 +236,7 @@ namespace IdleGame.GameCore
                 Inventory = save.Inventory,
                 Currencies = save.Currencies,
                 Progress = save.Progress,
+                Quests = save.Quests,
                 LastClaimAt = save.LastClaimAt,
             };
         }
@@ -255,6 +256,7 @@ namespace IdleGame.GameCore
             Inventory = nextInventory,
             Currencies = nextCurrencies,
             Progress = save.Progress,
+            Quests = save.Quests,
             LastClaimAt = save.LastClaimAt,
         };
     }

@@ -70,6 +70,29 @@ namespace IdleGame.GameCore
         public int AccountLevel = 1;
     }
 
+    /// <summary>What a goal tracks. Each maps to a game event the client feeds into
+    /// <see cref="Quests"/>.Advance (kills, stage clears, salvages, gold earned, rare drops).</summary>
+    public enum QuestKind { KillMonsters, ClearStages, SalvageItems, EarnGold, FindRarePlus }
+
+    /// <summary>One active goal on the board: accrue <see cref="Progress"/> up to
+    /// <see cref="Target"/>, then it pays out and a fresh goal rolls in.</summary>
+    public sealed class Quest
+    {
+        public QuestKind Kind;
+        public long Target;
+        public long Progress;
+        public long RewardGold;
+        public int RewardXp;
+    }
+
+    /// <summary>The rolling goal board (always a few near-term carrots). <see cref="RollCount"/>
+    /// is a monotonic cursor so replacements cycle goal kinds deterministically.</summary>
+    public sealed class QuestBoard
+    {
+        public List<Quest> Active = new List<Quest>();
+        public int RollCount;
+    }
+
     public sealed class SaveState
     {
         public int Version;
@@ -83,6 +106,7 @@ namespace IdleGame.GameCore
         public List<Item> Inventory = new List<Item>();
         public Dictionary<string, long> Currencies = new Dictionary<string, long>();
         public ProgressState Progress = new ProgressState();
+        public QuestBoard Quests = new QuestBoard();
         public long LastClaimAt; // epoch ms (server-validated later)
     }
 }

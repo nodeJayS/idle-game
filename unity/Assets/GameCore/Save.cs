@@ -25,7 +25,7 @@ namespace IdleGame.GameCore
             var party = new string?[PartySize];
             party[0] = warrior.Id; // Warrior fielded; remaining slots empty
 
-            return new SaveState
+            var save = new SaveState
             {
                 Version = SaveVersion,
                 RngSeed = seed,
@@ -37,6 +37,7 @@ namespace IdleGame.GameCore
                 Progress = new ProgressState { HighestStage = 0, CurrentStage = 1, AccountLevel = 1 },
                 LastClaimAt = now,
             };
+            return Quests.EnsureBoard(save, cfg); // start with a full goal board
         }
 
         private static HeroInstance MakeHero(string id, string defId, GameConfig cfg)
@@ -75,6 +76,7 @@ namespace IdleGame.GameCore
                 Inventory = save.Inventory,
                 Currencies = save.Currencies,
                 Progress = save.Progress,
+                Quests = save.Quests,
                 LastClaimAt = stamped,
             };
         }
@@ -97,6 +99,7 @@ namespace IdleGame.GameCore
             save.Inventory ??= new List<Item>();
             save.Currencies ??= new Dictionary<string, long>();
             save.Progress ??= new ProgressState();
+            save.Quests ??= new QuestBoard(); // EnsureBoard (client, needs cfg) backfills the goals
 
             // Normalize the party to PartySize, preserving the first slots. An older save
             // with a longer party (the cap was once 4) keeps its first PartySize heroes;

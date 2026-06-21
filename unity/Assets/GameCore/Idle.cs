@@ -108,6 +108,7 @@ namespace IdleGame.GameCore
                 Inventory = next.Inventory,
                 Currencies = currencies,
                 Progress = next.Progress,
+                Quests = next.Quests,
                 LastClaimAt = now,
             }, report);
         }
