@@ -54,6 +54,13 @@ namespace IdleGame.GameCore.Tests
             var cfg = GameConfig.Default();
             Assert.True(cfg.Heroes["warrior_basic"].Skills.Count > cfg.Balance.MaxActiveSkills);
             Assert.True(cfg.Heroes["magician_basic"].Skills.Count > cfg.Balance.MaxActiveSkills);
+            Assert.True(cfg.Heroes["thief_basic"].Skills.Count > cfg.Balance.MaxActiveSkills);
+
+            // Every skill a hero claims to know must resolve to a real SkillDef (catches typos
+            // between the hero's pool and the cfg.Skills table — e.g. the new Thief kit).
+            foreach (var hero in cfg.Heroes.Values)
+                foreach (var skill in hero.Skills)
+                    Assert.True(cfg.Skills.ContainsKey(skill), $"{hero.DefId} references unknown skill \"{skill}\"");
 
             var save = Save.NewGame(1, cfg, 0);
             Assert.Equal(cfg.Balance.MaxActiveSkills, Loadout(save, save.Heroes[0].Id).Count);

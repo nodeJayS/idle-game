@@ -302,9 +302,28 @@ namespace IdleGame.GameCore
                 Skills = new List<string> { "firebolt", "fireball", "mend", "scorch", "inferno", "haste" }, Sprite = "magician", AttackFx = "fireball",
             };
 
+            cfg.Heroes["thief_basic"] = new HeroDef
+            {
+                DefId = "thief_basic", Name = "Thief", Class = "Thief", Role = "melee",
+                // glass-cannon assassin: lowest HP/Def of the roster, fastest swings, and crit-built
+                // (high CritChance + CritDmg) so its DPS lives in single-target burst, not durability.
+                BaseStats = SB((StatKey.Hp, 64), (StatKey.Atk, 16), (StatKey.Def, 3),
+                               (StatKey.MoveSpd, 3.4), (StatKey.AtkSpd, 1.45), // fastest mover + attacker
+                               (StatKey.CritChance, 0.22), (StatKey.CritDmg, 1.9), // crit is the whole identity
+                               (StatKey.HpRegen, 1.0),
+                               (StatKey.AttackRange, 1.2),             // melee, same reach as the warrior
+                               (StatKey.SplashRadius, 0.5),            // narrow — a duelist, not a cleaver
+                               (StatKey.MaxMana, 70), (StatKey.ManaRegen, 5)), // mid pool to fuel quick skills
+                GrowthPerLevel = SB((StatKey.Hp, 10), (StatKey.Atk, 4), (StatKey.Def, 1), (StatKey.MaxMana, 3)),
+                // Known pool (6); first MaxActiveSkills are the starting active bar (see Skills.DefaultLoadout).
+                Skills = new List<string> { "shadowstab", "vitalstrike", "bladewhirl", "pinpoint", "quickstep", "lethality" },
+                Sprite = "thief",
+            };
+
             // Progression unlocks: you start with just the Warrior; clearing stage 3 adds
-            // the Magician to the roster. (More heroes/classes slot in here as content grows.)
+            // the Magician, and stage 5 the Thief. (More heroes/classes slot in here as content grows.)
             cfg.HeroUnlocks[3] = "magician_basic";
+            cfg.HeroUnlocks[5] = "thief_basic";
 
             cfg.ItemBases["rusty_sword"] = new ItemBaseDef
             {
@@ -464,6 +483,43 @@ namespace IdleGame.GameCore
             {
                 Id = "haste", Name = "Haste", Effect = SkillEffectKind.Buff, Targeting = "self",
                 CooldownMs = 10000, Range = 0, BuffStat = StatKey.AtkSpd, BuffAmount = 0.6, BuffDurationMs = 6000,
+                ManaCost = 25, Sprite = "warcry",
+            };
+
+            // Thief — single-target assassin: a fast cheap stab, a heavy nuke, a tight AoE, and
+            // three crit/tempo self-buffs (the build choice is which buffs make the 4-slot bar).
+            // All on existing damage/buff kinds; sprites reuse warrior/mage FX until bespoke VFX.
+            cfg.Skills["shadowstab"] = new SkillDef
+            {
+                Id = "shadowstab", Name = "Shadowstab", Effect = SkillEffectKind.Damage, Targeting = "nearest",
+                CooldownMs = 2200, Range = 1.4, DamageMult = 2.6, ManaCost = 12, Sprite = "cleave",
+            };
+            cfg.Skills["vitalstrike"] = new SkillDef
+            {
+                Id = "vitalstrike", Name = "Vital Strike", Effect = SkillEffectKind.Damage, Targeting = "nearest",
+                CooldownMs = 5000, Range = 1.4, DamageMult = 3.8, ManaCost = 30, Sprite = "cleave",
+            };
+            cfg.Skills["bladewhirl"] = new SkillDef
+            {
+                Id = "bladewhirl", Name = "Bladewhirl", Effect = SkillEffectKind.Damage, Targeting = "aoe",
+                CooldownMs = 5500, Range = 2.0, AoeRadius = 2.2, DamageMult = 1.4, ManaCost = 26, Sprite = "cleave",
+            };
+            cfg.Skills["pinpoint"] = new SkillDef
+            {
+                Id = "pinpoint", Name = "Pinpoint", Effect = SkillEffectKind.Buff, Targeting = "self",
+                CooldownMs = 10000, Range = 0, BuffStat = StatKey.CritChance, BuffAmount = 0.25, BuffDurationMs = 6000,
+                ManaCost = 20, Sprite = "warcry",
+            };
+            cfg.Skills["quickstep"] = new SkillDef
+            {
+                Id = "quickstep", Name = "Quickstep", Effect = SkillEffectKind.Buff, Targeting = "self",
+                CooldownMs = 10000, Range = 0, BuffStat = StatKey.AtkSpd, BuffAmount = 0.6, BuffDurationMs = 6000,
+                ManaCost = 25, Sprite = "warcry",
+            };
+            cfg.Skills["lethality"] = new SkillDef
+            {
+                Id = "lethality", Name = "Lethality", Effect = SkillEffectKind.Buff, Targeting = "self",
+                CooldownMs = 12000, Range = 0, BuffStat = StatKey.CritDmg, BuffAmount = 0.6, BuffDurationMs = 6000,
                 ManaCost = 25, Sprite = "warcry",
             };
 

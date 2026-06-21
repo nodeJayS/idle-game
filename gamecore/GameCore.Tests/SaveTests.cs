@@ -201,7 +201,7 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void DefaultConfigHasExpectedContent()
         {
-            Assert.Equal(2, Cfg.Heroes.Count);
+            Assert.Equal(3, Cfg.Heroes.Count); // Warrior, Magician, Thief
             Assert.Equal(3, Cfg.Monsters.Count);
             Assert.Equal(100, Cfg.Stages.Count);
         }
