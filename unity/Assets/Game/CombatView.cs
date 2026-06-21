@@ -506,6 +506,11 @@ namespace IdleGame.Game
         private void ResumeFarmInPlace(int stage, double spawnDelayMs)
         {
             Combat.ResumeFarm(_combat, stage, _cfg, spawnDelayMs);
+            // A boss clear can field a newly-unlocked hero (OnStageCleared), so sync the live
+            // party to the save here too: ResumeFarm/RestoreParty only heal EXISTING entities,
+            // so without this the new hero has no combat entity and reads as 0 HP on the HUD
+            // until a manual bench/unbench. ReconcileParty is idempotent for flee/fail resumes.
+            Combat.ReconcileParty(_combat, _save, _cfg);
             _accMs = 0; _outcomeTimer = 0; _resolved = false;
             ReconcileViews();
         }

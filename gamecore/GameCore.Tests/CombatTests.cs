@@ -85,7 +85,10 @@ namespace IdleGame.GameCore.Tests
             Combat.ReconcileParty(s, refielded, Cfg);
 
             Assert.Equal(2, s.Entities.Count(e => e.Team == Team.Party));
-            Assert.Single(s.Entities, e => e.RefKind == "hero" && e.RefId == "h2");
+            var h2 = Assert.Single(s.Entities, e => e.RefKind == "hero" && e.RefId == "h2");
+            // A freshly-added hero must spawn at full HP (not 0). This is the contract the
+            // boss-win resume relies on when OnStageCleared fields a newly-unlocked hero.
+            Assert.True(h2.MaxHp > 0 && h2.Hp == h2.MaxHp, $"re-fielded hero spawned at {h2.Hp}/{h2.MaxHp} HP");
         }
 
         [Fact]
