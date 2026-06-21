@@ -126,7 +126,7 @@ namespace IdleGame.GameCore
         public double PackRadius = 3.5;
 
         // Boss challenge (M8): seconds to kill the stage's boss and advance.
-        public double BossChallengeSeconds = 60;
+        public double BossChallengeSeconds = 30;
         // Boss challenge (C1): pressing Challenge despawns the trash and the boss appears this far
         // ahead of the party on the SAME map (a step or two away — not a separate arena). After a
         // flee/fail, trash stays gone for BossFleeCooldownMs before repopulating, so spamming
@@ -172,7 +172,7 @@ namespace IdleGame.GameCore
         // HP by BossHpMult on top, and major bosses (every 10th) by MajorBossMult again.
         public double MonsterHpGrowth = 1.18;  // +18% HP per stage level (×~4.4 by 10, ×~1.3M by 100)
         public double MonsterDmgGrowth = 1.08; // +8% atk/def per stage level (survivable)
-        public double BossHpMult = 5.0;        // a boss is ~5x a same-stage trash mob (halved from 10 for pacing)
+        public double BossHpMult = 2.5;        // a boss is ~2.5x a same-stage trash mob (cut from 5 for faster boss kills)
 
         // Base drop weights per rarity, indexed by (int)Rarity ascending:
         // [Normal, Magic, Rare, Unique, Legendary]. Must have one entry per Rarity.
