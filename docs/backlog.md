@@ -98,6 +98,26 @@ target genre is **dense/fast** — reward cadence too low to be addictive. Three
 
 Still-open hypotheses to revisit after juice: samey pacing (pack/elite variety), short-term goals.
 
+## E. Heroes / content
+
+### E1. Third hero: Thief (assassin)  ·  GameCore + renderer  ·  NEXT (user-requested)
+A fast, fragile, crit-focused melee assassin — high single-target burst. Fully unique kit (the
+agreed model: class = tag, each hero its own skills; see [[idle-game-vision-and-loop]]).
+- **GameCore (no new combat code if kit uses existing effect kinds):**
+  - `GameConfig.Default()` — add `cfg.Heroes["thief_basic"]` (`Class="Thief"`, `Role="melee"`):
+    low Hp/Def, high `AtkSpd`, high `CritChance`/`CritDmg`, decent `MoveSpd`, short melee range.
+  - 6-skill kit (pick 4) from existing kinds: e.g. **Backstab**/**Eviscerate** (single-target nukes,
+    high mult), **Fan of Knives** (AoE), **Ambush** (+CritChance buff), **Adrenaline** (+AtkSpd buff),
+    plus one more. Add `SkillDef`s next to the others (~line 398+ in GameConfig). Reuse FX sprites.
+  - `cfg.HeroUnlocks[N] = "thief_basic"` — pick an unlock stage (Magician is 3; Thief maybe 5).
+  - `DefaultLoadout` caps the starting bar to 4 automatically.
+- **Renderer:** add a Thief chibi variant in `ChibiHero.Build` (warrior/fire-mage exist today);
+  capsule fallback works until then. Pick an `AttackFx`.
+- **Wanted-but-needs-new-sim (optional, flag):** poison/DoT and a dash/blink — neither exists in
+  the sim yet (only instant Damage/Heal/Buff). Ship the assassin on existing kinds first; add DoT/
+  mobility as their own mechanic later if desired.
+- New content shows at New Game; party cap is 3 so the Thief competes for a slot.
+
 ---
 
 **Dependencies:** B2 needs A2. Everything except A2/B2 is renderer/UI-only.
