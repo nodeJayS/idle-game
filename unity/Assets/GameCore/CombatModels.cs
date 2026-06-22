@@ -90,6 +90,19 @@ namespace IdleGame.GameCore
         // Pack variety: Elite/Rare trash (highlighted, tougher, better loot). Normal for
         // heroes, bosses, and ordinary trash. Set by Combat.ApplyRank at spawn.
         public MonsterRank Rank = MonsterRank.Normal;
+
+        // Monster modifiers (Lever 1), set by Combat.ApplyModifier at spawn (farm trash) or boss
+        // init. ModTypes = the modifier typeIds on this mob (drives the client aura tell + marks a
+        // modified kill). Lifesteal/ThornsReflect = precomputed behavior fractions read per-hit in
+        // ApplyHit. Gold/Xp/DropRate buffs are folded once at apply time so HandleDeath needs no
+        // save lookup: GoldMult/XpMult start at 1 (multiply the payout), DropRateBonus adds to the
+        // loot context's rarity bias.
+        public List<string> ModTypes = new List<string>();
+        public double Lifesteal;      // heals this fraction of damage it deals (Vampiric)
+        public double ThornsReflect;  // reflects this fraction of damage taken (Thorns)
+        public double GoldMult = 1.0;
+        public double XpMult = 1.0;
+        public double DropRateBonus;  // additive bonus to LootContext.DropRateMult on this kill
         // Party slot (0 = first slot). The lowest-slot living hero leads the Solo formation;
         // the rest follow in a triangle behind it. Non-heroes leave this at int.MaxValue.
         public int Slot = int.MaxValue;
@@ -147,6 +160,20 @@ namespace IdleGame.GameCore
         // counter used for unique entity ids + slime/goblin alternation.
         public double SpawnTimerMs;
         public int SpawnCount;
+
+        // Active monster modifiers (Lever 1): applied to every spawned farm trash mob. Set by the
+        // client from the save (Modifiers.ResolveActive). Empty in boss/encounter modes — the boss
+        // gets only its own inherent modifier, applied directly at init.
+        public List<ModifierInstance> ActiveModifiers = new List<ModifierInstance>();
+    }
+
+    /// <summary>An active monster modifier handed to the sim by the client (resolved from the
+    /// save: a <see cref="ModifierDef"/> + its banked strength). Farm trash gets all of these
+    /// applied at spawn. Transient — never persisted (the SaveState holds the owned/active ids).</summary>
+    public sealed class ModifierInstance
+    {
+        public ModifierDef Def = null!;
+        public int Strength;
     }
 
     public enum CombatEventType { Hit, Death, LootDrop, LevelUp, WaveCleared, BossDefeated, Respawn, SkillCast, Heal }

@@ -53,6 +53,7 @@ namespace IdleGame.GameCore
                 Currencies = save.Currencies,
                 Progress = save.Progress,
                 Quests = save.Quests,
+                Modifiers = save.Modifiers,
                 LastClaimAt = save.LastClaimAt,
             };
         }
@@ -77,6 +78,7 @@ namespace IdleGame.GameCore
                 Currencies = currencies,
                 Progress = save.Progress,
                 Quests = save.Quests,
+                Modifiers = save.Modifiers,
                 LastClaimAt = save.LastClaimAt,
             };
         }
@@ -146,6 +148,7 @@ namespace IdleGame.GameCore
             Currencies = save.Currencies,
             Progress = progress,
             Quests = save.Quests,
+            Modifiers = save.Modifiers,
             LastClaimAt = save.LastClaimAt,
         };
 

@@ -93,6 +93,29 @@ namespace IdleGame.GameCore
         public int RollCount;
     }
 
+    /// <summary>Which reward channel a monster modifier boosts (thematic per type — see
+    /// <see cref="Modifiers"/> / <see cref="GameConfig"/>). Gold/XP scale the per-kill payout;
+    /// DropRate biases loot rarity upward.</summary>
+    public enum ModifierReward { Gold, Xp, DropRate }
+
+    /// <summary>An optional per-hit combat behavior a modifier grants the monster, beyond stat
+    /// multipliers. Vampiric = heals a fraction of damage it deals; Thorns = reflects a fraction
+    /// of damage taken back to the attacker. None = stat-only modifier.</summary>
+    public enum ModifierBehavior { None, Vampiric, Thorns }
+
+    /// <summary>
+    /// Banked monster modifiers (the risk/reward knob). <see cref="Owned"/> maps a modifier
+    /// typeId to the best strength banked (= highest stage of that type's boss you've cleared);
+    /// <see cref="Active"/> are the types currently toggled ON, which apply to farm trash —
+    /// harder mobs for a thematic reward bonus. Stack freely. Persisted; threaded like
+    /// <see cref="SaveState.Quests"/> through every reducer copy site.
+    /// </summary>
+    public sealed class MonsterModifiers
+    {
+        public Dictionary<string, int> Owned = new Dictionary<string, int>(); // typeId -> best strength
+        public List<string> Active = new List<string>();                      // typeIds applied to farm trash
+    }
+
     public sealed class SaveState
     {
         public int Version;
@@ -107,6 +130,7 @@ namespace IdleGame.GameCore
         public Dictionary<string, long> Currencies = new Dictionary<string, long>();
         public ProgressState Progress = new ProgressState();
         public QuestBoard Quests = new QuestBoard();
+        public MonsterModifiers Modifiers = new MonsterModifiers();
         public long LastClaimAt; // epoch ms (server-validated later)
     }
 }

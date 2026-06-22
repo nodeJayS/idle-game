@@ -88,9 +88,35 @@ namespace IdleGame.GameCore
         public string? Sprite;
     }
 
+    /// <summary>
+    /// A monster modifier type (the risk/reward knob — Lever 1). Applied to farm trash when the
+    /// player toggles it active, and exhibited by a stage's boss (the source you fight + bank).
+    /// Effects scale with the banked STRENGTH (= the stage it was earned at): each affected stat
+    /// is multiplied by (1 + StatPerStrength*strength); a behavior fraction =
+    /// BehaviorPerStrength*strength (clamped to <see cref="BalanceConstants.ModifierBehaviorCap"/>);
+    /// the thematic reward bonus fraction = RewardPerStrength*strength. Stronger = bigger buff AND
+    /// bigger reward. Stat coefficients use stats every mob has non-zero (Hp/Atk/MoveSpd/AtkSpd)
+    /// so multipliers always bite.
+    /// </summary>
+    public sealed class ModifierDef
+    {
+        public string Id = "";
+        public string Name = "";
+        public StatBlock StatPerStrength = new StatBlock(); // per-strength stat-mult coefficients
+        public ModifierBehavior Behavior = ModifierBehavior.None;
+        public double BehaviorPerStrength;                  // lifesteal/thorns fraction per strength
+        public ModifierReward Reward = ModifierReward.Gold;
+        public double RewardPerStrength;                    // reward-bonus fraction per strength
+        public double TintR, TintG, TintB;                 // client aura tint (engine-free RGB 0..1)
+    }
+
     /// <summary>All tunable numbers. The file you edit constantly to balance.</summary>
     public sealed class BalanceConstants
     {
+        // Monster modifiers (Lever 1): hard cap on a behavior fraction (lifesteal / thorns reflect)
+        // so a very deep modifier can't reach 100%+ sustain/reflect.
+        public double ModifierBehaviorCap = 0.6;
+
         public double IdleCapHours = 12;
         // Offline yield as a fraction of the online rate (gold, XP, and loot rolls
         // alike) — starts at 70% to nudge active play; tune freely later.
@@ -280,7 +306,21 @@ namespace IdleGame.GameCore
         public Dictionary<string, MonsterDef> Monsters = new Dictionary<string, MonsterDef>();
         public List<StageDef> Stages = new List<StageDef>();
         public Dictionary<string, SkillDef> Skills = new Dictionary<string, SkillDef>();
+        // Monster modifier catalog + the order they cycle across stages (each stage's boss owns
+        // ModifierCycle[(stage-1) % count] — see ModifierTypeForStage). Lever 1.
+        public Dictionary<string, ModifierDef> Modifiers = new Dictionary<string, ModifierDef>();
+        public List<string> ModifierCycle = new List<string>();
         public BalanceConstants Balance = new BalanceConstants();
+
+        /// <summary>The modifier type a stage's boss exhibits (and grants on a kill). Cycles the
+        /// curated <see cref="ModifierCycle"/> so deeper bosses re-grant types at higher strength.
+        /// null if no modifiers are defined.</summary>
+        public string? ModifierTypeForStage(int stage)
+        {
+            if (ModifierCycle.Count == 0) return null;
+            int i = ((stage - 1) % ModifierCycle.Count + ModifierCycle.Count) % ModifierCycle.Count;
+            return ModifierCycle[i];
+        }
 
         /// <summary>Heroes granted by clearing a stage: highestStage reached >= key ⇒ acquire
         /// the hero def (value), once. The progression path to "20+ characters"; gacha later
@@ -557,6 +597,47 @@ namespace IdleGame.GameCore
                 Id = "boss_quake", Name = "Quake", Effect = SkillEffectKind.Damage, Targeting = "aoe",
                 CooldownMs = 8000, Range = 3.0, AoeRadius = 3.0, DamageMult = 1.4, ManaCost = 0, Sprite = "quake",
             };
+
+            // Monster modifiers (Lever 1) — the player-controlled risk/reward knob. Each stage's
+            // boss exhibits one of these (cycled below) and grants it on a kill at strength = stage;
+            // toggle owned ones onto farm trash for harder mobs + a thematic reward. Coefficients
+            // are gentle starting points (tuned by feel later). Two carry real per-hit behaviors
+            // (Vampiric lifesteal, Thorns reflect); Swift/Armored are stat-only.
+            cfg.Modifiers["vampiric"] = new ModifierDef
+            {
+                Id = "vampiric", Name = "Vampiric",
+                StatPerStrength = SB((StatKey.Hp, 0.05), (StatKey.Atk, 0.02)),
+                Behavior = ModifierBehavior.Vampiric, BehaviorPerStrength = 0.010,
+                Reward = ModifierReward.Gold, RewardPerStrength = 0.08,
+                TintR = 0.85, TintG = 0.20, TintB = 0.20, // blood red
+            };
+            cfg.Modifiers["swift"] = new ModifierDef
+            {
+                Id = "swift", Name = "Swift",
+                StatPerStrength = SB((StatKey.MoveSpd, 0.05), (StatKey.AtkSpd, 0.04)),
+                Behavior = ModifierBehavior.None,
+                Reward = ModifierReward.Xp, RewardPerStrength = 0.08,
+                TintR = 0.95, TintG = 0.85, TintB = 0.20, // yellow
+            };
+            cfg.Modifiers["armored"] = new ModifierDef
+            {
+                Id = "armored", Name = "Armored",
+                StatPerStrength = SB((StatKey.Hp, 0.12)),       // pure tank (big HP)
+                Behavior = ModifierBehavior.None,
+                Reward = ModifierReward.DropRate, RewardPerStrength = 0.05,
+                TintR = 0.60, TintG = 0.70, TintB = 0.85, // steel blue
+            };
+            cfg.Modifiers["thorns"] = new ModifierDef
+            {
+                Id = "thorns", Name = "Thorns",
+                StatPerStrength = SB((StatKey.Hp, 0.05), (StatKey.Atk, 0.02)),
+                Behavior = ModifierBehavior.Thorns, BehaviorPerStrength = 0.008,
+                Reward = ModifierReward.Gold, RewardPerStrength = 0.07,
+                TintR = 0.90, TintG = 0.50, TintB = 0.15, // orange
+            };
+            // Stage→type cycle: boss at stage 1=Vampiric, 2=Swift, 3=Armored, 4=Thorns, 5=Vampiric…
+            // so all types are reachable early and re-clears bank stronger versions.
+            cfg.ModifierCycle = new List<string> { "vampiric", "swift", "armored", "thorns" };
 
             return cfg;
         }

@@ -77,6 +77,7 @@ namespace IdleGame.GameCore
                 Currencies = save.Currencies,
                 Progress = save.Progress,
                 Quests = save.Quests,
+                Modifiers = save.Modifiers,
                 LastClaimAt = stamped,
             };
         }
@@ -100,6 +101,7 @@ namespace IdleGame.GameCore
             save.Currencies ??= new Dictionary<string, long>();
             save.Progress ??= new ProgressState();
             save.Quests ??= new QuestBoard(); // EnsureBoard (client, needs cfg) backfills the goals
+            save.Modifiers ??= new MonsterModifiers(); // none owned on older saves until a boss grants one
 
             // Normalize the party to PartySize, preserving the first slots. An older save
             // with a longer party (the cap was once 4) keeps its first PartySize heroes;

@@ -105,6 +105,7 @@ namespace IdleGame.GameCore
             Currencies = save.Currencies,
             Progress = save.Progress,
             Quests = quests,
+            Modifiers = save.Modifiers,
             LastClaimAt = save.LastClaimAt,
         };
     }

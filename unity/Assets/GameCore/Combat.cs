@@ -71,9 +71,11 @@ namespace IdleGame.GameCore
         /// Balance.SpawnIntervalMs in <see cref="StepCombat"/>; the run never auto-wins
         /// and only a full party wipe loses.
         /// </summary>
-        public static CombatState InitFarm(IReadOnlyList<HeroInstance> party, int stage, GameConfig cfg, Rng rng)
+        public static CombatState InitFarm(IReadOnlyList<HeroInstance> party, int stage, GameConfig cfg, Rng rng,
+                                           IReadOnlyList<ModifierInstance>? activeModifiers = null)
         {
             var s = new CombatState { Stage = stage, Kind = EncounterKind.Farm };
+            if (activeModifiers != null) s.ActiveModifiers = new List<ModifierInstance>(activeModifiers);
             AddParty(s, party, cfg);
 
             var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
@@ -107,6 +109,7 @@ namespace IdleGame.GameCore
                     StageScale(rt, cfg) * major, true, HpScale(rt, cfg) * cfg.Balance.BossHpMult * major));
             }
 
+            ApplyBossModifier(s, stage, cfg); // the boss exhibits its stage's modifier (the source)
             return s;
         }
 
@@ -133,6 +136,7 @@ namespace IdleGame.GameCore
                     StageScale(rt, cfg) * major, true, HpScale(rt, cfg) * cfg.Balance.BossHpMult * major));
             }
 
+            ApplyBossModifier(s, s.Stage, cfg); // boss exhibits its stage's modifier (the source)
             s.Kind = EncounterKind.BossChallenge;
             s.TimeMs = 0;
             s.SpawnTimerMs = 0;
@@ -365,6 +369,8 @@ namespace IdleGame.GameCore
                 mob.WanderTarget = pos;     // idle in place until...
                 mob.WanderCdMs = rng.RandRange(0, cfg.Balance.WanderMaxMs); // ...a staggered first repick
                 ApplyRank(mob, RollRank(rng, cfg), cfg); // pack variety: maybe an elite/rare
+                foreach (var m in s.ActiveModifiers)     // player's active modifiers (Lever 1)
+                    ApplyModifier(mob, m.Def, m.Strength, cfg, behaviorOnly: false);
                 s.Entities.Add(mob);
                 s.SpawnCount++;
             }
@@ -434,6 +440,50 @@ namespace IdleGame.GameCore
             MonsterRank.Elite => cfg.Balance.EliteRewardMult,
             _ => 1.0,
         };
+
+        /// <summary>
+        /// Apply a monster modifier (Lever 1) to an entity. Farm trash gets the full treatment:
+        /// stat mults (×(1 + coeff·strength)), the per-hit behavior fraction (capped), and the
+        /// thematic reward buff folded into the kill payout (so HandleDeath needs no save lookup).
+        /// <paramref name="behaviorOnly"/> (bosses) sets ONLY the behavior + tag — a deep boss
+        /// keeps its tuned HP so it stays killable inside the challenge timer. Mutates the entity;
+        /// stacks (each call multiplies stats and adds to the reward buffs). Deterministic.
+        /// </summary>
+        private static void ApplyModifier(CombatEntity e, ModifierDef def, int strength, GameConfig cfg, bool behaviorOnly)
+        {
+            if (!behaviorOnly)
+            {
+                foreach (var kv in def.StatPerStrength)
+                    e.Stats[kv.Key] = e.Stats.Get(kv.Key) * (1.0 + kv.Value * strength);
+                e.MaxHp = e.Stats.Get(StatKey.Hp);
+                e.Hp = e.MaxHp;
+                e.AttackIntervalMs = AttackInterval(e.Stats);
+
+                double reward = def.RewardPerStrength * strength;
+                switch (def.Reward)
+                {
+                    case ModifierReward.Gold:     e.GoldMult += reward; break;
+                    case ModifierReward.Xp:       e.XpMult += reward; break;
+                    case ModifierReward.DropRate: e.DropRateBonus += reward; break;
+                }
+            }
+
+            double frac = Math.Min(cfg.Balance.ModifierBehaviorCap, def.BehaviorPerStrength * strength);
+            if (def.Behavior == ModifierBehavior.Vampiric) e.Lifesteal = Math.Max(e.Lifesteal, frac);
+            else if (def.Behavior == ModifierBehavior.Thorns) e.ThornsReflect = Math.Max(e.ThornsReflect, frac);
+
+            e.ModTypes.Add(def.Id);
+        }
+
+        /// <summary>Make the stage's boss exhibit its inherent modifier (the source you fight +
+        /// bank) — behavior-only, so the timer stays fair. No-op if the stage defines none.</summary>
+        private static void ApplyBossModifier(CombatState s, int stage, GameConfig cfg)
+        {
+            string? typeId = cfg.ModifierTypeForStage(stage);
+            if (typeId == null || !cfg.Modifiers.TryGetValue(typeId, out var def)) return;
+            foreach (var e in s.Entities)
+                if (e.IsBoss) ApplyModifier(e, def, stage, cfg, behaviorOnly: true);
+        }
 
         /// <summary>Advance the sim one fixed step. Mutates state; returns this step's events.</summary>
         public static List<CombatEvent> StepCombat(CombatState s, double dtMs, GameConfig cfg, Rng rng)
@@ -708,6 +758,20 @@ namespace IdleGame.GameCore
                 Crit = crit,
             });
 
+            // Modifier behaviors (Lever 1). Vampiric: a modified monster heals a fraction of the
+            // damage it deals to a hero (sustain — no event, the HP bar refilling is the tell).
+            if (attacker.Lifesteal > 0 && attacker.Team == Team.Enemy && victim.Team == Team.Party)
+                attacker.Hp = Math.Min(attacker.MaxHp, attacker.Hp + dmg * attacker.Lifesteal);
+
+            // Thorns: a hero striking a modified monster takes a fraction back (can down the hero).
+            if (victim.ThornsReflect > 0 && victim.Team == Team.Enemy && attacker.Team == Team.Party)
+            {
+                double reflect = dmg * victim.ThornsReflect;
+                attacker.Hp -= reflect;
+                events.Add(new CombatEvent { Type = CombatEventType.Hit, SourceId = victim.Id, TargetId = attacker.Id, Amount = reflect });
+                if (attacker.Hp <= 0) HandleDeath(s, attacker, cfg, rng, events);
+            }
+
             if (victim.Hp <= 0) HandleDeath(s, victim, cfg, rng, events);
         }
 
@@ -844,10 +908,14 @@ namespace IdleGame.GameCore
             // Loot + XP only from real monsters (guards synthetic test entities).
             if (target.RefKind == "monster" && cfg.Monsters.TryGetValue(target.RefId, out var mdef))
             {
-                // Elites/rares pay out a multiple of a normal kill's XP/gold (the payoff).
+                // Elites/rares pay out a multiple of a normal kill; active modifiers add their
+                // thematic reward buff (gold/XP folded here, drop-rate into the loot context below).
                 double mult = cfg.Balance.KillRewardMult(s.Stage) * RankRewardMult(target.Rank, cfg);
-                s.PendingXp += (int)Math.Floor(mdef.XpReward * mult);
-                s.PendingGold += (long)Math.Floor(mdef.GoldReward * mult);
+                s.PendingXp += (int)Math.Floor(mdef.XpReward * mult * target.XpMult);
+                s.PendingGold += (long)Math.Floor(mdef.GoldReward * mult * target.GoldMult);
+
+                var lootCtx = s.Loot;
+                if (target.DropRateBonus > 0) lootCtx.DropRateMult *= (1.0 + target.DropRateBonus);
 
                 // Bosses drop a guaranteed Unique/Legendary bundle (+ ordinary extras),
                 // sized by boss tier; elites/rares drop a boosted Rare-capped bundle; ordinary
@@ -855,7 +923,7 @@ namespace IdleGame.GameCore
                 if (target.IsBoss)
                 {
                     bool isMajor = (cfg.Stages.Find(st => st.Stage == s.Stage)?.IsMajorBoss) ?? false;
-                    foreach (var drop in Loot.RollBossDrops(rng, s.Loot, cfg, isMajor))
+                    foreach (var drop in Loot.RollBossDrops(rng, lootCtx, cfg, isMajor))
                     {
                         s.PendingLoot.Add(drop);
                         events.Add(new CombatEvent { Type = CombatEventType.LootDrop, EntityId = target.Id, Item = drop });
@@ -865,7 +933,7 @@ namespace IdleGame.GameCore
                 {
                     int count = target.Rank == MonsterRank.Rare ? cfg.Balance.RareDropCount : cfg.Balance.EliteDropCount;
                     double rate = target.Rank == MonsterRank.Rare ? cfg.Balance.RareDropRateMult : cfg.Balance.EliteDropRateMult;
-                    foreach (var drop in Loot.RollRankDrops(rng, s.Loot, cfg, count, rate))
+                    foreach (var drop in Loot.RollRankDrops(rng, lootCtx, cfg, count, rate))
                     {
                         s.PendingLoot.Add(drop);
                         events.Add(new CombatEvent { Type = CombatEventType.LootDrop, EntityId = target.Id, Item = drop });
@@ -873,7 +941,7 @@ namespace IdleGame.GameCore
                 }
                 else
                 {
-                    var drop = Loot.RollDrop(rng, mdef, s.Loot, cfg);
+                    var drop = Loot.RollDrop(rng, mdef, lootCtx, cfg);
                     if (drop != null)
                     {
                         s.PendingLoot.Add(drop);
