@@ -31,6 +31,14 @@ namespace IdleGame.GameCore
     public enum CombatStatus { Running, Won, Lost }
 
     /// <summary>
+    /// Pack variety (Lever 1): a spawned trash mob's rank. Normal = ordinary trash.
+    /// Elite/Rare are highlighted, tougher, bigger, and drop a boosted loot bundle — the
+    /// PoE blue/yellow-pack risk/reward spike on the open field. Rolled per-mob at spawn
+    /// (farm packs only); bosses are their own thing (IsBoss), not a rank.
+    /// </summary>
+    public enum MonsterRank { Normal, Elite, Rare }
+
+    /// <summary>
     /// Encounter type (M8). Encounter = the classic clear-the-enemies fight. Farm = an
     /// endless zone: trash respawns up to a cap, never auto-wins, only a wipe loses.
     /// BossChallenge = a single boss under a short timer (the gate that advances a
@@ -79,6 +87,9 @@ namespace IdleGame.GameCore
         public string RefKind = "";     // "hero" | "monster"
         public string RefId = "";       // heroId or monster defId
         public bool IsBoss;
+        // Pack variety: Elite/Rare trash (highlighted, tougher, better loot). Normal for
+        // heroes, bosses, and ordinary trash. Set by Combat.ApplyRank at spawn.
+        public MonsterRank Rank = MonsterRank.Normal;
         // Party slot (0 = first slot). The lowest-slot living hero leads the Solo formation;
         // the rest follow in a triangle behind it. Non-heroes leave this at int.MaxValue.
         public int Slot = int.MaxValue;

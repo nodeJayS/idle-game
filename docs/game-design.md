@@ -235,6 +235,29 @@ later; whenever it's built, put it on the same seeded `Rng` so it's deterministi
 - **Separate intended config from live tuning** — all constants in the balance section of `GameConfig`.
 - **Test loot statistically**, not anecdotally (§5.2).
 
+### 7.1 The four loop levers (the "feels empty/boring" plan)
+
+When the moment-to-moment feels thin, the fix is the **loop**, not QoL/menus — polish
+makes a thin loop easier to navigate, it can't make it fun. For an **idle auto-battler**
+(the player mostly watches), "fun" comes from two questions: *is the screen interesting
+to watch?* and *is there a reason to keep going?* These four levers, roughly in order of
+build value, are the long-run plan; **all four are goals.** Don't reach for QoL or
+big-architecture (prestige) until the minute-to-minute is fun.
+
+1. **Combat variety** *(in progress — start here).* Elite/rare mobs with modifiers
+   (extra HP, speed, auras) + a guaranteed better-loot drop. Hits *empty* (more on
+   screen) and *boring* (fights differ, risk/reward spikes) at once; cheapest
+   self-contained slice. See §8 "Pack variety".
+2. **Loot & power chase.** Drops frequent and **legible**: clear upgrade signals
+   (green ▲/red ▼), instant compare, optional auto-equip-if-better — so each kill
+   visibly matters. Builds on §7 "Item comparison UI" + §5.2.
+3. **Build depth.** Choosable active skills (loadout matters), meaningful gear
+   affixes/synergies — the party is a *build you shape*, not a fixed kit. See §8
+   "Skills & skill trees" and "Crafting/sets".
+4. **Progression hooks.** Milestone rewards, escalating goals, a "one more stage" pull
+   (goal-ladder slices 3–4). Pulls you forward but *relies on the core fight already
+   being fun* — hence last. See §8 "Prestige & retention".
+
 ---
 
 ## 8. Milestone roadmap
@@ -270,7 +293,7 @@ single-player, local game), **Depth** (build variety + retention), **Live-servic
 | **Hero acquisition pipeline** | Start solo (Warrior); `GameConfig.HeroUnlocks` grants heroes on stage clear (stage 3 → Magician) via `Party.AcquireHero` + auto-field (`Party.FieldHero` dedupe-safe). The plug point gacha reuses later. | ✅ |
 | **World & combat feel** | Geometric difficulty (steep HP/dmg growth + `BossHpMult`), **100-stage ladder**; big open field; **party-relative PACK spawning** (clusters ring the group, quiet gaps, sparse, no distance cull); party **always-group**; follow camera + wheel zoom + shake; top-centre stage nav/Challenge + boss-clear popup. | ✅ |
 | **Art direction — *Tunic* pivot** | `TunicSurface` height-blend shader (grass-top/dirt-side + inked facet edges + crisp light); faceted vertex-coloured ground + props; clean lighting + procedural dappled light cookie. Heroes are code-built **chibi placeholders** — Blender skinned models are the eventual goal, plugging into the `CombatView` spawn/animator seam. Mixamo removed. | ✅ |
-| **Pack variety** — *next* | Elite/rare mobs within packs (highlighted, tougher, better loot) — PoE magic/rare-pack feel on the sparse open field. | |
+| **Pack variety** — *in progress* | Elite/rare mobs within packs (highlighted, tougher, better loot) — PoE magic/rare-pack feel on the sparse open field. Lever #1 of the §7.1 plan. | ◑ |
 | **Skills & skill trees** *(its own milestone)* | Per-hero **unique** skills, leveled with skill points. **Active vs passive**: ≤4 active equipped at once, passives always apply. **Skill tree** — initially linear; a node needs ≥1 point in its prerequisite; more nodes unlock as the hero levels. Builds on the M11 `SkillDef`/loadout seed (the Heroes Skills tab is the read-only seed). | |
 | **Roster growth & classes** | More hero unlocks (stage 5/7/…) and new classes/kits beyond Warrior + Magician. | |
 | **Social / chat IA** | Pre-release shows **System only**; Global · Friends · Guild and per-person **Whispers** (DMs) stay hidden until the server (Phase C) so players aren't shown dead features. Target IA + the re-enable seam are documented in `ChatPanel`. | ◑ |

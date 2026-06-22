@@ -626,6 +626,9 @@ namespace IdleGame.Game
                 go.name = e.Id;
 
                 float scale = e.IsBoss ? 1.6f : 1f;
+                // Elites/rares are chunkier — a size tell that matches their fattened sim body.
+                if (!isHero && !e.IsBoss)
+                    scale *= e.Rank == MonsterRank.Rare ? 1.7f : e.Rank == MonsterRank.Elite ? 1.35f : 1f;
                 height = (type == PrimitiveType.Capsule ? 1f : 0.5f) * scale;
                 go.transform.position = new Vector3((float)e.Pos.X, height, (float)e.Pos.Y);
                 baseScale = new Vector3(0.7f * scale, 0.9f * scale, 0.7f * scale);
@@ -637,8 +640,18 @@ namespace IdleGame.Game
                     color = ranged ? new Color(0.62f, 0.45f, 0.92f)   // magician = violet
                                    : new Color(0.36f, 0.55f, 0.85f);  // melee = blue
                 }
-                else color = e.IsBoss ? new Color(0.85f, 0.40f, 0.25f) : new Color(0.45f, 0.80f, 0.50f);
+                else
+                {
+                    // Trash green; bosses orange; ranks get the PoE blue (elite) / gold (rare) tells.
+                    color = e.IsBoss                    ? new Color(0.85f, 0.40f, 0.25f)
+                          : e.Rank == MonsterRank.Rare  ? new Color(0.96f, 0.76f, 0.22f)
+                          : e.Rank == MonsterRank.Elite ? new Color(0.35f, 0.70f, 0.96f)
+                          : new Color(0.45f, 0.80f, 0.50f);
+                }
                 Paint(go, color);
+                // Make a rank mob glow so it stands out in a pack at a glance.
+                if (!isHero && !e.IsBoss && e.Rank != MonsterRank.Normal)
+                    Glow(go, color * (e.Rank == MonsterRank.Rare ? 2.0f : 1.5f));
             }
 
             var view = new View { Go = go, Height = height, BaseColor = color, BaseScale = baseScale,
@@ -1019,7 +1032,7 @@ namespace IdleGame.Game
                 }
                 if (!e.Alive) continue;
 
-                float w = e.IsBoss ? 56f : 34f, h = 5f;
+                float w = e.IsBoss ? 56f : (e.Team == Team.Enemy && e.Rank != MonsterRank.Normal ? 46f : 34f), h = 5f;
                 float x = cx - w / 2f, y = cy;
                 float frac = e.MaxHp > 0 ? Mathf.Clamp01((float)(e.Hp / e.MaxHp)) : 0f;
                 DrawRect(x - 1, y - 1, w + 2, h + 2, new Color(0f, 0f, 0f, 0.7f));

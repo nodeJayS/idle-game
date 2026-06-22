@@ -335,6 +335,64 @@ namespace IdleGame.GameCore.Tests
             Assert.All(s.Entities.Where(e => e.Team == Team.Enemy), e => Assert.True(e.Aggro));
         }
 
+        // --- Pack variety: elite/rare mobs (Lever 1) ---
+
+        // RollRank always consumes exactly one rng draw regardless of outcome, so forcing the
+        // chances doesn't shift the rng stream — base stats/positions match a normal spawn and
+        // only the rank multiplier differs. That's what lets these compare cleanly by seed.
+        private static GameConfig RankCfg(double elite, double rare)
+        {
+            var c = GameConfig.Default();
+            c.Balance.EliteChance = elite;
+            c.Balance.RareChance = rare;
+            return c;
+        }
+
+        [Fact]
+        public void NoRankChanceLeavesAllTrashNormal()
+        {
+            var s = Combat.InitFarm(new[] { Champ() }, 5, RankCfg(0, 0), new Rng(1));
+            Assert.All(s.Entities.Where(e => e.Team == Team.Enemy),
+                       e => Assert.Equal(MonsterRank.Normal, e.Rank));
+        }
+
+        [Fact]
+        public void EliteIsTougherAndBiggerThanNormalTrash()
+        {
+            var party = new[] { Champ() };
+            var normal = Combat.InitFarm(party, 5, RankCfg(0, 0), new Rng(1)).Entities.First(e => e.Team == Team.Enemy);
+            var elite = Combat.InitFarm(party, 5, RankCfg(1.0, 0), new Rng(1)).Entities.First(e => e.Team == Team.Enemy);
+
+            Assert.Equal(MonsterRank.Elite, elite.Rank);
+            Assert.Equal(normal.MaxHp * Cfg.Balance.EliteHpMult, elite.MaxHp, 3);
+            Assert.Equal(elite.MaxHp, elite.Hp, 3);                 // spawns at full
+            Assert.True(elite.BodyRadius > normal.BodyRadius);
+        }
+
+        [Fact]
+        public void RareIsTougherThanElite()
+        {
+            var party = new[] { Champ() };
+            var elite = Combat.InitFarm(party, 5, RankCfg(1.0, 0), new Rng(1)).Entities.First(e => e.Team == Team.Enemy);
+            var rare = Combat.InitFarm(party, 5, RankCfg(0, 1.0), new Rng(1)).Entities.First(e => e.Team == Team.Enemy);
+
+            Assert.Equal(MonsterRank.Rare, rare.Rank);
+            Assert.True(rare.MaxHp > elite.MaxHp);
+            Assert.True(rare.BodyRadius > elite.BodyRadius);
+        }
+
+        [Fact]
+        public void RankDropsAreGuaranteedBundleAndDeterministic()
+        {
+            var ctx = LootContext.ForStage(Cfg.Stages[9]); // a deeper stage for richer rolls
+            var a = Loot.RollRankDrops(new Rng(7), ctx, Cfg, count: 4, rateMult: 5.0);
+            var b = Loot.RollRankDrops(new Rng(7), ctx, Cfg, count: 4, rateMult: 5.0);
+
+            Assert.Equal(4, a.Count);
+            Assert.Equal(a.Select(i => i.Rarity), b.Select(i => i.Rarity)); // same seed => same bundle
+            Assert.All(a, i => Assert.True(i.Rarity <= Rarity.Rare));        // trash ceiling holds
+        }
+
         [Fact]
         public void RefreshPartyStatsSyncsActiveSkillLoadout()
         {

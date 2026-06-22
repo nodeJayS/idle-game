@@ -173,6 +173,21 @@ namespace IdleGame.GameCore
             return items;
         }
 
+        /// <summary>
+        /// An elite/rare trash mob's loot bundle (Lever 1): <paramref name="count"/> guaranteed
+        /// items rolled at a boosted drop rate (<paramref name="rateMult"/> × the context's
+        /// DropRateMult) so rarities skew richer. Still bounded by the context's MaxRarity
+        /// (Rare for trash) — Unique/Legendary remain boss-exclusive. Deterministic.
+        /// </summary>
+        public static List<Item> RollRankDrops(Rng rng, LootContext ctx, GameConfig cfg, int count, double rateMult)
+        {
+            var boosted = ctx;
+            boosted.DropRateMult = ctx.DropRateMult * Math.Max(1.0, rateMult);
+            var items = new List<Item>(Math.Max(0, count));
+            for (int i = 0; i < count; i++) items.Add(RollContextItem(rng, boosted, cfg));
+            return items;
+        }
+
         /// <summary>Pick an item base uniformly (deterministic: keys sorted first).</summary>
         private static string PickBaseId(Rng rng, GameConfig cfg)
         {

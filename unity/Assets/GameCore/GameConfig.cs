@@ -187,6 +187,21 @@ namespace IdleGame.GameCore
         public double MonsterDmgGrowth = 1.08; // +8% atk/def per stage level (survivable)
         public double BossHpMult = 2.5;        // a boss is ~2.5x a same-stage trash mob (cut from 5 for faster boss kills)
 
+        // Pack variety (Lever 1): per-mob chance, rolled at farm spawn, to promote ordinary
+        // trash to a highlighted, tougher rank with a boosted loot bundle. Rare is checked
+        // first, then Elite; the rest stay Normal. Stat mults make them a real wall to chew
+        // through (the spike), reward/drop mults make killing one feel worth it (the payoff).
+        public double RareChance = 0.025;       // ~1 in 40 mobs is a yellow-tier Rare
+        public double EliteChance = 0.10;        // ~1 in 10 is a blue-tier Elite
+        public double EliteHpMult = 3.0,  EliteAtkMult = 1.4;
+        public double RareHpMult  = 6.5,  RareAtkMult  = 1.8;
+        public double EliteRewardMult = 4.0,  RareRewardMult = 10.0; // xp + gold
+        public double EliteBodyMult = 1.35, RareBodyMult = 1.7;       // chunkier bodies (also a visual tell)
+        // Rank loot bundles: a count of guaranteed items at a boosted DropRateMult (richer
+        // rarity), still capped at the trash ceiling (Rare) — Unique/Legendary stay boss-only.
+        public int EliteDropCount = 2,  RareDropCount = 4;
+        public double EliteDropRateMult = 2.5, RareDropRateMult = 5.0;
+
         // Base drop weights per rarity, indexed by (int)Rarity ascending:
         // [Normal, Magic, Rare, Unique, Legendary]. Must have one entry per Rarity.
         // The stage's DropRateMult biases this upward — see Loot.RollRarity.

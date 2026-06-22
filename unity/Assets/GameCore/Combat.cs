@@ -364,6 +364,7 @@ namespace IdleGame.GameCore
                 mob.Aggro = false;          // ambles until a hero hits it
                 mob.WanderTarget = pos;     // idle in place until...
                 mob.WanderCdMs = rng.RandRange(0, cfg.Balance.WanderMaxMs); // ...a staggered first repick
+                ApplyRank(mob, RollRank(rng, cfg), cfg); // pack variety: maybe an elite/rare
                 s.Entities.Add(mob);
                 s.SpawnCount++;
             }
@@ -396,6 +397,43 @@ namespace IdleGame.GameCore
                 Skills = new List<string>(def.Skills),
             };
         }
+
+        /// <summary>Roll a spawned trash mob's rank (pack variety): Rare first, then Elite,
+        /// else Normal. One rng draw — deterministic.</summary>
+        private static MonsterRank RollRank(Rng rng, GameConfig cfg)
+        {
+            double r = rng.Next();
+            if (r < cfg.Balance.RareChance) return MonsterRank.Rare;
+            if (r < cfg.Balance.RareChance + cfg.Balance.EliteChance) return MonsterRank.Elite;
+            return MonsterRank.Normal;
+        }
+
+        /// <summary>Promote a mob to an elite/rare: scale HP + Atk, fatten the body (a visual
+        /// tell + harder to surround), and tag the rank (drives rewards/loot in HandleDeath and
+        /// the renderer's highlight). No-op for Normal. Mutates the entity.</summary>
+        private static void ApplyRank(CombatEntity mob, MonsterRank rank, GameConfig cfg)
+        {
+            if (rank == MonsterRank.Normal) return;
+            var b = cfg.Balance;
+            double hpMult  = rank == MonsterRank.Rare ? b.RareHpMult   : b.EliteHpMult;
+            double atkMult = rank == MonsterRank.Rare ? b.RareAtkMult  : b.EliteAtkMult;
+            double bodyMult = rank == MonsterRank.Rare ? b.RareBodyMult : b.EliteBodyMult;
+
+            mob.Stats[StatKey.Hp]  = mob.Stats.Get(StatKey.Hp) * hpMult;
+            mob.Stats[StatKey.Atk] = mob.Stats.Get(StatKey.Atk) * atkMult;
+            mob.MaxHp = mob.Stats.Get(StatKey.Hp);
+            mob.Hp = mob.MaxHp;
+            mob.BodyRadius *= bodyMult;
+            mob.Rank = rank;
+        }
+
+        /// <summary>Per-kill XP/gold multiplier for a mob's rank (elites/rares pay out more).</summary>
+        private static double RankRewardMult(MonsterRank rank, GameConfig cfg) => rank switch
+        {
+            MonsterRank.Rare  => cfg.Balance.RareRewardMult,
+            MonsterRank.Elite => cfg.Balance.EliteRewardMult,
+            _ => 1.0,
+        };
 
         /// <summary>Advance the sim one fixed step. Mutates state; returns this step's events.</summary>
         public static List<CombatEvent> StepCombat(CombatState s, double dtMs, GameConfig cfg, Rng rng)
@@ -806,16 +844,28 @@ namespace IdleGame.GameCore
             // Loot + XP only from real monsters (guards synthetic test entities).
             if (target.RefKind == "monster" && cfg.Monsters.TryGetValue(target.RefId, out var mdef))
             {
-                double mult = cfg.Balance.KillRewardMult(s.Stage);
+                // Elites/rares pay out a multiple of a normal kill's XP/gold (the payoff).
+                double mult = cfg.Balance.KillRewardMult(s.Stage) * RankRewardMult(target.Rank, cfg);
                 s.PendingXp += (int)Math.Floor(mdef.XpReward * mult);
                 s.PendingGold += (long)Math.Floor(mdef.GoldReward * mult);
 
                 // Bosses drop a guaranteed Unique/Legendary bundle (+ ordinary extras),
-                // sized by boss tier; trash uses the scarce per-kill chance (Rare-capped).
+                // sized by boss tier; elites/rares drop a boosted Rare-capped bundle; ordinary
+                // trash uses the scarce per-kill chance.
                 if (target.IsBoss)
                 {
                     bool isMajor = (cfg.Stages.Find(st => st.Stage == s.Stage)?.IsMajorBoss) ?? false;
                     foreach (var drop in Loot.RollBossDrops(rng, s.Loot, cfg, isMajor))
+                    {
+                        s.PendingLoot.Add(drop);
+                        events.Add(new CombatEvent { Type = CombatEventType.LootDrop, EntityId = target.Id, Item = drop });
+                    }
+                }
+                else if (target.Rank != MonsterRank.Normal)
+                {
+                    int count = target.Rank == MonsterRank.Rare ? cfg.Balance.RareDropCount : cfg.Balance.EliteDropCount;
+                    double rate = target.Rank == MonsterRank.Rare ? cfg.Balance.RareDropRateMult : cfg.Balance.EliteDropRateMult;
+                    foreach (var drop in Loot.RollRankDrops(rng, s.Loot, cfg, count, rate))
                     {
                         s.PendingLoot.Add(drop);
                         events.Add(new CombatEvent { Type = CombatEventType.LootDrop, EntityId = target.Id, Item = drop });

@@ -59,7 +59,7 @@ files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sy
   scene in code (camera/light/ground) and `CombatView` drives the auto-battle.
   Play-mode can't be driven headlessly; visual checks are manual.
 
-## Status (216 tests passing)
+## Status (257 tests passing)
 
 **Phase A — core loop (M0–M9) ✅** — deterministic auto-combat; loot (rarity + affixes, equip →
 stat recompute); per-hero leveling; farm-zone stage ladder with 60s mini/major boss gates + tiered
@@ -84,10 +84,19 @@ chat/feed panel.
   **code-built chibi placeholders** (`ChibiHero`/`ChibiAnimator`); Blender skinned models are the
   eventual goal, plugging into the `CombatView` spawn/animator seam. Mixamo fully removed.
 
-**Next (gameplay-first):** pack variety (elite/rare mobs + loot); the Skills milestone
-(active/passive, ≤4 active, trees); more hero unlocks/classes; crafting/sets/loot-filter; alt modes;
-prestige. **Deferred:** real Blender hero models; UI/UX layout-group refactor; console balance-sim.
-Gacha/live-service still deferred.
+- **Pack variety (Lever 1) ◑** — `MonsterRank` Elite/Rare rolled per-mob at farm spawn
+  (`Combat.RollRank`/`ApplyRank`): tougher (HP/Atk mults), chunkier body, highlighted (blue/gold
+  + glow), and a boosted Rare-capped loot bundle (`Loot.RollRankDrops`) + reward mult. Tunables in
+  `BalanceConstants` (Elite/RareChance etc.). Next within the lever: named monster *modifiers*
+  (auras/behaviours) beyond stat tiers.
+
+The four "feels empty/boring" loop levers — all long-run goals — are in `docs/game-design.md` §7.1:
+**1 combat variety (in progress)**, 2 loot & power chase, 3 build depth, 4 progression hooks.
+
+**Next (gameplay-first):** finish pack variety (modifiers); the Skills milestone (active/passive,
+≤4 active, trees); more hero unlocks/classes; crafting/sets/loot-filter; alt modes; prestige.
+**Deferred:** real Blender hero models; UI/UX layout-group refactor; console balance-sim.
+Gacha/live-service still deferred. (Auto-advance push is built but shelved behind an off flag.)
 
 Full roadmap: [`docs/game-design.md`](docs/game-design.md) §8. **Unity play-mode can't be tested
 headlessly — visuals are verified by screenshot; client UI is hand-placed uGUI/IMGUI coords.**
