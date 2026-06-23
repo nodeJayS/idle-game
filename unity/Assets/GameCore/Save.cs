@@ -103,6 +103,10 @@ namespace IdleGame.GameCore
             save.Quests ??= new QuestBoard(); // EnsureBoard (client, needs cfg) backfills the goals
             save.Modifiers ??= new MonsterModifiers(); // none owned on older saves until a boss grants one
 
+            // Per-hero back-fills for older saves (Lever 3): no skill ranks invested yet.
+            foreach (var h in save.Heroes)
+                h.SkillRanks ??= new Dictionary<string, int>();
+
             // Normalize the party to PartySize, preserving the first slots. An older save
             // with a longer party (the cap was once 4) keeps its first PartySize heroes;
             // anyone in an overflow slot is benched (they stay owned in Heroes).

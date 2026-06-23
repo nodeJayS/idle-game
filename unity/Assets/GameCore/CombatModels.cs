@@ -79,6 +79,9 @@ namespace IdleGame.GameCore
         // their MonsterDef. EffectiveStat folds buffs into the read used by combat.
         public List<string> Skills = new List<string>();
         public Dictionary<string, double> SkillCdMs = new Dictionary<string, double>();
+        // Build depth (Lever 3): invested rank per skill (heroes only; bosses stay rank 0). A skill's
+        // primary magnitude scales by (1 + SkillDef.EffectPerRank*rank). Mirrors HeroInstance.SkillRanks.
+        public Dictionary<string, int> SkillRanks = new Dictionary<string, int>();
         public List<ActiveBuff> Buffs = new List<ActiveBuff>();
 
         public string? TargetId;

@@ -161,6 +161,7 @@ namespace IdleGame.GameCore
             Xp = xp,
             Equipped = hero.Equipped,
             SkillLoadout = hero.SkillLoadout,
+            SkillRanks = hero.SkillRanks,
         };
     }
 }

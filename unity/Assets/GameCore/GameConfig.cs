@@ -86,6 +86,11 @@ namespace IdleGame.GameCore
         public double BuffAmount;             // Buff: additive amount
         public double BuffDurationMs;         // Buff: how long it lasts
         public string? Sprite;
+        // Build depth (Lever 3): investing a skill point raises this skill's rank; its primary
+        // magnitude (Damage/Heal DamageMult, or Buff BuffAmount) scales by (1 + EffectPerRank*rank).
+        // Rank 0 = base = today's behavior, so existing seeded fights are unchanged.
+        public int MaxRank = 5;
+        public double EffectPerRank = 0.12;   // +12% of the base effect per invested rank
     }
 
     /// <summary>
@@ -131,6 +136,10 @@ namespace IdleGame.GameCore
         // Skills (Lever 3): how many of a hero's known skills can be slotted active at once.
         // HeroDef.Skills is the known pool; HeroInstance.SkillLoadout is the chosen subset.
         public int MaxActiveSkills = 4;
+
+        // Skill points (Lever 3): points earned per hero level, spent to rank up skills
+        // (Skills.InvestSkill). Unspent is derived from level − ranks spent, never persisted.
+        public int SkillPointsPerLevel = 1;
 
         // Goal ladder: how many short-term goals sit on the rolling board at once (always a
         // few near-term carrots). Targets/rewards scale with highest stage in Quests.cs.

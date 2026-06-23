@@ -46,6 +46,11 @@ namespace IdleGame.GameCore
         public int Xp = 0;
         public Dictionary<EquipSlot, string> Equipped = new Dictionary<EquipSlot, string>();
         public List<string> SkillLoadout = new List<string>();
+        // Build depth (Lever 3): skillId -> points invested (rank). Absent = rank 0 (= base, today's
+        // behavior). Points are EARNED from hero level and SPENT here; unspent is derived, never
+        // persisted separately (see Skills.UnspentPoints). Threaded like SkillLoadout through every
+        // HeroInstance copy site, or an equip/level/loadout edit silently resets it.
+        public Dictionary<string, int> SkillRanks = new Dictionary<string, int>();
     }
 
     public sealed class Affix

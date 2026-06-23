@@ -204,6 +204,7 @@ namespace IdleGame.GameCore
 
                 e.Stats = stats;
                 e.Skills = new List<string>(hero.SkillLoadout); // active-loadout edits apply live
+                e.SkillRanks = new Dictionary<string, int>(hero.SkillRanks); // rank invests apply live
                 e.MaxHp = newMax;
                 e.AttackIntervalMs = AttackInterval(stats);
                 if (e.Hp > 0) e.Hp = Math.Min(newMax, e.Hp + Math.Max(0.0, newMax - oldMax));
@@ -265,6 +266,7 @@ namespace IdleGame.GameCore
                     Slot = idx,
                     BodyRadius = cfg.Balance.UnitRadius,
                     Skills = new List<string>(hero.SkillLoadout),
+                    SkillRanks = new Dictionary<string, int>(hero.SkillRanks),
                     RespawnDurationMs = cfg.Balance.RespawnBaseMs + cfg.Balance.RespawnPerLevelMs * hero.Level,
                 });
             }
@@ -337,6 +339,7 @@ namespace IdleGame.GameCore
                     Slot = idx,
                     BodyRadius = cfg.Balance.UnitRadius,
                     Skills = new List<string>(hero.SkillLoadout),
+                    SkillRanks = new Dictionary<string, int>(hero.SkillRanks),
                     RespawnDurationMs = cfg.Balance.RespawnBaseMs + cfg.Balance.RespawnPerLevelMs * hero.Level,
                 });
                 idx++;
@@ -789,6 +792,10 @@ namespace IdleGame.GameCore
                 if (e.SkillCdMs.TryGetValue(id, out var cd) && cd > 0) continue;  // on cooldown
                 if (e.Mana < sk.ManaCost) continue;                              // not enough mana
 
+                // Invested rank scales the skill's primary magnitude (Lever 3). Rank 0 => 1.0 (= base).
+                int rank = e.SkillRanks.TryGetValue(id, out var rk) ? rk : 0;
+                double rankFactor = 1.0 + sk.EffectPerRank * rank;
+
                 switch (sk.Effect)
                 {
                     case SkillEffectKind.Damage:
@@ -796,13 +803,14 @@ namespace IdleGame.GameCore
                         var target = PickDamageTarget(s, e, sk);
                         if (target == null) continue;
                         CastStart(e, sk, target.Id, events);
-                        ApplyHit(s, e, target, cfg, rng, events, sk.DamageMult);
+                        double mult = sk.DamageMult * rankFactor;
+                        ApplyHit(s, e, target, cfg, rng, events, mult);
                         if (sk.AoeRadius > 0)
                         {
                             foreach (var o in s.Entities)
                                 if (o.Team == target.Team && o.Alive && !ReferenceEquals(o, target)
                                     && Vec2.Distance(o.Pos, target.Pos) <= sk.AoeRadius)
-                                    ApplyHit(s, e, o, cfg, rng, events, sk.DamageMult);
+                                    ApplyHit(s, e, o, cfg, rng, events, mult);
                         }
                         return true;
                     }
@@ -811,7 +819,7 @@ namespace IdleGame.GameCore
                         var ally = PickHealTarget(s, e, sk);
                         if (ally == null) continue;
                         CastStart(e, sk, ally.Id, events);
-                        double heal = Math.Max(1.0, e.EffectiveStat(StatKey.Atk) * sk.DamageMult);
+                        double heal = Math.Max(1.0, e.EffectiveStat(StatKey.Atk) * sk.DamageMult * rankFactor);
                         ally.Hp = Math.Min(ally.MaxHp, ally.Hp + heal);
                         events.Add(new CombatEvent { Type = CombatEventType.Heal, SourceId = e.Id, TargetId = ally.Id, Amount = heal });
                         return true;
@@ -820,7 +828,7 @@ namespace IdleGame.GameCore
                     {
                         if (!AnyEnemyAlive(s, e.Team)) continue; // don't waste buffs out of combat
                         CastStart(e, sk, e.Id, events);
-                        e.Buffs.Add(new ActiveBuff { Stat = sk.BuffStat, Amount = sk.BuffAmount, RemainingMs = sk.BuffDurationMs });
+                        e.Buffs.Add(new ActiveBuff { Stat = sk.BuffStat, Amount = sk.BuffAmount * rankFactor, RemainingMs = sk.BuffDurationMs });
                         return true;
                     }
                 }

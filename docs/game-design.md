@@ -255,9 +255,12 @@ big-architecture (prestige) until the minute-to-minute is fun.
    tags them ("▲ +N% for <hero>"), the compare leads with the verdict, and opt-in
    auto-equip-if-better removes the chore. Each kill visibly matters. Built on §7 "Item comparison
    UI" + §5.2.
-3. **Build depth.** Choosable active skills (loadout matters), meaningful gear
-   affixes/synergies — the party is a *build you shape*, not a fixed kit. See §8
-   "Skills & skill trees" and "Crafting/sets".
+3. **Build depth** *(◑ in progress — slice 1 of 3).* Choosable active skills (the 4-of-6 loadout
+   ships), now **leveled**: earn 1 skill point per hero level, spend to rank skills up so their
+   effect scales (`Skills.InvestSkill`, free respec; rank 0 = base, so it's purely additive). Next:
+   active/passive split (passives fold into `Stats.ComputeHeroStats`, flowing into the Lever 2 power
+   compare) and a prereq/level-gated tree — the party becomes a *build you shape*. See §8 "Skills &
+   skill trees" and "Crafting/sets".
 4. **Progression hooks.** Milestone rewards, escalating goals, a "one more stage" pull
    (goal-ladder slices 3–4). Pulls you forward but *relies on the core fight already
    being fun* — hence last. See §8 "Prestige & retention".
@@ -299,7 +302,7 @@ single-player, local game), **Depth** (build variety + retention), **Live-servic
 | **Art direction — *Tunic* pivot** | `TunicSurface` height-blend shader (grass-top/dirt-side + inked facet edges + crisp light); faceted vertex-coloured ground + props; clean lighting + procedural dappled light cookie. Heroes are code-built **chibi placeholders** — Blender skinned models are the eventual goal, plugging into the `CombatView` spawn/animator seam. Mixamo removed. | ✅ |
 | **Pack variety** — *✅* | (a) Elite/rare ranks (highlighted, tougher, better loot); (b) **monster modifiers** — boss-sourced, player-toggled risk/reward types (Vampiric/Swift/Armored/Thorns) applied to farm trash for harder mobs + thematic rewards. Lever #1 of §7.1. | ✅ |
 | **Loot legibility** — *✅* | `Upgrades` power-score + verdict core (geometric DPS×Eff-Life); bag ▲ badges, loot-feed upgrade tags, compare verdict headline, opt-in auto-equip-if-better. Lever #2 of §7.1. | ✅ |
-| **Skills & skill trees** *(its own milestone)* | Per-hero **unique** skills, leveled with skill points. **Active vs passive**: ≤4 active equipped at once, passives always apply. **Skill tree** — initially linear; a node needs ≥1 point in its prerequisite; more nodes unlock as the hero levels. Builds on the M11 `SkillDef`/loadout seed (the Heroes Skills tab is the read-only seed). | |
+| **Skills & skill trees** *(◑ slice 1/3)* | Per-hero **unique** skills, leveled with skill points. **Slice 1 ✅** — 1 point/level (`Skills.InvestSkill`/`RespecHero`; ranks scale effect `×(1+EffectPerRank·rank)`, rank 0 = base; UI invest/respec in Heroes→Skills). **Active vs passive** (slice 2): ≤4 active equipped, passives always apply (fold into `Stats.ComputeHeroStats`). **Skill tree** (slice 3): initially linear; a node needs ≥1 point in its prerequisite; more nodes unlock as the hero levels. Lever #3 of §7.1. | ◑ |
 | **Roster growth & classes** | More hero unlocks (stage 5/7/…) and new classes/kits beyond Warrior + Magician. | |
 | **Social / chat IA** | Pre-release shows **System only**; Global · Friends · Guild and per-person **Whispers** (DMs) stay hidden until the server (Phase C) so players aren't shown dead features. Target IA + the re-enable seam are documented in `ChatPanel`. | ◑ |
 | **Crafting / sets / loot filter** | Affix rerolls, set bonuses, enhancement scrolls (§6.1), loot filter. | |

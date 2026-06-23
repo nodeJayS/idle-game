@@ -68,12 +68,96 @@ namespace IdleGame.GameCore
             return WithLoadout(save, hero, list);
         }
 
+        // ---- Skill ranks (Lever 3 build depth): spend level-earned points to rank up skills ----
+
+        /// <summary>Total skill points a hero has earned: one per level gained
+        /// (<see cref="BalanceConstants.SkillPointsPerLevel"/>). Level 1 = 0.</summary>
+        public static int PointsEarned(HeroInstance hero, GameConfig cfg)
+            => Math.Max(0, hero.Level - 1) * cfg.Balance.SkillPointsPerLevel;
+
+        /// <summary>Points already invested across all of a hero's skills.</summary>
+        public static int PointsSpent(HeroInstance hero)
+        {
+            int n = 0;
+            foreach (var v in hero.SkillRanks.Values) n += v;
+            return n;
+        }
+
+        /// <summary>Points available to invest (earned − spent). Derived, never persisted.</summary>
+        public static int UnspentPoints(HeroInstance hero, GameConfig cfg)
+            => PointsEarned(hero, cfg) - PointsSpent(hero);
+
+        /// <summary>A skill's invested rank (0 if never invested).</summary>
+        public static int RankOf(HeroInstance hero, string skillId)
+            => hero.SkillRanks.TryGetValue(skillId, out var r) ? r : 0;
+
+        /// <summary>Can this hero invest a point into <paramref name="skillId"/> right now? Requires
+        /// the skill be known, below its <see cref="SkillDef.MaxRank"/>, and an unspent point.</summary>
+        public static bool CanInvest(SaveState save, string heroId, string skillId, GameConfig cfg)
+        {
+            var hero = save.Heroes.Find(h => h.Id == heroId);
+            if (hero == null) return false;
+            if (!Known(hero, cfg).Contains(skillId)) return false;
+            if (!cfg.Skills.TryGetValue(skillId, out var def)) return false;
+            if (RankOf(hero, skillId) >= def.MaxRank) return false;
+            return UnspentPoints(hero, cfg) > 0;
+        }
+
+        /// <summary>Spend one point to raise a skill's rank by 1. No-op (same save ref) when
+        /// <see cref="CanInvest"/> is false. Pure.</summary>
+        public static SaveState InvestSkill(SaveState save, string heroId, string skillId, GameConfig cfg)
+        {
+            if (!CanInvest(save, heroId, skillId, cfg)) return save;
+            var hero = save.Heroes.Find(h => h.Id == heroId)!;
+
+            var next = new Dictionary<string, int>(hero.SkillRanks);
+            next[skillId] = RankOf(hero, skillId) + 1;
+            return WithRanks(save, hero, next);
+        }
+
+        /// <summary>Refund every invested point (clear all ranks) — free respec, points become
+        /// re-spendable. No-op when nothing is invested. Pure.</summary>
+        public static SaveState RespecHero(SaveState save, string heroId, GameConfig cfg)
+        {
+            var hero = save.Heroes.Find(h => h.Id == heroId)
+                ?? throw new InvalidOperationException($"RespecHero: hero \"{heroId}\" not owned");
+            if (hero.SkillRanks.Count == 0) return save;
+            return WithRanks(save, hero, new Dictionary<string, int>());
+        }
+
+        private static SaveState WithRanks(SaveState save, HeroInstance hero, Dictionary<string, int> ranks)
+        {
+            var updated = new HeroInstance
+            {
+                Id = hero.Id, DefId = hero.DefId, Level = hero.Level, Xp = hero.Xp,
+                Equipped = hero.Equipped, SkillLoadout = hero.SkillLoadout, SkillRanks = ranks,
+            };
+            var heroes = new List<HeroInstance>(save.Heroes.Count);
+            foreach (var h in save.Heroes) heroes.Add(ReferenceEquals(h, hero) ? updated : h);
+
+            return new SaveState
+            {
+                Version = save.Version,
+                RngSeed = save.RngSeed,
+                RngCursor = save.RngCursor,
+                Heroes = heroes,
+                Party = save.Party,
+                LeaderHeroId = save.LeaderHeroId,
+                Inventory = save.Inventory,
+                Currencies = save.Currencies,
+                Progress = save.Progress,
+                Quests = save.Quests,
+                Modifiers = save.Modifiers,
+                LastClaimAt = save.LastClaimAt,
+            };
+        }
+
         private static SaveState WithLoadout(SaveState save, HeroInstance hero, List<string> loadout)
         {
             var updated = new HeroInstance
             {
                 Id = hero.Id, DefId = hero.DefId, Level = hero.Level, Xp = hero.Xp,
-                Equipped = hero.Equipped, SkillLoadout = loadout,
+                Equipped = hero.Equipped, SkillLoadout = loadout, SkillRanks = hero.SkillRanks,
             };
             var heroes = new List<HeroInstance>(save.Heroes.Count);
             foreach (var h in save.Heroes) heroes.Add(ReferenceEquals(h, hero) ? updated : h);
