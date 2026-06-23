@@ -232,6 +232,7 @@ namespace IdleGame.Game
         private EquipmentView? _equipment;
         private ChatPanel? _chat;
         private QuestPanel? _questPanel;
+        private ModifierPanel? _modifierPanel;
         private readonly Dictionary<string, View> _views = new Dictionary<string, View>();
 
         private double _accMs;
@@ -291,9 +292,20 @@ namespace IdleGame.Game
         public void BindInventory(InventoryView inv) => _inventory = inv;
         public void BindEquipment(EquipmentView eq) => _equipment = eq;
         public void BindChat(ChatPanel chat) => _chat = chat;
+        public void BindModifiers(ModifierPanel panel) => _modifierPanel = panel;
+
+        /// <summary>Toggle a monster modifier on/off (Lever 1) from the ModifierPanel: persist via
+        /// the GameCore reducer and re-resolve the live farm's active set so the next spawned packs
+        /// gain/lose it (mobs already on the field keep what they spawned with).</summary>
+        public void SetModifierActive(string typeId, bool on)
+        {
+            _save = Modifiers.SetActive(_save, typeId, on);
+            if (_combat != null) _combat.ActiveModifiers = Modifiers.ResolveActive(_save, _cfg);
+        }
 
         private bool AnyPanelOpen => (_inventory != null && _inventory.IsOpen)
-                                  || (_equipment != null && _equipment.IsOpen);
+                                  || (_equipment != null && _equipment.IsOpen)
+                                  || (_modifierPanel != null && _modifierPanel.IsOpen);
 
         public void Init(SaveState save, GameConfig cfg)
         {
@@ -331,7 +343,8 @@ namespace IdleGame.Game
             return party;
         }
 
-        private void StartFarm() => Begin(Combat.InitFarm(BuildParty(), _save.Progress.CurrentStage, _cfg, NewRng()));
+        private void StartFarm() => Begin(Combat.InitFarm(BuildParty(), _save.Progress.CurrentStage, _cfg, NewRng(),
+                                                          Modifiers.ResolveActive(_save, _cfg))); // active modifiers (Lever 1)
 
         private Rng NewRng() => _rng = new Rng((uint)(_save.RngSeed + _runCount));
 
@@ -515,6 +528,17 @@ namespace IdleGame.Game
                 _save = Progression.OnStageCleared(_save, cleared, _cfg);
                 _chat?.AddFeed($"Stage {cleared} cleared!", new Color(0.55f, 0.9f, 0.55f));
                 AdvanceQuest(QuestKind.ClearStages, 1);
+
+                // Bank the boss's modifier (Lever 1) — the "fight it, then own it" beat.
+                var (afterMod, grant) = Modifiers.AcquireFromStage(_save, cleared, _cfg);
+                _save = afterMod;
+                if (grant != null && (grant.IsNew || grant.Upgraded))
+                {
+                    string modName = _cfg.Modifiers.TryGetValue(grant.TypeId, out var md) ? md.Name : grant.TypeId;
+                    _chat?.AddFeed(grant.IsNew ? $"Modifier unlocked: {modName} (str {grant.Strength})"
+                                               : $"Modifier upgraded: {modName} → str {grant.Strength}",
+                                   new Color(0.85f, 0.6f, 1f));
+                }
             }
             // A failed boss run (timeout or wipe) ends an auto-push: drop back to manual farming.
             else if (_autoAdvance && _combat.Kind == EncounterKind.BossChallenge && _combat.Status == CombatStatus.Lost)
@@ -585,6 +609,7 @@ namespace IdleGame.Game
             // so without this the new hero has no combat entity and reads as 0 HP on the HUD
             // until a manual bench/unbench. ReconcileParty is idempotent for flee/fail resumes.
             Combat.ReconcileParty(_combat, _save, _cfg);
+            _combat.ActiveModifiers = Modifiers.ResolveActive(_save, _cfg); // re-apply toggles to the resumed farm
             _accMs = 0; _outcomeTimer = 0; _resolved = false;
             ReconcileViews();
         }
@@ -652,6 +677,15 @@ namespace IdleGame.Game
                 // Make a rank mob glow so it stands out in a pack at a glance.
                 if (!isHero && !e.IsBoss && e.Rank != MonsterRank.Normal)
                     Glow(go, color * (e.Rank == MonsterRank.Rare ? 2.0f : 1.5f));
+
+                // Monster-modifier aura (Lever 1): tint + glow toward the (first) modifier's colour
+                // — a clear "this mob is modified" tell (also marks the boss exhibiting its type).
+                if (!isHero && e.ModTypes.Count > 0 && _cfg.Modifiers.TryGetValue(e.ModTypes[0], out var amd))
+                {
+                    var tint = new Color((float)amd.TintR, (float)amd.TintG, (float)amd.TintB);
+                    Paint(go, Color.Lerp(color, tint, 0.6f));
+                    Glow(go, tint * 1.7f);
+                }
             }
 
             var view = new View { Go = go, Height = height, BaseColor = color, BaseScale = baseScale,
@@ -1052,10 +1086,18 @@ namespace IdleGame.Game
             long gold = _save.Currencies.TryGetValue("gold", out var g) ? g : 0;
             // Farm: just the gold readout (the current stage shows in DrawTopControls below).
             // Boss challenge: the boss context (which names the stage) plus gold.
+            // The boss exhibits (and grants) its stage's modifier — name it so the player sees
+            // what they're fighting and about to bank (Lever 1).
+            string bossMod = "";
+            if (_combat.Kind == EncounterKind.BossChallenge)
+            {
+                var mtype = _cfg.ModifierTypeForStage(_combat.Stage);
+                if (mtype != null && _cfg.Modifiers.TryGetValue(mtype, out var bmd)) bossMod = $"  ·  {bmd.Name}";
+            }
             string ctx = _combat.Kind == EncounterKind.Farm
                 ? $"{Num.Compact(gold)} gold"
                 : (major ? $"★ MAJOR BOSS — Stage {_combat.Stage}" : $"Miniboss — Stage {_combat.Stage}")
-                    + $"  ·  {Num.Compact(gold)} gold";
+                    + bossMod + $"  ·  {Num.Compact(gold)} gold";
             GUI.Label(new Rect(0, 8, sw, 28), ctx, style);
 
             if (_combat.Kind == EncounterKind.BossChallenge)
@@ -1275,6 +1317,12 @@ namespace IdleGame.Game
             x += 260 + gap;
 
             if (Button(x, y, 170, h, "Heroes")) _equipment?.ToggleDefault();
+            x += 170 + gap;
+
+            // Monster modifiers (Lever 1): the risk/reward knob. Shows a count when any are active.
+            int activeMods = _save.Modifiers.Active.Count;
+            string modLabel = activeMods > 0 ? $"Modifiers ({activeMods})" : "Modifiers";
+            if (Button(x, y, 230, h, modLabel)) _modifierPanel?.Toggle();
             // (The party always moves as a group now; stage nav + Challenge live in the
             // top-centre HUD — see DrawTopControls.)
         }

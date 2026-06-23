@@ -74,6 +74,10 @@ namespace IdleGame.Game
             equipment.Bind(view, cfg);
             view.BindEquipment(equipment);
 
+            var modifiers = director.AddComponent<ModifierPanel>();
+            modifiers.Bind(view, cfg);
+            view.BindModifiers(modifiers);
+
             var topbar = new GameObject("TopBar").AddComponent<TopBar>();
             topbar.transform.SetParent(session.transform);
             topbar.Bind(view, () => QuitToMenu(cfg, session, view));
