@@ -64,22 +64,30 @@ namespace IdleGame.Game
 
             int loose = Inventory.LooseCount(save);
             int cap = _cfg.Balance.InventoryCap;
-            var title = UiKit.Label(panel.transform, $"Inventory  {loose}/{cap}", 24, TextAnchor.MiddleLeft,
-                                    new Vector2(200, 40), new Vector2(-330, 274));
+            var title = UiKit.Label(panel.transform, $"Inventory  {loose}/{cap}", 22, TextAnchor.MiddleLeft,
+                                    new Vector2(180, 40), new Vector2(-355, 274));
             if (loose > cap) title.color = new Color(1f, 0.6f, 0.4f); // overfilled (idle/boss spillover)
 
             long scrap = save.Currencies.TryGetValue("scrap", out var sc) ? sc : 0;
-            UiKit.Label(panel.transform, $"Scrap: {Num.Compact(scrap)}", 16, TextAnchor.MiddleLeft,
-                        new Vector2(170, 30), new Vector2(-125, 274)).color = new Color(0.75f, 0.78f, 0.85f);
+            UiKit.Label(panel.transform, $"Scrap: {Num.Compact(scrap)}", 15, TextAnchor.MiddleLeft,
+                        new Vector2(130, 30), new Vector2(-215, 274)).color = new Color(0.75f, 0.78f, 0.85f);
 
-            UiKit.TextButton(panel.transform, "Close", new Vector2(150, 50), new Vector2(375, 274), Close, 22);
+            BuildAutoEquip(panel.transform);
+            UiKit.TextButton(panel.transform, "Close", new Vector2(110, 50), new Vector2(400, 274), Close, 22);
 
             // left: grid of item tiles (the shared bag)
             var grid = UiKit.ScrollGrid(panel.transform, new Vector2(520, 520), new Vector2(-170, -20), new Vector2(76, 76));
+            int stage = save.Progress.CurrentStage;
             foreach (var item in save.Inventory)
             {
                 var it = item; // capture
                 var tile = UiKit.ItemTile(grid, new Vector2(76, 76), Vector2.zero, it.Rarity, UiKit.SlotAbbrev(SlotOf(it)), raycast: true);
+                // Loose items that are an upgrade for someone get a green ▲ (Lever 2 legibility).
+                if (EquippedByWhom(save, it.Id) == null)
+                {
+                    var best = Upgrades.BestForItem(save, it, _cfg, stage);
+                    if (best != null) UpgradeTell.BadgeTile(tile, best.Verdict);
+                }
                 var btn = tile.AddComponent<Button>();
                 btn.onClick.AddListener(() => ShowDetail(save, it));
                 UiKit.Hover(tile, () => ShowDetail(save, it));
@@ -134,6 +142,17 @@ namespace IdleGame.Game
                             new Vector2(270, 22), new Vector2(0, y)).color = new Color(0.6f, 0.8f, 1f);
                 return;
             }
+
+            // Best-fit upgrade verdict (Lever 2): who would this help, and by how much?
+            y -= 8f;
+            var bestFit = Upgrades.BestForItem(save, item, _cfg, save.Progress.CurrentStage);
+            if (bestFit != null && bestFit.Verdict == Upgrades.Verdict.Upgrade)
+                UiKit.Label(_detail, $"{UpgradeTell.Glyph(bestFit.Verdict)} {UpgradeTell.Pct(bestFit.DeltaPercent)} power for {HeroName(save, bestFit.HeroId)}",
+                            14, TextAnchor.MiddleLeft, new Vector2(270, 22), new Vector2(0, y)).color = UpgradeTell.Color(bestFit.Verdict);
+            else
+                UiKit.Label(_detail, "No upgrade for any hero", 13, TextAnchor.MiddleLeft,
+                            new Vector2(270, 22), new Vector2(0, y)).color = UpgradeTell.Side;
+            y -= 26f;
 
             // Loose item -> manual salvage. Unique/Legendary take a second click to confirm.
             long worth = _cfg.Balance.ScrapValue(item.Rarity, item.ItemLevel);
@@ -191,8 +210,8 @@ namespace IdleGame.Game
         {
             var cur = Settings.AutoSalvageMax;
             var btn = UiKit.TextButton(parent, $"Auto-salvage: {AutoSalvageLabel(cur)}  {(_autoSalvageOpen ? "▴" : "▾")}",
-                                       new Vector2(300, 46), new Vector2(130, 274),
-                                       () => { _autoSalvageOpen = !_autoSalvageOpen; Rebuild(); }, 17);
+                                       new Vector2(230, 46), new Vector2(-15, 274),
+                                       () => { _autoSalvageOpen = !_autoSalvageOpen; Rebuild(); }, 15);
             var lbl = btn.GetComponentInChildren<Text>();
             if (lbl != null) lbl.color = AutoSalvageColor(cur);
 
@@ -203,14 +222,14 @@ namespace IdleGame.Game
             // backdrop behind the option rows (added before them, so the buttons sit on top)
             float panelH = rowH * n + 8f;
             float panelCY = firstY + rowH / 2f - panelH / 2f;
-            UiKit.Panel(parent, new Vector2(308, panelH), new Color(0.05f, 0.05f, 0.08f, 1f), new Vector2(130, panelCY));
+            UiKit.Panel(parent, new Vector2(238, panelH), new Color(0.05f, 0.05f, 0.08f, 1f), new Vector2(-15, panelCY));
 
             for (int i = 0; i < n; i++)
             {
                 var (max, label) = AutoSalvageOptions[i];
                 bool selected = max == cur;
-                var ob = UiKit.TextButton(parent, (selected ? "● " : "") + label, new Vector2(292, rowH - 4f),
-                                          new Vector2(130, firstY - rowH * i), () => SelectAutoSalvage(max), 16);
+                var ob = UiKit.TextButton(parent, (selected ? "● " : "") + label, new Vector2(222, rowH - 4f),
+                                          new Vector2(-15, firstY - rowH * i), () => SelectAutoSalvage(max), 16);
                 if (selected) ob.GetComponent<Image>().color = new Color(0.24f, 0.34f, 0.5f);
                 var ol = ob.GetComponentInChildren<Text>();
                 if (ol != null) ol.color = AutoSalvageColor(max);
@@ -222,6 +241,20 @@ namespace IdleGame.Game
             Settings.AutoSalvageMax = max;
             _autoSalvageOpen = false; // collapse after choosing
             Rebuild();
+        }
+
+        // ---- auto-equip-if-better toggle ----
+
+        /// <summary>A simple on/off toggle (Lever 2): when on, a banked drop that's a genuine power
+        /// upgrade for a fielded hero auto-equips. Sits in the header beside auto-salvage — both
+        /// govern what happens to drops automatically.</summary>
+        private void BuildAutoEquip(Transform parent)
+        {
+            bool on = Settings.AutoEquipUpgrades;
+            var btn = UiKit.TextButton(parent, $"Auto-equip: {(on ? "On" : "Off")}", new Vector2(150, 46),
+                                       new Vector2(230, 274), () => { Settings.AutoEquipUpgrades = !on; Rebuild(); }, 15);
+            var lbl = btn.GetComponentInChildren<Text>();
+            if (lbl != null) lbl.color = on ? UpgradeTell.Up : new Color(0.7f, 0.72f, 0.78f);
         }
 
         // ---- helpers ----

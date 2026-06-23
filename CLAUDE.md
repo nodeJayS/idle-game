@@ -59,7 +59,7 @@ files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sy
   scene in code (camera/light/ground) and `CombatView` drives the auto-battle.
   Play-mode can't be driven headlessly; visual checks are manual.
 
-## Status (267 tests passing)
+## Status (275 tests passing)
 
 **Phase A — core loop (M0–M9) ✅** — deterministic auto-combat; loot (rarity + affixes, equip →
 stat recompute); per-hero leveling; farm-zone stage ladder with 60s mini/major boss gates + tiered
@@ -96,12 +96,22 @@ chat/feed panel.
   reward (gold/XP/drop-rate, folded in `HandleDeath`). `SaveState.Modifiers` persisted. Boss gets
   its modifier behavior-only (timer stays fair). Visual tells: aura tint on mobs + boss-HUD name.
 
-The four "feels empty/boring" loop levers — all long-run goals — are in `docs/game-design.md` §7.1:
-**1 combat variety ✅ (ranks + modifiers)**, 2 loot & power chase, 3 build depth, 4 progression hooks.
+- **Loot & power chase (Lever 2) ✅** — drops legible at a glance. `Upgrades.cs` collapses a
+  candidate item into one honest power scalar (`PowerScore` = geometric mean of DPS and
+  Effective-Life, reusing `DerivedStats`) and a banded verdict (`EvaluateForHero` →
+  Upgrade/Sidegrade/Downgrade by `Balance.UpgradeBandPct`); `BestForItem` finds who gains most;
+  `AutoEquipIfBetter` equips on a true upgrade only. Client tells (`UpgradeTell` presentation):
+  green ▲ badges on bag tiles, a "▲ +N% power for <hero>" line in the bag detail + a verdict
+  headline in the Heroes compare, an upgrade tag on the loot-rain feed line, and an opt-in
+  **Auto-equip** toggle (`Settings.AutoEquipUpgrades`) that auto-equips fielded heroes on banking.
 
-**Next (gameplay-first):** Lever 2 (loot & power chase — legible upgrades, item compare); the
-Skills milestone (active/passive, ≤4 active, trees); more hero unlocks/classes; crafting/sets/
-loot-filter; alt modes; prestige.
+The four "feels empty/boring" loop levers — all long-run goals — are in `docs/game-design.md` §7.1:
+**1 combat variety ✅ (ranks + modifiers)**, **2 loot & power chase ✅ (legible upgrades + auto-equip)**,
+3 build depth, 4 progression hooks.
+
+**Next (gameplay-first):** Lever 3 (build depth — the Skills milestone: active/passive, ≤4 active,
+trees) and Lever 4 (progression hooks); more hero unlocks/classes; crafting/sets/loot-filter; alt
+modes; prestige.
 **Deferred:** real Blender hero models; UI/UX layout-group refactor; console balance-sim.
 Gacha/live-service still deferred. (Auto-advance push is built but shelved behind an off flag.)
 

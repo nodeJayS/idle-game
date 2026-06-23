@@ -52,6 +52,15 @@ namespace IdleGame.Game
             set { PlayerPrefs.SetInt("autoSalvage", value == null ? -1 : (int)value.Value); PlayerPrefs.Save(); }
         }
 
+        /// <summary>Auto-equip-if-better (Lever 2): when a banked drop is a genuine power upgrade
+        /// for a fielded hero, equip it automatically. Off by default — equipping silently changes
+        /// your build, so it's opt-in. Reads through the pure <see cref="Upgrades.AutoEquipIfBetter"/>.</summary>
+        public static bool AutoEquipUpgrades
+        {
+            get => PlayerPrefs.GetInt("autoEquip", 0) != 0;
+            set { PlayerPrefs.SetInt("autoEquip", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
         private static bool Get(string key) => PlayerPrefs.GetInt(key, 1) != 0;
         private static void Set(string key, bool v) { PlayerPrefs.SetInt(key, v ? 1 : 0); PlayerPrefs.Save(); }
         private static void SetF(string key, float v) { PlayerPrefs.SetFloat(key, v); PlayerPrefs.Save(); }

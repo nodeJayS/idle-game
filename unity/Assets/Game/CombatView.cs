@@ -492,6 +492,27 @@ namespace IdleGame.Game
                 {
                     _bagFullWarned = false;
                 }
+
+                // Auto-equip-if-better (Lever 2, opt-in): equip stored drops that are a genuine
+                // upgrade for a fielded hero. Runs on the running _save so each equip informs the
+                // next eval; one live stat refresh at the end (mirrors ReplaceSave).
+                if (Settings.AutoEquipUpgrades && loot.Stored.Count > 0)
+                {
+                    var fielded = new List<string>();
+                    foreach (var id in _save.Party) if (id != null) fielded.Add(id);
+                    bool equippedAny = false;
+                    if (fielded.Count > 0)
+                        foreach (var stored in loot.Stored)
+                        {
+                            var (next, equipped) = Upgrades.AutoEquipIfBetter(_save, stored, _cfg, _save.Progress.CurrentStage, fielded);
+                            if (equipped == null) continue;
+                            _save = next;
+                            equippedAny = true;
+                            _chat?.AddFeed($"Auto-equipped {stored.Rarity} {stored.BaseId} → {HeroDisplayName(equipped.HeroId)} ({UpgradeTell.Pct(equipped.DeltaPercent)})",
+                                           UpgradeTell.Up);
+                        }
+                    if (equippedAny && _combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg);
+                }
             }
             if (_combat.PendingXp > 0)
             {
@@ -868,7 +889,15 @@ namespace IdleGame.Game
                     case CombatEventType.LootDrop:
                         if (ev.Item != null && Settings.LootFeed)
                         {
-                            _chat?.AddFeed($"{ev.Item.Rarity} {ev.Item.BaseId} (i{ev.Item.ItemLevel})", Palette.Rarity(ev.Item.Rarity));
+                            // Tag the loot-rain line when the drop is a real upgrade (Lever 2), so a
+                            // kill visibly matters in the stream you're watching. Skip items the
+                            // auto-salvage threshold will scrap anyway (no point, and saves the eval).
+                            string line = $"{ev.Item.Rarity} {ev.Item.BaseId} (i{ev.Item.ItemLevel})";
+                            bool keep = Settings.AutoSalvageMax == null || ev.Item.Rarity > Settings.AutoSalvageMax.Value;
+                            var up = keep ? Upgrades.BestForItem(_save, ev.Item, _cfg, _save.Progress.CurrentStage) : null;
+                            if (up != null && up.Verdict == Upgrades.Verdict.Upgrade)
+                                line += $"  ▲ {UpgradeTell.Pct(up.DeltaPercent)} {HeroDisplayName(up.HeroId)}";
+                            _chat?.AddFeed(line, Palette.Rarity(ev.Item.Rarity));
                             // Keepers (Rare+) also pop in the world at the drop site — the
                             // standout beat in the loot rain; commons stay feed-only.
                             if (_juice != null && ev.Item.Rarity >= Rarity.Rare && ev.EntityId != null

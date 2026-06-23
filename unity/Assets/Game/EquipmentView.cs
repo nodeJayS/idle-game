@@ -307,8 +307,12 @@ namespace IdleGame.Game
 
                 var (before, after) = Inventory.ComparePairForHero(save, _heroId!, item, _cfg);
 
-                // Headline derived deltas first (B2): what equipping does to power + survivability.
+                // One-line power verdict (Lever 2), then the derived deltas (B2) behind it.
                 int stage = save.Progress.CurrentStage;
+                var eval = Upgrades.EvaluateForHero(save, _heroId!, item, _cfg, stage);
+                UiKit.Label(_detail, $"{UpgradeTell.Glyph(eval.Verdict)} {eval.Verdict}  {UpgradeTell.Pct(eval.DeltaPercent)} power",
+                            15, TextAnchor.MiddleLeft, new Vector2(250, 20), new Vector2(0, y)).color = UpgradeTell.Color(eval.Verdict);
+                y -= 24f;
                 y = DerivedDeltaRow(_detail, "DPS", DerivedStats.Dps(after) - DerivedStats.Dps(before), y);
                 y = DerivedDeltaRow(_detail, "Eff. Life",
                         DerivedStats.EffectiveHp(after, _cfg, stage) - DerivedStats.EffectiveHp(before, _cfg, stage), y);
