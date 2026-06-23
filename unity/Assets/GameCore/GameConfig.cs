@@ -117,6 +117,11 @@ namespace IdleGame.GameCore
         // so a very deep modifier can't reach 100%+ sustain/reflect.
         public double ModifierBehaviorCap = 0.6;
 
+        // Loot legibility (Lever 2): a candidate item's power swap (Upgrades.PowerScore) within
+        // ±this fraction reads as a Sidegrade, not an up/down-grade — so a 0.1% wiggle doesn't flash
+        // a green ▲ and auto-equip doesn't churn on noise. 0.005 = 0.5%.
+        public double UpgradeBandPct = 0.005;
+
         public double IdleCapHours = 12;
         // Offline yield as a fraction of the online rate (gold, XP, and loot rolls
         // alike) — starts at 70% to nudge active play; tune freely later.
