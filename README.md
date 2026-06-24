@@ -39,6 +39,18 @@ Open `unity/` in **Unity 6 LTS** (3D / URP) and press **Play** — `Bootstrap` b
 the scene in code and `CombatView` drives the auto-battle. The sim lives in
 `unity/Assets/GameCore/` under a no-engine-refs `GameCore.asmdef`.
 
+## Unity MCP (optional — driving the Editor from Claude)
+The repo ships an MCP config so a fresh clone can drive the Unity Editor (compile
+checks, play-mode screenshots) without setup. The pieces that travel with the repo:
+- **`.mcp.json`** (repo root) — points Claude at the bridge: `http://127.0.0.1:8080/mcp`.
+- **`unity/Packages/manifest.json` + `packages-lock.json`** — add & pin the bridge
+  package (`com.coplaydev.unity-mcp`, lock-pinned to a commit hash → reproducible).
+
+Per-machine prereqs (can't be committed): **Python + [`uv`](https://docs.astral.sh/uv/)**
+installed, and **Unity Editor open** with the **MCP bridge server started** (it listens
+on `127.0.0.1:8080`). With those running, open the clone in Claude and the `UnityMCP`
+server connects automatically — no secrets, localhost only.
+
 ## Milestones
 **Phase A (M0–M9) ✅** — auto-combat, loot, leveling, stage ladder + boss gates, idle, persistence, feel pass, ranged class, polish.
 **Phase B (depth)** — M10 multi-character ✅, M11 skills ✅, Tunic art pivot ✅; roster/gacha/live-service ahead.
