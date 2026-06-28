@@ -73,6 +73,19 @@ namespace IdleGame.GameCore
         public int HighestStage = 0;
         public int CurrentStage = 1;
         public int AccountLevel = 1;
+        // Tower of Ascension (alt mode) progress. Nested here so it rides the existing
+        // `Progress` reference-threading (only the 2 `new ProgressState{}` reducers must carry it),
+        // and can grow without touching every SaveState copy site.
+        public TowerState Tower = new TowerState();
+    }
+
+    /// <summary>Tower of Ascension progress (a separate one-clear-per-floor track, distinct from the
+    /// farmable stage ladder). <see cref="HighestFloor"/> is the deepest floor cleared (0 = none);
+    /// the next attemptable floor is HighestFloor + 1. Permanent account-wide buffs are *derived*
+    /// from this (every N floors → a milestone), so nothing else needs persisting.</summary>
+    public sealed class TowerState
+    {
+        public int HighestFloor = 0;
     }
 
     /// <summary>What a goal tracks. Each maps to a game event the client feeds into

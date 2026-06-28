@@ -240,6 +240,17 @@ namespace IdleGame.GameCore
         public double MonsterDmgGrowth = 1.08; // +8% atk/def per stage level (survivable)
         public double BossHpMult = 2.5;        // a boss is ~2.5x a same-stage trash mob (cut from 5 for faster boss kills)
 
+        // Tower of Ascension (alt mode): a ONE-CLEAR-PER-FLOOR track, distinct from the farmable
+        // ladder. STEEPER than the ladder on BOTH axes (HP and damage), so it gates on built power
+        // and can't be out-leveled by camping; rotating per-floor modifiers add a puzzle layer; and
+        // a permanent account-wide buff drops every TowerMilestoneEvery floors. No idle income.
+        public int TowerFloors = 30;                 // launch height (vertical slice); extend to 100 later
+        public double TowerHpGrowth = 1.25;          // +25%/floor HP (vs ladder 1.18 — a real DPS check)
+        public double TowerDmgGrowth = 1.15;         // +15%/floor atk+def (vs ladder 1.08 — bites harder)
+        public int TowerModifierFromFloor = 3;       // floors 1-2 are a gentle ramp; modifiers start here
+        public int TowerMilestoneEvery = 10;         // permanent account buff every N floors cleared
+        public double TowerMilestoneStatPct = 0.05;  // +5% Hp/Atk/Def (account-wide) per milestone
+
         // Pack variety (Lever 1): per-mob chance, rolled at farm spawn, to promote ordinary
         // trash to a highlighted, tougher rank with a boosted loot bundle. Rare is checked
         // first, then Elite; the rest stay Normal. Stat mults make them a real wall to chew
@@ -346,6 +357,16 @@ namespace IdleGame.GameCore
         {
             if (ModifierCycle.Count == 0) return null;
             int i = ((stage - 1) % ModifierCycle.Count + ModifierCycle.Count) % ModifierCycle.Count;
+            return ModifierCycle[i];
+        }
+
+        /// <summary>The modifier a tower FLOOR exhibits — its puzzle layer. Gentle ramp: floors below
+        /// <see cref="BalanceConstants.TowerModifierFromFloor"/> have none; deeper floors cycle the
+        /// curated <see cref="ModifierCycle"/>. null when no modifiers exist or the floor is in the ramp.</summary>
+        public string? TowerModifierForFloor(int floor)
+        {
+            if (ModifierCycle.Count == 0 || floor < Balance.TowerModifierFromFloor) return null;
+            int i = ((floor - 1) % ModifierCycle.Count + ModifierCycle.Count) % ModifierCycle.Count;
             return ModifierCycle[i];
         }
 

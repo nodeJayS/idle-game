@@ -100,6 +100,7 @@ namespace IdleGame.GameCore
             save.Inventory ??= new List<Item>();
             save.Currencies ??= new Dictionary<string, long>();
             save.Progress ??= new ProgressState();
+            save.Progress.Tower ??= new TowerState(); // older saves predate the Tower mode
             save.Quests ??= new QuestBoard(); // EnsureBoard (client, needs cfg) backfills the goals
             save.Modifiers ??= new MonsterModifiers(); // none owned on older saves until a boss grants one
 

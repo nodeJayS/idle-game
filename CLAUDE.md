@@ -59,7 +59,7 @@ files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sy
   scene in code (camera/light/ground) and `CombatView` drives the auto-battle.
   Play-mode can't be driven headlessly; visual checks are manual.
 
-## Status (299 tests passing)
+## Status (309 tests passing)
 
 **Phase A — core loop (M0–M9) ✅** — deterministic auto-combat; loot (rarity + affixes, equip →
 stat recompute); per-hero leveling; farm-zone stage ladder with 60s mini/major boss gates + tiered
@@ -127,6 +127,17 @@ chat/feed panel.
   INVESTMENT only — slotting/casting at rank 0 is unchanged, so seeded fights stay byte-identical.
   UI dims locked rows + shows "needs &lt;Prereq&gt; + Lv N"; ＋ greys until unlocked. Verified live
   (investing a root unlocks its child in real time). Lever 3 done.
+
+- **Tower of Ascension (alt mode) ◑ — slice 1 of 3 (GameCore) done.** A one-clear-per-floor track
+  distinct from the farmable ladder: **steeper** curve on both axes + rotating per-floor modifiers
+  (reuses the Lever-1 catalog), **no idle income**, and a **permanent account-wide buff every 10
+  floors**. `TowerState{HighestFloor}` nests under `ProgressState` (rides `Progress` threading — only
+  the 2 `new ProgressState{}` reducers + Migrate carry it; dodges the ~18-site SaveState footgun).
+  `Tower.cs`: NextFloor/MaxFloor/IsComplete/CanAttempt (sequential, forward-only), `RecordClear`,
+  derived `MilestonesCleared`/`AccountBuffPct`/`ApplyAccountBuffs` (×Hp/Atk/Def), per-floor
+  `FloorHpMult`/`FloorDmgMult`/`FloorModifier`. Tunables in `BalanceConstants` (Tower* — Floors=30,
+  Hp 1.25, Dmg 1.15, MilestoneEvery 10, MilestonePct 0.05). Slice 2 = live tower fight + entry screen
+  + fold account buffs into the combat stat build; slice 3 = reward presentation + tuning.
 
 The four "feels empty/boring" loop levers — all long-run goals — are in `docs/game-design.md` §7.1:
 **1 combat variety ✅ (ranks + modifiers)**, **2 loot & power chase ✅ (legible upgrades + auto-equip)**,

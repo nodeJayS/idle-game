@@ -98,6 +98,7 @@ namespace IdleGame.GameCore
                 HighestStage = highest,
                 CurrentStage = stage + 1,
                 AccountLevel = save.Progress.AccountLevel,
+                Tower = save.Progress.Tower,
             });
 
             // Sorted so multi-unlock grants mint hero ids deterministically.
@@ -132,6 +133,7 @@ namespace IdleGame.GameCore
                 HighestStage = save.Progress.HighestStage,
                 CurrentStage = stage,
                 AccountLevel = save.Progress.AccountLevel,
+                Tower = save.Progress.Tower,
             });
         }
 
