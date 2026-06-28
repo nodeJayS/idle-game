@@ -91,6 +91,13 @@ namespace IdleGame.GameCore
         // Rank 0 = base = today's behavior, so existing seeded fights are unchanged.
         public int MaxRank = 5;
         public double EffectPerRank = 0.12;   // +12% of the base effect per invested rank
+        // Build depth (Lever 3 slice 2): a passive skill is an always-on stat node, never cast — it
+        // can't be slotted in the active bar; instead each invested rank adds StatPerRank to
+        // PassiveStat, folded into Stats.ComputeHeroStats (so it flows into the stat sheet, DPS/
+        // Eff-Life, and the Lever 2 power compare for free). Rank 0 = +0 = unchanged behavior.
+        public bool Passive;                  // false = active cast (default); true = passive stat node
+        public StatKey PassiveStat;           // Passive: which stat each rank raises
+        public double StatPerRank;            // Passive: additive amount of PassiveStat per rank
     }
 
     /// <summary>
@@ -365,7 +372,7 @@ namespace IdleGame.GameCore
                                (StatKey.MaxMana, 50), (StatKey.ManaRegen, 3)), // shallow pool, slow regen
                 GrowthPerLevel = SB((StatKey.Hp, 18), (StatKey.Atk, 3), (StatKey.Def, 1.5), (StatKey.MaxMana, 2)),
                 // Known pool (6); first MaxActiveSkills are the starting active bar (see Skills.DefaultLoadout).
-                Skills = new List<string> { "cleave", "bash", "warcry", "whirlwind", "bulwark", "frenzy" }, Sprite = "warrior",
+                Skills = new List<string> { "cleave", "bash", "warcry", "whirlwind", "bulwark", "frenzy", "toughness", "vitality" }, Sprite = "warrior",
             };
 
             cfg.Heroes["magician_basic"] = new HeroDef
@@ -381,7 +388,7 @@ namespace IdleGame.GameCore
                                (StatKey.MaxMana, 120), (StatKey.ManaRegen, 6)), // deep pool, fast regen (caster)
                 GrowthPerLevel = SB((StatKey.Hp, 11), (StatKey.Atk, 4), (StatKey.Def, 1), (StatKey.MaxMana, 5)),
                 // Known pool (6); first MaxActiveSkills are the starting active bar (see Skills.DefaultLoadout).
-                Skills = new List<string> { "firebolt", "fireball", "mend", "scorch", "inferno", "haste" }, Sprite = "magician", AttackFx = "fireball",
+                Skills = new List<string> { "firebolt", "fireball", "mend", "scorch", "inferno", "haste", "pyromancy", "attunement" }, Sprite = "magician", AttackFx = "fireball",
             };
 
             cfg.Heroes["thief_basic"] = new HeroDef
@@ -398,7 +405,7 @@ namespace IdleGame.GameCore
                                (StatKey.MaxMana, 70), (StatKey.ManaRegen, 5)), // mid pool to fuel quick skills
                 GrowthPerLevel = SB((StatKey.Hp, 10), (StatKey.Atk, 4), (StatKey.Def, 1), (StatKey.MaxMana, 3)),
                 // Known pool (6); first MaxActiveSkills are the starting active bar (see Skills.DefaultLoadout).
-                Skills = new List<string> { "shadowstab", "vitalstrike", "bladewhirl", "pinpoint", "quickstep", "lethality" },
+                Skills = new List<string> { "shadowstab", "vitalstrike", "bladewhirl", "pinpoint", "quickstep", "lethality", "precision", "killerinstinct" },
                 Sprite = "thief",
             };
 
@@ -603,6 +610,42 @@ namespace IdleGame.GameCore
                 Id = "lethality", Name = "Lethality", Effect = SkillEffectKind.Buff, Targeting = "self",
                 CooldownMs = 12000, Range = 0, BuffStat = StatKey.CritDmg, BuffAmount = 0.6, BuffDurationMs = 6000,
                 ManaCost = 25, Sprite = "warcry",
+            };
+
+            // Passive nodes (Lever 3 slice 2): always-on, never cast — invest points to rank them and
+            // they add StatPerRank·rank to PassiveStat via Stats.ComputeHeroStats (flowing into the
+            // stat sheet + DPS/Eff-Life + Lever 2 power compare). Two per class, themed to its
+            // identity. StatPerRank values are gentle starting points (tuned by feel later); at the
+            // default MaxRank=5 each tops out at ~a few levels' worth of growth. Rank 0 = +0.
+            cfg.Skills["toughness"] = new SkillDef   // Warrior: stack armor
+            {
+                Id = "toughness", Name = "Toughness", Passive = true,
+                PassiveStat = StatKey.Def, StatPerRank = 2.0, Sprite = "bulwark",
+            };
+            cfg.Skills["vitality"] = new SkillDef    // Warrior: deeper health pool
+            {
+                Id = "vitality", Name = "Vitality", Passive = true,
+                PassiveStat = StatKey.Hp, StatPerRank = 12.0, Sprite = "bulwark",
+            };
+            cfg.Skills["pyromancy"] = new SkillDef    // Magician: raw spell power
+            {
+                Id = "pyromancy", Name = "Pyromancy", Passive = true,
+                PassiveStat = StatKey.Atk, StatPerRank = 2.0, Sprite = "fireball",
+            };
+            cfg.Skills["attunement"] = new SkillDef   // Magician: bigger mana pool
+            {
+                Id = "attunement", Name = "Attunement", Passive = true,
+                PassiveStat = StatKey.MaxMana, StatPerRank = 10.0, Sprite = "fireball",
+            };
+            cfg.Skills["precision"] = new SkillDef     // Thief: more crits
+            {
+                Id = "precision", Name = "Deadly Precision", Passive = true,
+                PassiveStat = StatKey.CritChance, StatPerRank = 0.02, Sprite = "warcry",
+            };
+            cfg.Skills["killerinstinct"] = new SkillDef // Thief: harder crits
+            {
+                Id = "killerinstinct", Name = "Killer Instinct", Passive = true,
+                PassiveStat = StatKey.CritDmg, StatPerRank = 0.08, Sprite = "warcry",
             };
 
             // Boss signature: a wide quake (free — bosses have no mana pool).

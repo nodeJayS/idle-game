@@ -14,15 +14,27 @@ namespace IdleGame.GameCore
     /// </summary>
     public static class Skills
     {
-        /// <summary>The skills a hero's class knows — the selectable pool.</summary>
+        /// <summary>The skills a hero's class knows — the selectable pool (actives + passives).</summary>
         public static IReadOnlyList<string> Known(HeroInstance hero, GameConfig cfg)
             => cfg.Heroes.TryGetValue(hero.DefId, out var def) ? def.Skills : (IReadOnlyList<string>)Array.Empty<string>();
 
+        /// <summary>Is this a passive node (always-on stat, never cast / never slotted)?</summary>
+        public static bool IsPassive(string skillId, GameConfig cfg)
+            => cfg.Skills.TryGetValue(skillId, out var def) && def.Passive;
+
+        /// <summary>Known active skills — the subset eligible for the active bar.</summary>
+        public static IReadOnlyList<string> KnownActive(HeroInstance hero, GameConfig cfg)
+            => Known(hero, cfg).Where(id => !IsPassive(id, cfg)).ToList();
+
+        /// <summary>Known passive nodes — ranked for stats, never slotted in the active bar.</summary>
+        public static IReadOnlyList<string> KnownPassive(HeroInstance hero, GameConfig cfg)
+            => Known(hero, cfg).Where(id => IsPassive(id, cfg)).ToList();
+
         /// <summary>The default active loadout for a freshly-minted hero: the first
-        /// MaxActiveSkills of its known pool, so a class with more skills than slots still
-        /// starts with a full, valid bar.</summary>
+        /// MaxActiveSkills of its known ACTIVE skills, so a class with more skills than slots still
+        /// starts with a full, valid bar (passives never occupy an active slot).</summary>
         public static List<string> DefaultLoadout(HeroDef def, GameConfig cfg)
-            => def.Skills.Take(Math.Max(0, cfg.Balance.MaxActiveSkills)).ToList();
+            => def.Skills.Where(id => !IsPassive(id, cfg)).Take(Math.Max(0, cfg.Balance.MaxActiveSkills)).ToList();
 
         /// <summary>
         /// Toggle a known skill in a hero's active loadout: slot it if it's off (and a slot is
@@ -34,6 +46,7 @@ namespace IdleGame.GameCore
             var hero = save.Heroes.Find(h => h.Id == heroId)
                 ?? throw new InvalidOperationException($"ToggleSkill: hero \"{heroId}\" not owned");
             if (!Known(hero, cfg).Contains(skillId)) return save;        // not a known skill -> no-op
+            if (IsPassive(skillId, cfg)) return save;                    // passives can't be slotted
 
             var next = new List<string>(hero.SkillLoadout);
             if (next.Contains(skillId)) next.Remove(skillId);            // unslot
@@ -58,6 +71,8 @@ namespace IdleGame.GameCore
             {
                 if (!known.Contains(id))
                     throw new InvalidOperationException($"SetLoadout: skill \"{id}\" not known by hero \"{heroId}\"");
+                if (IsPassive(id, cfg))
+                    throw new InvalidOperationException($"SetLoadout: skill \"{id}\" is passive and cannot be slotted");
                 if (list.Contains(id))
                     throw new InvalidOperationException($"SetLoadout: duplicate skill \"{id}\"");
                 list.Add(id);

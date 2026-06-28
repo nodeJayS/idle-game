@@ -413,29 +413,36 @@ namespace IdleGame.Game
             var hero = save.Heroes.Find(h => h.Id == _heroId);
             if (hero == null) return;
 
-            var box = UiKit.Panel(parent, new Vector2(560, 430), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(120, -26));
+            // Grown taller than the other panes (8 rows: actives + passives) — top still tucks under
+            // the subtabs (y=214); extends down toward the panel floor.
+            var box = UiKit.Panel(parent, new Vector2(560, 500), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(120, -61));
 
-            var known = Skills.Known(hero, _cfg);
+            var actives = Skills.KnownActive(hero, _cfg);
+            var passives = Skills.KnownPassive(hero, _cfg);
             int active = hero.SkillLoadout.Count;
             int cap = _cfg.Balance.MaxActiveSkills;
             int points = Skills.UnspentPoints(hero, _cfg);
 
             UiKit.Label(box.transform, $"{HeroName(save, _heroId)} — Skills", 18, TextAnchor.MiddleLeft,
-                        new Vector2(300, 26), new Vector2(-110, 192)).color = new Color(0.85f, 0.9f, 1f);
+                        new Vector2(300, 26), new Vector2(-110, 224)).color = new Color(0.85f, 0.9f, 1f);
             UiKit.Label(box.transform, $"Active {active}/{cap}", 14, TextAnchor.MiddleRight,
-                        new Vector2(150, 22), new Vector2(190, 192)).color =
+                        new Vector2(150, 22), new Vector2(190, 224)).color =
                 active >= cap ? new Color(1f, 0.82f, 0.4f) : new Color(0.7f, 0.74f, 0.8f);
 
             // Skill points + respec row (Lever 3): spend a point to rank a skill up.
             UiKit.Label(box.transform, $"Skill Points: {points}", 15, TextAnchor.MiddleLeft,
-                        new Vector2(280, 22), new Vector2(-110, 168)).color =
+                        new Vector2(280, 22), new Vector2(-110, 198)).color =
                 points > 0 ? new Color(1f, 0.85f, 0.4f) : new Color(0.62f, 0.66f, 0.72f);
-            ActionButton(box.transform, "Respec", new Vector2(110, 30), new Vector2(210, 168),
+            ActionButton(box.transform, "Respec", new Vector2(110, 30), new Vector2(210, 198),
                 Skills.PointsSpent(hero) > 0,
                 () => { _view.ReplaceSave(Skills.RespecHero(save, _heroId!, _cfg)); Rebuild(); }, 14);
 
-            float y = 138f;
-            foreach (var id in known)
+            // ---- Active skills (the auto-cast bar) ----
+            UiKit.Label(box.transform, "ACTIVE — pick " + cap + " to auto-cast", 12, TextAnchor.MiddleLeft,
+                        new Vector2(400, 18), new Vector2(-110, 170)).color = new Color(0.55f, 0.7f, 0.95f);
+
+            float y = 144f;
+            foreach (var id in actives)
             {
                 if (!_cfg.Skills.TryGetValue(id, out var sk)) continue;
                 bool on = hero.SkillLoadout.Contains(id);
@@ -444,11 +451,11 @@ namespace IdleGame.Game
                 string meta = sk.ManaCost > 0 ? $"{sk.Effect} · {sk.ManaCost} mana · {cd}" : $"{sk.Effect} · {cd}";
 
                 if (on) // tint the row for slotted skills (drawn first so labels sit on top)
-                    UiKit.Panel(box.transform, new Vector2(540, 46), new Color(0.18f, 0.28f, 0.42f, 0.55f), new Vector2(0, y - 9f));
+                    UiKit.Panel(box.transform, new Vector2(540, 42), new Color(0.18f, 0.28f, 0.42f, 0.55f), new Vector2(0, y - 8f));
 
                 UiKit.Label(box.transform, sk.Name, 16, TextAnchor.MiddleLeft, new Vector2(250, 22), new Vector2(-115, y))
                     .color = on ? new Color(0.85f, 0.92f, 1f) : new Color(0.78f, 0.80f, 0.85f);
-                UiKit.Label(box.transform, meta, 12, TextAnchor.MiddleLeft, new Vector2(250, 18), new Vector2(-115, y - 18f))
+                UiKit.Label(box.transform, meta, 12, TextAnchor.MiddleLeft, new Vector2(250, 16), new Vector2(-115, y - 16f))
                     .color = new Color(0.66f, 0.70f, 0.78f);
 
                 // Rank readout — gold once invested.
@@ -459,21 +466,47 @@ namespace IdleGame.Game
                 // Active -> click to remove; inactive -> "Slot" (disabled when the bar is full).
                 bool clickable = on || active < cap;
                 var btn = ActionButton(box.transform, on ? "Active ✓" : (active < cap ? "Slot" : "Full"),
-                    new Vector2(96, 36), new Vector2(140, y - 8f), clickable,
+                    new Vector2(96, 34), new Vector2(140, y - 8f), clickable,
                     () => { _view.ReplaceSave(Skills.ToggleSkill(save, _heroId!, capturedId, _cfg)); Rebuild(); }, 14);
                 if (on) btn.GetComponent<Image>().color = new Color(0.30f, 0.45f, 0.65f);
 
                 // Invest a point -> +1 rank (disabled when no points or at max rank).
-                ActionButton(box.transform, "＋", new Vector2(40, 36), new Vector2(232, y - 8f),
+                ActionButton(box.transform, "＋", new Vector2(40, 34), new Vector2(232, y - 8f),
                     Skills.CanInvest(save, _heroId!, id, _cfg),
                     () => { _view.ReplaceSave(Skills.InvestSkill(save, _heroId!, capturedId, _cfg)); Rebuild(); }, 18);
 
-                y -= 50f;
+                y -= 44f;
             }
 
-            UiKit.Label(box.transform,
-                $"Pick {cap} skills to auto-cast; spend points to rank them up (stronger effect). Changes apply live.",
-                12, TextAnchor.MiddleLeft, new Vector2(540, 30), new Vector2(0, -196)).color = new Color(0.7f, 0.74f, 0.8f);
+            // ---- Passive nodes (always-on; rank them for stats, never slotted) ----
+            y -= 6f;
+            UiKit.Label(box.transform, "PASSIVE — always on, rank for stats", 12, TextAnchor.MiddleLeft,
+                        new Vector2(400, 18), new Vector2(-110, y)).color = new Color(0.6f, 0.85f, 0.65f);
+            y -= 26f;
+            foreach (var id in passives)
+            {
+                if (!_cfg.Skills.TryGetValue(id, out var sk)) continue;
+                int rank = Skills.RankOf(hero, id);
+                double total = sk.StatPerRank * rank;
+                string effect = rank > 0
+                    ? $"+{sk.StatPerRank:0.##} {sk.PassiveStat}/rank  (now +{total:0.##})"
+                    : $"+{sk.StatPerRank:0.##} {sk.PassiveStat}/rank";
+
+                UiKit.Label(box.transform, sk.Name, 16, TextAnchor.MiddleLeft, new Vector2(250, 22), new Vector2(-115, y))
+                    .color = rank > 0 ? new Color(0.82f, 1f, 0.86f) : new Color(0.78f, 0.80f, 0.85f);
+                UiKit.Label(box.transform, effect, 12, TextAnchor.MiddleLeft, new Vector2(280, 16), new Vector2(-115, y - 16f))
+                    .color = new Color(0.66f, 0.78f, 0.70f);
+
+                UiKit.Label(box.transform, $"Rk {rank}/{sk.MaxRank}", 13, TextAnchor.MiddleCenter, new Vector2(70, 22), new Vector2(40, y - 8f))
+                    .color = rank > 0 ? new Color(1f, 0.85f, 0.45f) : new Color(0.6f, 0.64f, 0.7f);
+
+                string capturedId = id;
+                ActionButton(box.transform, "＋", new Vector2(40, 34), new Vector2(232, y - 8f),
+                    Skills.CanInvest(save, _heroId!, id, _cfg),
+                    () => { _view.ReplaceSave(Skills.InvestSkill(save, _heroId!, capturedId, _cfg)); Rebuild(); }, 18);
+
+                y -= 44f;
+            }
         }
 
         // ---- helpers ----

@@ -59,7 +59,7 @@ files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sy
   scene in code (camera/light/ground) and `CombatView` drives the auto-battle.
   Play-mode can't be driven headlessly; visual checks are manual.
 
-## Status (285 tests passing)
+## Status (293 tests passing)
 
 **Phase A — core loop (M0–M9) ✅** — deterministic auto-combat; loot (rarity + affixes, equip →
 stat recompute); per-hero leveling; farm-zone stage ladder with 60s mini/major boss gates + tiered
@@ -105,19 +105,26 @@ chat/feed panel.
   headline in the Heroes compare, an upgrade tag on the loot-rain feed line, and an opt-in
   **Auto-equip** toggle (`Settings.AutoEquipUpgrades`) that auto-equips fielded heroes on banking.
 
-- **Build depth (Lever 3) ◑ — slice 1 of 3 done.** Skills now *grow*: each hero earns 1 skill
+- **Build depth (Lever 3) ◑ — slice 2 of 3 done.** Skills now *grow*: each hero earns 1 skill
   point per level (`Skills.PointsEarned`, derived from level — not persisted), spent to **rank up**
   skills (`Skills.InvestSkill`, capped at `SkillDef.MaxRank`; free `RespecHero`). A skill's primary
   magnitude scales `× (1 + EffectPerRank·rank)` in the sim (`Combat.TryCastSkill`) — **rank 0 = base
   = today's behavior**, so existing seeded fights are byte-identical. `HeroInstance.SkillRanks`
   persisted (threaded through the 5 hero-copy sites + Migrate). UI: Heroes→Skills shows "Skill
   Points: N", per-skill "Rk r/max", a **＋** invest button, and **Respec**; invests apply live via
-  `RefreshPartyStats`. (The 4-of-6 active picker already shipped.) Slices 2 (active/passive split,
-  passives folded into `Stats.ComputeHeroStats`) + 3 (prereq/level-gated tree) are next.
+  `RefreshPartyStats`. (The 4-of-6 active picker already shipped.) **Slice 2 ✅ — passives:** each
+  class gained 2 always-on passive nodes (Warrior Toughness/Vitality, Magician Pyromancy/Attunement,
+  Thief Deadly Precision/Killer Instinct) added to its known pool. Passives are investable but never
+  slotted (`Skills.IsPassive`/`KnownActive`/`KnownPassive`; `ToggleSkill`/`SetLoadout`/`DefaultLoadout`
+  exclude them); each rank folds into `Stats.ComputeHeroStats` (`SkillDef.Passive`/`PassiveStat`/
+  `StatPerRank`), so it flows into the stat sheet + DPS/Eff-Life + the Lever 2 power compare for free.
+  Rank 0 = +0 ⇒ existing fights byte-identical. UI: Heroes→Skills split into ACTIVE + PASSIVE
+  sections — verified live via Unity MCP (invest ticks the gold rank + "now +N", folds into the
+  Stats sheet). Slice 3 (prereq/level-gated tree) is next.
 
 The four "feels empty/boring" loop levers — all long-run goals — are in `docs/game-design.md` §7.1:
 **1 combat variety ✅ (ranks + modifiers)**, **2 loot & power chase ✅ (legible upgrades + auto-equip)**,
-**3 build depth ◑ (skill ranks done; passives + tree next)**, 4 progression hooks.
+**3 build depth ◑ (skill ranks + passives done; tree next)**, 4 progression hooks.
 
 **Next (gameplay-first):** Lever 3 (build depth — the Skills milestone: active/passive, ≤4 active,
 trees) and Lever 4 (progression hooks); more hero unlocks/classes; crafting/sets/loot-filter; alt
