@@ -78,6 +78,10 @@ namespace IdleGame.Game
             modifiers.Bind(view, cfg);
             view.BindModifiers(modifiers);
 
+            var tower = director.AddComponent<TowerView>();
+            tower.Bind(view, cfg);
+            view.BindTower(tower);
+
             var topbar = new GameObject("TopBar").AddComponent<TopBar>();
             topbar.transform.SetParent(session.transform);
             topbar.Bind(view, () => QuitToMenu(cfg, session, view));

@@ -128,7 +128,7 @@ chat/feed panel.
   UI dims locked rows + shows "needs &lt;Prereq&gt; + Lv N"; ＋ greys until unlocked. Verified live
   (investing a root unlocks its child in real time). Lever 3 done.
 
-- **Tower of Ascension (alt mode) ◑ — slice 1 of 3 (GameCore) done.** A one-clear-per-floor track
+- **Tower of Ascension (alt mode) ◑ — slices 1+2 of 3 done; PLAYABLE.** A one-clear-per-floor track
   distinct from the farmable ladder: **steeper** curve on both axes + rotating per-floor modifiers
   (reuses the Lever-1 catalog), **no idle income**, and a **permanent account-wide buff every 10
   floors**. `TowerState{HighestFloor}` nests under `ProgressState` (rides `Progress` threading — only
@@ -136,8 +136,15 @@ chat/feed panel.
   `Tower.cs`: NextFloor/MaxFloor/IsComplete/CanAttempt (sequential, forward-only), `RecordClear`,
   derived `MilestonesCleared`/`AccountBuffPct`/`ApplyAccountBuffs` (×Hp/Atk/Def), per-floor
   `FloorHpMult`/`FloorDmgMult`/`FloorModifier`. Tunables in `BalanceConstants` (Tower* — Floors=30,
-  Hp 1.25, Dmg 1.15, MilestoneEvery 10, MilestonePct 0.05). Slice 2 = live tower fight + entry screen
-  + fold account buffs into the combat stat build; slice 3 = reward presentation + tuning.
+  Hp 1.25, Dmg 1.15, MilestoneEvery 10, MilestonePct 0.05). **Slice 2:** `EncounterKind.Tower` +
+  `CombatState.TowerFloor`; `Combat.EnterTower` (bounded fight in-place like EnterBossChallenge —
+  floor-scaled pack + floor modifier as a full buff + guardian boss on milestone floors; win=all
+  dead, lose=run-timer); account buffs fold into `RefreshPartyStats` (gear seam); `HandleDeath`
+  grants no income for Tower. Client: `TowerView` entry screen (control-bar "Tower (Fn)" button) →
+  `CombatView.EnterTowerFloor`; `ResolveOutcome`/`DrawOutcome` handle the win (RecordClear + milestone
+  buff feed + "Floor N cleared!" popup) and loss ("FLOOR N FAILED"). Verified live via Unity MCP
+  (floor 1 clear, floor 10 guardian + "+5% account power" buff). **Slice 3 = per-floor reward bundles
+  (TBD) + tuning/juice.**
 
 The four "feels empty/boring" loop levers — all long-run goals — are in `docs/game-design.md` §7.1:
 **1 combat variety ✅ (ranks + modifiers)**, **2 loot & power chase ✅ (legible upgrades + auto-equip)**,

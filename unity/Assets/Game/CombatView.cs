@@ -233,6 +233,7 @@ namespace IdleGame.Game
         private ChatPanel? _chat;
         private QuestPanel? _questPanel;
         private ModifierPanel? _modifierPanel;
+        private TowerView? _towerView;
         private readonly Dictionary<string, View> _views = new Dictionary<string, View>();
 
         private double _accMs;
@@ -293,6 +294,20 @@ namespace IdleGame.Game
         public void BindEquipment(EquipmentView eq) => _equipment = eq;
         public void BindChat(ChatPanel chat) => _chat = chat;
         public void BindModifiers(ModifierPanel panel) => _modifierPanel = panel;
+        public void BindTower(TowerView panel) => _towerView = panel;
+
+        /// <summary>Enter a Tower-of-Ascension floor from the TowerView: convert the live encounter
+        /// into the bounded tower fight IN PLACE (no scene reset), mirroring the boss challenge. The
+        /// outcome is banked in <see cref="ResolveOutcome"/> (win → Tower.RecordClear + any milestone
+        /// buff; either way it returns to farming on the same map after the result shows).</summary>
+        public void EnterTowerFloor(int floor)
+        {
+            if (_combat == null || !Tower.CanAttempt(_save, floor, _cfg)) return;
+            CommitPending();
+            Combat.EnterTower(_combat, floor, _cfg, NewRng());
+            _accMs = 0; _outcomeTimer = 0; _resolved = false;
+            ReconcileViews();
+        }
 
         /// <summary>Toggle a monster modifier on/off (Lever 1) from the ModifierPanel: persist via
         /// the GameCore reducer and re-resolve the live farm's active set so the next spawned packs
@@ -305,7 +320,8 @@ namespace IdleGame.Game
 
         private bool AnyPanelOpen => (_inventory != null && _inventory.IsOpen)
                                   || (_equipment != null && _equipment.IsOpen)
-                                  || (_modifierPanel != null && _modifierPanel.IsOpen);
+                                  || (_modifierPanel != null && _modifierPanel.IsOpen)
+                                  || (_towerView != null && _towerView.IsOpen);
 
         public void Init(SaveState save, GameConfig cfg)
         {
@@ -406,7 +422,8 @@ namespace IdleGame.Game
                 // A boss win shows a success popup that auto-advances after ~1s (or OK,
                 // which fast-forwards the timer); losses use the longer banner delay.
                 bool bossWin = _combat.Kind == EncounterKind.BossChallenge && _combat.Status == CombatStatus.Won;
-                float delay = bossWin ? 1.0f : OutcomeDelaySec;
+                bool towerDone = _combat.Kind == EncounterKind.Tower; // win or lose: brief result, then back to farm
+                float delay = (bossWin || towerDone) ? 1.0f : OutcomeDelaySec;
                 if (_outcomeTimer >= delay)
                 {
                     // Back to farming on the SAME map (no rebuild). A win farms the next stage at
@@ -567,6 +584,26 @@ namespace IdleGame.Game
                 _autoAdvance = false;
                 _chat?.AddFeed($"Auto-advance stopped — failed Stage {_combat.Stage}'s boss.",
                                new Color(1f, 0.6f, 0.4f));
+            }
+            // Tower of Ascension: bank a floor clear (advances the track + any milestone buff), or
+            // report the fail. Either way the Update loop resumes farming on the same map next.
+            else if (_combat.Kind == EncounterKind.Tower)
+            {
+                int floor = _combat.TowerFloor;
+                if (_combat.Status == CombatStatus.Won)
+                {
+                    int before = Tower.MilestonesCleared(_save, _cfg);
+                    _save = Tower.RecordClear(_save, floor, _cfg);
+                    Combat.RefreshPartyStats(_combat, _save, _cfg); // a new milestone buff applies at once
+                    _chat?.AddFeed($"Tower floor {floor} cleared!", new Color(0.6f, 0.85f, 1f));
+                    if (Tower.MilestonesCleared(_save, _cfg) > before)
+                        _chat?.AddFeed($"Ascension buff! +{Tower.AccountBuffPct(_save, _cfg) * 100:0}% account power (Hp/Atk/Def).",
+                                       new Color(1f, 0.85f, 0.4f));
+                }
+                else
+                {
+                    _chat?.AddFeed($"Tower floor {floor} failed — train up and try again.", new Color(1f, 0.6f, 0.4f));
+                }
             }
         }
 
@@ -1183,7 +1220,8 @@ namespace IdleGame.Game
             float sw = Screen.width / s, sh = Screen.height / s;
 
             bool bossWin = _combat.Kind == EncounterKind.BossChallenge && _combat.Status == CombatStatus.Won;
-            if (bossWin)
+            bool towerWin = _combat.Kind == EncounterKind.Tower && _combat.Status == CombatStatus.Won;
+            if (bossWin || towerWin)
             {
                 float w = 420f, h = 180f, x = sw / 2f - w / 2f, y = sh / 2f - h / 2f;
                 DrawRect(x - 2, y - 2, w + 4, h + 4, new Color(0.40f, 0.70f, 0.45f, 0.95f));
@@ -1191,16 +1229,20 @@ namespace IdleGame.Game
 
                 var t = new GUIStyle(GUI.skin.label) { fontSize = 30, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
                 t.normal.textColor = new Color(0.6f, 0.95f, 0.6f);
-                GUI.Label(new Rect(x, y + 24, w, 40), $"Stage {_combat.Stage} cleared!", t);
+                GUI.Label(new Rect(x, y + 24, w, 40),
+                    towerWin ? $"Tower floor {_combat.TowerFloor} cleared!" : $"Stage {_combat.Stage} cleared!", t);
                 var sub = new GUIStyle(GUI.skin.label) { fontSize = 15, alignment = TextAnchor.MiddleCenter };
                 sub.normal.textColor = new Color(0.8f, 0.85f, 0.8f);
-                GUI.Label(new Rect(x, y + 70, w, 24), "Advancing to the next stage…", sub);
+                GUI.Label(new Rect(x, y + 70, w, 24),
+                    towerWin ? "Returning to the field…" : "Advancing to the next stage…", sub);
 
                 if (Button(x + w / 2f - 80, y + h - 60, 160, 44, "OK")) _outcomeTimer = 9999f; // fast-forward
             }
             else
             {
-                string banner = _combat.Kind == EncounterKind.BossChallenge ? "BOSS FAILED" : "PARTY WIPED";
+                string banner = _combat.Kind == EncounterKind.BossChallenge ? "BOSS FAILED"
+                              : _combat.Kind == EncounterKind.Tower ? $"FLOOR {_combat.TowerFloor} FAILED"
+                              : "PARTY WIPED";
                 var bs = new GUIStyle(GUI.skin.label) { fontSize = 34, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
                 GUI.Label(new Rect(0, sh / 2f - 60, sw, 44), banner, bs);
             }
@@ -1352,6 +1394,10 @@ namespace IdleGame.Game
             int activeMods = _save.Modifiers.Active.Count;
             string modLabel = activeMods > 0 ? $"Modifiers ({activeMods})" : "Modifiers";
             if (Button(x, y, 230, h, modLabel)) _modifierPanel?.Toggle();
+            x += 230 + gap;
+
+            // Tower of Ascension (alt mode): shows the highest floor cleared.
+            if (Button(x, y, 190, h, $"Tower (F{Tower.HighestFloor(_save)})")) _towerView?.Toggle();
             // (The party always moves as a group now; stage nav + Challenge live in the
             // top-centre HUD — see DrawTopControls.)
         }
