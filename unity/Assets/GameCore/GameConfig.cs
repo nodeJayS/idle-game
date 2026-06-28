@@ -245,8 +245,8 @@ namespace IdleGame.GameCore
         // and can't be out-leveled by camping; rotating per-floor modifiers add a puzzle layer; and
         // a permanent account-wide buff drops every TowerMilestoneEvery floors. No idle income.
         public int TowerFloors = 30;                 // launch height (vertical slice); extend to 100 later
-        public double TowerHpGrowth = 1.25;          // +25%/floor HP (vs ladder 1.18 — a real DPS check)
-        public double TowerDmgGrowth = 1.15;         // +15%/floor atk+def (vs ladder 1.08 — bites harder)
+        public double TowerHpGrowth = 1.50;          // +50%/floor HP (brutal vs ladder 1.18 — a hard DPS check)
+        public double TowerDmgGrowth = 1.20;         // +20%/floor atk+def (vs ladder 1.08 — hits hard)
         public int TowerModifierFromFloor = 3;       // floors 1-2 are a gentle ramp; modifiers start here
         public int TowerMilestoneEvery = 10;         // permanent account buff every N floors cleared
         public double TowerMilestoneStatPct = 0.05;  // +5% Hp/Atk/Def (account-wide) per milestone

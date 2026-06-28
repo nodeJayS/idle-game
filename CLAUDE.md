@@ -136,15 +136,16 @@ chat/feed panel.
   `Tower.cs`: NextFloor/MaxFloor/IsComplete/CanAttempt (sequential, forward-only), `RecordClear`,
   derived `MilestonesCleared`/`AccountBuffPct`/`ApplyAccountBuffs` (×Hp/Atk/Def), per-floor
   `FloorHpMult`/`FloorDmgMult`/`FloorModifier`. Tunables in `BalanceConstants` (Tower* — Floors=30,
-  Hp 1.25, Dmg 1.15, MilestoneEvery 10, MilestonePct 0.05). **Slice 2:** `EncounterKind.Tower` +
-  `CombatState.TowerFloor`; `Combat.EnterTower` (bounded fight in-place like EnterBossChallenge —
-  floor-scaled pack + floor modifier as a full buff + guardian boss on milestone floors; win=all
-  dead, lose=run-timer); account buffs fold into `RefreshPartyStats` (gear seam); `HandleDeath`
+  Hp 1.50, Dmg 1.20, MilestoneEvery 10, MilestonePct 0.05 — brutal/steep on purpose). **Slice 2:**
+  `EncounterKind.Tower` + `CombatState.TowerFloor`; `Combat.EnterTower` (bounded fight in-place like
+  EnterBossChallenge — floor-scaled pack + floor modifier as a full buff + guardian boss on milestone
+  floors; win=all dead, lose=wipe — **heroes do NOT respawn in the tower**, do-or-die like the boss
+  challenge); account buffs fold into `RefreshPartyStats` (gear seam); `HandleDeath`
   grants no income for Tower. Client: `TowerView` entry screen (control-bar "Tower (Fn)" button) →
   `CombatView.EnterTowerFloor`; `ResolveOutcome`/`DrawOutcome` handle the win (RecordClear + milestone
   buff feed + "Floor N cleared!" popup) and loss ("FLOOR N FAILED"). Verified live via Unity MCP
   (floor 1 clear, floor 10 guardian + "+5% account power" buff). **Slice 3 = per-floor reward bundles
-  (TBD) + tuning/juice.**
+  (TBD) + juice.** (Tuning since done: no-respawn do-or-die; steep curve Hp ×1.50 / Dmg ×1.20.)
 
 The four "feels empty/boring" loop levers — all long-run goals — are in `docs/game-design.md` §7.1:
 **1 combat variety ✅ (ranks + modifiers)**, **2 loot & power chase ✅ (legible upgrades + auto-equip)**,

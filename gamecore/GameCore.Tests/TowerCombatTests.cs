@@ -53,11 +53,23 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void ADeepFloorOverwhelmsTheSameParty()
         {
-            // Floor 60's steep HP/dmg curve is unkillable inside the run timer for a fresh-leveled
-            // solo hero -> the fight ends in a loss (the gate that forces farming + upgrading).
+            // Floor 60's steep HP/dmg curve is unkillable for a fresh-leveled solo hero -> the fight
+            // ends in a loss (the gate that forces farming + upgrading).
             var s = TowerFight(Leveled(), 60);
             Combat.RunToEnd(s, Cfg, new Rng(1));
             Assert.Equal(CombatStatus.Lost, s.Status);
+        }
+
+        [Fact]
+        public void HeroesDoNotRespawnInTheTower()
+        {
+            // Unlike the farm, a hero downed in the tower stays dead for the run (no respawn timer),
+            // so a wipe ends it — the tower is do-or-die, not a war of attrition.
+            var s = TowerFight(Leveled(), 60);
+            Combat.RunToEnd(s, Cfg, new Rng(1));
+            var downed = s.Entities.Where(e => e.Team == Team.Party && !e.Alive).ToList();
+            Assert.NotEmpty(downed);
+            Assert.All(downed, e => Assert.True(e.RespawnMs <= 0, "tower death must not queue a respawn"));
         }
 
         // ---- floor scaling + modifiers ----

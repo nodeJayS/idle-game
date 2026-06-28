@@ -951,11 +951,11 @@ namespace IdleGame.GameCore
 
             if (target.Team == Team.Party)
             {
-                // Farm: downed, not dead — respawns after the countdown. Boss challenge:
-                // NO respawn — a death there is for the whole run, so the boss is a real
-                // wall (the run fails once every hero is down). RespawnMs stays 0, leaving
-                // the hero plainly dead rather than a frozen-timer "downed".
-                if (s.Kind != EncounterKind.BossChallenge)
+                // Farm: downed, not dead — respawns after the countdown. Boss challenge AND Tower:
+                // NO respawn — a death there is for the whole run, so the fight is a real wall (it
+                // fails once every hero is down). RespawnMs stays 0, leaving the hero plainly dead
+                // rather than a frozen-timer "downed".
+                if (s.Kind != EncounterKind.BossChallenge && s.Kind != EncounterKind.Tower)
                     target.RespawnMs = target.RespawnDurationMs;
                 return;
             }
