@@ -66,7 +66,8 @@ namespace IdleGame.Game
 
             if (owned.Count == 0)
             {
-                var empty = UiKit.Label(panel.transform, "Defeat a stage's boss to unlock its modifier.", 15, TextAnchor.MiddleCenter, new Vector2(500f, 40f), Vector2.zero);
+                int firstAt = _cfg.Balance.ModifierNewEveryStages;
+                var empty = UiKit.Label(panel.transform, $"Push deeper to unlock modifiers — your first unlocks at stage {firstAt}.", 15, TextAnchor.MiddleCenter, new Vector2(500f, 40f), Vector2.zero);
                 empty.color = new Color(0.70f, 0.74f, 0.80f);
                 AnchorTL(empty, new Vector2(30f, -HeaderH - 10f));
                 return;
@@ -89,10 +90,15 @@ namespace IdleGame.Game
             sub.supportRichText = true;
             AnchorTL(sub, new Vector2(22f, y - 32f));
 
-            var btn = UiKit.TextButton(parent, active ? "ON" : "OFF", new Vector2(74f, 36f), Vector2.zero,
-                () => { _view.SetModifierActive(def.Id, !active); Rebuild(); }, 15);
+            // Loadout cap: once MaxActiveModifiers are on, the remaining OFF rows are locked.
+            bool atCap = _view.CurrentSave.Modifiers.Active.Count >= _cfg.Balance.MaxActiveModifiers;
+            bool locked = !active && atCap;
+            var btn = UiKit.TextButton(parent, active ? "ON" : (locked ? "FULL" : "OFF"), new Vector2(74f, 36f), Vector2.zero,
+                locked ? (System.Action)(() => { }) : () => { _view.SetModifierActive(def.Id, !active); Rebuild(); }, 15);
+            btn.interactable = !locked;
             var img = btn.GetComponent<Image>();
-            if (img != null) img.color = active ? new Color(0.30f, 0.55f, 0.33f) : new Color(0.30f, 0.32f, 0.38f);
+            if (img != null) img.color = active ? new Color(0.30f, 0.55f, 0.33f)
+                                       : locked ? new Color(0.22f, 0.24f, 0.28f) : new Color(0.30f, 0.32f, 0.38f);
             AnchorTR((RectTransform)btn.transform, new Vector2(-16f, y - 2f));
         }
 
@@ -102,7 +108,7 @@ namespace IdleGame.Game
         {
             var list = new List<(ModifierDef, int, bool)>();
             var mods = _view.CurrentSave.Modifiers;
-            foreach (var id in _cfg.ModifierCycle) // stable, curated order
+            foreach (var id in _cfg.ModifierUnlockOrder) // stable unlock order (boring → spicy)
                 if (mods.Owned.TryGetValue(id, out var strength) && _cfg.Modifiers.TryGetValue(id, out var def))
                     list.Add((def, strength, mods.Active.Contains(id)));
             return list;
@@ -147,12 +153,13 @@ namespace IdleGame.Game
                     case ModifierReward.DropRate: drop += r; break;
                 }
             }
-            if (n == 0) return "None active — toggle modifiers on for harder mobs and bigger rewards.";
+            int max = _cfg.Balance.MaxActiveModifiers;
+            if (n == 0) return $"None active (0/{max}) — slot modifiers for harder mobs and bigger rewards.";
             var parts = new List<string>();
             if (gold > 0) parts.Add($"+{gold:0}% gold");
             if (xp > 0) parts.Add($"+{xp:0}% XP");
             if (drop > 0) parts.Add($"+{drop:0}% drop rate");
-            return $"<b>{n} active</b>   ·   {string.Join("   ", parts)}";
+            return $"<b>{n}/{max} active</b>   ·   {string.Join("   ", parts)}";
         }
 
         private static string StatName(StatKey k) => k switch

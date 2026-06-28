@@ -253,6 +253,14 @@ namespace IdleGame.GameCore
         public int TowerPackBase = 4;                // trash mobs on floor 1
         public int TowerPackPerFloors = 5;           // +1 mob every N floors (a slowly thickening pack)
 
+        // Modifiers (Lever 1, the risk/reward farm knob) — acquisition + upgrade are driven by FARM
+        // DEPTH (highest stage reached), not hero level: you unlock a new modifier every
+        // ModifierNewEveryStages and ALL owned modifiers gain +1 strength every ModifierUpgradeEvery
+        // stages. The player slots up to MaxActiveModifiers of them as an account-wide loadout.
+        public int ModifierNewEveryStages = 10;      // unlock the next modifier in ModifierUnlockOrder every N stages
+        public int ModifierUpgradeEveryStages = 5;   // +1 strength to ALL owned modifiers every N stages
+        public int MaxActiveModifiers = 3;           // loadout cap — how many can be active at once
+
         // Pack variety (Lever 1): per-mob chance, rolled at farm spawn, to promote ordinary
         // trash to a highlighted, tougher rank with a boosted loot bundle. Rare is checked
         // first, then Elite; the rest stay Normal. Stat mults make them a real wall to chew
@@ -350,6 +358,9 @@ namespace IdleGame.GameCore
         // ModifierCycle[(stage-1) % count] — see ModifierTypeForStage). Lever 1.
         public Dictionary<string, ModifierDef> Modifiers = new Dictionary<string, ModifierDef>();
         public List<string> ModifierCycle = new List<string>();
+        // The order modifiers UNLOCK as farm depth grows (one per ModifierNewEveryStages). Boring
+        // income mods first, the spicier behavioral ones later; mechanical/loot-imprint mods append here.
+        public List<string> ModifierUnlockOrder = new List<string>();
         public BalanceConstants Balance = new BalanceConstants();
 
         /// <summary>The modifier type a stage's boss exhibits (and grants on a kill). Cycles the
@@ -727,9 +738,40 @@ namespace IdleGame.GameCore
                 Reward = ModifierReward.Gold, RewardPerStrength = 0.07,
                 TintR = 0.90, TintG = 0.50, TintB = 0.15, // orange
             };
+            // "Boring" early modifiers (Lever 1 skeleton): a small monster-HP bump (the risk) for a
+            // clean income reward (the upside). Same ModifierDef shape as the behavioral ones, no new
+            // mechanics — they just front-load the unlock order before the spicier types.
+            cfg.Modifiers["prosperous"] = new ModifierDef
+            {
+                Id = "prosperous", Name = "Prosperous",
+                StatPerStrength = SB((StatKey.Hp, 0.06)),
+                Reward = ModifierReward.Gold, RewardPerStrength = 0.10,
+                TintR = 0.95, TintG = 0.82, TintB = 0.30, // gold
+            };
+            cfg.Modifiers["studious"] = new ModifierDef
+            {
+                Id = "studious", Name = "Studious",
+                StatPerStrength = SB((StatKey.Hp, 0.06)),
+                Reward = ModifierReward.Xp, RewardPerStrength = 0.10,
+                TintR = 0.45, TintG = 0.80, TintB = 0.95, // cyan
+            };
+            cfg.Modifiers["bountiful"] = new ModifierDef
+            {
+                Id = "bountiful", Name = "Bountiful",
+                StatPerStrength = SB((StatKey.Hp, 0.08)),
+                Reward = ModifierReward.DropRate, RewardPerStrength = 0.06,
+                TintR = 0.55, TintG = 0.85, TintB = 0.45, // green
+            };
+
             // Stage→type cycle: boss at stage 1=Vampiric, 2=Swift, 3=Armored, 4=Thorns, 5=Vampiric…
             // so all types are reachable early and re-clears bank stronger versions.
             cfg.ModifierCycle = new List<string> { "vampiric", "swift", "armored", "thorns" };
+            // Unlock order as farm depth grows (Modifiers.SyncToStage): boring income mods first, then
+            // the behavioral types. With ModifierNewEveryStages=10, that's one unlock per 10 stages.
+            cfg.ModifierUnlockOrder = new List<string>
+            {
+                "prosperous", "studious", "bountiful", "armored", "swift", "vampiric", "thorns",
+            };
 
             return cfg;
         }

@@ -59,7 +59,7 @@ files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sy
   scene in code (camera/light/ground) and `CombatView` drives the auto-battle.
   Play-mode can't be driven headlessly; visual checks are manual.
 
-## Status (309 tests passing)
+## Status (319 tests passing)
 
 **Phase A — core loop (M0–M9) ✅** — deterministic auto-combat; loot (rarity + affixes, equip →
 stat recompute); per-hero leveling; farm-zone stage ladder with 60s mini/major boss gates + tiered
@@ -88,13 +88,21 @@ chat/feed panel.
   (`Combat.RollRank`/`ApplyRank`): tougher (HP/Atk mults), chunkier body, highlighted (blue/gold
   + glow), and a boosted Rare-capped loot bundle (`Loot.RollRankDrops`) + reward mult. Tunables in
   `BalanceConstants` (Elite/RareChance etc.).
-- **Monster modifiers (Lever 1) ✅** — player-controlled risk/reward knob (PoE map-mods). Bosses
-  are the source: each stage's boss exhibits a modifier (`GameConfig.ModifierTypeForStage`, cycled
-  Vampiric/Swift/Armored/Thorns) and grants it on a kill at strength = stage (best banked). Toggle
-  owned types active (`Modifiers.cs` reducers; `ModifierPanel` UI) to apply to farm trash: stat
-  mults + per-hit behaviors (Vampiric lifesteal, Thorns reflect, in `ApplyHit`) for a thematic
-  reward (gold/XP/drop-rate, folded in `HandleDeath`). `SaveState.Modifiers` persisted. Boss gets
-  its modifier behavior-only (timer stays fair). Visual tells: aura tint on mobs + boss-HUD name.
+- **Monster modifiers (Lever 1) ✅ — now STAGE-DRIVEN (core-loop rework).** Player-controlled
+  risk/reward knob (PoE map-mods). **Acquisition + upgrade are driven by farm DEPTH** (highest stage),
+  not bosses: unlock the next modifier in `GameConfig.ModifierUnlockOrder` every
+  `Balance.ModifierNewEveryStages` (10) stages, +1 strength to ALL owned every
+  `ModifierUpgradeEveryStages` (5) — all derived from stage (`Modifiers.SyncToStage`, called in
+  `Progression.OnStageCleared` + on load in Bootstrap; idempotent, can't desync). Boss-banking
+  (`AcquireFromStage`) **retired**. Catalog front-loads "boring" income mods (Prosperous/Studious/
+  Bountiful = small monster-HP bump for +gold/+xp/+drop) before the behavioral Armored/Swift/Vampiric/
+  Thorns. Player slots up to `Balance.MaxActiveModifiers` (3) as an **account-wide loadout**
+  (`Modifiers.SetActive(...,cfg)` enforces the cap; `ModifierPanel` shows N/3 + locks "FULL" rows).
+  Applied to farm trash in combat: stat mults + per-hit behaviors (lifesteal/reflect in `ApplyHit`) +
+  reward (gold/XP/drop in `HandleDeath`). Bosses still *exhibit* a modifier (behavior-only) for flavor
+  via `ModifierCycle`. Visual tells: aura tint + boss-HUD name. **Roadmap:** mechanical loot-imprint
+  mods (monster +1 projectile → drops roll +1 projectile, PoE-style — needs new mechanical affixes)
+  then item **gambling/crafting** as a separate feature — see [[tower-of-ascension-mode]] sibling note.
 
 - **Loot & power chase (Lever 2) ✅** — drops legible at a glance. `Upgrades.cs` collapses a
   candidate item into one honest power scalar (`PowerScore` = geometric mean of DPS and

@@ -113,7 +113,9 @@ namespace IdleGame.GameCore
                 if (empty >= 0) next = Party.FieldHero(next, empty, heroId);      // join the party
             }
 
-            return next;
+            // Farm depth drives the Modifiers (Lever 1): unlock/upgrade owned modifiers for the new
+            // highest stage. Idempotent, so replaying a cleared stage is a no-op.
+            return Modifiers.SyncToStage(next, cfg);
         }
 
         /// <summary>

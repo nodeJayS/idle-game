@@ -51,6 +51,7 @@ namespace IdleGame.Game
             var loaded = SaveStore.Load();
             if (loaded == null) { NewGame(cfg); return; } // corrupt/missing -> fall back
             var (save, report) = Idle.Claim(loaded, cfg, NowMs()); // real offline gap
+            save = Modifiers.SyncToStage(save, cfg); // align owned modifiers to farm depth (covers pre-stage-model saves)
             StartSession(cfg, save, report);
         }
 

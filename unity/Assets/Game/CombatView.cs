@@ -314,7 +314,7 @@ namespace IdleGame.Game
         /// gain/lose it (mobs already on the field keep what they spawned with).</summary>
         public void SetModifierActive(string typeId, bool on)
         {
-            _save = Modifiers.SetActive(_save, typeId, on);
+            _save = Modifiers.SetActive(_save, typeId, on, _cfg);
             if (_combat != null) _combat.ActiveModifiers = Modifiers.ResolveActive(_save, _cfg);
         }
 
@@ -563,20 +563,26 @@ namespace IdleGame.Game
             if (_combat.Kind == EncounterKind.BossChallenge && _combat.Status == CombatStatus.Won)
             {
                 int cleared = _combat.Stage;
-                _save = Progression.OnStageCleared(_save, cleared, _cfg);
+
+                // Snapshot modifiers before the clear so we can feed any stage-driven unlock/upgrade.
+                var ownedBefore = new HashSet<string>(_save.Modifiers.Owned.Keys);
+                int strBefore = MaxModifierStrength(_save);
+
+                _save = Progression.OnStageCleared(_save, cleared, _cfg); // also syncs modifiers to depth
                 _chat?.AddFeed($"Stage {cleared} cleared!", new Color(0.55f, 0.9f, 0.55f));
                 AdvanceQuest(QuestKind.ClearStages, 1);
 
-                // Bank the boss's modifier (Lever 1) — the "fight it, then own it" beat.
-                var (afterMod, grant) = Modifiers.AcquireFromStage(_save, cleared, _cfg);
-                _save = afterMod;
-                if (grant != null && (grant.IsNew || grant.Upgraded))
-                {
-                    string modName = _cfg.Modifiers.TryGetValue(grant.TypeId, out var md) ? md.Name : grant.TypeId;
-                    _chat?.AddFeed(grant.IsNew ? $"Modifier unlocked: {modName} (str {grant.Strength})"
-                                               : $"Modifier upgraded: {modName} → str {grant.Strength}",
-                                   new Color(0.85f, 0.6f, 1f));
-                }
+                // Modifiers now unlock/upgrade by farm depth (Lever 1) — surface the beat in the feed.
+                var unlock = new Color(0.85f, 0.6f, 1f);
+                foreach (var kv in _save.Modifiers.Owned)
+                    if (!ownedBefore.Contains(kv.Key))
+                    {
+                        string name = _cfg.Modifiers.TryGetValue(kv.Key, out var md) ? md.Name : kv.Key;
+                        _chat?.AddFeed($"Modifier unlocked: {name} (str {kv.Value})", unlock);
+                    }
+                int strAfter = MaxModifierStrength(_save);
+                if (ownedBefore.Count > 0 && strAfter > strBefore)
+                    _chat?.AddFeed($"Modifiers upgraded → strength {strAfter}", unlock);
             }
             // A failed boss run (timeout or wipe) ends an auto-push: drop back to manual farming.
             else if (_autoAdvance && _combat.Kind == EncounterKind.BossChallenge && _combat.Status == CombatStatus.Lost)
@@ -605,6 +611,14 @@ namespace IdleGame.Game
                     _chat?.AddFeed($"Tower floor {floor} failed — train up and try again.", new Color(1f, 0.6f, 0.4f));
                 }
             }
+        }
+
+        // All owned modifiers share the same stage-derived strength; read the max (0 if none owned).
+        private static int MaxModifierStrength(SaveState save)
+        {
+            int m = 0;
+            foreach (var v in save.Modifiers.Owned.Values) if (v > m) m = v;
+            return m;
         }
 
         private int PartyLevelSum()

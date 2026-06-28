@@ -12,6 +12,14 @@ namespace IdleGame.GameCore.Tests
         private static SaveState NewSave() => Save.NewGame(1, Cfg, 0);
         private static HeroInstance Champ() => new HeroInstance { Id = "h1", DefId = "warrior_basic", Level = 1 };
 
+        // A save synced to a given farm depth (the new stage-driven acquisition).
+        private static SaveState AtStage(int highestStage)
+        {
+            var s = NewSave();
+            s.Progress.HighestStage = highestStage;
+            return Modifiers.SyncToStage(s, Cfg);
+        }
+
         // Minimal combat entity for the behavior tests (RefKind "test" unless overridden).
         private static CombatEntity Ent(string id, Team team, double hp, double atk, double def, double x)
         {
@@ -35,56 +43,80 @@ namespace IdleGame.GameCore.Tests
             return c;
         }
 
-        // --- acquisition / banking (pure reducers) ---
+        // --- stage-driven acquisition + upgrade (pure reducers) ---
 
         [Fact]
-        public void AcquireFromStageBanksTypeAtStrength()
+        public void DepthBelowFirstUnlockOwnsNothing()
         {
-            var (s1, g1) = Modifiers.AcquireFromStage(NewSave(), 1, Cfg); // cycle[0] = vampiric
-            Assert.NotNull(g1);
-            Assert.Equal("vampiric", g1!.TypeId);
-            Assert.True(g1.IsNew);
-            Assert.Equal(1, s1.Modifiers.Owned["vampiric"]);
+            Assert.Empty(AtStage(Cfg.Balance.ModifierNewEveryStages - 1).Modifiers.Owned);
         }
 
         [Fact]
-        public void AcquireKeepsHighestStrengthAndCyclesTypes()
+        public void SyncOwnsModifiersByDepthAtUniformStrength()
         {
-            var save = Modifiers.AcquireFromStage(NewSave(), 2, Cfg).save; // cycle[1] = swift
-            Assert.Equal(2, save.Modifiers.Owned["swift"]);
-
-            var (s6, g6) = Modifiers.AcquireFromStage(save, 6, Cfg);       // (6-1)%4 = 1 -> swift, stronger
-            Assert.True(g6!.Upgraded);
-            Assert.Equal(6, s6.Modifiers.Owned["swift"]);
-
-            var (s2, g2) = Modifiers.AcquireFromStage(s6, 2, Cfg);          // weaker re-clear: no downgrade
-            Assert.False(g2!.Upgraded);
-            Assert.Equal(6, s2.Modifiers.Owned["swift"]);
+            var s = AtStage(25); // 25/10 = 2 owned; 25/5 = 5 strength
+            Assert.Equal(2, s.Modifiers.Owned.Count);
+            Assert.Equal(new[] { "prosperous", "studious" }, s.Modifiers.Owned.Keys.OrderBy(k => k).ToArray());
+            Assert.All(s.Modifiers.Owned.Values, v => Assert.Equal(5, v));
         }
+
+        [Fact]
+        public void PushingDeeperUpgradesAllOwned()
+        {
+            Assert.Equal(2, AtStage(10).Modifiers.Owned["prosperous"]);   // 10/5
+            var s20 = AtStage(20);                                        // 20/5 = 4, and a 2nd unlock
+            Assert.Equal(4, s20.Modifiers.Owned["prosperous"]);           // the existing one upgraded
+            Assert.Equal(4, s20.Modifiers.Owned["studious"]);
+        }
+
+        [Fact]
+        public void SyncPrunesActiveToOwnedAndCap()
+        {
+            var s = AtStage(70); // owns all 7
+            s.Modifiers.Active.Clear();
+            s.Modifiers.Active.AddRange(new[] { "prosperous", "studious", "bountiful", "armored", "ghost" });
+            var synced = Modifiers.SyncToStage(s, Cfg);
+            Assert.True(synced.Modifiers.Active.Count <= Cfg.Balance.MaxActiveModifiers);
+            Assert.DoesNotContain("ghost", synced.Modifiers.Active); // unowned pruned
+        }
+
+        // --- loadout (capped toggle) ---
 
         [Fact]
         public void SetActiveRequiresOwnershipAndToggles()
         {
-            var save = Modifiers.SetActive(NewSave(), "vampiric", true); // not owned -> no-op
+            var save = Modifiers.SetActive(NewSave(), "prosperous", true, Cfg); // not owned at stage 0 -> no-op
             Assert.Empty(save.Modifiers.Active);
 
-            save = Modifiers.AcquireFromStage(save, 1, Cfg).save;
-            save = Modifiers.SetActive(save, "vampiric", true);
-            Assert.Contains("vampiric", save.Modifiers.Active);
+            save = AtStage(10);
+            save = Modifiers.SetActive(save, "prosperous", true, Cfg);
+            Assert.Contains("prosperous", save.Modifiers.Active);
 
-            save = Modifiers.SetActive(save, "vampiric", false);
-            Assert.DoesNotContain("vampiric", save.Modifiers.Active);
+            save = Modifiers.SetActive(save, "prosperous", false, Cfg);
+            Assert.DoesNotContain("prosperous", save.Modifiers.Active);
+        }
+
+        [Fact]
+        public void LoadoutCapBlocksBeyondMax()
+        {
+            var s = AtStage(70); // owns all 7
+            foreach (var id in new[] { "prosperous", "studious", "bountiful" })
+                s = Modifiers.SetActive(s, id, true, Cfg);
+            Assert.Equal(Cfg.Balance.MaxActiveModifiers, s.Modifiers.Active.Count);
+
+            var over = Modifiers.SetActive(s, "armored", true, Cfg); // would exceed the cap
+            Assert.Same(s, over);                                    // no-op shares the ref
         }
 
         [Fact]
         public void ResolveActiveReturnsDefAndStrength()
         {
-            var save = Modifiers.AcquireFromStage(NewSave(), 10, Cfg).save; // (10-1)%4 = 1 -> swift, str 10
-            save = Modifiers.SetActive(save, "swift", true);
+            var save = AtStage(25); // owns prosperous + studious at strength 5
+            save = Modifiers.SetActive(save, "studious", true, Cfg);
             var active = Modifiers.ResolveActive(save, Cfg);
             Assert.Single(active);
-            Assert.Equal("swift", active[0].Def.Id);
-            Assert.Equal(10, active[0].Strength);
+            Assert.Equal("studious", active[0].Def.Id);
+            Assert.Equal(5, active[0].Strength);
         }
 
         // --- application to combat ---
@@ -170,17 +202,17 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void ModifiersSurviveUnrelatedReducers()
         {
-            var save = Modifiers.AcquireFromStage(NewSave(), 1, Cfg).save; // own vampiric str 1
-            save = Modifiers.SetActive(save, "vampiric", true);
+            var save = AtStage(10);                                  // own prosperous str 2
+            save = Modifiers.SetActive(save, "prosperous", true, Cfg);
 
-            // Run a spread of unrelated reducers (each rebuilds the SaveState).
+            // Run a spread of unrelated reducers (each rebuilds the SaveState; none touch HighestStage).
             save = Progression.GrantGold(save, 100);
             save = Progression.GrantPartyXp(save, 50, Cfg);
             save = Party.SetLeader(save, save.Party[0]);
             save = Save.Touch(save, 999999);
 
-            Assert.Equal(1, save.Modifiers.Owned["vampiric"]); // threaded through every copy site
-            Assert.Contains("vampiric", save.Modifiers.Active);
+            Assert.Equal(2, save.Modifiers.Owned["prosperous"]); // threaded through every copy site
+            Assert.Contains("prosperous", save.Modifiers.Active);
         }
     }
 }
