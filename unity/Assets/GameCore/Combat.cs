@@ -144,6 +144,55 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>
+        /// Tower of Ascension: convert the current encounter into a tower-floor fight IN PLACE
+        /// (mirrors <see cref="EnterBossChallenge"/>). Despawn trash, restore the party, then spawn
+        /// floor N's pack — scaled by the tower's OWN steep curve (<see cref="Tower.FloorHpMult"/> /
+        /// <see cref="Tower.FloorDmgMult"/>, not the stage ladder), wearing the floor's modifier as a
+        /// full (not behavior-only) buff so it bites, plus a guardian boss on milestone floors. The
+        /// fight is bounded (no respawns; win = all enemies dead, lose = wipe / failsafe timeout) and
+        /// grants no farm income (see HandleDeath). Mutates s.
+        /// </summary>
+        public static void EnterTower(CombatState s, int floor, GameConfig cfg, Rng rng)
+        {
+            s.Entities.RemoveAll(e => e.Team == Team.Enemy);
+            RestoreParty(s);
+
+            double hpScale = Tower.FloorHpMult(floor, cfg);
+            double dmgScale = Tower.FloorDmgMult(floor, cfg);
+            var c = PartyCentroid(s);
+            double w = cfg.Balance.MapHalfWidth - 1.0, d = cfg.Balance.MapHalfDepth - 1.0;
+
+            int pack = cfg.Balance.TowerPackBase + floor / Math.Max(1, cfg.Balance.TowerPackPerFloors);
+            for (int j = 0; j < pack; j++)
+            {
+                var mdef = (j % 2 == 0) ? cfg.Monsters["slime"] : cfg.Monsters["goblin"];
+                var pos = new Vec2(Math.Clamp(c.X + cfg.Balance.BossSpawnDistance + j * 0.6, -w, w),
+                                   Math.Clamp(c.Y + (j - pack / 2) * 1.0, -d, d));
+                s.Entities.Add(MakeMonster(cfg, mdef, "E" + j, pos, dmgScale, false, hpScale));
+            }
+
+            // Guardian boss on milestone floors (the floor you bank a permanent buff on).
+            if (floor % Math.Max(1, cfg.Balance.TowerMilestoneEvery) == 0
+                && cfg.Stages.Count > 0 && cfg.Monsters.TryGetValue(cfg.Stages[0].BossId, out var boss))
+            {
+                var pos = new Vec2(Math.Clamp(c.X + cfg.Balance.BossSpawnDistance, -w, w), Math.Clamp(c.Y, -d, d));
+                s.Entities.Add(MakeMonster(cfg, boss, "EBOSS", pos, dmgScale, true, hpScale * cfg.Balance.BossHpMult));
+            }
+
+            // Floor modifier (the puzzle layer) on every enemy, at strength = floor — full buff.
+            string? modId = cfg.TowerModifierForFloor(floor);
+            if (modId != null && cfg.Modifiers.TryGetValue(modId, out var modDef))
+                foreach (var e in s.Entities)
+                    if (e.Team == Team.Enemy) ApplyModifier(e, modDef, floor, cfg, behaviorOnly: false);
+
+            s.Kind = EncounterKind.Tower;
+            s.TowerFloor = floor;
+            s.TimeMs = 0;
+            s.SpawnTimerMs = 0;
+            s.Status = CombatStatus.Running;
+        }
+
+        /// <summary>
         /// C1 — return a boss challenge (or a wiped farm) to farming IN PLACE: despawn the boss,
         /// restore the party, and resume the farm for <paramref name="stage"/> on the same map. The
         /// first trash pack is gated by <paramref name="spawnDelayMs"/> — a normal beat after a win,
@@ -197,6 +246,7 @@ namespace IdleGame.GameCore
                 if (hero == null) continue;
 
                 var stats = Stats.ComputeHeroStats(hero, cfg, Stats.ResolveEquipped(save, hero));
+                stats = Tower.ApplyAccountBuffs(stats, save, cfg); // permanent Tower milestone buffs (account-wide)
                 double oldMax = e.MaxHp;
                 double newMax = stats.Get(StatKey.Hp);
                 double oldMaxMana = e.MaxMana;
@@ -912,6 +962,10 @@ namespace IdleGame.GameCore
 
             if (target.IsBoss)
                 events.Add(new CombatEvent { Type = CombatEventType.BossDefeated, Stage = s.Stage });
+
+            // Tower grants NO farm income — the milestone account buffs are the reward, and a
+            // grindable income source would undercut the one-clear-per-floor design.
+            if (s.Kind == EncounterKind.Tower) return;
 
             // Loot + XP only from real monsters (guards synthetic test entities).
             if (target.RefKind == "monster" && cfg.Monsters.TryGetValue(target.RefId, out var mdef))

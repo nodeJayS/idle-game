@@ -44,7 +44,9 @@ namespace IdleGame.GameCore
     /// BossChallenge = a single boss under a short timer (the gate that advances a
     /// stage): win by killing it in time, lose on the timer expiring or a wipe.
     /// </summary>
-    public enum EncounterKind { Encounter, Farm, BossChallenge }
+    /// Tower = a Tower-of-Ascension floor: a bounded one-clear fight (steeper, modified pack;
+    /// no respawns, no farm income) that advances the tower track on a win.
+    public enum EncounterKind { Encounter, Farm, BossChallenge, Tower }
 
     /// <summary>
     /// How the party moves/targets. Solo = formation travel: the lowest-slot living hero
@@ -147,6 +149,7 @@ namespace IdleGame.GameCore
     {
         public double TimeMs;
         public int Stage;
+        public int TowerFloor;         // the tower floor this fight represents (Kind == Tower); 0 otherwise
         public EncounterKind Kind = EncounterKind.Encounter;
         public PartyTactic Tactic = PartyTactic.Solo;
         // Chosen formation leader (a hero RefId), mirrored from SaveState.LeaderHeroId. null

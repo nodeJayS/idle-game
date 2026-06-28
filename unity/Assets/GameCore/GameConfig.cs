@@ -250,6 +250,8 @@ namespace IdleGame.GameCore
         public int TowerModifierFromFloor = 3;       // floors 1-2 are a gentle ramp; modifiers start here
         public int TowerMilestoneEvery = 10;         // permanent account buff every N floors cleared
         public double TowerMilestoneStatPct = 0.05;  // +5% Hp/Atk/Def (account-wide) per milestone
+        public int TowerPackBase = 4;                // trash mobs on floor 1
+        public int TowerPackPerFloors = 5;           // +1 mob every N floors (a slowly thickening pack)
 
         // Pack variety (Lever 1): per-mob chance, rolled at farm spawn, to promote ordinary
         // trash to a highlighted, tougher rank with a boosted loot bundle. Rare is checked
