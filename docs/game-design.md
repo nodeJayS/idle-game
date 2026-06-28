@@ -255,12 +255,14 @@ big-architecture (prestige) until the minute-to-minute is fun.
    tags them ("▲ +N% for <hero>"), the compare leads with the verdict, and opt-in
    auto-equip-if-better removes the chore. Each kill visibly matters. Built on §7 "Item comparison
    UI" + §5.2.
-3. **Build depth** *(◑ in progress — slice 1 of 3).* Choosable active skills (the 4-of-6 loadout
-   ships), now **leveled**: earn 1 skill point per hero level, spend to rank skills up so their
-   effect scales (`Skills.InvestSkill`, free respec; rank 0 = base, so it's purely additive). Next:
-   active/passive split (passives fold into `Stats.ComputeHeroStats`, flowing into the Lever 2 power
-   compare) and a prereq/level-gated tree — the party becomes a *build you shape*. See §8 "Skills &
-   skill trees" and "Crafting/sets".
+3. **Build depth** *(✅ shipped — all 3 slices).* The party is now a *build you shape*. Choosable
+   active skills (4-of-6 loadout), **leveled** via 1 skill point per hero level spent to rank skills
+   up (`Skills.InvestSkill`, free respec; rank 0 = base, purely additive). **Passives** (slice 2): 2
+   always-on stat nodes per class that fold into `Stats.ComputeHeroStats`, flowing into the Lever 2
+   power compare for free. **Gated tree** (slice 3): active skills branch from 2 roots — a node needs
+   ≥1 rank in its prereq AND the hero at its unlock level (`SkillDef.Prereq`/`UnlockLevel`,
+   `Skills.IsUnlocked`); gating restricts investment only, so seeded fights stay byte-identical. See
+   §8 "Skills & skill trees" and "Crafting/sets".
 4. **Progression hooks.** Milestone rewards, escalating goals, a "one more stage" pull
    (goal-ladder slices 3–4). Pulls you forward but *relies on the core fight already
    being fun* — hence last. See §8 "Prestige & retention".
@@ -302,11 +304,11 @@ single-player, local game), **Depth** (build variety + retention), **Live-servic
 | **Art direction — *Tunic* pivot** | `TunicSurface` height-blend shader (grass-top/dirt-side + inked facet edges + crisp light); faceted vertex-coloured ground + props; clean lighting + procedural dappled light cookie. Heroes are code-built **chibi placeholders** — Blender skinned models are the eventual goal, plugging into the `CombatView` spawn/animator seam. Mixamo removed. | ✅ |
 | **Pack variety** — *✅* | (a) Elite/rare ranks (highlighted, tougher, better loot); (b) **monster modifiers** — boss-sourced, player-toggled risk/reward types (Vampiric/Swift/Armored/Thorns) applied to farm trash for harder mobs + thematic rewards. Lever #1 of §7.1. | ✅ |
 | **Loot legibility** — *✅* | `Upgrades` power-score + verdict core (geometric DPS×Eff-Life); bag ▲ badges, loot-feed upgrade tags, compare verdict headline, opt-in auto-equip-if-better. Lever #2 of §7.1. | ✅ |
-| **Skills & skill trees** *(◑ slice 1/3)* | Per-hero **unique** skills, leveled with skill points. **Slice 1 ✅** — 1 point/level (`Skills.InvestSkill`/`RespecHero`; ranks scale effect `×(1+EffectPerRank·rank)`, rank 0 = base; UI invest/respec in Heroes→Skills). **Active vs passive** (slice 2): ≤4 active equipped, passives always apply (fold into `Stats.ComputeHeroStats`). **Skill tree** (slice 3): initially linear; a node needs ≥1 point in its prerequisite; more nodes unlock as the hero levels. Lever #3 of §7.1. | ◑ |
+| **Skills & skill trees** *(✅)* | Per-hero **unique** skills, leveled with skill points. **Slice 1 ✅** — 1 point/level (`Skills.InvestSkill`/`RespecHero`; ranks scale effect `×(1+EffectPerRank·rank)`, rank 0 = base; UI invest/respec in Heroes→Skills). **Slice 2 ✅ active/passive** — 6 active (≤4 equipped) + 2 always-on passive nodes/class that fold into `Stats.ComputeHeroStats`. **Slice 3 ✅ gated tree** — actives branch from 2 roots; a node needs ≥1 rank in its prereq AND `hero.Level ≥ UnlockLevel` (`SkillDef.Prereq`/`UnlockLevel`, `Skills.IsUnlocked`); gates investment only. Lever #3 of §7.1. | ✅ |
 | **Roster growth & classes** | More hero unlocks (stage 5/7/…) and new classes/kits beyond Warrior + Magician. | |
 | **Social / chat IA** | Pre-release shows **System only**; Global · Friends · Guild and per-person **Whispers** (DMs) stay hidden until the server (Phase C) so players aren't shown dead features. Target IA + the re-enable seam are documented in `ChatPanel`. | ◑ |
 | **Crafting / sets / loot filter** | Affix rerolls, set bonuses, enhancement scrolls (§6.1), loot filter. | |
-| **Alt modes** | Endless ("deepest stage"); later party / co-op. | |
+| **Alt modes** | **Tower of Ascension** (user-requested) — a 100-floor tower, **exponentially** harder per floor, gating on built power so it's a long farm/upgrade goal (SW-ToA inspired). Must differ from the farm ladder: its **own** progression track, **one-time clear** per floor (not farmed), and milestone rewards (e.g. permanent account-wide buffs every 10 floors); per-floor rewards **TBD**. Build GameCore-first (`Tower.cs` reducer + `SaveState.Tower` + injected floor/curve/reward table, reusing the combat sim). Also: Endless ("deepest stage"); later party / co-op. | |
 | **Prestige & retention** | Rebirth multiplier; daily/weekly quests, login rewards, achievements, codex. | |
 | **UI/UX polish pass** | Dedicated pass **after the gameplay depth above** — the current screens are functional placeholders (IMGUI HUD + code-built uGUI, hand-placed coords). The real fix is a **uGUI layout-group refactor**; plus glyph/font audit, theming, real item/hero art hooks. | deferred |
 | **Balance sim (tooling)** | A console runner over pure `GameCore` to chart difficulty vs hero power across stages/levels/gear and find the walls. The steep geometric curves are tuned by feel today, and heroes can out-level a stage and one-shot trash. | deferred |

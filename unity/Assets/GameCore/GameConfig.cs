@@ -98,6 +98,12 @@ namespace IdleGame.GameCore
         public bool Passive;                  // false = active cast (default); true = passive stat node
         public StatKey PassiveStat;           // Passive: which stat each rank raises
         public double StatPerRank;            // Passive: additive amount of PassiveStat per rank
+        // Build depth (Lever 3 slice 3): skill-tree gating. A skill can only be RANKED once its gate
+        // is met — the hero is at least UnlockLevel AND (if Prereq is set) already has ≥1 rank in the
+        // Prereq skill. Roots leave Prereq null and UnlockLevel ≤ 1. Gating restricts point investment
+        // only; slotting/casting at rank 0 is unaffected, so existing seeded fights stay unchanged.
+        public string? Prereq;                // skillId that must have ≥1 rank before this can be ranked
+        public int UnlockLevel = 1;           // hero level required before this can be ranked
     }
 
     /// <summary>
@@ -514,7 +520,7 @@ namespace IdleGame.GameCore
             {
                 Id = "warcry", Name = "War Cry", Effect = SkillEffectKind.Buff, Targeting = "self",
                 CooldownMs = 9000, Range = 0, BuffStat = StatKey.Atk, BuffAmount = 10, BuffDurationMs = 6000,
-                ManaCost = 20, Sprite = "warcry",
+                ManaCost = 20, Sprite = "warcry", Prereq = "cleave", UnlockLevel = 5,
             };
             cfg.Skills["firebolt"] = new SkillDef
             {
@@ -539,40 +545,44 @@ namespace IdleGame.GameCore
             {
                 Id = "whirlwind", Name = "Whirlwind", Effect = SkillEffectKind.Damage, Targeting = "aoe",
                 CooldownMs = 6000, Range = 1.8, AoeRadius = 2.6, DamageMult = 1.4, ManaCost = 28, Sprite = "cleave",
+                Prereq = "bash", UnlockLevel = 8,
             };
             cfg.Skills["bulwark"] = new SkillDef
             {
                 Id = "bulwark", Name = "Bulwark", Effect = SkillEffectKind.Buff, Targeting = "self",
                 CooldownMs = 12000, Range = 0, BuffStat = StatKey.Def, BuffAmount = 15, BuffDurationMs = 6000,
-                ManaCost = 20, Sprite = "warcry",
+                ManaCost = 20, Sprite = "warcry", Prereq = "warcry", UnlockLevel = 14,
             };
             cfg.Skills["frenzy"] = new SkillDef
             {
                 Id = "frenzy", Name = "Frenzy", Effect = SkillEffectKind.Buff, Targeting = "self",
                 CooldownMs = 10000, Range = 0, BuffStat = StatKey.AtkSpd, BuffAmount = 0.5, BuffDurationMs = 6000,
-                ManaCost = 25, Sprite = "warcry",
+                ManaCost = 25, Sprite = "warcry", Prereq = "whirlwind", UnlockLevel = 18,
             };
             // Fire Wizard — AoE fireball, a heavy single nuke, a big AoE ultimate, an attack-speed buff.
             cfg.Skills["fireball"] = new SkillDef
             {
                 Id = "fireball", Name = "Fireball", Effect = SkillEffectKind.Damage, Targeting = "aoe",
                 CooldownMs = 5000, Range = 6.0, AoeRadius = 2.2, DamageMult = 1.6, ManaCost = 30, Sprite = "firebolt",
+                Prereq = "firebolt", UnlockLevel = 5,
             };
             cfg.Skills["scorch"] = new SkillDef
             {
                 Id = "scorch", Name = "Scorch", Effect = SkillEffectKind.Damage, Targeting = "nearest",
                 CooldownMs = 4500, Range = 6.0, DamageMult = 2.6, ManaCost = 28, Sprite = "firebolt",
+                Prereq = "firebolt", UnlockLevel = 8,
             };
             cfg.Skills["inferno"] = new SkillDef
             {
                 Id = "inferno", Name = "Inferno", Effect = SkillEffectKind.Damage, Targeting = "aoe",
                 CooldownMs = 12000, Range = 6.0, AoeRadius = 3.2, DamageMult = 2.2, ManaCost = 50, Sprite = "quake",
+                Prereq = "fireball", UnlockLevel = 16,
             };
             cfg.Skills["haste"] = new SkillDef
             {
                 Id = "haste", Name = "Haste", Effect = SkillEffectKind.Buff, Targeting = "self",
                 CooldownMs = 10000, Range = 0, BuffStat = StatKey.AtkSpd, BuffAmount = 0.6, BuffDurationMs = 6000,
-                ManaCost = 25, Sprite = "warcry",
+                ManaCost = 25, Sprite = "warcry", Prereq = "scorch", UnlockLevel = 12,
             };
 
             // Thief — single-target assassin: a fast cheap stab, a heavy nuke, a tight AoE, and
@@ -587,11 +597,13 @@ namespace IdleGame.GameCore
             {
                 Id = "vitalstrike", Name = "Vital Strike", Effect = SkillEffectKind.Damage, Targeting = "nearest",
                 CooldownMs = 5000, Range = 1.4, DamageMult = 3.8, ManaCost = 30, Sprite = "cleave",
+                Prereq = "shadowstab", UnlockLevel = 5,
             };
             cfg.Skills["bladewhirl"] = new SkillDef
             {
                 Id = "bladewhirl", Name = "Bladewhirl", Effect = SkillEffectKind.Damage, Targeting = "aoe",
                 CooldownMs = 5500, Range = 2.0, AoeRadius = 2.2, DamageMult = 1.4, ManaCost = 26, Sprite = "cleave",
+                Prereq = "shadowstab", UnlockLevel = 8,
             };
             cfg.Skills["pinpoint"] = new SkillDef
             {
@@ -603,13 +615,13 @@ namespace IdleGame.GameCore
             {
                 Id = "quickstep", Name = "Quickstep", Effect = SkillEffectKind.Buff, Targeting = "self",
                 CooldownMs = 10000, Range = 0, BuffStat = StatKey.AtkSpd, BuffAmount = 0.6, BuffDurationMs = 6000,
-                ManaCost = 25, Sprite = "warcry",
+                ManaCost = 25, Sprite = "warcry", Prereq = "pinpoint", UnlockLevel = 10,
             };
             cfg.Skills["lethality"] = new SkillDef
             {
                 Id = "lethality", Name = "Lethality", Effect = SkillEffectKind.Buff, Targeting = "self",
                 CooldownMs = 12000, Range = 0, BuffStat = StatKey.CritDmg, BuffAmount = 0.6, BuffDurationMs = 6000,
-                ManaCost = 25, Sprite = "warcry",
+                ManaCost = 25, Sprite = "warcry", Prereq = "vitalstrike", UnlockLevel = 16,
             };
 
             // Passive nodes (Lever 3 slice 2): always-on, never cast — invest points to rank them and

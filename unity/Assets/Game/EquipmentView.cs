@@ -450,13 +450,29 @@ namespace IdleGame.Game
                 string cd = $"{sk.CooldownMs / 1000.0:0.#}s cd";
                 string meta = sk.ManaCost > 0 ? $"{sk.Effect} · {sk.ManaCost} mana · {cd}" : $"{sk.Effect} · {cd}";
 
+                // Tree gate (Lever 3 slice 3): a locked node can't be ranked yet — show why
+                // (prereq and/or level) in place of the meta line, and dim the name.
+                bool unlocked = Skills.IsUnlocked(hero, id, _cfg);
+                string sub = meta;
+                var subColor = new Color(0.66f, 0.70f, 0.78f);
+                if (!unlocked)
+                {
+                    var reqs = new System.Collections.Generic.List<string>();
+                    if (!string.IsNullOrEmpty(sk.Prereq) && _cfg.Skills.TryGetValue(sk.Prereq, out var pre)
+                        && Skills.RankOf(hero, sk.Prereq) < 1) reqs.Add(pre.Name);
+                    if (hero.Level < sk.UnlockLevel) reqs.Add("Lv " + sk.UnlockLevel);
+                    sub = "needs " + string.Join(" + ", reqs);
+                    subColor = new Color(0.95f, 0.62f, 0.55f);
+                }
+
                 if (on) // tint the row for slotted skills (drawn first so labels sit on top)
                     UiKit.Panel(box.transform, new Vector2(540, 42), new Color(0.18f, 0.28f, 0.42f, 0.55f), new Vector2(0, y - 8f));
 
                 UiKit.Label(box.transform, sk.Name, 16, TextAnchor.MiddleLeft, new Vector2(250, 22), new Vector2(-115, y))
-                    .color = on ? new Color(0.85f, 0.92f, 1f) : new Color(0.78f, 0.80f, 0.85f);
-                UiKit.Label(box.transform, meta, 12, TextAnchor.MiddleLeft, new Vector2(250, 16), new Vector2(-115, y - 16f))
-                    .color = new Color(0.66f, 0.70f, 0.78f);
+                    .color = !unlocked ? new Color(0.55f, 0.57f, 0.62f)
+                           : on ? new Color(0.85f, 0.92f, 1f) : new Color(0.78f, 0.80f, 0.85f);
+                UiKit.Label(box.transform, sub, 12, TextAnchor.MiddleLeft, new Vector2(250, 16), new Vector2(-115, y - 16f))
+                    .color = subColor;
 
                 // Rank readout — gold once invested.
                 UiKit.Label(box.transform, $"Rk {rank}/{sk.MaxRank}", 13, TextAnchor.MiddleCenter, new Vector2(70, 22), new Vector2(40, y - 8f))

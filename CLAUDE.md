@@ -59,7 +59,7 @@ files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sy
   scene in code (camera/light/ground) and `CombatView` drives the auto-battle.
   Play-mode can't be driven headlessly; visual checks are manual.
 
-## Status (293 tests passing)
+## Status (299 tests passing)
 
 **Phase A — core loop (M0–M9) ✅** — deterministic auto-combat; loot (rarity + affixes, equip →
 stat recompute); per-hero leveling; farm-zone stage ladder with 60s mini/major boss gates + tiered
@@ -105,7 +105,7 @@ chat/feed panel.
   headline in the Heroes compare, an upgrade tag on the loot-rain feed line, and an opt-in
   **Auto-equip** toggle (`Settings.AutoEquipUpgrades`) that auto-equips fielded heroes on banking.
 
-- **Build depth (Lever 3) ◑ — slice 2 of 3 done.** Skills now *grow*: each hero earns 1 skill
+- **Build depth (Lever 3) ✅ — all 3 slices done.** Skills now *grow*: each hero earns 1 skill
   point per level (`Skills.PointsEarned`, derived from level — not persisted), spent to **rank up**
   skills (`Skills.InvestSkill`, capped at `SkillDef.MaxRank`; free `RespecHero`). A skill's primary
   magnitude scales `× (1 + EffectPerRank·rank)` in the sim (`Combat.TryCastSkill`) — **rank 0 = base
@@ -120,15 +120,22 @@ chat/feed panel.
   `StatPerRank`), so it flows into the stat sheet + DPS/Eff-Life + the Lever 2 power compare for free.
   Rank 0 = +0 ⇒ existing fights byte-identical. UI: Heroes→Skills split into ACTIVE + PASSIVE
   sections — verified live via Unity MCP (invest ticks the gold rank + "now +N", folds into the
-  Stats sheet). Slice 3 (prereq/level-gated tree) is next.
+  Stats sheet). **Slice 3 ✅ — skill tree:** active skills now form a gated tree
+  (`SkillDef.Prereq` + `UnlockLevel`; `Skills.IsUnlocked` + `CanInvest` enforce "prereq has ≥1 rank"
+  AND "hero.Level ≥ UnlockLevel"). Per class: 2 root actives + a branching chain (e.g. Warrior
+  cleave/bash → warcry/whirlwind → bulwark/frenzy); passives stay open roots. Gating restricts point
+  INVESTMENT only — slotting/casting at rank 0 is unchanged, so seeded fights stay byte-identical.
+  UI dims locked rows + shows "needs &lt;Prereq&gt; + Lv N"; ＋ greys until unlocked. Verified live
+  (investing a root unlocks its child in real time). Lever 3 done.
 
 The four "feels empty/boring" loop levers — all long-run goals — are in `docs/game-design.md` §7.1:
 **1 combat variety ✅ (ranks + modifiers)**, **2 loot & power chase ✅ (legible upgrades + auto-equip)**,
-**3 build depth ◑ (skill ranks + passives done; tree next)**, 4 progression hooks.
+**3 build depth ✅ (ranks + passives + gated tree)**, 4 progression hooks.
 
-**Next (gameplay-first):** Lever 3 (build depth — the Skills milestone: active/passive, ≤4 active,
-trees) and Lever 4 (progression hooks); more hero unlocks/classes; crafting/sets/loot-filter; alt
-modes; prestige.
+**Next (gameplay-first):** Lever 4 (progression hooks); a **Tower of Ascension** alt mode (100-floor
+exponential tower, SW-ToA style — user-requested, must differ from the farm ladder: separate track,
+one-time floor clears, milestone rewards; rewards TBD); more hero unlocks/classes;
+crafting/sets/loot-filter; prestige.
 **Deferred:** real Blender hero models; UI/UX layout-group refactor; console balance-sim.
 Gacha/live-service still deferred. (Auto-advance push is built but shelved behind an off flag.)
 

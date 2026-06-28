@@ -106,14 +106,28 @@ namespace IdleGame.GameCore
         public static int RankOf(HeroInstance hero, string skillId)
             => hero.SkillRanks.TryGetValue(skillId, out var r) ? r : 0;
 
+        /// <summary>Is this skill's tree gate satisfied (Lever 3 slice 3)? True when the hero is at
+        /// least <see cref="SkillDef.UnlockLevel"/> AND (if it has a <see cref="SkillDef.Prereq"/>)
+        /// that prereq has ≥1 rank. Independent of points / MaxRank — it answers "is the node open?",
+        /// not "can I afford it?". Roots (no Prereq, UnlockLevel ≤ 1) are always unlocked.</summary>
+        public static bool IsUnlocked(HeroInstance hero, string skillId, GameConfig cfg)
+        {
+            if (!cfg.Skills.TryGetValue(skillId, out var def)) return false;
+            if (hero.Level < def.UnlockLevel) return false;
+            if (!string.IsNullOrEmpty(def.Prereq) && RankOf(hero, def.Prereq!) < 1) return false;
+            return true;
+        }
+
         /// <summary>Can this hero invest a point into <paramref name="skillId"/> right now? Requires
-        /// the skill be known, below its <see cref="SkillDef.MaxRank"/>, and an unspent point.</summary>
+        /// the skill be known, its tree gate <see cref="IsUnlocked"/>, below its
+        /// <see cref="SkillDef.MaxRank"/>, and an unspent point.</summary>
         public static bool CanInvest(SaveState save, string heroId, string skillId, GameConfig cfg)
         {
             var hero = save.Heroes.Find(h => h.Id == heroId);
             if (hero == null) return false;
             if (!Known(hero, cfg).Contains(skillId)) return false;
             if (!cfg.Skills.TryGetValue(skillId, out var def)) return false;
+            if (!IsUnlocked(hero, skillId, cfg)) return false;
             if (RankOf(hero, skillId) >= def.MaxRank) return false;
             return UnspentPoints(hero, cfg) > 0;
         }
