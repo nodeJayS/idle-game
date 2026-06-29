@@ -521,9 +521,19 @@ namespace IdleGame.GameCore
                 }
             }
 
-            double frac = Math.Min(cfg.Balance.ModifierBehaviorCap, def.BehaviorPerStrength * strength);
-            if (def.Behavior == ModifierBehavior.Vampiric) e.Lifesteal = Math.Max(e.Lifesteal, frac);
-            else if (def.Behavior == ModifierBehavior.Thorns) e.ThornsReflect = Math.Max(e.ThornsReflect, frac);
+            if (def.Behavior == ModifierBehavior.Splash)
+            {
+                // Mechanical: grant the mob a splash radius (additive — base is 0, so a multiplier
+                // couldn't bootstrap it) so its attacks hit the whole party. Uncapped — it's a
+                // distance in tiles, not the 0..1 sustain/reflect fraction the cap guards.
+                e.Stats[StatKey.SplashRadius] = e.Stats.Get(StatKey.SplashRadius) + def.BehaviorPerStrength * strength;
+            }
+            else
+            {
+                double frac = Math.Min(cfg.Balance.ModifierBehaviorCap, def.BehaviorPerStrength * strength);
+                if (def.Behavior == ModifierBehavior.Vampiric) e.Lifesteal = Math.Max(e.Lifesteal, frac);
+                else if (def.Behavior == ModifierBehavior.Thorns) e.ThornsReflect = Math.Max(e.ThornsReflect, frac);
+            }
 
             e.ModTypes.Add(def.Id);
         }
@@ -997,6 +1007,7 @@ namespace IdleGame.GameCore
                     double rate = target.Rank == MonsterRank.Rare ? cfg.Balance.RareDropRateMult : cfg.Balance.EliteDropRateMult;
                     foreach (var drop in Loot.RollRankDrops(rng, lootCtx, cfg, count, rate))
                     {
+                        Loot.ImprintDrop(rng, drop, target.ModTypes, s.ActiveModifiers, cfg); // mechanical-mod imprint
                         s.PendingLoot.Add(drop);
                         events.Add(new CombatEvent { Type = CombatEventType.LootDrop, EntityId = target.Id, Item = drop });
                     }
@@ -1006,6 +1017,7 @@ namespace IdleGame.GameCore
                     var drop = Loot.RollDrop(rng, mdef, lootCtx, cfg);
                     if (drop != null)
                     {
+                        Loot.ImprintDrop(rng, drop, target.ModTypes, s.ActiveModifiers, cfg); // mechanical-mod imprint
                         s.PendingLoot.Add(drop);
                         events.Add(new CombatEvent { Type = CombatEventType.LootDrop, EntityId = target.Id, Item = drop });
                     }

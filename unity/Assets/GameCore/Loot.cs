@@ -188,6 +188,40 @@ namespace IdleGame.GameCore
             return items;
         }
 
+        /// <summary>
+        /// Loot-imprint (mechanical modifiers — the headline hook). A drop from a monster carrying a
+        /// mechanical modifier can be stamped with that modifier's signature affix: a build-defining
+        /// stat (<see cref="ModifierDef.ImprintStat"/>) the normal affix pool never rolls, so imprinted
+        /// gear is obtainable ONLY by farming the dangerous mod. One rng draw per active mechanical mod
+        /// the monster actually had (<paramref name="monsterMods"/>); on a hit, the stamped value =
+        /// ImprintPerStrength × that mod's strength, MERGED into a same-stat affix if one exists (so a
+        /// double-imprint stacks rather than duplicating). Mutates and returns the item. Deterministic.
+        /// </summary>
+        public static Item ImprintDrop(Rng rng, Item item, IReadOnlyList<string> monsterMods,
+                                       IReadOnlyList<ModifierInstance> active, GameConfig cfg)
+        {
+            foreach (var mi in active) // active order is the canonical, stable application order
+            {
+                var def = mi.Def;
+                if (!def.Mechanical || !ListContains(monsterMods, def.Id)) continue;
+                if (rng.Next() >= def.ImprintChance) continue;
+
+                double value = def.ImprintPerStrength * mi.Strength;
+                var existing = item.Affixes.Find(a => a.Stat == def.ImprintStat);
+                if (existing != null) existing.Value += value;
+                else item.Affixes.Add(new Affix { Stat = def.ImprintStat, Value = value });
+            }
+            return item;
+        }
+
+        // LINQ-free membership test: Unity compiles GameCore without System.Linq's implicit global
+        // using, so IReadOnlyList<string>.Contains would mis-resolve to a span overload (CS7036).
+        private static bool ListContains(IReadOnlyList<string> list, string value)
+        {
+            for (int i = 0; i < list.Count; i++) if (list[i] == value) return true;
+            return false;
+        }
+
         /// <summary>Pick an item base uniformly (deterministic: keys sorted first).</summary>
         private static string PickBaseId(Rng rng, GameConfig cfg)
         {

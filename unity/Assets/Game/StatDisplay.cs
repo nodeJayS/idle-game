@@ -12,10 +12,14 @@ namespace IdleGame.Game
     public static class StatDisplay
     {
         // Grouped by role: survivability, then offense, then resource, then mobility.
+        // NOTE: AttackRange + SplashRadius are deliberately OMITTED — they're under-the-hood combat
+        // mechanics (the player sees their effect in the fight, not a number), so they stay off the
+        // hero stat sheet + equip-compare to cut clutter. Label/Value still handle them for the few
+        // surfaces that read an item's own affixes (e.g. an imprinted-gear tooltip).
         public static readonly StatKey[] Order =
         {
             StatKey.Hp, StatKey.Def, StatKey.HpRegen,
-            StatKey.Atk, StatKey.AtkSpd, StatKey.CritChance, StatKey.CritDmg, StatKey.AttackRange, StatKey.SplashRadius,
+            StatKey.Atk, StatKey.AtkSpd, StatKey.CritChance, StatKey.CritDmg,
             StatKey.MaxMana, StatKey.ManaRegen,
             StatKey.MoveSpd,
         };

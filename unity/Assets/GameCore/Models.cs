@@ -118,8 +118,9 @@ namespace IdleGame.GameCore
 
     /// <summary>An optional per-hit combat behavior a modifier grants the monster, beyond stat
     /// multipliers. Vampiric = heals a fraction of damage it deals; Thorns = reflects a fraction
-    /// of damage taken back to the attacker. None = stat-only modifier.</summary>
-    public enum ModifierBehavior { None, Vampiric, Thorns }
+    /// of damage taken back to the attacker; Splash = its attacks hit the whole party in a radius
+    /// (a real combat mechanic — the basis of the first loot-imprint modifier). None = stat-only.</summary>
+    public enum ModifierBehavior { None, Vampiric, Thorns, Splash }
 
     /// <summary>
     /// Banked monster modifiers (the risk/reward knob). <see cref="Owned"/> maps a modifier

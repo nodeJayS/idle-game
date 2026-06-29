@@ -45,6 +45,13 @@ namespace IdleGame.GameCore
             var owned = new Dictionary<string, int>(count);
             for (int i = 0; i < count; i++) owned[cfg.ModifierUnlockOrder[i]] = strength;
 
+            // Tower-gated mechanical modifiers (e.g. Volatile): earned by clearing a Tower milestone
+            // floor, not by farm depth. Same uniform strength so the owned set stays single-strength.
+            int floor = save.Progress.Tower.HighestFloor;
+            foreach (var kv in cfg.Modifiers)
+                if (kv.Value.TowerUnlockFloor > 0 && floor >= kv.Value.TowerUnlockFloor)
+                    owned[kv.Key] = strength;
+
             var active = new List<string>();
             foreach (var id in save.Modifiers.Active)
                 if (owned.ContainsKey(id) && active.Count < cfg.Balance.MaxActiveModifiers) active.Add(id);

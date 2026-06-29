@@ -600,11 +600,19 @@ namespace IdleGame.Game
                 {
                     int before = Tower.MilestonesCleared(_save, _cfg);
                     _save = Tower.RecordClear(_save, floor, _cfg);
+                    // A Tower clear can unlock a tower-gated modifier (e.g. Volatile at floor 10) on top
+                    // of the milestone account buff — resync owned mods from the new floor and announce it.
+                    var ownedBefore = new HashSet<string>(_save.Modifiers.Owned.Keys);
+                    _save = Modifiers.SyncToStage(_save, _cfg);
                     Combat.RefreshPartyStats(_combat, _save, _cfg); // a new milestone buff applies at once
                     _chat?.AddFeed($"Tower floor {floor} cleared!", new Color(0.6f, 0.85f, 1f));
                     if (Tower.MilestonesCleared(_save, _cfg) > before)
                         _chat?.AddFeed($"Ascension buff! +{Tower.AccountBuffPct(_save, _cfg) * 100:0}% account power (Hp/Atk/Def).",
                                        new Color(1f, 0.85f, 0.4f));
+                    foreach (var kv in _save.Modifiers.Owned)
+                        if (!ownedBefore.Contains(kv.Key) && _cfg.Modifiers.TryGetValue(kv.Key, out var nm))
+                            _chat?.AddFeed($"New modifier unlocked: {nm.Name}! Slot it in the Modifiers panel.",
+                                           new Color(0.85f, 0.6f, 1f));
                 }
                 else
                 {

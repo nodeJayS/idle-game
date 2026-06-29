@@ -59,7 +59,7 @@ files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sy
   scene in code (camera/light/ground) and `CombatView` drives the auto-battle.
   Play-mode can't be driven headlessly; visual checks are manual.
 
-## Status (319 tests passing)
+## Status (331 tests passing)
 
 **Phase A — core loop (M0–M9) ✅** — deterministic auto-combat; loot (rarity + affixes, equip →
 stat recompute); per-hero leveling; farm-zone stage ladder with 60s mini/major boss gates + tiered
@@ -100,9 +100,25 @@ chat/feed panel.
   (`Modifiers.SetActive(...,cfg)` enforces the cap; `ModifierPanel` shows N/3 + locks "FULL" rows).
   Applied to farm trash in combat: stat mults + per-hit behaviors (lifesteal/reflect in `ApplyHit`) +
   reward (gold/XP/drop in `HandleDeath`). Bosses still *exhibit* a modifier (behavior-only) for flavor
-  via `ModifierCycle`. Visual tells: aura tint + boss-HUD name. **Roadmap:** mechanical loot-imprint
-  mods (monster +1 projectile → drops roll +1 projectile, PoE-style — needs new mechanical affixes)
-  then item **gambling/crafting** as a separate feature — see [[tower-of-ascension-mode]] sibling note.
+  via `ModifierCycle`. Visual tells: aura tint + boss-HUD name.
+  - **Loot-imprint mechanical modifiers (the headline hook) ◑ — slice 1 of 3 (GameCore) done.**
+    A `Mechanical` modifier fights nastier via a REAL sim mechanic AND can stamp that signature onto
+    its drops — a build-defining affix the normal pool never rolls, so the gear is obtainable ONLY by
+    farming the mod. First one: **Volatile** — mobs' attacks SPLASH the whole party
+    (`ModifierBehavior.Splash` grants an additive `SplashRadius` in `Combat.ApplyModifier`, uncapped);
+    a kill imprints `+SplashRadius` onto the drop (`Loot.ImprintDrop`, called per farm-trash drop in
+    `HandleDeath`, sourced from the dead mob's own `ModTypes` × `s.ActiveModifiers` strength). The affix
+    folds into `Stats.ComputeHeroStats` like any other ⇒ flows into combat + DPS/Eff-Life power compare
+    for free; `SplashRadius` is in no base's `AllowedAffixes`, so imprinted gear is exclusive.
+    `ModifierDef` gained `Mechanical`/`ImprintStat`/`ImprintPerStrength`/`ImprintChance`. **Acquisition
+    is TOWER-GATED, not farm depth** (`ModifierDef.TowerUnlockFloor`): Volatile unlocks on clearing
+    **Tower floor 5** (early, reachable chase — tune up later), NOT via `ModifierUnlockOrder`. `Modifiers.SyncToStage` grants tower-gated mods from `TowerState.HighestFloor`
+    at the same uniform strength; the Tower-win path resyncs + fires a "New modifier unlocked!" feed;
+    `ModifierPanel` appends tower mods (not in the order) by unlock floor. SplashRadius + AttackRange are
+    hidden from the hero stat sheet/compare (`StatDisplay.Order`) — under-the-hood mechanics, less
+    clutter. 331 tests (`LootImprintTests.cs` + tower-gate tests in `ModifierTests.cs`). **Slice 2 =
+    client tells** (panel flag + imprinted-item badge/line + loot feed); **slice 3 = more mechanical
+    mods** (e.g. `+AttackRange`). Then item **gambling/crafting** as a separate feature.
 
 - **Loot & power chase (Lever 2) ✅** — drops legible at a glance. `Upgrades.cs` collapses a
   candidate item into one honest power scalar (`PowerScore` = geometric mean of DPS and

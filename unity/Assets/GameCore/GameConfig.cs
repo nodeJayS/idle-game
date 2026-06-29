@@ -126,6 +126,24 @@ namespace IdleGame.GameCore
         public ModifierReward Reward = ModifierReward.Gold;
         public double RewardPerStrength;                    // reward-bonus fraction per strength
         public double TintR, TintG, TintB;                 // client aura tint (engine-free RGB 0..1)
+
+        // Loot-imprint (mechanical modifiers) — the headline hook. A Mechanical modifier makes the
+        // monster fight nastier via a real combat mechanic (e.g. Behavior == Splash), AND a kill can
+        // *imprint* that signature onto its drop: a build-defining Affix (ImprintStat) the normal
+        // affix pool never rolls, so imprinted gear is obtainable ONLY by farming the dangerous mod.
+        // The affix folds into Stats.ComputeHeroStats like any other, so it flows into combat + the
+        // DPS/Eff-Life power compare for free. ImprintChance gates the roll per drop; the stamped
+        // value = ImprintPerStrength × the modifier's strength. Non-mechanical mods leave these zero.
+        public bool Mechanical;
+        public StatKey ImprintStat;          // the build stat stamped onto drops (e.g. SplashRadius)
+        public double ImprintPerStrength;    // affix value per strength when a drop is imprinted
+        public double ImprintChance;         // chance a drop from this mob carries the imprint (0..1)
+
+        // Acquisition gate. 0 = unlocked by FARM DEPTH via ModifierUnlockOrder (the boring stat mods).
+        // >0 = TOWER-GATED: owned only once the player has cleared this Tower floor — so a mechanical
+        // mod feels like an earned Tower reward (on top of the milestone account buffs) rather than a
+        // silent farm tick. Granted in Modifiers.SyncToStage from TowerState.HighestFloor.
+        public int TowerUnlockFloor;
     }
 
     /// <summary>All tunable numbers. The file you edit constantly to balance.</summary>
@@ -762,12 +780,31 @@ namespace IdleGame.GameCore
                 Reward = ModifierReward.DropRate, RewardPerStrength = 0.06,
                 TintR = 0.55, TintG = 0.85, TintB = 0.45, // green
             };
+            // Mechanical / loot-imprint modifier (the headline hook), TOWER-GATED at floor 10 — an
+            // earned reward, not a farm-depth tick. Volatile mobs' attacks SPLASH onto the whole party
+            // (BehaviorPerStrength = splash radius per strength, in tiles — see Combat.ApplyModifier);
+            // killing them can imprint a +SplashRadius affix onto the drop, so YOUR attacks splash too.
+            // SplashRadius is in no base's AllowedAffixes, so this gear is obtainable ONLY by farming
+            // Volatile. Modest HP bump is the risk; DropRate is the upside. NOT in ModifierUnlockOrder.
+            cfg.Modifiers["volatile"] = new ModifierDef
+            {
+                Id = "volatile", Name = "Volatile",
+                StatPerStrength = SB((StatKey.Hp, 0.05)),
+                Behavior = ModifierBehavior.Splash, BehaviorPerStrength = 0.20, // +0.20 tiles splash / strength
+                Reward = ModifierReward.DropRate, RewardPerStrength = 0.05,
+                Mechanical = true,
+                ImprintStat = StatKey.SplashRadius, ImprintPerStrength = 0.12, ImprintChance = 0.20,
+                TowerUnlockFloor = 5, // unlocks on clearing Tower floor 5 (early, reachable chase)
+                TintR = 0.80, TintG = 0.35, TintB = 0.95, // arcane violet
+            };
 
             // Stage→type cycle: boss at stage 1=Vampiric, 2=Swift, 3=Armored, 4=Thorns, 5=Vampiric…
             // so all types are reachable early and re-clears bank stronger versions.
             cfg.ModifierCycle = new List<string> { "vampiric", "swift", "armored", "thorns" };
             // Unlock order as farm depth grows (Modifiers.SyncToStage): boring income mods first, then
             // the behavioral types. With ModifierNewEveryStages=10, that's one unlock per 10 stages.
+            // Farm-depth unlocks only (the boring stat mods). Mechanical mods like "volatile" are
+            // TOWER-GATED (ModifierDef.TowerUnlockFloor) and deliberately NOT listed here.
             cfg.ModifierUnlockOrder = new List<string>
             {
                 "prosperous", "studious", "bountiful", "armored", "swift", "vampiric", "thorns",

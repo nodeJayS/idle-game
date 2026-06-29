@@ -108,9 +108,19 @@ namespace IdleGame.Game
         {
             var list = new List<(ModifierDef, int, bool)>();
             var mods = _view.CurrentSave.Modifiers;
-            foreach (var id in _cfg.ModifierUnlockOrder) // stable unlock order (boring → spicy)
+            foreach (var id in _cfg.ModifierUnlockOrder) // farm-depth mods, in stable unlock order (boring → spicy)
                 if (mods.Owned.TryGetValue(id, out var strength) && _cfg.Modifiers.TryGetValue(id, out var def))
                     list.Add((def, strength, mods.Active.Contains(id)));
+
+            // Tower-gated mechanical mods aren't in the farm unlock order — append them after, ordered
+            // by the floor they unlock at, so an earned mechanic (e.g. Volatile) shows in the loadout.
+            var towerMods = new List<(string id, ModifierDef def)>();
+            foreach (var kv in mods.Owned)
+                if (!_cfg.ModifierUnlockOrder.Contains(kv.Key) && _cfg.Modifiers.TryGetValue(kv.Key, out var def))
+                    towerMods.Add((kv.Key, def));
+            towerMods.Sort((a, b) => a.def.TowerUnlockFloor.CompareTo(b.def.TowerUnlockFloor));
+            foreach (var (id, def) in towerMods)
+                list.Add((def, mods.Owned[id], mods.Active.Contains(id)));
             return list;
         }
 

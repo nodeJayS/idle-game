@@ -20,6 +20,15 @@ namespace IdleGame.GameCore.Tests
             return Modifiers.SyncToStage(s, Cfg);
         }
 
+        // A save synced to a given farm depth AND Tower depth (tower-gated mechanical mods).
+        private static SaveState AtStageAndFloor(int highestStage, int highestFloor)
+        {
+            var s = NewSave();
+            s.Progress.HighestStage = highestStage;
+            s.Progress.Tower.HighestFloor = highestFloor;
+            return Modifiers.SyncToStage(s, Cfg);
+        }
+
         // Minimal combat entity for the behavior tests (RefKind "test" unless overridden).
         private static CombatEntity Ent(string id, Team team, double hp, double atk, double def, double x)
         {
@@ -78,6 +87,41 @@ namespace IdleGame.GameCore.Tests
             var synced = Modifiers.SyncToStage(s, Cfg);
             Assert.True(synced.Modifiers.Active.Count <= Cfg.Balance.MaxActiveModifiers);
             Assert.DoesNotContain("ghost", synced.Modifiers.Active); // unowned pruned
+        }
+
+        // --- tower-gated mechanical modifiers (earned, not farm-ticked) ---
+
+        [Fact]
+        public void MechanicalModIsNotUnlockedByFarmDepthAlone()
+        {
+            // Even at deep farm depth, with no Tower progress, the tower-gated mod stays locked.
+            Assert.DoesNotContain("volatile", AtStage(100).Modifiers.Owned.Keys);
+        }
+
+        [Fact]
+        public void ClearingTheTowerGateUnlocksTheMechanicalMod()
+        {
+            int gate = Cfg.Modifiers["volatile"].TowerUnlockFloor;
+            Assert.DoesNotContain("volatile", AtStageAndFloor(50, gate - 1).Modifiers.Owned.Keys); // one below
+            Assert.Contains("volatile", AtStageAndFloor(50, gate).Modifiers.Owned.Keys);           // at the gate
+        }
+
+        [Fact]
+        public void TowerGrantedModSharesTheUniformStrength()
+        {
+            var s = AtStageAndFloor(25, Cfg.Modifiers["volatile"].TowerUnlockFloor); // 25/5 = strength 5
+            Assert.Equal(5, s.Modifiers.Owned["volatile"]);
+            Assert.All(s.Modifiers.Owned.Values, v => Assert.Equal(5, v)); // still single-strength
+        }
+
+        [Fact]
+        public void LosingTowerProgressWouldPruneTheMechanicalMod()
+        {
+            // SyncToStage rebuilds owned from depth each call, so an owned tower mod can't desync from
+            // the floor it requires (mirrors the farm-depth prune guarantee).
+            var owned = AtStageAndFloor(50, Cfg.Modifiers["volatile"].TowerUnlockFloor);
+            owned.Progress.Tower.HighestFloor = 0;
+            Assert.DoesNotContain("volatile", Modifiers.SyncToStage(owned, Cfg).Modifiers.Owned.Keys);
         }
 
         // --- loadout (capped toggle) ---
