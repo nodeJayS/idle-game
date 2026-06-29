@@ -214,6 +214,23 @@ namespace IdleGame.GameCore
             return item;
         }
 
+        /// <summary>True if a stat is some mechanical modifier's imprint signature — i.e. it only ever
+        /// reaches gear via <see cref="ImprintDrop"/> (it's in no base's AllowedAffixes). Drives the
+        /// client's "imprinted item" tells (badge, tooltip line, loot-feed callout).</summary>
+        public static bool IsImprintStat(StatKey stat, GameConfig cfg)
+        {
+            foreach (var kv in cfg.Modifiers)
+                if (kv.Value.Mechanical && kv.Value.ImprintStat == stat) return true;
+            return false;
+        }
+
+        /// <summary>True if an item carries any imprint affix (it was stamped by a mechanical modifier).</summary>
+        public static bool IsImprinted(Item item, GameConfig cfg)
+        {
+            foreach (var a in item.Affixes) if (IsImprintStat(a.Stat, cfg)) return true;
+            return false;
+        }
+
         // LINQ-free membership test: Unity compiles GameCore without System.Linq's implicit global
         // using, so IReadOnlyList<string>.Contains would mis-resolve to a span overload (CS7036).
         private static bool ListContains(IReadOnlyList<string> list, string value)

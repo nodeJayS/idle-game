@@ -957,6 +957,16 @@ namespace IdleGame.Game
                             if (up != null && up.Verdict == Upgrades.Verdict.Upgrade)
                                 line += $"  ▲ {UpgradeTell.Pct(up.DeltaPercent)} {HeroDisplayName(up.HeroId)}";
                             _chat?.AddFeed(line, Palette.Rarity(ev.Item.Rarity));
+                            // Imprinted drops (mechanical-mod loot stamp) get their own louder beat —
+                            // a build-defining affix you can't get any other way is the dopamine spike.
+                            if (Loot.IsImprinted(ev.Item, _cfg))
+                                foreach (var a in ev.Item.Affixes)
+                                    if (Loot.IsImprintStat(a.Stat, _cfg))
+                                    {
+                                        _chat?.AddFeed($"✦ Imprinted! {ev.Item.BaseId} rolled {StatDisplay.ImprintBlurb(a.Stat)} — equip it to cleave harder.",
+                                                       new Color(0.85f, 0.6f, 1f));
+                                        break;
+                                    }
                             // Keepers (Rare+) also pop in the world at the drop site — the
                             // standout beat in the loot rain; commons stay feed-only.
                             if (_juice != null && ev.Item.Rarity >= Rarity.Rare && ev.EntityId != null

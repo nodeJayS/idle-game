@@ -88,6 +88,8 @@ namespace IdleGame.Game
                     var best = Upgrades.BestForItem(save, it, _cfg, stage);
                     if (best != null) UpgradeTell.BadgeTile(tile, best.Verdict);
                 }
+                // Imprinted gear (mechanical-mod stamp) gets a violet ✦ — exclusive, farm-only loot.
+                if (Loot.IsImprinted(it, _cfg)) UpgradeTell.ImprintBadgeTile(tile);
                 var btn = tile.AddComponent<Button>();
                 btn.onClick.AddListener(() => ShowDetail(save, it));
                 UiKit.Hover(tile, () => ShowDetail(save, it));
@@ -128,8 +130,12 @@ namespace IdleGame.Game
             affixes.Sort((x, z) => StatDisplay.Rank(x.Stat).CompareTo(StatDisplay.Rank(z.Stat)));
             foreach (var a in affixes)
             {
-                UiKit.Label(_detail, $"+{StatDisplay.Value(a.Stat, a.Value)} {StatDisplay.Label(a.Stat)}", 13, TextAnchor.MiddleLeft,
-                            new Vector2(270, 20), new Vector2(0, y));
+                if (Loot.IsImprintStat(a.Stat, _cfg)) // mechanical-mod signature: flavor, not a raw number
+                    UiKit.Label(_detail, $"✦ Imprinted — {StatDisplay.ImprintBlurb(a.Stat)}", 13, TextAnchor.MiddleLeft,
+                                new Vector2(270, 20), new Vector2(0, y)).color = new Color(0.85f, 0.6f, 1f);
+                else
+                    UiKit.Label(_detail, $"+{StatDisplay.Value(a.Stat, a.Value)} {StatDisplay.Label(a.Stat)}", 13, TextAnchor.MiddleLeft,
+                                new Vector2(270, 20), new Vector2(0, y));
                 y -= 22f;
             }
 

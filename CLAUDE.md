@@ -59,7 +59,7 @@ files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sy
   scene in code (camera/light/ground) and `CombatView` drives the auto-battle.
   Play-mode can't be driven headlessly; visual checks are manual.
 
-## Status (331 tests passing)
+## Status (333 tests passing)
 
 **Phase A — core loop (M0–M9) ✅** — deterministic auto-combat; loot (rarity + affixes, equip →
 stat recompute); per-hero leveling; farm-zone stage ladder with 60s mini/major boss gates + tiered
@@ -116,9 +116,13 @@ chat/feed panel.
     at the same uniform strength; the Tower-win path resyncs + fires a "New modifier unlocked!" feed;
     `ModifierPanel` appends tower mods (not in the order) by unlock floor. SplashRadius + AttackRange are
     hidden from the hero stat sheet/compare (`StatDisplay.Order`) — under-the-hood mechanics, less
-    clutter. 331 tests (`LootImprintTests.cs` + tower-gate tests in `ModifierTests.cs`). **Slice 2 =
-    client tells** (panel flag + imprinted-item badge/line + loot feed); **slice 3 = more mechanical
-    mods** (e.g. `+AttackRange`). Then item **gambling/crafting** as a separate feature.
+    clutter. **Slice 2 ✅ — client tells:** `Loot.IsImprintStat`/`IsImprinted` predicates drive a violet
+    ✦ tile badge (`UpgradeTell.ImprintBadgeTile`, bag top-left), a readable affix-tooltip line ("✦
+    Imprinted — wider splash radius" via `StatDisplay.ImprintBlurb`, NOT a raw number), a louder loot-feed
+    callout on an imprinted drop, and a "✦ imprints gear" flag + "attacks splash the party" line on
+    Volatile in `ModifierPanel`. 333 tests (`LootImprintTests.cs` + tower-gate tests in `ModifierTests.cs`).
+    **Slice 3 = more mechanical mods** (e.g. `+AttackRange`). Then item **gambling/crafting** as a
+    separate feature.
 
 - **Loot & power chase (Lever 2) ✅** — drops legible at a glance. `Upgrades.cs` collapses a
   candidate item into one honest power scalar (`PowerScore` = geometric mean of DPS and

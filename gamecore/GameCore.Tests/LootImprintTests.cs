@@ -115,6 +115,28 @@ namespace IdleGame.GameCore.Tests
             Assert.True(mob.Stats.Get(StatKey.SplashRadius) > 0); // splash granted -> attacks splash
         }
 
+        // --- predicates that drive the client "imprinted item" tells ---
+
+        [Fact]
+        public void ImprintStatPredicateMatchesOnlyMechanicalSignatures()
+        {
+            var cfg = GameConfig.Default();
+            Assert.True(Loot.IsImprintStat(StatKey.SplashRadius, cfg)); // Volatile's signature
+            Assert.False(Loot.IsImprintStat(StatKey.Atk, cfg));         // an ordinary rolled stat
+        }
+
+        [Fact]
+        public void IsImprintedDetectsTheStampedAffix()
+        {
+            var cfg = GameConfig.Default();
+            var plain = PlainItem();
+            Assert.False(Loot.IsImprinted(plain, cfg));
+
+            var stamped = Loot.ImprintDrop(new Rng(1), PlainItem(), new List<string> { "volatile" },
+                Active(CertainImprintCfg(), "volatile", 5), cfg);
+            Assert.True(Loot.IsImprinted(stamped, cfg));
+        }
+
         [Fact]
         public void ImprintedSplashAffixFoldsIntoHeroStats()
         {

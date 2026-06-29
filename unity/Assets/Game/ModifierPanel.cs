@@ -83,9 +83,12 @@ namespace IdleGame.Game
             name.color = new Color((float)def.TintR, (float)def.TintG, (float)def.TintB) * 1.15f;
             AnchorTL(name, new Vector2(22f, y - 6f));
 
+            // Mechanical mods imprint their signature onto drops — flag it so the player connects the
+            // dangerous mod to the exclusive loot it seeds.
+            string mech = def.Mechanical ? "    ·    <color=#d99bff>✦ imprints gear</color>" : "";
             var sub = UiKit.Label(parent,
-                $"{MonsterSummary(def, strength)}    ·    <color=#9fe0a0>{RewardSummary(def, strength)}</color>",
-                12, TextAnchor.UpperLeft, new Vector2(420f, 30f), Vector2.zero);
+                $"{MonsterSummary(def, strength)}    ·    <color=#9fe0a0>{RewardSummary(def, strength)}</color>{mech}",
+                12, TextAnchor.UpperLeft, new Vector2(440f, 30f), Vector2.zero);
             sub.color = new Color(0.78f, 0.82f, 0.88f);
             sub.supportRichText = true;
             AnchorTL(sub, new Vector2(22f, y - 32f));
@@ -132,6 +135,7 @@ namespace IdleGame.Game
             double frac = Mathf.Min((float)_cfg.Balance.ModifierBehaviorCap, (float)(def.BehaviorPerStrength * strength)) * 100;
             if (def.Behavior == ModifierBehavior.Vampiric) parts.Add($"lifesteal {frac:0}%");
             else if (def.Behavior == ModifierBehavior.Thorns) parts.Add($"reflect {frac:0}%");
+            else if (def.Behavior == ModifierBehavior.Splash) parts.Add("attacks splash the party");
             return string.Join(", ", parts);
         }
 

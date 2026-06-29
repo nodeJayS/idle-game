@@ -62,6 +62,16 @@ namespace IdleGame.Game
             _ => Mathf.RoundToInt((float)v).ToString(), // Hp, Def, Atk, Mana
         };
 
+        /// <summary>Player-facing flavor for an imprint affix (a mechanical-modifier signature) — shown
+        /// instead of a raw stat number, since these are under-the-hood mechanics. E.g. heroes already
+        /// splash, so the splash imprint reads as "wider splash radius".</summary>
+        public static string ImprintBlurb(StatKey k) => k switch
+        {
+            StatKey.SplashRadius => "wider splash radius",
+            StatKey.AttackRange => "longer attack range",
+            _ => Label(k).ToLower(),
+        };
+
         /// <summary>Signed delta for the compare pane, e.g. "+12", "-3%".</summary>
         public static string Delta(StatKey k, double v)
         {

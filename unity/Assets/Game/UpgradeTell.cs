@@ -50,5 +50,20 @@ namespace IdleGame.Game
             lbl.color = Up;
             lbl.raycastTarget = false;
         }
+
+        public static readonly Color Imprint = new Color(0.85f, 0.6f, 1f);
+
+        /// <summary>Pin a small violet ✦ to a bag tile's top-LEFT corner when the item carries a
+        /// mechanical-modifier imprint (a build-defining affix you can only farm). Top-left so it
+        /// never collides with the top-right upgrade ▲.</summary>
+        public static void ImprintBadgeTile(GameObject tile)
+        {
+            var lbl = UiKit.Label(tile.transform, "✦", 15, TextAnchor.UpperLeft, new Vector2(22, 16), Vector2.zero);
+            var rt = (RectTransform)lbl.transform;
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0f, 1f);
+            rt.anchoredPosition = new Vector2(2f, -1f);
+            lbl.color = Imprint;
+            lbl.raycastTarget = false;
+        }
     }
 }
