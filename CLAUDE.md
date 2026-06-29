@@ -143,9 +143,12 @@ chat/feed panel.
     arcs to up to `Balance.MaxChainJumps` nearest-unhit enemies within `Balance.ChainRange` (3.0 tiles),
     hopping target→nearest→… (`Combat.NearestEnemyWithin`); symmetric (a Chaining mob arcs to the party).
     Imprint stamps `+ChainCount` (prefix). Verified live (titled "Chaining …" name, blurb, prefix pair
-    active+applying, chain runs clean in combat). 347 tests. **3c = client panel two-pool UI** (the panel
-    still shows the old single 3-slot cap and wrongly marks rare prefixes FULL — `SetActive`/`ResolveActive`
-    already enforce pools correctly, only the display is stale). Then item **gambling/crafting** separately.
+    active+applying, chain runs clean in combat). 347 tests. **Slice 3c ✅ — two-pool Modifier panel:**
+    `ModifierPanel` now renders pooled sections — **Normal n/3**, **Rare — Prefix n/2**, **Rare — Suffix
+    n/2** — with per-pool FULL locking (`Modifiers.PoolFull`/`ActiveInPool`/`PoolCap` exposed), a "needs 2
+    to apply" section hint + per-row "inert (needs pair)" tag for a lone rare mod, and a net line that
+    counts only what actually APPLIES (`ResolveActive`). Verified live. **Loot-imprint feature COMPLETE.**
+    Next: item **gambling/crafting** as a separate feature (the farm→gamble→harder-mods→better-gear loop).
 
 - **Loot & power chase (Lever 2) ✅** — drops legible at a glance. `Upgrades.cs` collapses a
   candidate item into one honest power scalar (`PowerScore` = geometric mean of DPS and

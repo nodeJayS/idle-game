@@ -83,8 +83,17 @@ namespace IdleGame.GameCore
 
         // ---- pool classification + caps (normal vs rare prefix/suffix) ----
 
-        private static int PoolCap(GameConfig cfg, ModifierDef def)
+        /// <summary>The active cap for the pool a modifier belongs to (UI + SetActive share this).</summary>
+        public static int PoolCap(GameConfig cfg, ModifierDef def)
             => def.Mechanical ? cfg.Balance.MaxActiveRarePerSlot : cfg.Balance.MaxActiveModifiers;
+
+        /// <summary>How many of a modifier's pool are currently active — for "n/cap" UI.</summary>
+        public static int ActiveInPool(SaveState save, GameConfig cfg, ModifierDef def)
+            => CountActiveInPool(save.Modifiers.Active, cfg, def);
+
+        /// <summary>True if a modifier's pool is at its active cap (UI locks the rest of that pool).</summary>
+        public static bool PoolFull(SaveState save, GameConfig cfg, ModifierDef def)
+            => CountActiveInPool(save.Modifiers.Active, cfg, def) >= PoolCap(cfg, def);
 
         /// <summary>Does an active id share <paramref name="def"/>'s pool? Normal mods pool together;
         /// rare mods pool by prefix/suffix slot.</summary>
