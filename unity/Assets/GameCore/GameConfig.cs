@@ -293,6 +293,13 @@ namespace IdleGame.GameCore
         public int MaxActiveRarePerSlot = 2;
         public int MinActiveRarePerSlot = 2;
 
+        // Chaining (rare prefix): after a basic hit, the strike arcs to nearby enemies (or party
+        // members, for a Chaining monster). ChainRange is the per-jump reach — kept moderate so it
+        // feels like an arc, not a screen-wide zap. ChainCount (the StatKey) is floored to an int and
+        // clamped to MaxChainJumps.
+        public double ChainRange = 3.0;
+        public int MaxChainJumps = 3;
+
         // Pack variety (Lever 1): per-mob chance, rolled at farm spawn, to promote ordinary
         // trash to a highlighted, tougher rank with a boosted loot bundle. Rare is checked
         // first, then Elite; the rest stay Normal. Stat mults make them a real wall to chew
@@ -814,6 +821,20 @@ namespace IdleGame.GameCore
                 ImprintStat = StatKey.SplashRadius, ImprintPerStrength = 0.12, ImprintChance = 0.03,
                 TowerUnlockFloor = 5, // PREFIX pair with Chaining (same floor) — unlock together
                 TintR = 0.80, TintG = 0.35, TintB = 0.95, // arcane violet
+            };
+            // Chaining (rare PREFIX) — Volatile's pair, unlocked together at floor 5. The mob's hits arc
+            // to a nearby party member (Behavior=Chain grants an additive ChainCount, floored in combat);
+            // the imprint stamps +ChainCount onto YOUR gear so your attacks chain to extra enemies.
+            cfg.Modifiers["chaining"] = new ModifierDef
+            {
+                Id = "chaining", Name = "Chaining",
+                StatPerStrength = SB((StatKey.Hp, 0.12), (StatKey.Atk, 0.10)),
+                Behavior = ModifierBehavior.Chain, BehaviorPerStrength = 0.34, // mob chain jumps = floor(0.34·str)
+                Reward = ModifierReward.Xp, RewardPerStrength = 0.06,
+                Mechanical = true, ImprintSlot = ImprintSlot.Prefix,
+                ImprintStat = StatKey.ChainCount, ImprintPerStrength = 0.34, ImprintChance = 0.03,
+                TowerUnlockFloor = 5,
+                TintR = 0.35, TintG = 0.75, TintB = 0.95, // electric cyan
             };
             // Rare SUFFIX pair — of Leeching / of Thorns (unlock together at floor 10). The monster side
             // reuses the existing Vampiric/Thorns per-hit behaviors; the imprint stamps the matching

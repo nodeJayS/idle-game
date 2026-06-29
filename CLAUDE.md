@@ -59,7 +59,7 @@ files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sy
   scene in code (camera/light/ground) and `CombatView` drives the auto-battle.
   Play-mode can't be driven headlessly; visual checks are manual.
 
-## Status (342 tests passing)
+## Status (347 tests passing)
 
 **Phase A — core loop (M0–M9) ✅** — deterministic auto-combat; loot (rarity + affixes, equip →
 stat recompute); per-hero leveling; farm-zone stage ladder with 60s mini/major boss gates + tiered
@@ -138,11 +138,14 @@ chat/feed panel.
     `Combat.ApplyHit`, so a hero's imprinted gear leeches/reflects like a modded monster). Mods are typed
     via `ModifierDef.ImprintSlot`; Volatile = prefix; new **suffix pair of Leeching / of Thorns** (@floor
     10). Titled names compose prefix+base+suffix (`StatDisplay.ItemName` → "Volatile Rusty Sword of
-    Leeching", best-fit shrink for long names). **NOTE:** under the ≥2 rule, Volatile is INERT alone until
-    its prefix partner **Chaining** lands. 342 tests. **3b = Chaining** (new arc-jump combat; completes
-    the prefix pair). **3c = client panel two-pool UI** (the panel still shows the old single 3-slot cap
-    and wrongly marks rare prefixes FULL — `SetActive` already enforces pools correctly, only the display
-    is stale). Then item **gambling/crafting** as a separate feature.
+    Leeching", best-fit shrink for long names). **Slice 3b ✅ — Chaining** (the prefix pair partner, so
+    Volatile is live again): new exclusive `StatKey.ChainCount` + `ModifierBehavior.Chain`; a basic hit
+    arcs to up to `Balance.MaxChainJumps` nearest-unhit enemies within `Balance.ChainRange` (3.0 tiles),
+    hopping target→nearest→… (`Combat.NearestEnemyWithin`); symmetric (a Chaining mob arcs to the party).
+    Imprint stamps `+ChainCount` (prefix). Verified live (titled "Chaining …" name, blurb, prefix pair
+    active+applying, chain runs clean in combat). 347 tests. **3c = client panel two-pool UI** (the panel
+    still shows the old single 3-slot cap and wrongly marks rare prefixes FULL — `SetActive`/`ResolveActive`
+    already enforce pools correctly, only the display is stale). Then item **gambling/crafting** separately.
 
 - **Loot & power chase (Lever 2) ✅** — drops legible at a glance. `Upgrades.cs` collapses a
   candidate item into one honest power scalar (`PowerScore` = geometric mean of DPS and

@@ -196,6 +196,47 @@ namespace IdleGame.GameCore.Tests
             Assert.True(s.Entities.First(e => e.Id == "E").Hp < 1000); // monster took reflected damage on its hits
         }
 
+        // --- Chaining (3b): the arc-jump prefix ---
+
+        [Fact]
+        public void TheVolatileChainingPrefixPairUnlocksTogether()
+        {
+            int gate = Cfg.Modifiers["chaining"].TowerUnlockFloor;
+            Assert.Equal(Cfg.Modifiers["volatile"].TowerUnlockFloor, gate); // same floor = a pair
+            var owned = AtStageAndFloor(50, gate).Modifiers.Owned;
+            Assert.True(owned.ContainsKey("volatile") && owned.ContainsKey("chaining"));
+        }
+
+        [Fact]
+        public void ChainCountMakesAnAttackArcToASecondEnemy()
+        {
+            var hero = Ent("P", Team.Party, hp: 1_000_000, atk: 500, def: 0, x: 0);
+            hero.Stats[StatKey.MoveSpd] = 0; hero.Stats[StatKey.ChainCount] = 1; // +1 jump, stays put
+            var e1 = Ent("E1", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0.6);   // primary
+            var e2 = Ent("E2", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 1.6);   // within ChainRange of e1
+            e1.Stats[StatKey.MoveSpd] = 0; e2.Stats[StatKey.MoveSpd] = 0;
+            var s = State(hero, e1, e2);
+
+            for (int i = 0; i < 60; i++) Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+
+            Assert.True(s.Entities.First(e => e.Id == "E2").Hp < 1_000_000); // chain reached the 2nd enemy
+        }
+
+        [Fact]
+        public void WithoutChainOnlyThePrimaryEnemyIsHit()
+        {
+            var hero = Ent("P", Team.Party, hp: 1_000_000, atk: 500, def: 0, x: 0);
+            hero.Stats[StatKey.MoveSpd] = 0;
+            var e1 = Ent("E1", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0.6);
+            var e2 = Ent("E2", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 1.6);
+            e1.Stats[StatKey.MoveSpd] = 0; e2.Stats[StatKey.MoveSpd] = 0;
+            var s = State(hero, e1, e2);
+
+            for (int i = 0; i < 60; i++) Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+
+            Assert.Equal(1_000_000, s.Entities.First(e => e.Id == "E2").Hp); // no chain → 2nd enemy untouched
+        }
+
         // --- loadout (capped toggle) ---
 
         [Fact]

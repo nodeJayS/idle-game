@@ -96,6 +96,7 @@ namespace IdleGame.Game
             StatKey.AttackRange => "longer attack range",
             StatKey.Lifesteal => "leeches life on hit",
             StatKey.ThornsReflect => "reflects damage taken",
+            StatKey.ChainCount => "attacks chain to nearby enemies",
             _ => Label(k).ToLower(),
         };
 

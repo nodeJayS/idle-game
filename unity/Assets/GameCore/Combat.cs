@@ -528,6 +528,11 @@ namespace IdleGame.GameCore
                 // distance in tiles, not the 0..1 sustain/reflect fraction the cap guards.
                 e.Stats[StatKey.SplashRadius] = e.Stats.Get(StatKey.SplashRadius) + def.BehaviorPerStrength * strength;
             }
+            else if (def.Behavior == ModifierBehavior.Chain)
+            {
+                // Mechanical: grant the mob chain jumps (additive count; floored + clamped in combat).
+                e.Stats[StatKey.ChainCount] = e.Stats.Get(StatKey.ChainCount) + def.BehaviorPerStrength * strength;
+            }
             else
             {
                 double frac = Math.Min(cfg.Balance.ModifierBehaviorCap, def.BehaviorPerStrength * strength);
@@ -740,6 +745,23 @@ namespace IdleGame.GameCore
                                     Vec2.Distance(o.Pos, target.Pos) <= splash)
                                     extra.Add(o);
                             foreach (var o in extra) ApplyHit(s, e, o, cfg, rng, events);
+                        }
+
+                        // Chaining: the same swing arcs to up to ChainCount nearby enemies, hopping
+                        // target → nearest-unhit → … within ChainRange (a moderate arc, not screen-wide).
+                        int chains = Math.Min(cfg.Balance.MaxChainJumps, (int)Math.Floor(e.Stats.Get(StatKey.ChainCount)));
+                        if (chains > 0)
+                        {
+                            var chained = new HashSet<string> { target.Id };
+                            var from = target;
+                            for (int c = 0; c < chains; c++)
+                            {
+                                var next = NearestEnemyWithin(s, from, target.Team, cfg.Balance.ChainRange, chained);
+                                if (next == null) break;
+                                ApplyHit(s, e, next, cfg, rng, events);
+                                chained.Add(next.Id);
+                                from = next;
+                            }
                         }
                     }
                 }
@@ -957,6 +979,23 @@ namespace IdleGame.GameCore
         {
             foreach (var o in s.Entities) if (o.Alive && o.Team != team) return true;
             return false;
+        }
+
+        /// <summary>Nearest alive entity on <paramref name="team"/> within <paramref name="range"/>
+        /// of <paramref name="from"/>, excluding ids already hit. Stable Id tie-break. Drives the
+        /// Chaining arc (target → nearest-unhit → …).</summary>
+        private static CombatEntity? NearestEnemyWithin(CombatState s, CombatEntity from, Team team, double range, HashSet<string> exclude)
+        {
+            CombatEntity? best = null;
+            double bestD = double.MaxValue;
+            foreach (var o in s.Entities)
+            {
+                if (!o.Alive || o.Team != team || exclude.Contains(o.Id)) continue;
+                double d = Vec2.Distance(from.Pos, o.Pos);
+                if (d > range) continue;
+                if (d < bestD || (d == bestD && best != null && string.CompareOrdinal(o.Id, best.Id) < 0)) { bestD = d; best = o; }
+            }
+            return best;
         }
 
         /// <summary>Resolve a killed entity: party heroes are downed (respawn); monsters

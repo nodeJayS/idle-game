@@ -31,7 +31,7 @@ namespace IdleGame.GameCore
     // stats — in no item base's AllowedAffixes, so they only ever reach gear via Loot.ImprintDrop
     // (the rare suffix mods of Leeching / of Thorns). Read in Combat.ApplyHit alongside the same-named
     // monster-behavior fields, so a hero with the stat leeches/reflects exactly like a modded monster.
-    public enum StatKey { Hp, Atk, Def, MoveSpd, CritChance, CritDmg, HpRegen, AttackRange, SplashRadius, MaxMana, ManaRegen, AtkSpd, Lifesteal, ThornsReflect }
+    public enum StatKey { Hp, Atk, Def, MoveSpd, CritChance, CritDmg, HpRegen, AttackRange, SplashRadius, MaxMana, ManaRegen, AtkSpd, Lifesteal, ThornsReflect, ChainCount }
 
     /// <summary>A bag of stat values. Partial blocks simply omit keys.</summary>
     public sealed class StatBlock : Dictionary<StatKey, double>
@@ -124,7 +124,7 @@ namespace IdleGame.GameCore
     /// multipliers. Vampiric = heals a fraction of damage it deals; Thorns = reflects a fraction
     /// of damage taken back to the attacker; Splash = its attacks hit the whole party in a radius
     /// (a real combat mechanic — the basis of the first loot-imprint modifier). None = stat-only.</summary>
-    public enum ModifierBehavior { None, Vampiric, Thorns, Splash }
+    public enum ModifierBehavior { None, Vampiric, Thorns, Splash, Chain }
 
     /// <summary>Which imprint slot a rare (mechanical) modifier occupies — PoE-style. An item can hold
     /// at most ONE prefix imprint and ONE suffix imprint. Prefix imprints title the gear with a leading

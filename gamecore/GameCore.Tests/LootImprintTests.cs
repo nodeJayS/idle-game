@@ -124,6 +124,33 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(1, suffixes); // one slot — a single random pick among the hits, never both
         }
 
+        [Fact]
+        public void ChainingImprintsChainCountInThePrefixSlot()
+        {
+            var cfg = AllCertainImprintCfg();
+            var active = new List<ModifierInstance> { new ModifierInstance { Def = cfg.Modifiers["chaining"], Strength = 5 } };
+            var item = Loot.ImprintDrop(new Rng(1), PlainItem(), new List<string> { "chaining" }, active, cfg);
+
+            Assert.Equal("Chaining", Loot.ImprintForSlot(item, cfg, ImprintSlot.Prefix)!.Name);
+            Assert.True(item.Affixes.Exists(a => a.Stat == StatKey.ChainCount));
+        }
+
+        [Fact]
+        public void OnlyOnePrefixLandsWhenBothPrefixModsHit()
+        {
+            var cfg = AllCertainImprintCfg();
+            var active = new List<ModifierInstance> // volatile + chaining are both prefixes
+            {
+                new ModifierInstance { Def = cfg.Modifiers["volatile"], Strength = 5 },
+                new ModifierInstance { Def = cfg.Modifiers["chaining"], Strength = 5 },
+            };
+            var item = Loot.ImprintDrop(new Rng(4), PlainItem(),
+                new List<string> { "volatile", "chaining" }, active, cfg);
+
+            int prefixes = item.Affixes.FindAll(a => Loot.ImprintSlotOfStat(a.Stat, cfg) == ImprintSlot.Prefix).Count;
+            Assert.Equal(1, prefixes); // one prefix slot — random pick, never both
+        }
+
         // --- the imprinted stat is EXCLUSIVE to this path ---
 
         [Fact]
