@@ -140,8 +140,11 @@ namespace IdleGame.Game
             }
 
             float y = 210f;
-            UiKit.Label(_detail, StatDisplay.ItemName(item, _cfg), 18, TextAnchor.MiddleLeft,
-                        new Vector2(270, 26), new Vector2(0, y)).color = Palette.Rarity(item.Rarity);
+            var nameLbl = UiKit.Label(_detail, StatDisplay.ItemName(item, _cfg), 18, TextAnchor.MiddleLeft,
+                        new Vector2(280, 26), new Vector2(0, y));
+            nameLbl.color = Palette.Rarity(item.Rarity);
+            // Titled imprints ("Volatile … of Leeching") can run long — auto-shrink to fit one line.
+            nameLbl.resizeTextForBestFit = true; nameLbl.resizeTextMaxSize = 18; nameLbl.resizeTextMinSize = 11;
             y -= 24f;
             UiKit.Label(_detail, StatDisplay.RarityName(item.Rarity), 13, TextAnchor.MiddleLeft,
                         new Vector2(270, 20), new Vector2(0, y)).color = Palette.Rarity(item.Rarity); // rarity as a status line

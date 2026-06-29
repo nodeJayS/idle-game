@@ -59,7 +59,7 @@ files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sy
   scene in code (camera/light/ground) and `CombatView` drives the auto-battle.
   Play-mode can't be driven headlessly; visual checks are manual.
 
-## Status (334 tests passing)
+## Status (342 tests passing)
 
 **Phase A — core loop (M0–M9) ✅** — deterministic auto-combat; loot (rarity + affixes, equip →
 stat recompute); per-hero leveling; farm-zone stage ladder with 60s mini/major boss gates + tiered
@@ -127,8 +127,22 @@ chat/feed panel.
     from item names** everywhere (bag/Heroes/feed/loot-pop/auto-equip) — name is tinted by rarity, with
     a colored **rarity status line** under the name in detail panels and a **color→rarity legend** along
     the bag bottom (`InventoryView.BuildRarityLegend`). Base ids prettified (`StatDisplay.PrettyBase`).
-    334 tests. Verified live via Unity MCP (titled name, rarity line, legend, panel). **Slice 3 = more
-    mechanical mods** (e.g. `+AttackRange`). Then item **gambling/crafting** as a separate feature.
+    Verified live via Unity MCP (titled name, rarity line, legend, panel).
+  - **Slice 3 ◑ — PoE-style prefix/suffix + a separate Rare pool (3a done, GameCore).** Rare
+    (Mechanical) mods are a SEPARATE loadout from the 3 normal stat mods, capped **2 prefix + 2 suffix**
+    (`Balance.MaxActiveRarePerSlot`). **Anti-target-farming (locked design):** a rare slot only APPLIES
+    when ≥`MinActiveRarePerSlot` (2) of it are active (`Modifiers.ResolveActive`), mods unlock in PAIRS
+    (two of a slot share a `TowerUnlockFloor`), an item holds **≤1 prefix + ≤1 suffix imprint**, and a
+    drop imprints a **random pick among the hits** (`Loot.ImprintDrop`) — so you can never deterministically
+    farm one imprint. New exclusive stats `Lifesteal`/`ThornsReflect` (folded into a now team-agnostic
+    `Combat.ApplyHit`, so a hero's imprinted gear leeches/reflects like a modded monster). Mods are typed
+    via `ModifierDef.ImprintSlot`; Volatile = prefix; new **suffix pair of Leeching / of Thorns** (@floor
+    10). Titled names compose prefix+base+suffix (`StatDisplay.ItemName` → "Volatile Rusty Sword of
+    Leeching", best-fit shrink for long names). **NOTE:** under the ≥2 rule, Volatile is INERT alone until
+    its prefix partner **Chaining** lands. 342 tests. **3b = Chaining** (new arc-jump combat; completes
+    the prefix pair). **3c = client panel two-pool UI** (the panel still shows the old single 3-slot cap
+    and wrongly marks rare prefixes FULL — `SetActive` already enforces pools correctly, only the display
+    is stale). Then item **gambling/crafting** as a separate feature.
 
 - **Loot & power chase (Lever 2) ✅** — drops legible at a glance. `Upgrades.cs` collapses a
   candidate item into one honest power scalar (`PowerScore` = geometric mean of DPS and

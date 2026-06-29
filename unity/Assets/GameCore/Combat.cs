@@ -821,15 +821,22 @@ namespace IdleGame.GameCore
                 Crit = crit,
             });
 
-            // Modifier behaviors (Lever 1). Vampiric: a modified monster heals a fraction of the
-            // damage it deals to a hero (sustain — no event, the HP bar refilling is the tell).
-            if (attacker.Lifesteal > 0 && attacker.Team == Team.Enemy && victim.Team == Team.Party)
-                attacker.Hp = Math.Min(attacker.MaxHp, attacker.Hp + dmg * attacker.Lifesteal);
+            // Modifier behaviors (Lever 1), now team-agnostic so they work for BOTH a modified monster
+            // (Lifesteal/ThornsReflect FIELD set in ApplyModifier) AND a hero whose imprinted gear grants
+            // the matching EXCLUSIVE stat (Lifesteal/ThornsReflect read off Stats). Hits only ever cross
+            // teams, so dropping the old team gates is safe. Capped so deep stacks can't reach 100%.
+            double cap = cfg.Balance.ModifierBehaviorCap;
 
-            // Thorns: a hero striking a modified monster takes a fraction back (can down the hero).
-            if (victim.ThornsReflect > 0 && victim.Team == Team.Enemy && attacker.Team == Team.Party)
+            // Vampiric / of Leeching: the attacker heals a fraction of damage dealt.
+            double lifesteal = Math.Min(cap, attacker.Lifesteal + attacker.Stats.Get(StatKey.Lifesteal));
+            if (lifesteal > 0)
+                attacker.Hp = Math.Min(attacker.MaxHp, attacker.Hp + dmg * lifesteal);
+
+            // Thorns / of Thorns: the victim reflects a fraction of damage taken back at the attacker.
+            double thorns = Math.Min(cap, victim.ThornsReflect + victim.Stats.Get(StatKey.ThornsReflect));
+            if (thorns > 0)
             {
-                double reflect = dmg * victim.ThornsReflect;
+                double reflect = dmg * thorns;
                 attacker.Hp -= reflect;
                 events.Add(new CombatEvent { Type = CombatEventType.Hit, SourceId = victim.Id, TargetId = attacker.Id, Amount = reflect });
                 if (attacker.Hp <= 0) HandleDeath(s, attacker, cfg, rng, events);

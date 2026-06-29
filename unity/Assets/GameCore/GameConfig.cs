@@ -142,8 +142,14 @@ namespace IdleGame.GameCore
         // Acquisition gate. 0 = unlocked by FARM DEPTH via ModifierUnlockOrder (the boring stat mods).
         // >0 = TOWER-GATED: owned only once the player has cleared this Tower floor — so a mechanical
         // mod feels like an earned Tower reward (on top of the milestone account buffs) rather than a
-        // silent farm tick. Granted in Modifiers.SyncToStage from TowerState.HighestFloor.
+        // silent farm tick. Granted in Modifiers.SyncToStage from TowerState.HighestFloor. Rare mods
+        // unlock in PAIRS: two of the same ImprintSlot share a TowerUnlockFloor (anti-target-farming —
+        // see Modifiers).
         public int TowerUnlockFloor;
+
+        // Which imprint slot a Mechanical (rare) mod occupies — its imprint is a prefix or a suffix on
+        // the dropped item, and it counts against that slot's loadout cap. Ignored for normal mods.
+        public ImprintSlot ImprintSlot;
     }
 
     /// <summary>All tunable numbers. The file you edit constantly to balance.</summary>
@@ -277,7 +283,15 @@ namespace IdleGame.GameCore
         // stages. The player slots up to MaxActiveModifiers of them as an account-wide loadout.
         public int ModifierNewEveryStages = 10;      // unlock the next modifier in ModifierUnlockOrder every N stages
         public int ModifierUpgradeEveryStages = 5;   // +1 strength to ALL owned modifiers every N stages
-        public int MaxActiveModifiers = 3;           // loadout cap — how many can be active at once
+        public int MaxActiveModifiers = 3;           // NORMAL-pool loadout cap — how many boring stat mods at once
+
+        // Rare (mechanical, imprint-bearing) mods are a SEPARATE loadout from the normal pool, capped
+        // PER SLOT: up to MaxActiveRarePerSlot prefixes + that many suffixes. Anti-target-farming: a
+        // rare slot only APPLIES (and can imprint) when ≥ MinActiveRarePerSlot of it are active — so a
+        // drop is always randomized across ≥2 possible imprints, never one you can target-farm. With
+        // both at 2, a slot is effectively all-or-nothing (run both, or neither). See Modifiers.
+        public int MaxActiveRarePerSlot = 2;
+        public int MinActiveRarePerSlot = 2;
 
         // Pack variety (Lever 1): per-mob chance, rolled at farm spawn, to promote ordinary
         // trash to a highlighted, tougher rank with a boosted loot bundle. Rare is checked
@@ -795,11 +809,38 @@ namespace IdleGame.GameCore
                 StatPerStrength = SB((StatKey.Hp, 0.12), (StatKey.Atk, 0.10)),
                 Behavior = ModifierBehavior.Splash, BehaviorPerStrength = 0.25, // +0.25 tiles splash / strength
                 Reward = ModifierReward.DropRate, RewardPerStrength = 0.06,
-                Mechanical = true,
+                Mechanical = true, ImprintSlot = ImprintSlot.Prefix,
                 // Imprinted gear is EXTREMELY rare — a lucky stamp on a Volatile kill, not a reliable farm.
                 ImprintStat = StatKey.SplashRadius, ImprintPerStrength = 0.12, ImprintChance = 0.03,
-                TowerUnlockFloor = 5, // unlocks on clearing Tower floor 5 (early, reachable chase)
+                TowerUnlockFloor = 5, // PREFIX pair with Chaining (same floor) — unlock together
                 TintR = 0.80, TintG = 0.35, TintB = 0.95, // arcane violet
+            };
+            // Rare SUFFIX pair — of Leeching / of Thorns (unlock together at floor 10). The monster side
+            // reuses the existing Vampiric/Thorns per-hit behaviors; the imprint stamps the matching
+            // EXCLUSIVE stat onto YOUR gear (Lifesteal / ThornsReflect), read in Combat.ApplyHit so a
+            // hero leeches/reflects just like a modded monster. Premium tradeoff: these mobs are tanky
+            // AND hit hard on top of the sustain/punish behavior.
+            cfg.Modifiers["leeching"] = new ModifierDef
+            {
+                Id = "leeching", Name = "Leeching",
+                StatPerStrength = SB((StatKey.Hp, 0.12), (StatKey.Atk, 0.10)),
+                Behavior = ModifierBehavior.Vampiric, BehaviorPerStrength = 0.020, // mob lifesteal
+                Reward = ModifierReward.Gold, RewardPerStrength = 0.06,
+                Mechanical = true, ImprintSlot = ImprintSlot.Suffix,
+                ImprintStat = StatKey.Lifesteal, ImprintPerStrength = 0.010, ImprintChance = 0.03,
+                TowerUnlockFloor = 10,
+                TintR = 0.85, TintG = 0.20, TintB = 0.45, // crimson
+            };
+            cfg.Modifiers["barbed"] = new ModifierDef
+            {
+                Id = "barbed", Name = "Thorns",
+                StatPerStrength = SB((StatKey.Hp, 0.12), (StatKey.Atk, 0.10)),
+                Behavior = ModifierBehavior.Thorns, BehaviorPerStrength = 0.015, // mob reflect
+                Reward = ModifierReward.DropRate, RewardPerStrength = 0.06,
+                Mechanical = true, ImprintSlot = ImprintSlot.Suffix,
+                ImprintStat = StatKey.ThornsReflect, ImprintPerStrength = 0.010, ImprintChance = 0.03,
+                TowerUnlockFloor = 10,
+                TintR = 0.95, TintG = 0.55, TintB = 0.20, // amber
             };
 
             // Stage→type cycle: boss at stage 1=Vampiric, 2=Swift, 3=Armored, 4=Thorns, 5=Vampiric…

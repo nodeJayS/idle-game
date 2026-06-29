@@ -72,16 +72,56 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
-        public void DoubleImprintStacksIntoOneAffixRatherThanDuplicating()
+        public void AnAlreadyFilledSlotIsNotOverwritten()
         {
             var cfg = CertainImprintCfg();
             var item = PlainItem();
-            item.Affixes.Add(new Affix { Stat = StatKey.SplashRadius, Value = 1.0 }); // pre-existing splash
+            item.Affixes.Add(new Affix { Stat = StatKey.SplashRadius, Value = 1.0 }); // prefix slot already filled
 
             Loot.ImprintDrop(new Rng(1), item, new List<string> { "volatile" }, Active(cfg, "volatile", 5), cfg);
 
-            var aff = Assert.Single(item.Affixes); // merged, not a second SplashRadius affix
-            Assert.Equal(1.0 + cfg.Modifiers["volatile"].ImprintPerStrength * 5, aff.Value, 6);
+            var aff = Assert.Single(item.Affixes);
+            Assert.Equal(1.0, aff.Value, 6); // unchanged — at most one prefix imprint per item
+        }
+
+        // Chance=1 for EVERY mechanical mod (so prefix + suffix tests aren't rng-flaky).
+        private static GameConfig AllCertainImprintCfg()
+        {
+            var c = GameConfig.Default();
+            foreach (var kv in c.Modifiers) if (kv.Value.Mechanical) kv.Value.ImprintChance = 1.0;
+            return c;
+        }
+
+        [Fact]
+        public void AnItemCanHoldOnePrefixAndOneSuffixImprint()
+        {
+            var cfg = AllCertainImprintCfg();
+            var active = new List<ModifierInstance>
+            {
+                new ModifierInstance { Def = cfg.Modifiers["volatile"], Strength = 5 }, // prefix
+                new ModifierInstance { Def = cfg.Modifiers["leeching"], Strength = 5 }, // suffix
+            };
+            var item = Loot.ImprintDrop(new Rng(1), PlainItem(),
+                new List<string> { "volatile", "leeching" }, active, cfg);
+
+            Assert.Equal("Volatile", Loot.ImprintForSlot(item, cfg, ImprintSlot.Prefix)!.Name);
+            Assert.Equal("Leeching", Loot.ImprintForSlot(item, cfg, ImprintSlot.Suffix)!.Name);
+        }
+
+        [Fact]
+        public void OnlyOneImprintLandsPerSlotEvenWhenBothCandidatesHit()
+        {
+            var cfg = AllCertainImprintCfg();
+            var active = new List<ModifierInstance> // two suffix candidates, both certain to hit
+            {
+                new ModifierInstance { Def = cfg.Modifiers["leeching"], Strength = 5 },
+                new ModifierInstance { Def = cfg.Modifiers["barbed"], Strength = 5 },
+            };
+            var item = Loot.ImprintDrop(new Rng(3), PlainItem(),
+                new List<string> { "leeching", "barbed" }, active, cfg);
+
+            int suffixes = item.Affixes.FindAll(a => Loot.ImprintSlotOfStat(a.Stat, cfg) == ImprintSlot.Suffix).Count;
+            Assert.Equal(1, suffixes); // one slot — a single random pick among the hits, never both
         }
 
         // --- the imprinted stat is EXCLUSIVE to this path ---

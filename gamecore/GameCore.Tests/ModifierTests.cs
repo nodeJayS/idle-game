@@ -124,6 +124,78 @@ namespace IdleGame.GameCore.Tests
             Assert.DoesNotContain("volatile", Modifiers.SyncToStage(owned, Cfg).Modifiers.Owned.Keys);
         }
 
+        // --- rare pool: separate caps, prefix/suffix pairs, the ≥2-or-none apply rule ---
+
+        [Fact]
+        public void SuffixPairUnlocksTogetherAtItsTowerFloor()
+        {
+            int gate = Cfg.Modifiers["leeching"].TowerUnlockFloor;
+            var below = AtStageAndFloor(50, gate - 1).Modifiers.Owned;
+            Assert.False(below.ContainsKey("leeching") || below.ContainsKey("barbed")); // neither before the floor
+            var at = AtStageAndFloor(50, gate).Modifiers.Owned;
+            Assert.True(at.ContainsKey("leeching") && at.ContainsKey("barbed"));         // both, together
+        }
+
+        [Fact]
+        public void RarePoolCapIsSeparateFromTheNormalPool()
+        {
+            var s = AtStageAndFloor(70, 10); // all normal mods + volatile (prefix) + leeching/barbed (suffix)
+            foreach (var id in new[] { "prosperous", "studious", "bountiful" }) // fill normal pool (cap 3)
+                s = Modifiers.SetActive(s, id, true, Cfg);
+            // rare suffix slot is independent — still activatable despite the normal pool being full
+            s = Modifiers.SetActive(s, "leeching", true, Cfg);
+            s = Modifiers.SetActive(s, "barbed", true, Cfg);
+            Assert.Contains("leeching", s.Modifiers.Active);
+            Assert.Contains("barbed", s.Modifiers.Active);
+        }
+
+        [Fact]
+        public void ALoneRareModIsInertButTheActivePairApplies()
+        {
+            var s = AtStageAndFloor(70, 10);
+            s = Modifiers.SetActive(s, "leeching", true, Cfg);            // only one suffix active
+            Assert.DoesNotContain(Modifiers.ResolveActive(s, Cfg), m => m.Def.Id == "leeching"); // inert alone
+
+            s = Modifiers.SetActive(s, "barbed", true, Cfg);             // now two suffixes
+            var ids = Modifiers.ResolveActive(s, Cfg).ConvertAll(m => m.Def.Id);
+            Assert.Contains("leeching", ids);
+            Assert.Contains("barbed", ids);
+        }
+
+        [Fact]
+        public void ASingleNormalModAlwaysApplies()
+        {
+            var s = AtStage(10); // owns prosperous (a normal mod)
+            s = Modifiers.SetActive(s, "prosperous", true, Cfg);
+            Assert.Contains(Modifiers.ResolveActive(s, Cfg), m => m.Def.Id == "prosperous"); // ≥2 rule is rare-only
+        }
+
+        [Fact]
+        public void HeroWithLifestealStatHealsWhenItDamagesAnEnemy()
+        {
+            var hero = Ent("P", Team.Party, hp: 1000, atk: 50, def: 0, x: 0);
+            hero.Hp = 100; hero.Stats[StatKey.Lifesteal] = 0.5; // imprinted gear would grant this
+            var enemy = Ent("E", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0.4); // can't be killed
+            var s = State(enemy, hero);
+
+            for (int i = 0; i < 90; i++) Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+
+            Assert.True(s.Entities.First(e => e.Id == "P").Hp > 100); // healed from leech (party side now works)
+        }
+
+        [Fact]
+        public void HeroWithThornsStatReflectsToAnAttackingMonster()
+        {
+            var hero = Ent("P", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0); // won't kill the enemy
+            hero.Stats[StatKey.ThornsReflect] = 0.5;
+            var enemy = Ent("E", Team.Enemy, hp: 1000, atk: 100, def: 0, x: 0.4);
+            var s = State(enemy, hero);
+
+            for (int i = 0; i < 90; i++) Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(1));
+
+            Assert.True(s.Entities.First(e => e.Id == "E").Hp < 1000); // monster took reflected damage on its hits
+        }
+
         // --- loadout (capped toggle) ---
 
         [Fact]

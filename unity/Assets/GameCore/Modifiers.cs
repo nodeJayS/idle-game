@@ -52,9 +52,7 @@ namespace IdleGame.GameCore
                 if (kv.Value.TowerUnlockFloor > 0 && floor >= kv.Value.TowerUnlockFloor)
                     owned[kv.Key] = strength;
 
-            var active = new List<string>();
-            foreach (var id in save.Modifiers.Active)
-                if (owned.ContainsKey(id) && active.Count < cfg.Balance.MaxActiveModifiers) active.Add(id);
+            var active = PruneActive(save.Modifiers.Active, owned, cfg);
 
             if (SameOwned(save.Modifiers.Owned, owned) && SameList(save.Modifiers.Active, active))
                 return save; // already in sync
@@ -62,17 +60,18 @@ namespace IdleGame.GameCore
             return WithModifiers(save, new MonsterModifiers { Owned = owned, Active = active });
         }
 
-        /// <summary>Toggle a modifier type on/off (applies to farm trash while active). No-op (shares
-        /// the ref) when: activating an unowned type, the loadout is already at
-        /// <see cref="BalanceConstants.MaxActiveModifiers"/>, or it's already in the requested state.
-        /// Pure.</summary>
+        /// <summary>Toggle a modifier type on/off. No-op (shares the ref) when: activating an unowned
+        /// type, that type's POOL is already full (normal mods → <see cref="BalanceConstants.MaxActiveModifiers"/>;
+        /// rare mods → <see cref="BalanceConstants.MaxActiveRarePerSlot"/> per prefix/suffix slot,
+        /// separately), or it's already in the requested state. Pure.</summary>
         public static SaveState SetActive(SaveState save, string typeId, bool on, GameConfig cfg)
         {
             bool active = save.Modifiers.Active.Contains(typeId);
             if (on)
             {
                 if (active || !save.Modifiers.Owned.ContainsKey(typeId)) return save;
-                if (save.Modifiers.Active.Count >= cfg.Balance.MaxActiveModifiers) return save; // loadout full
+                if (!cfg.Modifiers.TryGetValue(typeId, out var def)) return save;
+                if (CountActiveInPool(save.Modifiers.Active, cfg, def) >= PoolCap(cfg, def)) return save; // pool full
                 var list = new List<string>(save.Modifiers.Active) { typeId };
                 return WithModifiers(save, new MonsterModifiers { Owned = save.Modifiers.Owned, Active = list });
             }
@@ -80,6 +79,44 @@ namespace IdleGame.GameCore
             var without = new List<string>(save.Modifiers.Active);
             without.Remove(typeId);
             return WithModifiers(save, new MonsterModifiers { Owned = save.Modifiers.Owned, Active = without });
+        }
+
+        // ---- pool classification + caps (normal vs rare prefix/suffix) ----
+
+        private static int PoolCap(GameConfig cfg, ModifierDef def)
+            => def.Mechanical ? cfg.Balance.MaxActiveRarePerSlot : cfg.Balance.MaxActiveModifiers;
+
+        /// <summary>Does an active id share <paramref name="def"/>'s pool? Normal mods pool together;
+        /// rare mods pool by prefix/suffix slot.</summary>
+        private static bool SamePool(GameConfig cfg, string activeId, ModifierDef def)
+        {
+            if (!cfg.Modifiers.TryGetValue(activeId, out var d)) return false;
+            return def.Mechanical ? (d.Mechanical && d.ImprintSlot == def.ImprintSlot) : !d.Mechanical;
+        }
+
+        private static int CountActiveInPool(List<string> active, GameConfig cfg, ModifierDef def)
+        {
+            int n = 0;
+            foreach (var id in active) if (SamePool(cfg, id, def)) n++;
+            return n;
+        }
+
+        /// <summary>Filter an active list to owned ids within each pool's cap, preserving order.</summary>
+        private static List<string> PruneActive(List<string> active, Dictionary<string, int> owned, GameConfig cfg)
+        {
+            var kept = new List<string>();
+            var perPool = new Dictionary<string, int>();
+            foreach (var id in active)
+            {
+                if (!owned.ContainsKey(id) || !cfg.Modifiers.TryGetValue(id, out var def)) continue;
+                string key = def.Mechanical ? "rare:" + def.ImprintSlot : "normal";
+                int cap = PoolCap(cfg, def);
+                int n = perPool.TryGetValue(key, out var c) ? c : 0;
+                if (n >= cap) continue;
+                perPool[key] = n + 1;
+                kept.Add(id);
+            }
+            return kept;
         }
 
         private static bool SameOwned(Dictionary<string, int> a, Dictionary<string, int> b)
@@ -101,11 +138,20 @@ namespace IdleGame.GameCore
         /// hands this to the sim (<see cref="CombatState.ActiveModifiers"/>).</summary>
         public static List<ModifierInstance> ResolveActive(SaveState save, GameConfig cfg)
         {
+            // Count active rare mods per slot — a slot only APPLIES when ≥ MinActiveRarePerSlot of it
+            // are active (so imprints are always randomized across ≥2 mods, never target-farmable).
+            var rareSlot = new Dictionary<ImprintSlot, int>();
+            foreach (var id in save.Modifiers.Active)
+                if (cfg.Modifiers.TryGetValue(id, out var d) && d.Mechanical)
+                    rareSlot[d.ImprintSlot] = (rareSlot.TryGetValue(d.ImprintSlot, out var c) ? c : 0) + 1;
+
             var result = new List<ModifierInstance>();
             foreach (var typeId in save.Modifiers.Active)
             {
                 if (!save.Modifiers.Owned.TryGetValue(typeId, out var strength)) continue;
                 if (!cfg.Modifiers.TryGetValue(typeId, out var def)) continue;
+                if (def.Mechanical && rareSlot[def.ImprintSlot] < cfg.Balance.MinActiveRarePerSlot)
+                    continue; // a lone rare mod is inert (the ≥2-or-none rule)
                 result.Add(new ModifierInstance { Def = def, Strength = strength });
             }
             return result;

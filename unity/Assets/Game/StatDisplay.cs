@@ -76,9 +76,12 @@ namespace IdleGame.Game
         /// Sword".</summary>
         public static string ItemName(Item item, GameConfig cfg)
         {
-            var src = Loot.ImprintSource(item, cfg);
-            string baseName = PrettyBase(item.BaseId);
-            return src != null ? src.Name + " " + baseName : baseName;
+            string name = PrettyBase(item.BaseId);
+            var pre = Loot.ImprintForSlot(item, cfg, ImprintSlot.Prefix);
+            var suf = Loot.ImprintForSlot(item, cfg, ImprintSlot.Suffix);
+            if (pre != null) name = pre.Name + " " + name;       // "Volatile Rusty Sword"
+            if (suf != null) name = name + " of " + suf.Name;    // "… of Leeching"
+            return name;
         }
 
         /// <summary>Player-facing rarity name for the detail status line ("Rare", "Legendary", …).</summary>
@@ -91,6 +94,8 @@ namespace IdleGame.Game
         {
             StatKey.SplashRadius => "wider splash radius",
             StatKey.AttackRange => "longer attack range",
+            StatKey.Lifesteal => "leeches life on hit",
+            StatKey.ThornsReflect => "reflects damage taken",
             _ => Label(k).ToLower(),
         };
 

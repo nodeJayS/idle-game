@@ -200,18 +200,47 @@ namespace IdleGame.GameCore
         public static Item ImprintDrop(Rng rng, Item item, IReadOnlyList<string> monsterMods,
                                        IReadOnlyList<ModifierInstance> active, GameConfig cfg)
         {
-            foreach (var mi in active) // active order is the canonical, stable application order
+            // Roll each rare mod the mob carried (one rng draw per candidate, deterministic), splitting
+            // the hits by slot. An item holds at most ONE prefix + ONE suffix imprint; when multiple of
+            // a slot hit, pick ONE at random (anti-target-farming — you can't aim for a specific one).
+            var prefixHits = new List<ModifierInstance>();
+            var suffixHits = new List<ModifierInstance>();
+            foreach (var mi in active)
             {
                 var def = mi.Def;
                 if (!def.Mechanical || !ListContains(monsterMods, def.Id)) continue;
                 if (rng.Next() >= def.ImprintChance) continue;
-
-                double value = def.ImprintPerStrength * mi.Strength;
-                var existing = item.Affixes.Find(a => a.Stat == def.ImprintStat);
-                if (existing != null) existing.Value += value;
-                else item.Affixes.Add(new Affix { Stat = def.ImprintStat, Value = value });
+                (def.ImprintSlot == ImprintSlot.Prefix ? prefixHits : suffixHits).Add(mi);
             }
+
+            if (prefixHits.Count > 0 && !HasImprint(item, cfg, ImprintSlot.Prefix))
+                ApplyImprint(item, prefixHits[rng.RandInt(0, prefixHits.Count - 1)]);
+            if (suffixHits.Count > 0 && !HasImprint(item, cfg, ImprintSlot.Suffix))
+                ApplyImprint(item, suffixHits[rng.RandInt(0, suffixHits.Count - 1)]);
             return item;
+        }
+
+        private static void ApplyImprint(Item item, ModifierInstance mi)
+        {
+            double value = mi.Def.ImprintPerStrength * mi.Strength;
+            var existing = item.Affixes.Find(a => a.Stat == mi.Def.ImprintStat);
+            if (existing != null) existing.Value += value;
+            else item.Affixes.Add(new Affix { Stat = mi.Def.ImprintStat, Value = value });
+        }
+
+        /// <summary>The imprint slot a stat belongs to (via its mechanical mod), or null if not an
+        /// imprint stat. Each imprint stat maps to exactly one slot.</summary>
+        public static ImprintSlot? ImprintSlotOfStat(StatKey stat, GameConfig cfg)
+        {
+            foreach (var kv in cfg.Modifiers)
+                if (kv.Value.Mechanical && kv.Value.ImprintStat == stat) return kv.Value.ImprintSlot;
+            return null;
+        }
+
+        private static bool HasImprint(Item item, GameConfig cfg, ImprintSlot slot)
+        {
+            foreach (var a in item.Affixes) if (ImprintSlotOfStat(a.Stat, cfg) == slot) return true;
+            return false;
         }
 
         /// <summary>True if a stat is some mechanical modifier's imprint signature — i.e. it only ever
@@ -239,6 +268,17 @@ namespace IdleGame.GameCore
             foreach (var a in item.Affixes)
                 foreach (var kv in cfg.Modifiers)
                     if (kv.Value.Mechanical && kv.Value.ImprintStat == a.Stat) return kv.Value;
+            return null;
+        }
+
+        /// <summary>The mechanical modifier imprinted in a given slot (prefix → leading title word,
+        /// suffix → trailing "of X"), or null if that slot is empty. Drives the titled item name.</summary>
+        public static ModifierDef? ImprintForSlot(Item item, GameConfig cfg, ImprintSlot slot)
+        {
+            foreach (var a in item.Affixes)
+                foreach (var kv in cfg.Modifiers)
+                    if (kv.Value.Mechanical && kv.Value.ImprintStat == a.Stat && kv.Value.ImprintSlot == slot)
+                        return kv.Value;
             return null;
         }
 
