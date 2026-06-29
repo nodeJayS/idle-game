@@ -525,7 +525,7 @@ namespace IdleGame.Game
                             if (equipped == null) continue;
                             _save = next;
                             equippedAny = true;
-                            _chat?.AddFeed($"Auto-equipped {stored.Rarity} {stored.BaseId} → {HeroDisplayName(equipped.HeroId)} ({UpgradeTell.Pct(equipped.DeltaPercent)})",
+                            _chat?.AddFeed($"Auto-equipped {StatDisplay.ItemName(stored, _cfg)} → {HeroDisplayName(equipped.HeroId)} ({UpgradeTell.Pct(equipped.DeltaPercent)})",
                                            UpgradeTell.Up);
                         }
                     if (equippedAny && _combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg);
@@ -951,7 +951,7 @@ namespace IdleGame.Game
                             // Tag the loot-rain line when the drop is a real upgrade (Lever 2), so a
                             // kill visibly matters in the stream you're watching. Skip items the
                             // auto-salvage threshold will scrap anyway (no point, and saves the eval).
-                            string line = $"{ev.Item.Rarity} {ev.Item.BaseId} (i{ev.Item.ItemLevel})";
+                            string line = $"{StatDisplay.ItemName(ev.Item, _cfg)} (i{ev.Item.ItemLevel})";
                             bool keep = Settings.AutoSalvageMax == null || ev.Item.Rarity > Settings.AutoSalvageMax.Value;
                             var up = keep ? Upgrades.BestForItem(_save, ev.Item, _cfg, _save.Progress.CurrentStage) : null;
                             if (up != null && up.Verdict == Upgrades.Verdict.Upgrade)
@@ -971,7 +971,7 @@ namespace IdleGame.Game
                             // standout beat in the loot rain; commons stay feed-only.
                             if (_juice != null && ev.Item.Rarity >= Rarity.Rare && ev.EntityId != null
                                 && deathPos != null && deathPos.TryGetValue(ev.EntityId, out var dp))
-                                _juice.LootPop(dp + Vector3.up * 0.8f, $"{ev.Item.Rarity} {ev.Item.BaseId}", ev.Item.Rarity);
+                                _juice.LootPop(dp + Vector3.up * 0.8f, StatDisplay.ItemName(ev.Item, _cfg), ev.Item.Rarity);
                         }
                         break;
                 }

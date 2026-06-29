@@ -59,7 +59,7 @@ files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sy
   scene in code (camera/light/ground) and `CombatView` drives the auto-battle.
   Play-mode can't be driven headlessly; visual checks are manual.
 
-## Status (333 tests passing)
+## Status (334 tests passing)
 
 **Phase A — core loop (M0–M9) ✅** — deterministic auto-combat; loot (rarity + affixes, equip →
 stat recompute); per-hero leveling; farm-zone stage ladder with 60s mini/major boss gates + tiered
@@ -120,9 +120,15 @@ chat/feed panel.
     ✦ tile badge (`UpgradeTell.ImprintBadgeTile`, bag top-left), a readable affix-tooltip line ("✦
     Imprinted — wider splash radius" via `StatDisplay.ImprintBlurb`, NOT a raw number), a louder loot-feed
     callout on an imprinted drop, and a "✦ imprints gear" flag + "attacks splash the party" line on
-    Volatile in `ModifierPanel`. 333 tests (`LootImprintTests.cs` + tower-gate tests in `ModifierTests.cs`).
-    **Slice 3 = more mechanical mods** (e.g. `+AttackRange`). Then item **gambling/crafting** as a
-    separate feature.
+    Volatile in `ModifierPanel`. **Tuning + titled gear:** imprint is now EXTREMELY rare
+    (`ImprintChance` 0.03); Volatile is a premium tradeoff (much stronger — `+12% HP, +10% Atk`/str +
+    wider splash, so the danger matches the splash imprint). Imprinted gear is **titled** by its mod
+    (`Loot.ImprintSource` → `StatDisplay.ItemName` = "Volatile Rusty Sword"); the **rarity word is gone
+    from item names** everywhere (bag/Heroes/feed/loot-pop/auto-equip) — name is tinted by rarity, with
+    a colored **rarity status line** under the name in detail panels and a **color→rarity legend** along
+    the bag bottom (`InventoryView.BuildRarityLegend`). Base ids prettified (`StatDisplay.PrettyBase`).
+    334 tests. Verified live via Unity MCP (titled name, rarity line, legend, panel). **Slice 3 = more
+    mechanical mods** (e.g. `+AttackRange`). Then item **gambling/crafting** as a separate feature.
 
 - **Loot & power chase (Lever 2) ✅** — drops legible at a glance. `Upgrades.cs` collapses a
   candidate item into one honest power scalar (`PowerScore` = geometric mean of DPS and

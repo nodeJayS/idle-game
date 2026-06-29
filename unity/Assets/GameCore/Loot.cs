@@ -231,6 +231,17 @@ namespace IdleGame.GameCore
             return false;
         }
 
+        /// <summary>The mechanical modifier that imprinted this item (its "title", e.g. Volatile), or
+        /// null if the item carries no imprint. Drives the titled name on imprinted gear ("Volatile
+        /// Rusty Sword"). Returns the first match in case of a multi-imprint.</summary>
+        public static ModifierDef? ImprintSource(Item item, GameConfig cfg)
+        {
+            foreach (var a in item.Affixes)
+                foreach (var kv in cfg.Modifiers)
+                    if (kv.Value.Mechanical && kv.Value.ImprintStat == a.Stat) return kv.Value;
+            return null;
+        }
+
         // LINQ-free membership test: Unity compiles GameCore without System.Linq's implicit global
         // using, so IReadOnlyList<string>.Contains would mis-resolve to a span overload (CS7036).
         private static bool ListContains(IReadOnlyList<string> list, string value)

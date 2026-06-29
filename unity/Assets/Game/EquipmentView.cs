@@ -275,9 +275,12 @@ namespace IdleGame.Game
             }
 
             float y = 196f;
-            UiKit.Label(_detail, $"{item.Rarity} {item.BaseId}", 18, TextAnchor.MiddleLeft,
+            UiKit.Label(_detail, StatDisplay.ItemName(item, _cfg), 18, TextAnchor.MiddleLeft,
                         new Vector2(250, 24), new Vector2(0, y)).color = Palette.Rarity(item.Rarity);
-            y -= 26f;
+            y -= 22f;
+            UiKit.Label(_detail, StatDisplay.RarityName(item.Rarity), 13, TextAnchor.MiddleLeft,
+                        new Vector2(250, 18), new Vector2(0, y)).color = Palette.Rarity(item.Rarity); // rarity as a status line
+            y -= 22f;
             UiKit.Label(_detail, $"{SlotOf(item)} · item level {item.ItemLevel}", 13, TextAnchor.MiddleLeft,
                         new Vector2(250, 20), new Vector2(0, y));
             y -= 24f;

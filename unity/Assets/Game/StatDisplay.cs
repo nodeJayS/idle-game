@@ -62,6 +62,28 @@ namespace IdleGame.Game
             _ => Mathf.RoundToInt((float)v).ToString(), // Hp, Def, Atk, Mana
         };
 
+        /// <summary>Prettified base name, e.g. "rusty_sword" → "Rusty Sword".</summary>
+        public static string PrettyBase(string baseId)
+        {
+            var parts = baseId.Split('_');
+            for (int i = 0; i < parts.Length; i++)
+                if (parts[i].Length > 0) parts[i] = char.ToUpper(parts[i][0]) + parts[i].Substring(1);
+            return string.Join(" ", parts);
+        }
+
+        /// <summary>The item's display name — NO rarity word (rarity reads via tile color + a status line).
+        /// Imprinted gear is titled with the mechanical modifier that stamped it, e.g. "Volatile Rusty
+        /// Sword".</summary>
+        public static string ItemName(Item item, GameConfig cfg)
+        {
+            var src = Loot.ImprintSource(item, cfg);
+            string baseName = PrettyBase(item.BaseId);
+            return src != null ? src.Name + " " + baseName : baseName;
+        }
+
+        /// <summary>Player-facing rarity name for the detail status line ("Rare", "Legendary", …).</summary>
+        public static string RarityName(Rarity r) => r.ToString();
+
         /// <summary>Player-facing flavor for an imprint affix (a mechanical-modifier signature) — shown
         /// instead of a raw stat number, since these are under-the-hood mechanics. E.g. heroes already
         /// splash, so the splash imprint reads as "wider splash radius".</summary>

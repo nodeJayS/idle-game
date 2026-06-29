@@ -789,11 +789,15 @@ namespace IdleGame.GameCore
             cfg.Modifiers["volatile"] = new ModifierDef
             {
                 Id = "volatile", Name = "Volatile",
-                StatPerStrength = SB((StatKey.Hp, 0.05)),
-                Behavior = ModifierBehavior.Splash, BehaviorPerStrength = 0.20, // +0.20 tiles splash / strength
-                Reward = ModifierReward.DropRate, RewardPerStrength = 0.05,
+                // Premium mod, premium tradeoff: these mobs are far nastier than the boring stat mods —
+                // tanky AND they hit hard, and the hit SPLASHES the whole party. The danger matches the
+                // imprint (your gear's attacks splash wider in return).
+                StatPerStrength = SB((StatKey.Hp, 0.12), (StatKey.Atk, 0.10)),
+                Behavior = ModifierBehavior.Splash, BehaviorPerStrength = 0.25, // +0.25 tiles splash / strength
+                Reward = ModifierReward.DropRate, RewardPerStrength = 0.06,
                 Mechanical = true,
-                ImprintStat = StatKey.SplashRadius, ImprintPerStrength = 0.12, ImprintChance = 0.20,
+                // Imprinted gear is EXTREMELY rare — a lucky stamp on a Volatile kill, not a reliable farm.
+                ImprintStat = StatKey.SplashRadius, ImprintPerStrength = 0.12, ImprintChance = 0.03,
                 TowerUnlockFloor = 5, // unlocks on clearing Tower floor 5 (early, reachable chase)
                 TintR = 0.80, TintG = 0.35, TintB = 0.95, // arcane violet
             };

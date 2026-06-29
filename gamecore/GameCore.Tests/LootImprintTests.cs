@@ -138,6 +138,19 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void ImprintSourceNamesTheModifierForTheItemTitle()
+        {
+            var cfg = GameConfig.Default();
+            Assert.Null(Loot.ImprintSource(PlainItem(), cfg)); // un-imprinted -> no title
+
+            var stamped = Loot.ImprintDrop(new Rng(1), PlainItem(), new List<string> { "volatile" },
+                Active(CertainImprintCfg(), "volatile", 5), cfg);
+            var src = Loot.ImprintSource(stamped, cfg);
+            Assert.NotNull(src);
+            Assert.Equal("Volatile", src!.Name); // drives "Volatile Rusty Sword"
+        }
+
+        [Fact]
         public void ImprintedSplashAffixFoldsIntoHeroStats()
         {
             var cfg = GameConfig.Default();

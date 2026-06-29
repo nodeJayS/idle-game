@@ -95,6 +95,9 @@ namespace IdleGame.Game
                 UiKit.Hover(tile, () => ShowDetail(save, it));
             }
 
+            // rarity color reference (since names no longer carry the rarity word — color is the cue)
+            BuildRarityLegend(panel.transform);
+
             // right: item details
             var box = UiKit.Panel(panel.transform, new Vector2(300, 520), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(310, -20));
             _detail = box.rectTransform;
@@ -103,6 +106,23 @@ namespace IdleGame.Game
             // auto-salvage threshold: drops at/below this rarity convert to scrap on pickup.
             // Built last so its expanded dropdown renders (and raycasts) on top of the grid.
             BuildAutoSalvage(panel.transform);
+        }
+
+        // A compact color→rarity key along the bottom of the bag: now that item names drop the rarity
+        // word, the tile/border color is the cue, so a quick reference keeps it legible at a glance.
+        private void BuildRarityLegend(Transform parent)
+        {
+            var order = new IdleGame.GameCore.Rarity[] {
+                IdleGame.GameCore.Rarity.Normal, IdleGame.GameCore.Rarity.Magic, IdleGame.GameCore.Rarity.Rare,
+                IdleGame.GameCore.Rarity.Unique, IdleGame.GameCore.Rarity.Legendary };
+            float x = -430f, y = -300f;
+            for (int i = 0; i < order.Length; i++)
+            {
+                UiKit.Panel(parent, new Vector2(13, 13), Palette.Rarity(order[i]), new Vector2(x + 6, y));
+                UiKit.Label(parent, StatDisplay.RarityName(order[i]), 12, TextAnchor.MiddleLeft,
+                            new Vector2(80, 16), new Vector2(x + 56, y)).color = Palette.Rarity(order[i]);
+                x += 104f;
+            }
         }
 
         private void ShowDetail(SaveState save, Item? item)
@@ -120,9 +140,12 @@ namespace IdleGame.Game
             }
 
             float y = 210f;
-            UiKit.Label(_detail, $"{item.Rarity} {item.BaseId}", 18, TextAnchor.MiddleLeft,
+            UiKit.Label(_detail, StatDisplay.ItemName(item, _cfg), 18, TextAnchor.MiddleLeft,
                         new Vector2(270, 26), new Vector2(0, y)).color = Palette.Rarity(item.Rarity);
-            y -= 28f;
+            y -= 24f;
+            UiKit.Label(_detail, StatDisplay.RarityName(item.Rarity), 13, TextAnchor.MiddleLeft,
+                        new Vector2(270, 20), new Vector2(0, y)).color = Palette.Rarity(item.Rarity); // rarity as a status line
+            y -= 22f;
             UiKit.Label(_detail, $"{SlotOf(item)} · item level {item.ItemLevel}", 13, TextAnchor.MiddleLeft,
                         new Vector2(270, 22), new Vector2(0, y));
             y -= 26f;
