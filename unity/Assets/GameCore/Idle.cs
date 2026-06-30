@@ -89,7 +89,7 @@ namespace IdleGame.GameCore
             }
 
             // Reuse the tested reducers, then clone once more for gold + the new clock.
-            var next = Progression.GrantPartyXp(save, (int)Math.Min(report.Xp, int.MaxValue), cfg);
+            var next = Progression.GrantPartyXp(save, report.Xp, cfg); // long: no more 2.1B/claim clamp
             var loot = Inventory.AddLoot(next, report.Items, cfg, autoSalvageMax, allowOverflow: true); // idle may overfill
             next = loot.Save;
             report.ScrapGained = loot.ScrapGained;

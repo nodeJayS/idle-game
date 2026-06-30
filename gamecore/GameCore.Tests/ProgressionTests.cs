@@ -13,29 +13,30 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void BelowThresholdDoesNotLevel()
         {
-            // XpCurve(1) = 100; grant 50 stays level 1
+            // grant below XpCurve(1) stays level 1, banking the remainder
             var h = Progression.GrantXp(Hero(), 50, Cfg);
             Assert.Equal(1, h.Level);
-            Assert.Equal(50, h.Xp);
+            Assert.Equal(50L, h.Xp);
         }
 
         [Fact]
         public void SingleLevelUpCarriesRemainder()
         {
-            // 130 XP from level 1: -100 -> level 2 with 30 left
-            var h = Progression.GrantXp(Hero(), 130, Cfg);
+            // one XpCurve(1) plus a remainder -> level 2 carrying the leftover
+            long amount = Cfg.Balance.XpCurve(1) + 30;
+            var h = Progression.GrantXp(Hero(), amount, Cfg);
             Assert.Equal(2, h.Level);
-            Assert.Equal(30, h.Xp);
+            Assert.Equal(30L, h.Xp);
         }
 
         [Fact]
         public void ExactMultiLevelLandsCleanly()
         {
-            // XpCurve(1)+XpCurve(2) = 100 + 115 = 215 -> exactly level 3, 0 xp
-            int amount = (int)(Cfg.Balance.XpCurve(1) + Cfg.Balance.XpCurve(2));
+            // XpCurve(1)+XpCurve(2) exactly -> level 3, 0 remainder
+            long amount = Cfg.Balance.XpCurve(1) + Cfg.Balance.XpCurve(2);
             var h = Progression.GrantXp(Hero(), amount, Cfg);
             Assert.Equal(3, h.Level);
-            Assert.Equal(0, h.Xp);
+            Assert.Equal(0L, h.Xp);
         }
 
         [Fact]
@@ -43,9 +44,10 @@ namespace IdleGame.GameCore.Tests
         {
             var atCap = Progression.GrantXp(Hero(level: Cfg.Balance.MaxLevel), 1_000_000, Cfg);
             Assert.Equal(Cfg.Balance.MaxLevel, atCap.Level);
-            Assert.Equal(0, atCap.Xp);
+            Assert.Equal(0L, atCap.Xp);
 
-            var nearCap = Progression.GrantXp(Hero(level: Cfg.Balance.MaxLevel - 1), int.MaxValue, Cfg);
+            // enough to clear the (now billions-deep) last level
+            var nearCap = Progression.GrantXp(Hero(level: Cfg.Balance.MaxLevel - 1), 1_000_000_000_000L, Cfg);
             Assert.Equal(Cfg.Balance.MaxLevel, nearCap.Level);
         }
 
@@ -56,7 +58,7 @@ namespace IdleGame.GameCore.Tests
             var leveled = Progression.GrantXp(original, 500, Cfg);
 
             Assert.Equal(1, original.Level);   // input untouched
-            Assert.Equal(0, original.Xp);
+            Assert.Equal(0L, original.Xp);
             Assert.NotSame(original, leveled);
         }
 
@@ -70,6 +72,28 @@ namespace IdleGame.GameCore.Tests
             double hpAfter = Stats.ComputeHeroStats(h1, Cfg).Get(StatKey.Hp);
             Assert.True(h1.Level > 1);
             Assert.True(hpAfter > hpBefore);
+        }
+
+        [Fact]
+        public void XpCurveIsAMonthsLongClimbAndOverflowSafe()
+        {
+            var b = Cfg.Balance;
+            for (int l = 1; l < b.MaxLevel - 1; l++)
+                Assert.True(b.XpCurve(l + 1) > b.XpCurve(l)); // strictly increasing
+
+            long total = 0;
+            for (int l = 1; l < b.MaxLevel; l++) total += b.XpCurve(l);
+            Assert.True(total > 50_000_000_000L);                 // tens of billions — a long-haul chase
+            Assert.True(b.XpCurve(b.MaxLevel - 1) < long.MaxValue / 1000); // deepest level still has headroom
+        }
+
+        [Fact]
+        public void AHugeLongGrantReachesMaxLevelWithoutOverflow()
+        {
+            // a single half-trillion grant clears the whole (long) curve and caps cleanly at MaxLevel
+            var h = Progression.GrantXp(Hero(), 500_000_000_000L, Cfg);
+            Assert.Equal(Cfg.Balance.MaxLevel, h.Level);
+            Assert.Equal(0L, h.Xp);
         }
 
         [Fact]
@@ -96,7 +120,7 @@ namespace IdleGame.GameCore.Tests
             var save = Save.NewGame(1, Cfg, 0);            // h1 + h2 fielded
             save.Heroes.Add(new HeroInstance { Id = "hb", DefId = "warrior_basic", Level = 1, Xp = 0 }); // benched
 
-            var after = Progression.GrantPartyXp(save, 250, Cfg);
+            var after = Progression.GrantPartyXp(save, 2000, Cfg);
 
             var h1 = after.Heroes.Find(h => h.Id == "h1")!;
             var hb = after.Heroes.Find(h => h.Id == "hb")!;

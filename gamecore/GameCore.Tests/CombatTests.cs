@@ -1201,7 +1201,7 @@ namespace IdleGame.GameCore.Tests
             Combat.RunToEnd(s, Cfg, new Rng(1));
 
             Assert.Equal(CombatStatus.Won, s.Status);
-            Assert.Equal(Cfg.Monsters["slime"].XpReward + Cfg.Monsters["goblin_king"].XpReward, s.PendingXp);
+            Assert.Equal((long)(Cfg.Monsters["slime"].XpReward + Cfg.Monsters["goblin_king"].XpReward), s.PendingXp);
         }
 
         [Fact]
@@ -1211,7 +1211,7 @@ namespace IdleGame.GameCore.Tests
                 Ent("A", Team.Party, hp: 1000, atk: 500, def: 0),
                 Ent("B", Team.Enemy, hp: 10, atk: 0, def: 0)); // RefKind "test"
             Combat.RunToEnd(s, Cfg, new Rng(1));
-            Assert.Equal(0, s.PendingXp);
+            Assert.Equal(0L, s.PendingXp);
         }
 
         [Fact]
@@ -1244,7 +1244,7 @@ namespace IdleGame.GameCore.Tests
 
             var h1 = after.Heroes.Find(h => h.Id == "h1")!;
             Assert.Equal(s.PendingXp, h1.Xp);                    // goblin_king XP (60) < XpCurve(1) -> xp advances
-            Assert.Equal(0, save.Heroes.Find(h => h.Id == "h1")!.Xp); // original untouched
+            Assert.Equal(0L, save.Heroes.Find(h => h.Id == "h1")!.Xp); // original untouched
         }
 
         // --- M4.3: hero downing + respawn ---

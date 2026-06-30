@@ -14,10 +14,10 @@ namespace IdleGame.GameCore
     public static class Progression
     {
         /// <summary>Grant XP to a single hero, applying any level-ups (capped at Balance.MaxLevel).</summary>
-        public static HeroInstance GrantXp(HeroInstance hero, int amount, GameConfig cfg)
+        public static HeroInstance GrantXp(HeroInstance hero, long amount, GameConfig cfg)
         {
             int level = hero.Level;
-            long xp = hero.Xp + Math.Max(0, amount);
+            long xp = hero.Xp + Math.Max(0L, amount);
             int maxLevel = cfg.Balance.MaxLevel;
 
             while (level < maxLevel && xp >= cfg.Balance.XpCurve(level))
@@ -27,11 +27,11 @@ namespace IdleGame.GameCore
             }
             if (level >= maxLevel) { level = maxLevel; xp = 0; } // no next level past the cap
 
-            return WithLevel(hero, level, (int)xp);
+            return WithLevel(hero, level, xp);
         }
 
         /// <summary>Grant XP to every hero currently in the party (benched heroes don't level).</summary>
-        public static SaveState GrantPartyXp(SaveState save, int amount, GameConfig cfg)
+        public static SaveState GrantPartyXp(SaveState save, long amount, GameConfig cfg)
         {
             var partyIds = new HashSet<string>();
             foreach (var id in save.Party)
@@ -157,7 +157,7 @@ namespace IdleGame.GameCore
         };
 
         // Equipped / SkillLoadout are unchanged here, so the new hero shares those refs.
-        private static HeroInstance WithLevel(HeroInstance hero, int level, int xp) => new HeroInstance
+        private static HeroInstance WithLevel(HeroInstance hero, int level, long xp) => new HeroInstance
         {
             Id = hero.Id,
             DefId = hero.DefId,

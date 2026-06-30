@@ -59,7 +59,13 @@ files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sy
   scene in code (camera/light/ground) and `CombatView` drives the auto-battle.
   Play-mode can't be driven headlessly; visual checks are manual.
 
-## Status (347 tests passing)
+## Status (349 tests passing)
+
+**Hero leveling is a months-long chase (by design):** hero level IS the power/build-depth axis (stat
+growth + 1 skill point/level + skill-tree `UnlockLevel` gates — NOT cosmetic; the inert `AccountLevel`
+is the cosmetic hook). XP is `long` end-to-end (`HeroInstance.Xp`/`CombatState.PendingXp`/`GrantXp` +
+no more idle 2.1B clamp), and `XpCurve` = `XpBaseCost(600) × XpGrowth(1.19)^(level-1)` ⇒ **~95B XP total
+to 100** (≈140× the old curve): gentle through the early skill-unlock levels, brutal in the back half.
 
 **Phase A — core loop (M0–M9) ✅** — deterministic auto-combat; loot (rarity + affixes, equip →
 stat recompute); per-hero leveling; farm-zone stage ladder with 60s mini/major boss gates + tiered

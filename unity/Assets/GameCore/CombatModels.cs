@@ -159,7 +159,7 @@ namespace IdleGame.GameCore
         public List<CombatEntity> Entities = new List<CombatEntity>();
         public CombatStatus Status = CombatStatus.Running;
         public List<Item> PendingLoot = new List<Item>(); // drops accrued this run (M2)
-        public int PendingXp;                             // XP accrued this run (M3)
+        public long PendingXp;                            // XP accrued this run (M3); long for deep-stage scaling
         public long PendingGold;                          // gold accrued this run (M8)
 
         // Farm-mode spawning (M8): countdown to the next trash spawn, and a monotonic

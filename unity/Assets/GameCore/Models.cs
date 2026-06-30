@@ -47,7 +47,7 @@ namespace IdleGame.GameCore
         public string Id = "";
         public string DefId = "";
         public int Level = 1;
-        public int Xp = 0;
+        public long Xp = 0; // remainder toward the next level; long so a months-long curve can't overflow
         public Dictionary<EquipSlot, string> Equipped = new Dictionary<EquipSlot, string>();
         public List<string> SkillLoadout = new List<string>();
         // Build depth (Lever 3): skillId -> points invested (rank). Absent = rank 0 (= base, today's

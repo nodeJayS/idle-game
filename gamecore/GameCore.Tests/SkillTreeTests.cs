@@ -56,7 +56,7 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void CannotInvestALockedNodeEvenWithPoints()
         {
-            var save = Progression.GrantPartyXp(Save.NewGame(1, Cfg, 0), 200000, Cfg); // ~lvl 65, has points
+            var save = Progression.GrantPartyXp(Save.NewGame(1, Cfg, 0), 2_000_000, Cfg); // well-leveled, has points
             var id = save.Heroes[0].Id;
             Assert.True(Skills.UnspentPoints(save.Heroes[0], Cfg) > 0);
 
@@ -70,7 +70,7 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void RespecRelocksDownstreamNodes()
         {
-            var save = Progression.GrantPartyXp(Save.NewGame(1, Cfg, 0), 200000, Cfg);
+            var save = Progression.GrantPartyXp(Save.NewGame(1, Cfg, 0), 2_000_000, Cfg);
             var id = save.Heroes[0].Id;
             save = Skills.InvestSkill(save, id, "cleave", Cfg);
             Assert.True(Skills.CanInvest(save, id, "warcry", Cfg));

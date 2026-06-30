@@ -357,7 +357,13 @@ namespace IdleGame.GameCore
         public long ScrapValue(Rarity rarity, int itemLevel)
             => ScrapValueByRarity[(int)rarity] + Math.Max(0, itemLevel);
 
-        public long XpCurve(int level) => (long)Math.Floor(100 * Math.Pow(1.15, level - 1));
+        // Hero leveling is a LONG-HAUL chase — level 100 is meant to take months of farming, not days.
+        // XpCurve(level) is the XP from `level` to `level+1`, geometric. The curve stays gentle through
+        // the early skill-unlock levels (~5–18) then compounds hard, so the back half is the grind.
+        // (Xp is stored as long, so the deep levels reaching into the billions are safe.) Tune freely.
+        public double XpBaseCost = 600;   // XP for level 1→2
+        public double XpGrowth = 1.19;    // per-level multiplier (was 1.15 — ~140× more total XP to 100)
+        public long XpCurve(int level) => (long)Math.Floor(XpBaseCost * Math.Pow(XpGrowth, level - 1));
 
         // Tiered rate model (M8): rates grow a little each stage and jump significantly
         // each time you cross a real boss (every StagesPerTier). Stage drop params

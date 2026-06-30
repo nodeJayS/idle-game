@@ -12,7 +12,7 @@ namespace IdleGame.GameCore.Tests
         private static readonly GameConfig Cfg = GameConfig.Default();
 
         // A fielded solo warrior granted enough XP to have leveled (and thus earned skill points).
-        private static (SaveState save, string heroId) LeveledWarrior(int grantXp = 200000)
+        private static (SaveState save, string heroId) LeveledWarrior(long grantXp = 2_000_000)
         {
             var save = Progression.GrantPartyXp(Save.NewGame(1, Cfg, 0), grantXp, Cfg);
             return (save, save.Heroes[0].Id);

@@ -1029,7 +1029,7 @@ namespace IdleGame.GameCore
                 // Elites/rares pay out a multiple of a normal kill; active modifiers add their
                 // thematic reward buff (gold/XP folded here, drop-rate into the loot context below).
                 double mult = cfg.Balance.KillRewardMult(s.Stage) * RankRewardMult(target.Rank, cfg);
-                s.PendingXp += (int)Math.Floor(mdef.XpReward * mult * target.XpMult);
+                s.PendingXp += (long)Math.Floor(mdef.XpReward * mult * target.XpMult);
                 s.PendingGold += (long)Math.Floor(mdef.GoldReward * mult * target.GoldMult);
 
                 var lootCtx = s.Loot;
