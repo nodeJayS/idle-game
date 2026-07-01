@@ -48,20 +48,32 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>
+        /// Dry-run of <see cref="Claim"/>: the exact gems/streak a claim at <paramref name="nowMs"/>
+        /// would grant, or (0, current streak, false) when no claim is available (already claimed this
+        /// UTC day, or a rolled-back clock). The client's reward preview MUST use this — never
+        /// recompute the reward independently — so the shown amount can't diverge from the grant.
+        /// </summary>
+        public static (long gems, int streak, bool canClaim) Preview(SaveState save, GameConfig cfg, long nowMs)
+        {
+            if (!CanClaim(save, nowMs)) return (0, save.Progress.Daily.Streak, false);
+            int streak = StreakIfClaimed(save, nowMs);
+            return (RewardFor(streak, cfg), streak, true);
+        }
+
+        /// <summary>
         /// Claim today's daily reward: advance the streak, credit gems, and stamp the claim day. No-op
-        /// (shares the ref, <c>claimed = false</c>) if a claim isn't available yet. Returns the updated
-        /// save plus the gems granted, the new streak, and whether a claim actually happened. Pure.
+        /// (shares the ref, <c>claimed = false</c>) if a claim isn't available yet. Grants exactly what
+        /// <see cref="Preview"/> reported for the same save/now. Returns the updated save plus the gems
+        /// granted, the new streak, and whether a claim actually happened. Pure.
         /// </summary>
         public static (SaveState save, long gems, int streak, bool claimed) Claim(SaveState save, GameConfig cfg, long nowMs)
         {
-            if (!CanClaim(save, nowMs)) return (save, 0, save.Progress.Daily.Streak, false);
+            var (gems, streak, canClaim) = Preview(save, cfg, nowMs);
+            if (!canClaim) return (save, 0, streak, false);
 
-            long dayNow = DayIndex(nowMs);
-            int streak = StreakIfClaimed(save, nowMs);
-            long gems = RewardFor(streak, cfg);
             var daily = new DailyLoginState
             {
-                LastClaimDay = dayNow,
+                LastClaimDay = DayIndex(nowMs),
                 Streak = streak,
                 TotalClaims = save.Progress.Daily.TotalClaims + 1,
             };

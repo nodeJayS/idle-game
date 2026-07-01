@@ -20,9 +20,13 @@ namespace IdleGame.Game
         private Text _goldText = null!, _xpText = null!, _itemsText = null!;
         private float _elapsed;
         private bool _animating;
+        private CombatView? _view; // set while shown, so OnDestroy releases the HUD gate
 
-        public void Show(IdleReport report)
+        public void Show(CombatView view, IdleReport report)
         {
+            _view = view;
+            view.PushLaunchModal(); // hide the IMGUI HUD (HP-bar dashes) that draws above uGUI
+
             _gold = report.Gold;
             _xp = report.Xp;
             _items = report.Items.Count;
@@ -66,6 +70,8 @@ namespace IdleGame.Game
             _xpText.text = $"XP:    {Num.CompactFloor((long)(_xp * p))}";
             _itemsText.text = $"Items: {(int)(_items * p)}";
         }
+
+        private void OnDestroy() => _view?.PopLaunchModal();
 
         private static float EaseOutCubic(float t) => 1f - Mathf.Pow(1f - t, 3f);
 

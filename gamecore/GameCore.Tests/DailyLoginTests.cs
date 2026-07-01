@@ -127,6 +127,61 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void PreviewMatchesClaimGrantAcrossStates()
+        {
+            var save = Save.NewGame(1, Cfg, At(20000));
+
+            // Fresh save, consecutive day, a milestone day (7), and a streak reset after a gap —
+            // in every state the preview must equal exactly what Claim then grants.
+            long[] days = { 20000, 20001, 20002, 20003, 20004, 20005, 20006, 20010 };
+            foreach (var day in days)
+            {
+                var (pGems, pStreak, canClaim) = DailyLogin.Preview(save, Cfg, At(day));
+                var (next, gems, streak, claimed) = DailyLogin.Claim(save, Cfg, At(day));
+
+                Assert.True(canClaim);
+                Assert.True(claimed);
+                Assert.Equal(pGems, gems);
+                Assert.Equal(pStreak, streak);
+                Assert.True(gems > 0); // a real claim is never worth 0 (base >= 10)
+                save = next;
+            }
+        }
+
+        [Fact]
+        public void PreviewIsZeroGemsWhenAlreadyClaimedToday()
+        {
+            var save = Save.NewGame(1, Cfg, At(20000));
+            var (claimedSave, _, _, _) = DailyLogin.Claim(save, Cfg, At(20000));
+
+            // Same UTC day again: nothing to claim — preview must say 0/no-claim, and Claim must
+            // grant exactly that 0 (shown amount == granted amount even in the ineligible state).
+            var (pGems, pStreak, canClaim) = DailyLogin.Preview(claimedSave, Cfg, At(20000));
+            var (_, gems, streak, claimed) = DailyLogin.Claim(claimedSave, Cfg, At(20000));
+
+            Assert.False(canClaim);
+            Assert.False(claimed);
+            Assert.Equal(0, pGems);
+            Assert.Equal(pGems, gems);
+            Assert.Equal(pStreak, streak);
+        }
+
+        [Fact]
+        public void PreviewIsZeroGemsOnRolledBackClock()
+        {
+            var save = Save.NewGame(1, Cfg, At(20005));
+            var (claimedSave, _, _, _) = DailyLogin.Claim(save, Cfg, At(20005));
+
+            var (pGems, _, canClaim) = DailyLogin.Preview(claimedSave, Cfg, At(20003));
+            var (_, gems, _, claimed) = DailyLogin.Claim(claimedSave, Cfg, At(20003));
+
+            Assert.False(canClaim);
+            Assert.False(claimed);
+            Assert.Equal(0, pGems);
+            Assert.Equal(pGems, gems);
+        }
+
+        [Fact]
         public void MigrateBackfillsDailyStateOnOlderSaves()
         {
             var save = Save.NewGame(1, Cfg, At(20000));

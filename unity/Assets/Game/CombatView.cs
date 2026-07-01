@@ -374,11 +374,19 @@ namespace IdleGame.Game
                            new Color(0.7f, 0.8f, 1f));
         }
 
-        private bool AnyPanelOpen => (_inventory != null && _inventory.IsOpen)
+        private bool AnyPanelOpen => _launchModals > 0
+                                  || (_inventory != null && _inventory.IsOpen)
                                   || (_equipment != null && _equipment.IsOpen)
                                   || (_modifierPanel != null && _modifierPanel.IsOpen)
                                   || (_towerView != null && _towerView.IsOpen)
                                   || (_achievements != null && _achievements.IsOpen);
+
+        // Launch modals (idle claim / daily login) are transient GameObjects, not bound panels, so
+        // they register here — the IMGUI HUD (floating HP bars etc.) draws above every uGUI canvas
+        // and would otherwise strike through the modal text (AnyPanelOpen gates those draws).
+        private int _launchModals;
+        public void PushLaunchModal() => _launchModals++;
+        public void PopLaunchModal() => _launchModals = Mathf.Max(0, _launchModals - 1);
 
         public void Init(SaveState save, GameConfig cfg)
         {
@@ -572,6 +580,8 @@ namespace IdleGame.Game
             var (next, gems, streak, claimed) = DailyLogin.Claim(_save, _cfg, now);
             if (!claimed) return;
             _save = next;
+            // Premium currency must never be lost to a quit before the 30s autosave — flush now.
+            SaveStore.Save(Save.Touch(_save, now));
             _chat?.AddFeed($"Daily reward — day {streak} streak!  +{Num.CompactFloor(gems)} gems",
                            new Color(0.6f, 0.85f, 1f));
         }

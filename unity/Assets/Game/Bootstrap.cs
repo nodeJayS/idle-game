@@ -106,7 +106,7 @@ namespace IdleGame.Game
             {
                 var modal = new GameObject("IdleClaimModal");
                 modal.transform.SetParent(session.transform);
-                modal.AddComponent<IdleClaimModal>().Show(idleReport);
+                modal.AddComponent<IdleClaimModal>().Show(view, idleReport);
                 Debug.Log($"[Bootstrap] Idle claim: {idleReport.Gold} gold, {idleReport.Xp} XP, " +
                           $"{idleReport.Items.Count} item(s) over {idleReport.ElapsedMs / 3600_000.0:F1}h.");
             }
