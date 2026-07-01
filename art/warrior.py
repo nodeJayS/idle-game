@@ -34,26 +34,33 @@ ARM_LEN = 0.42
 HIP_X = 0.13
 HEAD_CZ = HIP + TORSO_H + HEAD_R * 0.85   # head sphere centre ~1.15
 
-# --- palette (warrior: blue tunic, brown boots — same as ChibiHero) -----------
+# --- palette (warrior: royal-blue tunic, warm leathers) ------------------------
+# Authored in sRGB — the values the player should SEE (matches how ChibiHero.cs
+# colors read in Unity's Linear pipeline). srgb_to_linear converts for Blender's
+# Principled Base Color, which is linear; without it the export renders the
+# gamma-lifted, washed-out version of every color.
 COLORS = {
-    "skin":  (0.95, 0.80, 0.66),
-    "tunic": (0.20, 0.40, 0.78),
-    "limb":  (0.17, 0.32, 0.62),
-    "boot":  (0.30, 0.22, 0.15),
-    "hair":  (0.36, 0.24, 0.14),
-    "belt":  (0.16, 0.12, 0.09),
-    "steel": (0.62, 0.65, 0.71),
-    "dark":  (0.33, 0.33, 0.38),
-    "wood":  (0.42, 0.29, 0.17),
-    "eye":   (0.09, 0.08, 0.10),
+    "skin":  (0.96, 0.80, 0.64),
+    "tunic": (0.15, 0.38, 0.88),
+    "limb":  (0.11, 0.27, 0.66),
+    "boot":  (0.40, 0.27, 0.14),
+    "hair":  (0.46, 0.27, 0.11),
+    "belt":  (0.25, 0.16, 0.09),
+    "steel": (0.78, 0.81, 0.87),
+    "dark":  (0.30, 0.31, 0.36),
+    "wood":  (0.52, 0.34, 0.16),
+    "eye":   (0.08, 0.07, 0.09),
 }
 
 _materials = {}
 
+def srgb_to_linear(c):
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
 def mat(name):
     if name in _materials:
         return _materials[name]
-    c = COLORS[name]
+    c = tuple(srgb_to_linear(v) for v in COLORS[name])
     m = bpy.data.materials.new(name)
     m.use_nodes = True
     bsdf = m.node_tree.nodes.get("Principled BSDF")
