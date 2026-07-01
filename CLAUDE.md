@@ -120,8 +120,9 @@ currency shipped; gem sink/gacha + prestige next).
   display contradict the real data (e.g. "says I can afford it but can't"). Use `Num.CompactFloor` /
   `Num.CompactCeil` for the directional cases, `Num.Compact` (round) only for neutral stats.
 - The user commits (and pushes when asked); work on `main`. End commit messages with
-  `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`. New content (skills, heroes, mods) is
-  seeded at New Game, so start a fresh game to see it.
+  `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>` (name whichever model is actually
+  running the session). New content (skills, heroes, mods) is seeded at New Game, so start a
+  fresh game to see it.
 - LF→CRLF git warnings on Windows are normal.
 - **Unity MCP** verify loop: refresh_unity + read_console for compile errors; enter Play, click
   Continue, inject state via `execute_code` reflection on `CombatView` (`_save`/`_cfg`), screenshot,
