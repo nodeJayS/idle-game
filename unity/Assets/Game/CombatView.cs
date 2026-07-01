@@ -1293,33 +1293,58 @@ namespace IdleGame.Game
             var style = new GUIStyle(GUI.skin.label)
             { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.UpperCenter };
             bool major = _cfg.Stages.Find(st => st.Stage == _combat.Stage)?.IsMajorBoss == true;
-            long gold = _save.Currencies.TryGetValue("gold", out var g) ? g : 0;
-            long gems = _save.Currencies.TryGetValue(_cfg.Balance.PremiumCurrency, out var gm) ? gm : 0;
-            // Farm: gold + premium-currency (gems) readout (the current stage shows in DrawTopControls below).
-            // Boss challenge: the boss context (which names the stage) plus the currency readout.
-            // The boss exhibits (and grants) its stage's modifier — name it so the player sees
-            // what they're fighting and about to bank (Lever 1).
-            string bossMod = "";
+            // Boss challenge: a top-centre context line naming the stage + its modifier (the
+            // boss exhibits and grants it — Lever 1). Farm needs no centre line: the wallet
+            // moved top-left (below) and the stage shows in DrawTopControls.
             if (_combat.Kind == EncounterKind.BossChallenge)
             {
+                string bossMod = "";
                 var mtype = _cfg.ModifierTypeForStage(_combat.Stage);
                 if (mtype != null && _cfg.Modifiers.TryGetValue(mtype, out var bmd)) bossMod = $"  ·  {bmd.Name}";
+                string ctx = (major ? $"★ MAJOR BOSS — Stage {_combat.Stage}" : $"Miniboss — Stage {_combat.Stage}") + bossMod;
+                GUI.Label(new Rect(0, 8, sw, 28), ctx, style);
             }
-            string wallet = $"{Num.Compact(gold)} gold  ·  {Num.Compact(gems)} gems";
-            string ctx = _combat.Kind == EncounterKind.Farm
-                ? wallet
-                : (major ? $"★ MAJOR BOSS — Stage {_combat.Stage}" : $"Miniboss — Stage {_combat.Stage}")
-                    + bossMod + $"  ·  {wallet}";
-            GUI.Label(new Rect(0, 8, sw, 28), ctx, style);
+
+            DrawWallet(s);
 
             if (_combat.Kind == EncounterKind.BossChallenge)
             {
                 float remain = Mathf.Max(0f, (float)(_cfg.Balance.BossChallengeSeconds - _combat.TimeMs / 1000.0));
+                remain = Mathf.Ceil(remain * 10f) / 10f; // countdown rounds UP (game-design §7)
                 var timer = new GUIStyle(GUI.skin.label)
                 { fontSize = 30, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
                 timer.normal.textColor = remain <= 10 ? new Color(1f, 0.4f, 0.35f) : Color.white;
                 GUI.Label(new Rect(sw / 2f - 100, 40, 200, 40), $"{remain:0.0}s", timer);
             }
+        }
+
+        /// <summary>Top-left wallet — gold / scrap / gems stacked under the account chip +
+        /// Settings button (TopBar.cs, uGUI). TopBar's canvas scales by WIDTH (reference 1280),
+        /// this HUD by UiScale(): convert the button's bottom edge into logical space so the
+        /// readout stays glued under it at any resolution. Balances round DOWN (game-design §7).</summary>
+        private void DrawWallet(float s)
+        {
+            long gold = _save.Currencies.TryGetValue("gold", out var g) ? g : 0;
+            long scrap = _save.Currencies.TryGetValue("scrap", out var sc) ? sc : 0;
+            long gems = _save.Currencies.TryGetValue(_cfg.Balance.PremiumCurrency, out var gm) ? gm : 0;
+
+            float topBarBottomPx = 114f * (Screen.width / 1280f); // Settings button y 80 + h 34
+            float y = topBarBottomPx / s + 8f;
+
+            if (_walletStyle == null)
+                _walletStyle = new GUIStyle(GUI.skin.label) { fontSize = 16, fontStyle = FontStyle.Bold };
+
+            DrawWalletLine(16f, ref y, $"Gold   {Num.CompactFloor(gold)}", new Color(1f, 0.84f, 0.35f));
+            DrawWalletLine(16f, ref y, $"Scrap  {Num.CompactFloor(scrap)}", new Color(0.75f, 0.78f, 0.85f));
+            DrawWalletLine(16f, ref y, $"Gems   {Num.CompactFloor(gems)}", new Color(0.65f, 0.85f, 1f));
+        }
+
+        private GUIStyle? _walletStyle;
+        private void DrawWalletLine(float x, ref float y, string text, Color color)
+        {
+            _walletStyle!.normal.textColor = color;
+            GUI.Label(new Rect(x, y, 260, 22), text, _walletStyle);
+            y += 24f;
         }
 
         /// <summary>Top-centre stage nav + boss challenge/flee, under the context line.</summary>
