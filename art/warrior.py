@@ -1,47 +1,34 @@
-# Chibi Warrior — scripted low-poly hero model (Tunic / MapleStory-2 chibi style).
+# Chibi Warrior — scripted hero model, SMOOTH "toy" style: heroes are the only
+# smooth/rounded thing in a faceted low-poly world, so they pop. Organic parts
+# (head, hair, body, limbs) are smooth-shaded and beveled; metal (sword, shield
+# boss) stays crisp.
 #
-# NOTE: no longer the shipped warrior — art/valkyrie.py exports over
-# warrior_basic.fbx now. Kept as the pipeline reference + an alternate model.
-#
-# This script IS the model source: run it headless to rebuild the mesh, rig and
-# renders from nothing. No .blend file is authoritative.
-#
-#   blender -b --python art/warrior.py -- --renders <dir>        preview PNGs
-#   blender -b --python art/warrior.py -- --export <file.fbx>    FBX for Unity
-#   ... --export <file.fbx> --skinned                            armature + skin variant
+#   blender -b --python art/warrior.py -- --renders <dir>
+#   blender -b --python art/warrior.py -- --export <file.fbx>
+#   ... --export <file.fbx> --skinned
 #
 # Conventions:
-#  - Blender Z-up, character faces -Y (Blender "front"); FBX export converts for Unity.
-#  - Proportions mirror Assets/Game/ChibiHero.cs (~1.4 units tall, head R 0.27) so the
-#    imported model drops into the same camera/world scale as the code-built chibis.
-#  - Default export is FLAT: one root-level mesh per rigid part, named
-#    "<joint>.<part>" (e.g. armL.box, hand.blade), verts in character space.
-#    ModelHero.cs builds the joint skeleton in Unity (same layout as ChibiHero.cs)
-#    and reparents parts by name prefix — this sidesteps the FBX axis-conversion
-#    rotations that a transform hierarchy would import with, which would break
-#    ChibiAnimator's absolute localRotation writes. --skinned exports an
-#    armature+skin variant for when a hero ever needs real (bendy) deformation.
+#  - Blender Z-up, character faces -Y; palette authored in sRGB and converted to
+#    linear at material build (Blender Principled Base Color is linear).
+#  - Export is FLAT: root-level meshes named "<joint>.<part>"; ModelHero.cs builds
+#    the joint skeleton and reparents by prefix (see that file for why).
 
 import sys
 import bpy
 import bmesh
 from mathutils import Vector
 
-# --- chibi metrics (match ChibiHero.cs) --------------------------------------
-HIP = 0.42          # top of the legs = body pivot
+# --- chibi metrics (shared skeleton — must match ModelHero.cs) -----------------
+HIP = 0.42
 TORSO_H = 0.50
-HEAD_R = 0.27
+HEAD_R = 0.28
 SHOULDER_X = 0.28
 SHOULDER_Z = HIP + TORSO_H * 0.80
 ARM_LEN = 0.42
 HIP_X = 0.13
-HEAD_CZ = HIP + TORSO_H + HEAD_R * 0.85   # head sphere centre ~1.15
+HEAD_CZ = HIP + TORSO_H + 0.27 * 0.85
 
-# --- palette (warrior: royal-blue tunic, warm leathers) ------------------------
-# Authored in sRGB — the values the player should SEE (matches how ChibiHero.cs
-# colors read in Unity's Linear pipeline). srgb_to_linear converts for Blender's
-# Principled Base Color, which is linear; without it the export renders the
-# gamma-lifted, washed-out version of every color.
+# --- palette (sRGB) -------------------------------------------------------------
 COLORS = {
     "skin":  (0.96, 0.80, 0.64),
     "tunic": (0.15, 0.38, 0.88),
@@ -53,6 +40,7 @@ COLORS = {
     "dark":  (0.30, 0.31, 0.36),
     "wood":  (0.52, 0.34, 0.16),
     "eye":   (0.08, 0.07, 0.09),
+    "white": (0.97, 0.97, 0.97),
 }
 
 _materials = {}
@@ -75,19 +63,28 @@ def mat(name):
     return m
 
 
-PARTS = []  # (object, bone_name)
+PARTS = []
 
-def register(obj, material, bone):
-    obj.name = bone + "." + obj.name   # joint prefix — ModelHero.cs parents by this
+def register(obj, material, bone, smooth=True):
+    obj.name = bone + "." + obj.name
     obj.data.materials.append(mat(material))
     for p in obj.data.polygons:
-        p.use_smooth = False
+        p.use_smooth = smooth
     PARTS.append((obj, bone))
     return obj
 
 
-def box(name, size, loc, material, bone, taper_top=1.0):
-    """Axis-aligned box; taper_top scales the top face in X/Y (frustum torso etc.)."""
+def apply_mods(obj):
+    bpy.ops.object.select_all(action="DESELECT")
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+    for m in list(obj.modifiers):
+        bpy.ops.object.modifier_apply(modifier=m.name)
+
+
+def box(name, size, loc, material, bone, taper_top=1.0, taper_bottom=1.0,
+        bevel=0.03, seg=3, smooth=True):
+    """Rounded slab: a tapered cube with beveled edges, smooth-shaded by default."""
     w, d, h = size
     bm = bmesh.new()
     bmesh.ops.create_cube(bm, size=1.0)
@@ -95,20 +92,29 @@ def box(name, size, loc, material, bone, taper_top=1.0):
         v.co.x *= w
         v.co.y *= d
         v.co.z *= h
-        if v.co.z > 0:
-            v.co.x *= taper_top
-            v.co.y *= taper_top
+        s = taper_top if v.co.z > 0 else taper_bottom
+        v.co.x *= s
+        v.co.y *= s
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me)
     bm.free()
     obj = bpy.data.objects.new(name, me)
     obj.location = loc
     bpy.context.scene.collection.objects.link(obj)
-    return register(obj, material, bone)
+    if bevel > 0:
+        b = obj.modifiers.new("Bevel", "BEVEL")
+        b.width = min(bevel, min(w, d, h) * 0.45)
+        b.segments = seg
+        b.limit_method = "ANGLE"
+        apply_mods(obj)
+    return register(obj, material, bone, smooth)
 
 
-def sphere(name, radius, loc, material, bone, subdiv=2, scale=(1, 1, 1)):
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=subdiv, radius=radius, location=(0, 0, 0))
+def ball(name, radius, loc, material, bone, scale=(1, 1, 1), segs=24, rings=16,
+         smooth=True):
+    """Smooth UV sphere — round silhouette, unlike the faceted world icospheres."""
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=segs, ring_count=rings,
+                                         radius=radius, location=(0, 0, 0))
     obj = bpy.context.active_object
     obj.name = name
     for v in obj.data.vertices:
@@ -116,86 +122,94 @@ def sphere(name, radius, loc, material, bone, subdiv=2, scale=(1, 1, 1)):
         v.co.y *= scale[1]
         v.co.z *= scale[2]
     obj.location = loc
-    return register(obj, material, bone)
+    return register(obj, material, bone, smooth)
 
 
 def build_hair(head_c):
-    """Skullcap: an icosphere shell trimmed along a tilted plane — high fringe in
-    front (clear of the eyes), low nape at the back."""
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=3, radius=HEAD_R * 1.10, location=(0, 0, 0))
+    """Bowl cut with real thickness: trimmed sphere shell + solidify, smooth."""
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=16,
+                                         radius=HEAD_R * 1.09, location=(0, 0, 0))
     obj = bpy.context.active_object
     obj.name = "hair"
     bm = bmesh.new()
     bm.from_mesh(obj.data)
-    doomed = [v for v in bm.verts if v.co.z < min(0.06, -0.5 * v.co.y - 0.02)]
+    doomed = [v for v in bm.verts if v.co.z < min(0.055, -0.5 * v.co.y - 0.02)]
     bmesh.ops.delete(bm, geom=doomed, context="VERTS")
     bm.to_mesh(obj.data)
     bm.free()
+    s = obj.modifiers.new("Solid", "SOLIDIFY")
+    s.thickness = 0.035
+    s.offset = 1.0
+    apply_mods(obj)
     obj.location = head_c + Vector((0, 0.015, 0.02))
     return register(obj, "hair", "head")
 
 
 def build_sword():
-    """Blade points down out of the fist, like the code-built chibi."""
     hand = Vector((SHOULDER_X, 0, SHOULDER_Z - ARM_LEN))
-    box("grip", (0.05, 0.05, 0.14), hand + Vector((0, 0, -0.02)), "belt", "hand")
-    box("guard", (0.22, 0.06, 0.045), hand + Vector((0, 0, -0.10)), "dark", "hand")
-    box("blade", (0.075, 0.03, 0.50), hand + Vector((0, 0, -0.38)), "steel", "hand")
-    # pointed tip: a tiny pyramid (fully tapered box) flipped downwards
+    box("grip", (0.05, 0.05, 0.14), hand + Vector((0, 0, -0.02)), "belt", "hand",
+        bevel=0.012, seg=2, smooth=False)
+    box("guard", (0.22, 0.06, 0.045), hand + Vector((0, 0, -0.10)), "dark", "hand",
+        bevel=0.012, seg=2, smooth=False)
+    box("blade", (0.075, 0.03, 0.50), hand + Vector((0, 0, -0.38)), "steel", "hand",
+        bevel=0.01, seg=1, smooth=False)
     tip = box("tip", (0.075, 0.03, 0.09), hand + Vector((0, 0, -0.675)), "steel", "hand",
-              taper_top=0.02)
-    for v in tip.data.vertices:      # flip so the point faces down
+              taper_top=0.02, bevel=0, smooth=False)
+    for v in tip.data.vertices:
         v.co.z = -v.co.z
 
 
 def build_shield():
-    """Round wooden buckler with a steel boss, strapped to the left forearm."""
-    c = Vector((-SHOULDER_X - 0.10, 0, SHOULDER_Z - ARM_LEN * 0.55))
-    bpy.ops.mesh.primitive_cylinder_add(vertices=8, radius=0.15, depth=0.04,
+    """Round wooden buckler, smooth face, crisp steel boss."""
+    c = Vector((-SHOULDER_X - 0.11, 0, SHOULDER_Z - ARM_LEN * 0.55))
+    bpy.ops.mesh.primitive_cylinder_add(vertices=28, radius=0.16, depth=0.045,
                                         location=(0, 0, 0), rotation=(0, 1.5708, 0))
     obj = bpy.context.active_object
     obj.name = "shield"
+    b = obj.modifiers.new("Bevel", "BEVEL")
+    b.width = 0.015
+    b.segments = 2
+    apply_mods(obj)
     obj.location = c
     register(obj, "wood", "armL")
-    sphere("boss", 0.05, c + Vector((-0.025, 0, 0)), "steel", "armL", subdiv=1,
-           scale=(0.6, 1, 1))
+    ball("boss", 0.05, c + Vector((-0.025, 0, 0)), "steel", "armL", scale=(0.6, 1, 1))
 
 
 def build_character():
-    # Torso: plump frustum (narrower shoulders = chibi silhouette), belt at the waist.
+    # Soft rounded torso + belt.
     box("torso", (0.50, 0.36, TORSO_H), (0, 0, HIP + TORSO_H / 2), "tunic", "body",
-        taper_top=0.85)
-    box("belt", (0.53, 0.39, 0.06), (0, 0, HIP + 0.05), "belt", "body")
+        taper_top=0.85, bevel=0.07, seg=4)
+    box("belt", (0.505, 0.365, 0.07), (0, 0, HIP + 0.08), "belt", "body", bevel=0.02, seg=2)
 
-    # Big faceted head + hair + eyes (face towards -Y).
+    # Smooth ball head, thick bowl-cut hair, eyes with glints.
     head_c = Vector((0, 0, HEAD_CZ))
-    sphere("head", HEAD_R, head_c, "skin", "head")
+    ball("head", HEAD_R, head_c, "skin", "head")
     build_hair(head_c)
     for sx in (-1, 1):
-        sphere("eye", 0.055, head_c + Vector((sx * 0.105, -0.225, -0.03)),
-               "eye", "head", subdiv=2, scale=(0.8, 0.3, 1.35))
+        ball("eye", 0.068, head_c + Vector((sx * 0.105, -0.235, -0.025)),
+             "eye", "head", scale=(0.85, 0.32, 1.30), segs=16, rings=12)
+        ball("glint", 0.016, head_c + Vector((sx * 0.088, -0.266, 0.008)),
+             "white", "head", segs=12, rings=8)
 
-    # Arms hang from the shoulders; skin-ball fists at the wrists.
+    # Soft limbs, ball fists.
     for sx, bone in ((-1, "armL"), (1, "armR")):
         box("arm" + bone[-1], (0.15, 0.15, ARM_LEN - 0.07),
-            (sx * SHOULDER_X, 0, SHOULDER_Z - (ARM_LEN - 0.07) / 2), "limb", bone)
-        sphere("fist" + bone[-1], 0.075, (sx * SHOULDER_X, 0, SHOULDER_Z - ARM_LEN),
-               "skin", bone, subdiv=1)
-
-    # Legs + chunky boots with a toe.
+            (sx * SHOULDER_X, 0, SHOULDER_Z - (ARM_LEN - 0.07) / 2), "limb", bone,
+            bevel=0.06, seg=4)
+        ball("fist" + bone[-1], 0.075, (sx * SHOULDER_X, 0, SHOULDER_Z - ARM_LEN),
+             "skin", bone, segs=16, rings=12)
     for sx, bone in ((-1, "legL"), (1, "legR")):
-        box("leg" + bone[-1], (0.16, 0.16, 0.30), (sx * HIP_X, 0, HIP - 0.15), "limb", bone)
-        box("boot" + bone[-1], (0.19, 0.24, 0.13), (sx * HIP_X, -0.025, 0.065), "boot", bone)
+        box("leg" + bone[-1], (0.16, 0.16, 0.30), (sx * HIP_X, 0, HIP - 0.15),
+            "limb", bone, bevel=0.06, seg=4)
+        box("boot" + bone[-1], (0.19, 0.24, 0.13), (sx * HIP_X, -0.025, 0.065),
+            "boot", bone, bevel=0.05, seg=4)
 
     build_sword()
     build_shield()
 
 
-# --- joints ---------------------------------------------------------------------
-# Names + positions match the joints ChibiAnimator drives on the code-built puppet.
-# Used as empty positions (default export) or bone head/tails (--skinned).
+# --- joints (shared chibi skeleton) ----------------------------------------------
 BONES = {
-    # name:     (head, tail, parent)
     "body": ((0, 0, HIP), (0, 0, HIP + TORSO_H), None),
     "head": ((0, 0, HIP + TORSO_H), (0, 0, HEAD_CZ + HEAD_R), "body"),
     "armL": ((-SHOULDER_X, 0, SHOULDER_Z), (-SHOULDER_X, 0, SHOULDER_Z - ARM_LEN), "body"),
@@ -219,12 +233,9 @@ def build_rig_and_skin():
         if parent:
             b.parent = arm_data.edit_bones[parent]
     bpy.ops.object.mode_set(mode="OBJECT")
-
-    # Rigid skin: each part's verts weighted 100% to its bone, then join to one mesh.
     for obj, bone in PARTS:
         vg = obj.vertex_groups.new(name=bone)
         vg.add(list(range(len(obj.data.vertices))), 1.0, "REPLACE")
-
     bpy.ops.object.select_all(action="DESELECT")
     for obj, _ in PARTS:
         obj.select_set(True)
@@ -232,13 +243,11 @@ def build_rig_and_skin():
     target.name = "Warrior"
     bpy.context.view_layer.objects.active = target
     bpy.ops.object.join()
-
     target.parent = arm_obj
     target.modifiers.new("Armature", "ARMATURE").object = arm_obj
-    return arm_obj, target
 
 
-# --- render / export ------------------------------------------------------------
+# --- render / export ---------------------------------------------------------------
 
 def setup_scene():
     scene = bpy.context.scene
@@ -249,7 +258,7 @@ def setup_scene():
         except TypeError:
             continue
     scene.render.resolution_x = scene.render.resolution_y = 900
-    try:  # AgX (the default) washes out flat low-poly colours; Standard keeps them true
+    try:
         scene.view_settings.view_transform = "Standard"
     except TypeError:
         pass
@@ -287,14 +296,14 @@ def setup_scene():
 
 def render_views(cam_obj, out_dir):
     views = {
-        "warrior_f34": (1.55, -1.9, 1.35),    # front three-quarter
+        "warrior_f34": (1.55, -1.9, 1.35),
         "warrior_front": (0.0, -2.4, 1.0),
-        "warrior_b34": (-1.55, 1.9, 1.35),    # back three-quarter
+        "warrior_b34": (-1.55, 1.9, 1.35),
     }
     scene = bpy.context.scene
     for name, loc in views.items():
         cam_obj.location = loc
-        scene.render.filepath = f"{out_dir}/{name}.png"
+        scene.render.filepath = "%s/%s.png" % (out_dir, name)
         bpy.ops.render.render(write_still=True)
         print("rendered", scene.render.filepath)
 
@@ -306,8 +315,8 @@ def export_fbx(path, skinned):
         use_selection=True,
         object_types={"ARMATURE", "MESH"} if skinned else {"MESH"},
         apply_unit_scale=True,
-        apply_scale_options="FBX_SCALE_UNITS",   # avoids the 100x scale factor in Unity
-        bake_space_transform=not skinned,        # bakes Z-up->Y-up into the vert data
+        apply_scale_options="FBX_SCALE_UNITS",
+        bake_space_transform=not skinned,
         add_leaf_bones=False,
         bake_anim=False,
     )
@@ -323,7 +332,7 @@ def main():
     if skinned:
         build_rig_and_skin()
 
-    if "--export" in argv:  # export BEFORE render setup adds camera/light objects
+    if "--export" in argv:
         export_fbx(argv[argv.index("--export") + 1], skinned)
     if "--renders" in argv:
         cam = setup_scene()

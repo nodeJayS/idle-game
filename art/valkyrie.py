@@ -2,8 +2,9 @@
 # shield knight: leather hood + gold trim, teal plume, big layered anime eyes,
 # blue kite shield, flowing back-locks). Original interpretation, not a replica.
 #
-# SHIPS AS THE WARRIOR: exported to Resources/Models/warrior_basic.fbx (visual
-# upgrade over art/warrior.py's male chibi, which remains as an alternate model).
+# NOT SHIPPED — design shelved (2026-07-01); art/warrior.py's smooth-toy knight
+# ships as warrior_basic.fbx. Kept for the prism()/layered-eye/hood techniques.
+# NOTE: still faceted-style; port to the smooth helpers before reviving.
 #
 #   blender -b --python art/valkyrie.py -- --renders <dir>
 #   blender -b --python art/valkyrie.py -- --export <file.fbx>

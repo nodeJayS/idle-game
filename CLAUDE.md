@@ -102,9 +102,11 @@ Phase A (core loop) and most of Phase B (depth) are done. What exists today:
 - **Art** — *Tunic* height-blend shader + faceted vertex-coloured world + dappled light. Heroes:
   **scripted Blender models** are the pipeline now (`art/<hero>.py` = the model source; headless
   build→render-iterate→FBX to `Resources/Models/<defId>.fbx`; `ModelHero` rebuilds the joint
-  skeleton and reparents the flat name-prefixed parts, so `ChibiAnimator` drives them unchanged —
-  warrior shipped: `art/valkyrie.py`, a hooded shield-knight authored from a 2D reference, exports
-  over `warrior_basic.fbx`). Heroes without a model fall back to the code-built `ChibiHero` chibis.
+  skeleton and reparents the flat name-prefixed parts, so `ChibiAnimator` drives them unchanged).
+  **Hero art direction: smooth "toy" style** — heroes are smooth-shaded/beveled/rounded while the
+  world stays faceted, so characters pop (warrior shipped in this style; `art/valkyrie.py` is a
+  shelved faceted design kept for its techniques). Heroes without a model fall back to the
+  code-built `ChibiHero` chibis.
 
 **The four loop levers** (game-design.md §7.1): 1 combat variety ✅ · 2 loot/power chase ✅ ·
 3 build depth ✅ · **4 progression hooks — in progress** (achievement ladder + daily-login premium
