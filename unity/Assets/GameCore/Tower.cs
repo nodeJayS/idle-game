@@ -93,6 +93,7 @@ namespace IdleGame.GameCore
                 AccountLevel = save.Progress.AccountLevel,
                 Tower = new TowerState { HighestFloor = floor },
                 Achievements = save.Progress.Achievements,
+                Daily = save.Progress.Daily,
             };
             return new SaveState
             {

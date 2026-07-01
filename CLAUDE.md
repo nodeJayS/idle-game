@@ -47,7 +47,7 @@ docs/game-design.md      the durable what/why
   Play-mode can't run headlessly — visuals are verified by screenshot (Unity MCP), UI is
   hand-placed uGUI/IMGUI coords.
 
-## Current systems (373 tests passing)
+## Current systems (383 tests passing)
 
 Phase A (core loop) and most of Phase B (depth) are done. What exists today:
 
@@ -86,17 +86,24 @@ Phase A (core loop) and most of Phase B (depth) are done. What exists today:
   salvages/gold/rares) + MAX peaks (deepest stage/floor, hero level). `Achievements.Record` (fed the
   same events as quests) auto-pays a one-time gold+scrap+XP reward per tier crossed, announced in the
   feed; a read-only Achievements panel (control bar) shows the ladder. 8 achievements, geometric tiers.
-  Still open: dailies/login streak, manual-claim UX, achievements-as-quest-source, prestige.
+- **Daily login + premium currency (Lever 4 — slice 2)** — **gems**, a THIRD currency
+  (`Currencies["gems"]`) earnable *only* by the daily login streak (the seed of the future gacha/
+  microtransaction economy — no other source yet). `DailyLoginState` (nested under `ProgressState`):
+  once per UTC day `DailyLogin.Claim` grants gems, consecutive days build a streak (missed day resets),
+  with a milestone bonus every 7th day. A launch `DailyLoginModal` (Collect → `CombatView.ClaimDailyLogin`)
+  is the beat; gems show in the HUD. Still open: manual achievement-claim UX, the gem SINK (gacha/shop),
+  real-money purchase, prestige/rebirth.
 - **Art** — *Tunic* height-blend shader + faceted vertex-coloured world + dappled light; heroes are
   code-built **chibi placeholders** (Blender models are the eventual seam).
 
 **The four loop levers** (game-design.md §7.1): 1 combat variety ✅ · 2 loot/power chase ✅ ·
-3 build depth ✅ · **4 progression hooks — in progress** (achievement ladder shipped; dailies/prestige next).
+3 build depth ✅ · **4 progression hooks — in progress** (achievement ladder + daily-login premium
+currency shipped; gem sink/gacha + prestige next).
 
 ## What's next / open
 - **Content & polish** (current focus): more heroes/enemies/mods/stages; balance/tuning; combat juice.
-- **Progression hooks (Lever 4):** achievement ladder shipped (slice 1); next = dailies/login streak,
-  manual-claim UX, achievements feeding the goal board, prestige/rebirth.
+- **Progression hooks (Lever 4):** achievement ladder (slice 1) + daily-login premium currency
+  (slice 2) shipped; next = a gem SINK (gacha/shop), manual achievement-claim UX, prestige/rebirth.
 - **Tower slice 3:** per-floor reward bundles.
 - **Deferred:** real Blender hero models; UI/UX uGUI layout-group refactor; console balance-sim;
   gacha + live-service (design supports both additively — game-design.md §9).

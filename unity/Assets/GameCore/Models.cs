@@ -84,6 +84,8 @@ namespace IdleGame.GameCore
         // Lifetime achievement ladder (Lever 4). Nested here for the same reason as Tower — the
         // ProgressState constructors carry it forward, so the ~20 other save-copy sites get it free.
         public AchievementState Achievements = new AchievementState();
+        // Daily-login streak (Lever 4 — premium currency). Nested here for the same threading reason.
+        public DailyLoginState Daily = new DailyLoginState();
     }
 
     /// <summary>Tower of Ascension progress (a separate one-clear-per-floor track, distinct from the
@@ -140,6 +142,21 @@ namespace IdleGame.GameCore
     {
         public Dictionary<AchievementMetric, long> Counters = new Dictionary<AchievementMetric, long>(); // metric -> lifetime value
         public Dictionary<string, int> Claimed = new Dictionary<string, int>();                          // achId -> tiers paid out
+    }
+
+    /// <summary>
+    /// Daily-login streak state (Lever 4 — the premium-currency hook). Tracks the day of the last claim
+    /// (a UTC day-index = epoch-ms / 86_400_000), the consecutive-day <see cref="Streak"/>, and lifetime
+    /// <see cref="TotalClaims"/>. A claim grants GEMS — the PREMIUM currency, held in
+    /// <see cref="SaveState.Currencies"/> and (for now) earnable no other way — the seed of the future
+    /// gacha/microtransaction economy. Nested under <see cref="ProgressState"/> (like
+    /// <see cref="TowerState"/> / <see cref="AchievementState"/>) so it rides the Progress threading.
+    /// </summary>
+    public sealed class DailyLoginState
+    {
+        public long LastClaimDay; // UTC day-index of the last claim; 0 = never claimed
+        public int Streak;        // consecutive-day streak (1 on the first claim or after a break)
+        public int TotalClaims;   // lifetime daily claims
     }
 
     /// <summary>Which reward channel a monster modifier boosts (thematic per type — see

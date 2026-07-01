@@ -186,6 +186,18 @@ namespace IdleGame.GameCore
         // a green ▲ and auto-equip doesn't churn on noise. 0.005 = 0.5%.
         public double UpgradeBandPct = 0.005;
 
+        // Daily login (Lever 4 — the premium-currency hook). Claiming once per UTC day grants GEMS
+        // (the premium currency, in Currencies[PremiumCurrency]); consecutive days build a streak for
+        // bigger rewards, a missed day resets it to 1. Gems are the seed of the future gacha/
+        // microtransaction economy and are NOT earnable any other way yet. Reward at streak S =
+        // BaseGems + StreakBonus·min(S-1, StreakCap-1), plus MilestoneGems every MilestoneEvery days.
+        public string PremiumCurrency = "gems";
+        public long DailyLoginBaseGems = 10;       // gems for a day-1 claim
+        public long DailyLoginStreakBonus = 2;     // + this per extra streak day, up to the cap
+        public int DailyLoginStreakCap = 7;        // streak bonus stops growing past this day (plateaus)
+        public long DailyLoginMilestoneGems = 50;  // extra gems every DailyLoginMilestoneEvery-th day
+        public int DailyLoginMilestoneEvery = 7;   // a bonus lands on day 7, 14, 21…
+
         public double IdleCapHours = 12;
         // Offline yield as a fraction of the online rate (gold, XP, and loot rolls
         // alike) — starts at 70% to nudge active play; tune freely later.

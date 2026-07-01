@@ -104,6 +104,7 @@ namespace IdleGame.GameCore
             save.Progress.Achievements ??= new AchievementState(); // older saves predate the achievement ladder
             save.Progress.Achievements.Counters ??= new Dictionary<AchievementMetric, long>();
             save.Progress.Achievements.Claimed ??= new Dictionary<string, int>();
+            save.Progress.Daily ??= new DailyLoginState(); // older saves predate the daily-login streak
             save.Quests ??= new QuestBoard(); // EnsureBoard (client, needs cfg) backfills the goals
             save.Modifiers ??= new MonsterModifiers(); // none owned on older saves until a boss grants one
             save.Modifiers.Tuning ??= new Dictionary<string, double>(); // modifier-shop tuning (new field)

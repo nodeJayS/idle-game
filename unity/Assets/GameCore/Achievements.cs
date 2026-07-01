@@ -91,6 +91,7 @@ namespace IdleGame.GameCore
                 AccountLevel = save.Progress.AccountLevel,
                 Tower = save.Progress.Tower,
                 Achievements = ach,
+                Daily = save.Progress.Daily,
             },
             Quests = save.Quests,
             Modifiers = save.Modifiers,

@@ -548,6 +548,18 @@ namespace IdleGame.Game
             return m;
         }
 
+        /// <summary>Claim today's daily-login reward (Lever 4 — premium currency): advance the streak
+        /// and credit gems via the GameCore reducer, announced in the feed. No-op if already claimed
+        /// today. Called by <see cref="DailyLoginModal"/> on Collect; <c>now</c> is epoch ms.</summary>
+        public void ClaimDailyLogin(long now)
+        {
+            var (next, gems, streak, claimed) = DailyLogin.Claim(_save, _cfg, now);
+            if (!claimed) return;
+            _save = next;
+            _chat?.AddFeed($"Daily reward — day {streak} streak!  +{Num.Compact(gems)} gems",
+                           new Color(0.6f, 0.85f, 1f));
+        }
+
         /// <summary>Bank pending loot/XP/gold into the save. Returns true if XP was
         /// granted (so the caller can refresh live party stats).</summary>
         private bool CommitPending()
@@ -1266,8 +1278,9 @@ namespace IdleGame.Game
             { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.UpperCenter };
             bool major = _cfg.Stages.Find(st => st.Stage == _combat.Stage)?.IsMajorBoss == true;
             long gold = _save.Currencies.TryGetValue("gold", out var g) ? g : 0;
-            // Farm: just the gold readout (the current stage shows in DrawTopControls below).
-            // Boss challenge: the boss context (which names the stage) plus gold.
+            long gems = _save.Currencies.TryGetValue(_cfg.Balance.PremiumCurrency, out var gm) ? gm : 0;
+            // Farm: gold + premium-currency (gems) readout (the current stage shows in DrawTopControls below).
+            // Boss challenge: the boss context (which names the stage) plus the currency readout.
             // The boss exhibits (and grants) its stage's modifier — name it so the player sees
             // what they're fighting and about to bank (Lever 1).
             string bossMod = "";
@@ -1276,10 +1289,11 @@ namespace IdleGame.Game
                 var mtype = _cfg.ModifierTypeForStage(_combat.Stage);
                 if (mtype != null && _cfg.Modifiers.TryGetValue(mtype, out var bmd)) bossMod = $"  ·  {bmd.Name}";
             }
+            string wallet = $"{Num.Compact(gold)} gold  ·  {Num.Compact(gems)} gems";
             string ctx = _combat.Kind == EncounterKind.Farm
-                ? $"{Num.Compact(gold)} gold"
+                ? wallet
                 : (major ? $"★ MAJOR BOSS — Stage {_combat.Stage}" : $"Miniboss — Stage {_combat.Stage}")
-                    + bossMod + $"  ·  {Num.Compact(gold)} gold";
+                    + bossMod + $"  ·  {wallet}";
             GUI.Label(new Rect(0, 8, sw, 28), ctx, style);
 
             if (_combat.Kind == EncounterKind.BossChallenge)

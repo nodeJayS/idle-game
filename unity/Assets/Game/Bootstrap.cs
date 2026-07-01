@@ -111,6 +111,16 @@ namespace IdleGame.Game
                           $"{idleReport.Items.Count} item(s) over {idleReport.ElapsedMs / 3600_000.0:F1}h.");
             }
 
+            // Daily-login reward (Lever 4 — premium currency): if a claim is available today, greet the
+            // player with the streak modal (renders above the idle-claim modal via a higher sort order).
+            long now = NowMs();
+            if (DailyLogin.CanClaim(save, now))
+            {
+                var daily = new GameObject("DailyLoginModal");
+                daily.transform.SetParent(session.transform);
+                daily.AddComponent<DailyLoginModal>().Show(view, cfg, now);
+            }
+
             Debug.Log($"[Bootstrap] Session started at stage {save.Progress.CurrentStage}.");
         }
 

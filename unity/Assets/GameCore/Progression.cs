@@ -126,6 +126,7 @@ namespace IdleGame.GameCore
                 AccountLevel = save.Progress.AccountLevel,
                 Tower = save.Progress.Tower,
                 Achievements = save.Progress.Achievements,
+                Daily = save.Progress.Daily,
             });
 
             // Sorted so multi-unlock grants mint hero ids deterministically.
@@ -164,6 +165,7 @@ namespace IdleGame.GameCore
                 AccountLevel = save.Progress.AccountLevel,
                 Tower = save.Progress.Tower,
                 Achievements = save.Progress.Achievements,
+                Daily = save.Progress.Daily,
             });
         }
 
