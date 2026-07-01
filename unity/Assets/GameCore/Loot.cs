@@ -14,13 +14,13 @@ namespace IdleGame.GameCore
     {
         public int ItemLevel;        // power/scaling of dropped items
         public double DropRateMult;  // bias toward higher rarity
-        public Rarity? MaxRarity;    // ceiling for rolled rarity; null = uncapped (Legendary)
+        public Rarity? MaxRarity;    // ceiling for rolled rarity; null = uncapped (Mythic)
 
         public static LootContext ForStage(StageDef stage) => new LootContext
         {
             ItemLevel = stage.AffixItemLevel,
             DropRateMult = stage.DropRateMult,
-            MaxRarity = Rarity.Rare, // trash/idle ceiling; Unique/Legendary are boss-only
+            MaxRarity = Rarity.Rare, // trash/idle ceiling; Unique/Legendary/Mythic are boss-only
         };
     }
 
@@ -46,7 +46,7 @@ namespace IdleGame.GameCore
             double mult = Math.Max(0.0, ctx.DropRateMult);
 
             // weights.Length defines how many rarities are in play; (Rarity)rank maps
-            // the index to the enum (Normal = 0 … Legendary = 4). MaxRarity (when set)
+            // the index to the enum (Normal = 0 … Mythic = 4). MaxRarity (when set)
             // clamps the ceiling so trash/idle can't roll boss-exclusive rarities.
             int maxRank = weights.Length - 1;
             if (ctx.MaxRarity != null) maxRank = Math.Min(maxRank, (int)ctx.MaxRarity.Value);
@@ -67,7 +67,7 @@ namespace IdleGame.GameCore
         /// <see cref="ItemBaseDef.AllowedAffixes"/> AND its
         /// <see cref="AffixDef.RarityFloor"/> is met. Picks are weighted and made
         /// WITHOUT replacement (no duplicate stats); each value scales with itemLevel.
-        /// TODO (later): Unique/Legendary use random counts for now; true bespoke
+        /// TODO (later): Unique/Legendary/Mythic use random counts for now; true bespoke
         /// uniques need hand-authored fixed affixes from unique-item definitions.
         /// </summary>
         public static List<Affix> RollAffixes(Rng rng, ItemBaseDef itemBase, Rarity rarity, int itemLevel, GameConfig cfg)
@@ -150,9 +150,10 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>
-        /// A boss's guaranteed loot bundle: a count of Unique/Legendary items (by boss
-        /// tier — <paramref name="isMajor"/>) plus a few ordinary Normal–Rare extras.
-        /// Each bundle item rolls Legendary with <see cref="BalanceConstants.BossLegendaryChance"/>,
+        /// A boss's guaranteed loot bundle: a count of Unique+ items (by boss tier —
+        /// <paramref name="isMajor"/>) plus a few ordinary Normal–Rare extras. Each
+        /// bundle item makes ONE rng draw: Mythic with <see cref="BalanceConstants.BossMythicChance"/>,
+        /// else Legendary with <see cref="BalanceConstants.BossLegendaryChance"/>,
         /// otherwise Unique. Deterministic via <paramref name="rng"/>.
         /// </summary>
         public static List<Item> RollBossDrops(Rng rng, LootContext ctx, GameConfig cfg, bool isMajor)
@@ -165,7 +166,10 @@ namespace IdleGame.GameCore
             var items = new List<Item>(uniques + extras);
             for (int i = 0; i < uniques; i++)
             {
-                var rarity = rng.Next() < b.BossLegendaryChance ? Rarity.Legendary : Rarity.Unique;
+                double roll = rng.Next();
+                var rarity = roll < b.BossMythicChance ? Rarity.Mythic
+                           : roll < b.BossMythicChance + b.BossLegendaryChance ? Rarity.Legendary
+                           : Rarity.Unique;
                 items.Add(RollItem(rng, PickBaseId(rng, cfg), ctx.ItemLevel, rarity, cfg));
             }
             for (int i = 0; i < extras; i++)
@@ -177,7 +181,7 @@ namespace IdleGame.GameCore
         /// An elite/rare trash mob's loot bundle (Lever 1): <paramref name="count"/> guaranteed
         /// items rolled at a boosted drop rate (<paramref name="rateMult"/> × the context's
         /// DropRateMult) so rarities skew richer. Still bounded by the context's MaxRarity
-        /// (Rare for trash) — Unique/Legendary remain boss-exclusive. Deterministic.
+        /// (Rare for trash) — Unique/Legendary/Mythic remain boss-exclusive. Deterministic.
         /// </summary>
         public static List<Item> RollRankDrops(Rng rng, LootContext ctx, GameConfig cfg, int count, double rateMult)
         {

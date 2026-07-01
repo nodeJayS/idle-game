@@ -21,7 +21,7 @@ namespace IdleGame.Game
 
         private GameObject? _panel;        // the open inventory canvas (null when closed)
         private RectTransform? _detail;    // fixed detail pane, updated on hover/click
-        private string? _confirmSalvageId; // two-step confirm guard for Unique/Legendary salvage
+        private string? _confirmSalvageId; // two-step confirm guard for Unique+ salvage
         private bool _autoSalvageOpen;     // auto-salvage dropdown expanded? (kept across Rebuild)
 
         /// <summary>True while the inventory panel is open (the HUD reads this).</summary>
@@ -69,7 +69,7 @@ namespace IdleGame.Game
             if (loose > cap) title.color = new Color(1f, 0.6f, 0.4f); // overfilled (idle/boss spillover)
 
             long scrap = save.Currencies.TryGetValue("scrap", out var sc) ? sc : 0;
-            UiKit.Label(panel.transform, $"Scrap: {Num.Compact(scrap)}", 15, TextAnchor.MiddleLeft,
+            UiKit.Label(panel.transform, $"Scrap: {Num.CompactFloor(scrap)}", 15, TextAnchor.MiddleLeft,
                         new Vector2(130, 30), new Vector2(-215, 274)).color = new Color(0.75f, 0.78f, 0.85f);
 
             BuildAutoEquip(panel.transform);
@@ -113,8 +113,8 @@ namespace IdleGame.Game
         private void BuildRarityLegend(Transform parent)
         {
             var order = new IdleGame.GameCore.Rarity[] {
-                IdleGame.GameCore.Rarity.Normal, IdleGame.GameCore.Rarity.Magic, IdleGame.GameCore.Rarity.Rare,
-                IdleGame.GameCore.Rarity.Unique, IdleGame.GameCore.Rarity.Legendary };
+                IdleGame.GameCore.Rarity.Normal, IdleGame.GameCore.Rarity.Rare, IdleGame.GameCore.Rarity.Unique,
+                IdleGame.GameCore.Rarity.Legendary, IdleGame.GameCore.Rarity.Mythic };
             float x = -430f, y = -300f;
             for (int i = 0; i < order.Length; i++)
             {
@@ -171,7 +171,7 @@ namespace IdleGame.Game
             {
                 var (rg, rs) = Inventory.ReforgeCost(item, _cfg);
                 bool canRf = Inventory.CanReforge(save, item.Id, _cfg);
-                var rf = UiKit.TextButton(_detail, $"Reforge  {Num.Compact(rg)}g + {Num.Compact(rs)}s", new Vector2(260, 40),
+                var rf = UiKit.TextButton(_detail, $"Reforge  {Num.CompactCeil(rg)}g + {Num.CompactCeil(rs)}s", new Vector2(260, 40),
                     new Vector2(0, -150), canRf
                         ? () => { _view.ReforgeItem(item.Id); ShowDetail(_view.CurrentSave, _view.CurrentSave.Inventory.Find(i => i.Id == item.Id)); }
                         : (System.Action)(() => { }), 15);
@@ -201,7 +201,7 @@ namespace IdleGame.Game
                             new Vector2(270, 22), new Vector2(0, y)).color = UpgradeTell.Side;
             y -= 26f;
 
-            // Loose item -> manual salvage. Unique/Legendary take a second click to confirm.
+            // Loose item -> manual salvage. Unique and above take a second click to confirm.
             long worth = _cfg.Balance.ScrapValue(item.Rarity, item.ItemLevel);
             if (_confirmSalvageId == item.Id)
             {
@@ -231,14 +231,13 @@ namespace IdleGame.Game
 
         // ---- auto-salvage threshold control ----
 
-        // The selectable thresholds, low→high. Unique/Legendary are intentionally absent:
-        // they're boss-only chase items and trash is capped at Rare, so auto-salvage never
-        // touches them. "& below" matches Inventory.AddLoot's `Rarity <= max` semantics.
+        // The selectable thresholds, low→high. Legendary/Mythic are intentionally absent:
+        // they're the boss-only chase tiers, so auto-salvage never touches them.
+        // "& below" matches Inventory.AddLoot's `Rarity <= max` semantics.
         private static readonly (Rarity? max, string label)[] AutoSalvageOptions =
         {
             (null, "Off"),
             (Rarity.Normal, "Normal"),
-            (Rarity.Magic, "Magic & below"),
             (Rarity.Rare, "Rare & below"),
         };
 

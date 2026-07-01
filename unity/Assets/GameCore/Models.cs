@@ -17,8 +17,10 @@ namespace IdleGame.GameCore
     // ------------------------------------------------------------------------
 
     // Ascending value — order matters: AffixDef.RarityFloor and the rarity-roll
-    // bias both rely on (int)Rarity as the rank (Normal = 0 … Legendary = 4).
-    public enum Rarity { Normal, Magic, Rare, Unique, Legendary }
+    // bias both rely on (int)Rarity as the rank (Normal = 0 … Mythic = 4).
+    // 2026-07 refactor dropped Magic and added Mythic on top; persisted (int)Rarity
+    // shifted, so old saves reseed at New Game (deliberate — no migration).
+    public enum Rarity { Normal, Rare, Unique, Legendary, Mythic }
 
     // Appended (not reordered) so persisted slot values stay stable. MapleStory-style
     // gear sheet: armor pieces + a weapon/offhand pair, plus two accessory slots.

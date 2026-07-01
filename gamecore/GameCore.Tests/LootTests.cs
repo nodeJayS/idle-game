@@ -37,7 +37,7 @@ namespace IdleGame.GameCore.Tests
             {
                 double expected = w[(int)r] / total;
                 double actual = counts[r] / (double)n;
-                // generous tolerance; even Legendary (~0.26%) is stable at 200k samples
+                // generous tolerance; even Mythic (~0.08%) is stable at 200k samples
                 Assert.True(Math.Abs(actual - expected) < 0.01 + expected * 0.1,
                     $"{r}: expected ~{expected:F4}, got {actual:F4}");
             }
@@ -54,6 +54,7 @@ namespace IdleGame.GameCore.Tests
             Assert.True(high[Rarity.Normal] < low[Rarity.Normal], "expected fewer Normals at higher mult");
             Assert.True(high[Rarity.Unique] > low[Rarity.Unique], "expected more Uniques at higher mult");
             Assert.True(high[Rarity.Legendary] > low[Rarity.Legendary], "expected more Legendaries at higher mult");
+            Assert.True(high[Rarity.Mythic] > low[Rarity.Mythic], "expected more Mythics at higher mult");
         }
 
         [Fact]
@@ -89,12 +90,14 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void AffixCountWithinBoundsCappedByPool()
         {
-            // Rare weapon: balance says 3-4, eligible pool is 4 -> count in [3,4]
+            // Rare weapon: balance says 2-3, eligible pool is 4 -> count in [2,3];
+            // Mythic says 6-7 but the pool caps it at 4.
             var rng = new Rng(3);
             for (int i = 0; i < 500; i++)
             {
                 var aff = Loot.RollAffixes(rng, Weapon, Rarity.Rare, 5, Cfg);
-                Assert.InRange(aff.Count, 3, 4);
+                Assert.InRange(aff.Count, 2, 3);
+                Assert.Equal(4, Loot.RollAffixes(rng, Weapon, Rarity.Mythic, 5, Cfg).Count);
             }
         }
 
@@ -108,13 +111,19 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
-        public void RarityFloorRespected()
+        public void RareRollsTheWholeEligiblePool()
         {
-            // Magic weapon: crit/spd are Rare-floor, so only Atk (Magic-floor) is eligible
+            // All affix floors sit at Rare — a Rare item (the trash ceiling) can roll every
+            // allowed stat, so no affix is boss-gated by rarity floor.
             var rng = new Rng(5);
+            var seen = new HashSet<StatKey>();
             for (int i = 0; i < 500; i++)
-                foreach (var a in Loot.RollAffixes(rng, Weapon, Rarity.Magic, 6, Cfg))
-                    Assert.True((int)Def(a.Stat).RarityFloor <= (int)Rarity.Magic);
+                foreach (var a in Loot.RollAffixes(rng, Weapon, Rarity.Rare, 6, Cfg))
+                {
+                    Assert.True((int)Def(a.Stat).RarityFloor <= (int)Rarity.Rare);
+                    seen.Add(a.Stat);
+                }
+            Assert.Equal(new HashSet<StatKey>(Weapon.AllowedAffixes), seen);
         }
 
         [Fact]
@@ -172,7 +181,7 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal("rusty_sword", item.BaseId);
             Assert.Equal(5, item.ItemLevel);
             Assert.Equal(Rarity.Rare, item.Rarity);
-            Assert.InRange(item.Affixes.Count, 3, 4);
+            Assert.InRange(item.Affixes.Count, 2, 3);
 
             var normal = Loot.RollItem(new Rng(1), "rusty_sword", 5, Rarity.Normal, Cfg);
             Assert.Empty(normal.Affixes);
@@ -181,7 +190,7 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void RollItemThrowsOnUnknownBase()
         {
-            Assert.Throws<ArgumentException>(() => Loot.RollItem(new Rng(1), "nope", 5, Rarity.Magic, Cfg));
+            Assert.Throws<ArgumentException>(() => Loot.RollItem(new Rng(1), "nope", 5, Rarity.Rare, Cfg));
         }
 
         [Fact]
@@ -270,11 +279,43 @@ namespace IdleGame.GameCore.Tests
             var b = Cfg.Balance;
             var drops = Loot.RollBossDrops(new Rng(1), BossCtx, Cfg, isMajor: true);
 
-            int hi = drops.Count(d => d.Rarity == Rarity.Unique || d.Rarity == Rarity.Legendary);
+            int hi = drops.Count(d => d.Rarity >= Rarity.Unique); // Unique/Legendary/Mythic
             Assert.InRange(hi, b.MajorBossUniques.min, b.MajorBossUniques.max); // guaranteed chase items
             Assert.Equal(hi + b.MajorBossExtras, drops.Count);                  // plus ordinary extras
-            // extras can never be Unique/Legendary (ctx-capped at Rare)
+            // extras can never be Unique+ (ctx-capped at Rare)
             Assert.Equal(b.MajorBossExtras, drops.Count(d => (int)d.Rarity <= (int)Rarity.Rare));
+        }
+
+        [Fact]
+        public void BossBundleRollsMythicAtItsChance()
+        {
+            // Force the long-tail: with BossMythicChance = 1 every guaranteed bundle item
+            // is Mythic (the extras stay ctx-capped at Rare).
+            var cfg = GameConfig.Default();
+            cfg.Balance.BossMythicChance = 1.0;
+            var drops = Loot.RollBossDrops(new Rng(3), BossCtx, cfg, isMajor: true);
+
+            int mythics = drops.Count(d => d.Rarity == Rarity.Mythic);
+            Assert.InRange(mythics, cfg.Balance.MajorBossUniques.min, cfg.Balance.MajorBossUniques.max);
+            Assert.Equal(drops.Count - cfg.Balance.MajorBossExtras, mythics);
+        }
+
+        [Fact]
+        public void MythicIsTheTopTierInEveryBalanceTable()
+        {
+            // The invariants the backlog asked of the new tier: one entry per rarity in each
+            // table; Mythic drops rarest, rolls the most affixes, salvages for the most scrap.
+            var b = Cfg.Balance;
+            int top = (int)Rarity.Mythic;
+            Assert.Equal(top + 1, b.RarityBaseWeights.Length);
+            Assert.Equal(top + 1, b.AffixCountByRarity.Length);
+            Assert.Equal(top + 1, b.ScrapValueByRarity.Length);
+            for (int r = 0; r < top; r++)
+            {
+                Assert.True(b.RarityBaseWeights[top] < b.RarityBaseWeights[r], "Mythic must be the rarest drop");
+                Assert.True(b.AffixCountByRarity[top].max >= b.AffixCountByRarity[r].max, "Mythic must roll the most affixes");
+                Assert.True(b.ScrapValueByRarity[top] > b.ScrapValueByRarity[r], "Mythic must salvage highest");
+            }
         }
 
         [Fact]

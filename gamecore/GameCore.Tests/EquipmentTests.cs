@@ -32,7 +32,7 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void EquipRaisesStatsAndIsPure()
         {
-            var (save, heroId) = Setup(Mk("w1", "rusty_sword", Rarity.Magic, 5, (StatKey.Atk, 7)));
+            var (save, heroId) = Setup(Mk("w1", "rusty_sword", Rarity.Rare, 5, (StatKey.Atk, 7)));
             double baseAtk = StatsOf(save, heroId).Get(StatKey.Atk);
 
             var after = Inventory.EquipItem(save, heroId, "w1", Cfg);
@@ -45,7 +45,7 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void UnequipRevertsStats()
         {
-            var (save, heroId) = Setup(Mk("w1", "rusty_sword", Rarity.Magic, 5, (StatKey.Atk, 7)));
+            var (save, heroId) = Setup(Mk("w1", "rusty_sword", Rarity.Rare, 5, (StatKey.Atk, 7)));
             double baseAtk = StatsOf(save, heroId).Get(StatKey.Atk);
 
             var equipped = Inventory.EquipItem(save, heroId, "w1", Cfg);
@@ -68,7 +68,7 @@ namespace IdleGame.GameCore.Tests
         public void EquipIntoOccupiedSlotReplacesAndFreesOldItem()
         {
             var (save, heroId) = Setup(
-                Mk("w1", "rusty_sword", Rarity.Magic, 5, (StatKey.Atk, 2)),
+                Mk("w1", "rusty_sword", Rarity.Rare, 5, (StatKey.Atk, 2)),
                 Mk("w2", "rusty_sword", Rarity.Rare, 5, (StatKey.Atk, 9)));
 
             var s1 = Inventory.EquipItem(save, heroId, "w1", Cfg);
@@ -83,7 +83,7 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void EquipThrowsOnBadInputs()
         {
-            var (save, heroId) = Setup(Mk("w1", "rusty_sword", Rarity.Magic, 5, (StatKey.Atk, 7)));
+            var (save, heroId) = Setup(Mk("w1", "rusty_sword", Rarity.Rare, 5, (StatKey.Atk, 7)));
 
             Assert.Throws<System.InvalidOperationException>(() => Inventory.EquipItem(save, "nope", "w1", Cfg));
             Assert.Throws<System.InvalidOperationException>(() => Inventory.EquipItem(save, heroId, "ghost", Cfg));
@@ -96,7 +96,7 @@ namespace IdleGame.GameCore.Tests
         public void ResolveEquippedReturnsEquippedItems()
         {
             var (save, heroId) = Setup(
-                Mk("w1", "rusty_sword", Rarity.Magic, 5, (StatKey.Atk, 7)),
+                Mk("w1", "rusty_sword", Rarity.Rare, 5, (StatKey.Atk, 7)),
                 Mk("h1", "leather_cap", Rarity.Normal, 1));
 
             var s = Inventory.EquipItem(save, heroId, "w1", Cfg);
@@ -113,11 +113,11 @@ namespace IdleGame.GameCore.Tests
         {
             // vs empty slot: +13 atk (base 6 + affix 7)
             var (save, heroId) = Setup();
-            var candidate = Mk("c1", "rusty_sword", Rarity.Magic, 5, (StatKey.Atk, 7));
+            var candidate = Mk("c1", "rusty_sword", Rarity.Rare, 5, (StatKey.Atk, 7));
             Assert.Equal(13, Inventory.CompareForHero(save, heroId, candidate, Cfg).Get(StatKey.Atk), 3);
 
             // vs a worse weapon equipped: (6+7) - (6+2) = +5 atk
-            var (save2, heroId2) = Setup(Mk("small", "rusty_sword", Rarity.Magic, 5, (StatKey.Atk, 2)));
+            var (save2, heroId2) = Setup(Mk("small", "rusty_sword", Rarity.Rare, 5, (StatKey.Atk, 2)));
             save2 = Inventory.EquipItem(save2, heroId2, "small", Cfg);
             Assert.Equal(5, Inventory.CompareForHero(save2, heroId2, candidate, Cfg).Get(StatKey.Atk), 3);
         }
@@ -129,7 +129,7 @@ namespace IdleGame.GameCore.Tests
             // DPS/Life hover preview. after-before must agree with the raw delta, and a sword
             // with +Atk must raise derived DPS.
             var (save, heroId) = Setup();
-            var candidate = Mk("c1", "rusty_sword", Rarity.Magic, 5, (StatKey.Atk, 7));
+            var candidate = Mk("c1", "rusty_sword", Rarity.Rare, 5, (StatKey.Atk, 7));
 
             var (before, after) = Inventory.ComparePairForHero(save, heroId, candidate, Cfg);
             double rawDelta = Inventory.CompareForHero(save, heroId, candidate, Cfg).Get(StatKey.Atk);

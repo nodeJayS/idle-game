@@ -41,7 +41,7 @@ namespace IdleGame.GameCore.Tests
         {
             var sword = new Item
             {
-                Id = "i1", BaseId = "rusty_sword", Rarity = Rarity.Magic, ItemLevel = 1,
+                Id = "i1", BaseId = "rusty_sword", Rarity = Rarity.Rare, ItemLevel = 1,
                 Affixes = new List<Affix> { new Affix { Stat = StatKey.Atk, Value = 5 } },
             };
             var st = Stats.ComputeHeroStats(Warrior(1), Cfg, new[] { sword });

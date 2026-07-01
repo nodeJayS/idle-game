@@ -8,7 +8,7 @@ namespace IdleGame.GameCore.Tests
     {
         private static readonly GameConfig Cfg = GameConfig.Default();
 
-        private static Item It(string id, Rarity rarity = Rarity.Magic, string baseId = "rusty_sword", int ilvl = 1) =>
+        private static Item It(string id, Rarity rarity = Rarity.Rare, string baseId = "rusty_sword", int ilvl = 1) =>
             new Item { Id = id, BaseId = baseId, Rarity = rarity, ItemLevel = ilvl };
 
         private static GameConfig CapCfg(int cap)
@@ -151,13 +151,13 @@ namespace IdleGame.GameCore.Tests
         public void AddLootAutoSalvagesAtOrBelowThreshold()
         {
             var save = Save.NewGame(1, Cfg, 0);
-            var items = new[] { It("n", Rarity.Normal), It("m", Rarity.Magic), It("r", Rarity.Rare) };
+            var items = new[] { It("n", Rarity.Normal), It("r", Rarity.Rare), It("u", Rarity.Unique) };
 
-            var res = Inventory.AddLoot(save, items, Cfg, Rarity.Magic); // salvage Normal + Magic, keep Rare
+            var res = Inventory.AddLoot(save, items, Cfg, Rarity.Rare); // salvage Normal + Rare, keep Unique
 
             Assert.Equal(2, res.Salvaged.Count);
             Assert.Single(res.Stored);
-            Assert.Equal("r", res.Stored[0].Id);
+            Assert.Equal("u", res.Stored[0].Id);
             Assert.True(res.ScrapGained > 0);
             Assert.Equal(res.ScrapGained, res.Save.Currencies["scrap"]);
         }

@@ -1042,7 +1042,7 @@ namespace IdleGame.GameCore
                 var lootCtx = s.Loot;
                 if (target.DropRateBonus > 0) lootCtx.DropRateMult *= (1.0 + target.DropRateBonus);
 
-                // Bosses drop a guaranteed Unique/Legendary bundle (+ ordinary extras),
+                // Bosses drop a guaranteed Unique+ bundle (+ ordinary extras),
                 // sized by boss tier; elites/rares drop a boosted Rare-capped bundle; ordinary
                 // trash uses the scarce per-kill chance.
                 if (target.IsBoss)

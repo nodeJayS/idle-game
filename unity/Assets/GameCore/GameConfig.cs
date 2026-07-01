@@ -360,33 +360,37 @@ namespace IdleGame.GameCore
         public double EliteRewardMult = 4.0,  RareRewardMult = 10.0; // xp + gold
         public double EliteBodyMult = 1.35, RareBodyMult = 1.7;       // chunkier bodies (also a visual tell)
         // Rank loot bundles: a count of guaranteed items at a boosted DropRateMult (richer
-        // rarity), still capped at the trash ceiling (Rare) — Unique/Legendary stay boss-only.
+        // rarity), still capped at the trash ceiling (Rare) — Unique+ stays boss-only.
         public int EliteDropCount = 2,  RareDropCount = 4;
         public double EliteDropRateMult = 2.5, RareDropRateMult = 5.0;
 
         // Base drop weights per rarity, indexed by (int)Rarity ascending:
-        // [Normal, Magic, Rare, Unique, Legendary]. Must have one entry per Rarity.
+        // [Normal, Rare, Unique, Legendary, Mythic]. Must have one entry per Rarity.
+        // Clean ×5 geometric ramp; Mythic is the extreme chase (~0.08% even uncapped).
         // The stage's DropRateMult biases this upward — see Loot.RollRarity.
-        public double[] RarityBaseWeights = { 1000, 400, 120, 25, 4 };
+        public double[] RarityBaseWeights = { 1000, 200, 40, 8, 1 };
 
         // Affix count (min, max) per rarity, indexed by (int)Rarity ascending:
-        // [Normal, Magic, Rare, Unique, Legendary]. Counts cap at the eligible
-        // affix-pool size for the item base — see Loot.RollAffixes.
-        public (int min, int max)[] AffixCountByRarity = { (0, 0), (1, 2), (3, 4), (4, 5), (5, 6) };
+        // [Normal, Rare, Unique, Legendary, Mythic]. Rare merges the old Magic+Rare
+        // farm tiers (2-3); the boss tiers step up from there, Mythic the most.
+        // Counts cap at the eligible affix-pool size for the item base — see Loot.RollAffixes.
+        public (int min, int max)[] AffixCountByRarity = { (0, 0), (2, 3), (4, 5), (5, 6), (6, 7) };
 
         // Per-kill chance a common monster drops an item. Tuned for a steady loot "rain"
         // (PoE/Maple cadence): most drops get auto-salvaged to scrap (a number that keeps
         // climbing), with the occasional keeper. PRIMARY loot-cadence dial. Trash drops are
-        // capped at Rare (TrashRarityCap); Unique/Legendary come only from boss bundles below.
+        // capped at Rare (TrashRarityCap); Unique+ comes only from boss bundles below.
         public double DropChance = 0.12;
 
-        // Highest rarity a common/trash/idle drop can roll. Unique/Legendary are
+        // Highest rarity a common/trash/idle drop can roll. Unique/Legendary/Mythic are
         // boss-exclusive (guaranteed bundles), so the open-world ceiling is Rare.
         public Rarity TrashRarityCap = Rarity.Rare;
 
         // Boss guaranteed loot (PoE-style chase items). Each boss drops a bundle of
-        // Unique/Legendary items — count by boss tier — plus a few ordinary extras.
-        // Per bundle item: BossLegendaryChance => Legendary, otherwise Unique.
+        // Unique+ items — count by boss tier — plus a few ordinary extras. Per bundle
+        // item (one rng draw): BossMythicChance => Mythic, else BossLegendaryChance =>
+        // Legendary, otherwise Unique. Mythic is the extreme long-tail chase.
+        public double BossMythicChance = 0.002;
         public double BossLegendaryChance = 0.01;
         public (int min, int max) MajorBossUniques = (5, 7);
         public (int min, int max) MiniBossUniques = (1, 2);
@@ -401,8 +405,8 @@ namespace IdleGame.GameCore
         public int InventoryCap = 100;
 
         // Scrap (salvage currency) yielded per item, indexed by (int)Rarity ascending:
-        // [Normal, Magic, Rare, Unique, Legendary]. Plus the item's level. Tune later.
-        public long[] ScrapValueByRarity = { 1, 3, 8, 20, 50 };
+        // [Normal, Rare, Unique, Legendary, Mythic]. Plus the item's level. Tune later.
+        public long[] ScrapValueByRarity = { 1, 5, 20, 50, 150 };
         public long ScrapValue(Rarity rarity, int itemLevel)
             => ScrapValueByRarity[(int)rarity] + Math.Max(0, itemLevel);
 
@@ -613,9 +617,11 @@ namespace IdleGame.GameCore
                 AllowedAffixes = new List<StatKey> { StatKey.Hp, StatKey.Def }, Sprite = "amulet",
             };
 
-            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.Hp, Weight = 30, ValueMinPerItemLevel = 4, ValueMaxPerItemLevel = 8, RarityFloor = Rarity.Magic });
-            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.Atk, Weight = 25, ValueMinPerItemLevel = 1, ValueMaxPerItemLevel = 2, RarityFloor = Rarity.Magic });
-            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.Def, Weight = 20, ValueMinPerItemLevel = 1, ValueMaxPerItemLevel = 2, RarityFloor = Rarity.Magic });
+            // All floors sit at Rare (Normal rolls nothing, Rare+ rolls everything) — the
+            // old Magic-tier "basic stats only" split left with the Magic rarity itself.
+            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.Hp, Weight = 30, ValueMinPerItemLevel = 4, ValueMaxPerItemLevel = 8, RarityFloor = Rarity.Rare });
+            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.Atk, Weight = 25, ValueMinPerItemLevel = 1, ValueMaxPerItemLevel = 2, RarityFloor = Rarity.Rare });
+            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.Def, Weight = 20, ValueMinPerItemLevel = 1, ValueMaxPerItemLevel = 2, RarityFloor = Rarity.Rare });
             cfg.AffixPool.Add(new AffixDef { Stat = StatKey.AtkSpd, Weight = 8, ValueMinPerItemLevel = 0.01, ValueMaxPerItemLevel = 0.03, RarityFloor = Rarity.Rare });
             cfg.AffixPool.Add(new AffixDef { Stat = StatKey.MoveSpd, Weight = 6, ValueMinPerItemLevel = 0.02, ValueMaxPerItemLevel = 0.05, RarityFloor = Rarity.Rare });
             cfg.AffixPool.Add(new AffixDef { Stat = StatKey.CritChance, Weight = 8, ValueMinPerItemLevel = 0.005, ValueMaxPerItemLevel = 0.015, RarityFloor = Rarity.Rare });

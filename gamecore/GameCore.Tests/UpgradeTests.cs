@@ -67,11 +67,11 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void ReEquippingTheSameItemIsASidegrade()
         {
-            var (save, heroId) = Setup(Mk("w", "rusty_sword", Rarity.Magic, 5, (StatKey.Atk, 7)));
+            var (save, heroId) = Setup(Mk("w", "rusty_sword", Rarity.Rare, 5, (StatKey.Atk, 7)));
             save = Inventory.EquipItem(save, heroId, "w", Cfg);
 
             // an identical-stat item in the same slot => no net power change
-            var twin = Mk("w2", "rusty_sword", Rarity.Magic, 5, (StatKey.Atk, 7));
+            var twin = Mk("w2", "rusty_sword", Rarity.Rare, 5, (StatKey.Atk, 7));
             var eval = Upgrades.EvaluateForHero(save, heroId, twin, Cfg, 1);
 
             Assert.Equal(Upgrades.Verdict.Sidegrade, eval.Verdict);
@@ -89,7 +89,7 @@ namespace IdleGame.GameCore.Tests
             save = Inventory.AddItems(save, new[]
             {
                 Mk("equipped", "rusty_sword", Rarity.Rare, 5, (StatKey.Atk, 25)),
-                Mk("candidate", "rusty_sword", Rarity.Magic, 5, (StatKey.Atk, 10)),
+                Mk("candidate", "rusty_sword", Rarity.Rare, 5, (StatKey.Atk, 10)),
             });
             save = Inventory.EquipItem(save, h0, "equipped", Cfg); // h0 already strong
 
@@ -106,7 +106,7 @@ namespace IdleGame.GameCore.Tests
             var save = Save.NewGame(1, Cfg, 0);
             save = Party.AcquireHero(save, "magician_basic", Cfg, "mage");
             string h0 = save.Heroes[0].Id, h1 = save.Heroes[1].Id;
-            save = Inventory.AddItems(save, new[] { Mk("w", "rusty_sword", Rarity.Magic, 5, (StatKey.Atk, 10)) });
+            save = Inventory.AddItems(save, new[] { Mk("w", "rusty_sword", Rarity.Rare, 5, (StatKey.Atk, 10)) });
             var item = save.Inventory.Find(i => i.Id == "w")!;
 
             var scoped = Upgrades.BestForItem(save, item, Cfg, 1, new[] { h1 });
