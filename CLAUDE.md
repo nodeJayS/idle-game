@@ -47,7 +47,7 @@ docs/game-design.md      the durable what/why
   Play-mode can't run headlessly — visuals are verified by screenshot (Unity MCP), UI is
   hand-placed uGUI/IMGUI coords.
 
-## Current systems (383 tests passing)
+## Current systems (396 tests passing)
 
 Phase A (core loop) and most of Phase B (depth) are done. What exists today:
 
@@ -56,9 +56,11 @@ Phase A (core loop) and most of Phase B (depth) are done. What exists today:
   Tower = do-or-die (no respawn).
 - **Farm ladder** — 100 stages, geometric difficulty, endless per-stage farming, 60s mini/major
   boss gates (major every 10), tiered rates, elite/rare **pack ranks** (tougher, better loot).
-- **Loot & power (Lever 2)** — rarity + random affixes, 9 equip slots from one shared bag,
-  inventory cap + auto-salvage→`scrap`, boss-only Unique/Legendary. Every drop reads as one
-  `Upgrades.PowerScore` verdict → ▲ badges, loot-feed tags, opt-in auto-equip.
+- **Loot & power (Lever 2)** — 5 rarities (**Normal/Rare/Unique/Legendary/Mythic**=red; Unique+
+  boss-only, Mythic the extreme chase) + random affixes, 9 equip slots from one shared bag,
+  inventory cap + auto-salvage→`scrap` (threshold up to Unique) + one-click mass salvage
+  (`Inventory.SalvageAllUpTo`). Every drop reads as one `Upgrades.PowerScore` verdict →
+  ▲ badges, loot-feed tags, opt-in auto-equip.
 - **Heroes & build depth (Lever 3)** — Warrior / Magician / Thief, unlocked via stage clears;
   **per-hero leveling** (level = the power axis: stat growth + skill points + skill-tree gates).
   Skills: rank-up with points, **gated tree** (`Prereq`/`UnlockLevel`), always-on **passives**.
@@ -101,11 +103,9 @@ Phase A (core loop) and most of Phase B (depth) are done. What exists today:
 currency shipped; gem sink/gacha + prestige next).
 
 ## What's next / open
-- **⭐ UX + rebalance batch (queued for a Unity-connected session)** — see [backlog.md](docs/backlog.md)
-  "NEXT SESSION": rarity refactor (→ Normal/Rare/Unique/Legendary/**Mythic**=red, do first), boss
-  30s-cap + scale for 3 heroes, mass-salvage, auto-dismantle Unique, currency HUD to top-left, party
-  bar colors + level, and applying the new floor/ceil rounding convention across the UI.
 - **Content & polish** (current focus): more heroes/enemies/mods/stages; balance/tuning; combat juice.
+  (The 2026-07-01 UX + rebalance batch — Mythic rarity, boss re-tune, mass salvage, wallet HUD,
+  party-bar polish, rounding sweep — is fully shipped; see backlog.md.)
 - **Progression hooks (Lever 4):** achievement ladder (slice 1) + daily-login premium currency
   (slice 2) shipped; next = a gem SINK (gacha/shop), manual achievement-claim UX, prestige/rebirth.
 - **Tower slice 3:** per-floor reward bundles.
