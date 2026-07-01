@@ -101,6 +101,10 @@ Phase A (core loop) and most of Phase B (depth) are done. What exists today:
 currency shipped; gem sink/gacha + prestige next).
 
 ## What's next / open
+- **⭐ UX + rebalance batch (queued for a Unity-connected session)** — see [backlog.md](docs/backlog.md)
+  "NEXT SESSION": rarity refactor (→ Normal/Rare/Unique/Legendary/**Mythic**=red, do first), boss
+  30s-cap + scale for 3 heroes, mass-salvage, auto-dismantle Unique, currency HUD to top-left, party
+  bar colors + level, and applying the new floor/ceil rounding convention across the UI.
 - **Content & polish** (current focus): more heroes/enemies/mods/stages; balance/tuning; combat juice.
 - **Progression hooks (Lever 4):** achievement ladder (slice 1) + daily-login premium currency
   (slice 2) shipped; next = a gem SINK (gacha/shop), manual achievement-claim UX, prestige/rebirth.
