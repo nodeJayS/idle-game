@@ -111,6 +111,10 @@ currency shipped; gem sink/gacha + prestige next).
 ## Conventions
 - **GameCore-first:** build + `dotnet test` a piece, then wire into Unity and verify by screenshot.
   Split features into sequential slices; implement one, test, stop for review/commit.
+- **Display rounding = correctness (game-design.md §7):** balances/owned amounts round DOWN (`floor`),
+  costs round UP (`ceil`), countdown timers `ceil`, count-up timers `floor`. Never let a rounded
+  display contradict the real data (e.g. "says I can afford it but can't"). Use `Num.CompactFloor` /
+  `Num.CompactCeil` for the directional cases, `Num.Compact` (round) only for neutral stats.
 - The user commits (and pushes when asked); work on `main`. End commit messages with
   `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`. New content (skills, heroes, mods) is
   seeded at New Game, so start a fresh game to see it.

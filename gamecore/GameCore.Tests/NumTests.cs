@@ -57,5 +57,44 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal("2.5M", Num.Compact(2_500_000L));
             Assert.Equal("999", Num.Compact(999L));
         }
+
+        // --- directional rounding (design §7: display correctness) ---
+
+        // A resource the player HAS must never DISPLAY more than they own (floor).
+        [Theory]
+        [InlineData(1299, "1.2K")]  // round would give 1.3K — floor must not overstate
+        [InlineData(1250, "1.2K")]
+        [InlineData(999_999, "999.9K")]
+        [InlineData(950, "950")]
+        public void CompactFloorNeverOverstates(long owned, string expected)
+        {
+            Assert.Equal(expected, Num.CompactFloor(owned));
+            Assert.True(MagnitudeOf(Num.CompactFloor(owned)) <= owned); // display <= truth
+        }
+
+        // A COST must never DISPLAY less than what will be charged (ceil).
+        [Theory]
+        [InlineData(1201, "1.3K")]  // round would give 1.2K — ceil must not understate
+        [InlineData(1250, "1.3K")]
+        [InlineData(999_999, "1M")]
+        [InlineData(1000, "1K")]
+        public void CompactCeilNeverUnderstates(long cost, string expected)
+        {
+            Assert.Equal(expected, Num.CompactCeil(cost));
+            Assert.True(MagnitudeOf(Num.CompactCeil(cost)) >= cost); // display >= truth
+        }
+
+        // Parse "1.2K" back to an integer magnitude for the invariant checks above.
+        private static long MagnitudeOf(string s)
+        {
+            long mult = 1;
+            char last = s[s.Length - 1];
+            if (!char.IsDigit(last))
+            {
+                s = s.Substring(0, s.Length - 1);
+                mult = last switch { 'K' => 1_000, 'M' => 1_000_000, 'B' => 1_000_000_000, _ => 1 };
+            }
+            return (long)(double.Parse(s, System.Globalization.CultureInfo.InvariantCulture) * mult);
+        }
     }
 }

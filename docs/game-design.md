@@ -229,6 +229,18 @@ later; whenever it's built, put it on the same seeded `Rng` so it's deterministi
   `GameCore` being pure + deterministic makes this scriptable (`dotnet test` / a console runner).
 - **Make the first 10 minutes generous** — fast early upgrades, frequent drops.
 - **Number formatting from day one** — `1.2K / 3.4M / 5.6B…`.
+- **Rounding direction is a correctness rule, not a style choice.** A displayed number that rounds the
+  *wrong* way creates a lie: "it says I have enough but I can't buy it," or "the timer says 0 but I
+  still have a second." Pick the direction that can never contradict the underlying data:
+  - **A resource/currency the player HAS → floor** (round DOWN). Never show more than they actually own.
+  - **The COST of something → ceil** (round UP). Never show less than what will actually be charged.
+    (Floor-what-you-have + ceil-what-it-costs together guarantee: if the display says you can afford it,
+    you truly can.)
+  - **A timer counting DOWN → ceil** (so it only hits 0 when the time is genuinely gone).
+  - **A timer counting UP → floor** (so elapsed/playtime stats never overstate).
+  - Plain `round` is for neutral/illustrative values only (stat sheets, percentages) — never for a
+    number the player will act on against a threshold. `Num` provides `Compact` (round) plus
+    `CompactFloor` / `CompactCeil` for the two directional cases.
 - **Offline-return moment** — the "while you were away" modal with loot summary + count-up is the emotional core.
 - **Juice** — loot beams, rarity colors/sounds, damage numbers, crit flashes, screen shake.
 - **Item comparison UI** — equip/compare must be instant and obvious (green ▲ / red ▼).
