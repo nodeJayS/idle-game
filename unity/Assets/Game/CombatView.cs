@@ -1455,7 +1455,9 @@ namespace IdleGame.Game
                 double hp = e?.Hp ?? 0, maxHp = e?.MaxHp ?? 1;
                 double mana = e?.Mana ?? 0, maxMana = e?.MaxMana ?? 0;
 
-                GUI.Label(new Rect(bx, y + 10, bw, 26), HeroDisplayName(heroId), PartyNameStyle);
+                var hero = _save.Heroes.Find(h => h.Id == heroId);
+                string chipLabel = hero != null ? $"{HeroDisplayName(heroId)}  Lv {hero.Level}" : HeroDisplayName(heroId);
+                GUI.Label(new Rect(bx, y + 10, bw, 26), chipLabel, PartyNameStyle);
 
                 // Skill-ready cue: a pulsing gold dot at the top-right of the chip when a
                 // skill is off-cooldown + affordable.
@@ -1467,13 +1469,14 @@ namespace IdleGame.Game
                     DrawRect(dx, dy, d, d, new Color(1f, 0.85f, 0.35f, pulse));
                 }
 
-                // HP bar (with value text)
+                // HP bar (red fill — reads as health at a glance) with a shadowed value label
                 DrawBar(bx, y + 46, bw, 16, maxHp > 0 ? Mathf.Clamp01((float)(hp / maxHp)) : 0f,
-                        new Color(0.22f, 0.05f, 0.05f, 0.95f), new Color(0.35f, 0.75f, 1f));
-                GUI.Label(new Rect(bx, y + 45, bw, 18), $"{Mathf.CeilToInt((float)hp)}/{Mathf.CeilToInt((float)maxHp)}", PartyBarTextStyle);
-                // Mana bar
+                        new Color(0.16f, 0.04f, 0.04f, 0.95f), new Color(0.85f, 0.24f, 0.20f));
+                DrawShadowedLabel(new Rect(bx, y + 45, bw, 18),
+                        $"{Mathf.CeilToInt((float)hp)}/{Mathf.CeilToInt((float)maxHp)}", PartyBarTextStyle);
+                // Mana bar (deeper blue, distinct from the old cyan HP fill)
                 DrawBar(bx, y + 68, bw, 13, maxMana > 0 ? Mathf.Clamp01((float)(mana / maxMana)) : 0f,
-                        new Color(0.05f, 0.06f, 0.14f, 0.95f), new Color(0.45f, 0.55f, 1f));
+                        new Color(0.04f, 0.05f, 0.12f, 0.95f), new Color(0.25f, 0.40f, 0.95f));
 
                 if (e != null && e.Downed)
                     GUI.Label(new Rect(bx, y + 10, bw, 26),
@@ -1489,6 +1492,16 @@ namespace IdleGame.Game
         {
             DrawRect(x, y, w, h, bg);
             DrawRect(x, y, w * frac, h, fill);
+        }
+
+        /// <summary>Label with a 1px black drop shadow so bar text stays legible over any fill.</summary>
+        private void DrawShadowedLabel(Rect r, string text, GUIStyle style)
+        {
+            var prev = style.normal.textColor;
+            style.normal.textColor = new Color(0f, 0f, 0f, 0.85f);
+            GUI.Label(new Rect(r.x + 1f, r.y + 1f, r.width, r.height), text, style);
+            style.normal.textColor = prev;
+            GUI.Label(r, text, style);
         }
 
         private CombatEntity? FindHeroEntity(string heroId) =>
@@ -1525,8 +1538,10 @@ namespace IdleGame.Game
             {
                 if (_partyBarTextStyle == null)
                 {
-                    _partyBarTextStyle = new GUIStyle(GUI.skin.label) { fontSize = 13, alignment = TextAnchor.MiddleCenter };
-                    _partyBarTextStyle.normal.textColor = new Color(1f, 1f, 1f, 0.9f);
+                    // Bold + pure white + the DrawShadowedLabel drop shadow = readable over the red fill.
+                    _partyBarTextStyle = new GUIStyle(GUI.skin.label)
+                    { fontSize = 13, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+                    _partyBarTextStyle.normal.textColor = Color.white;
                 }
                 return _partyBarTextStyle;
             }
@@ -1559,7 +1574,7 @@ namespace IdleGame.Game
             x += 260 + gap;
 
             if (Button(x, y, 170, h, "Heroes")) _equipment?.ToggleDefault();
-            x += 170 + gap;
+            x += 170 + gap * 4; // wider gap: everyday pair (bag/heroes) | system panels
 
             // Monster modifiers (Lever 1): the risk/reward knob. Shows a count when any are active.
             int activeMods = _save.Modifiers.Active.Count;
