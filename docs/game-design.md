@@ -277,17 +277,47 @@ big-architecture (prestige) until the minute-to-minute is fun.
    tags them ("▲ +N% for <hero>"), the compare leads with the verdict, and opt-in
    auto-equip-if-better removes the chore. Each kill visibly matters. Built on §7 "Item comparison
    UI" + §5.2.
-3. **Build depth** *(✅ shipped — all 3 slices).* The party is now a *build you shape*. Choosable
-   active skills (4-of-6 loadout), **leveled** via 1 skill point per hero level spent to rank skills
-   up (`Skills.InvestSkill`, free respec; rank 0 = base, purely additive). **Passives** (slice 2): 2
-   always-on stat nodes per class that fold into `Stats.ComputeHeroStats`, flowing into the Lever 2
-   power compare for free. **Gated tree** (slice 3): active skills branch from 2 roots — a node needs
-   ≥1 rank in its prereq AND the hero at its unlock level (`SkillDef.Prereq`/`UnlockLevel`,
-   `Skills.IsUnlocked`); gating restricts investment only, so seeded fights stay byte-identical. See
-   §8 "Skills & skill trees" and "Crafting/sets".
+3. **Build depth** *(✅ shipped, then simplified).* The party is a *build you shape* via skill
+   points (`Skills.InvestSkill`, free respec; rank 0 = base, purely additive) and always-on
+   passives folded into `Stats.ComputeHeroStats`. The original 4-of-6 loadout + prereq-gated
+   tree shipped and was then **superseded by the 2+2 hero template (§7.2)** — the roster-scaling
+   decision for the hero-gacha arc.
 4. **Progression hooks.** Milestone rewards, escalating goals, a "one more stage" pull
    (goal-ladder slices 3–4). Pulls you forward but *relies on the core fight already
    being fun* — hence last. See §8 "Prestige & retention".
+
+### 7.2 Hero template — the 2+2 kit (locked 2026-07-01)
+
+**Why:** the next arc is a hero-production pipeline feeding an eventual **hero gacha** (the
+gem sink — heroes, not gear, so the gacha monetizes roster *breadth* while the farm keeps
+monetizing gear *depth*; the two never compete). A solo dev can only scale heroes if each
+one is a **data row, not a system** — so the kit is fixed-shape and trees are gone.
+
+**The template (every hero, no exceptions):**
+- **2 active + 2 passive skills**, drawn from a shared **archetype library** (actives:
+  nuke / AoE / heal / buff; passives: stat nodes, lifesteal/thorns-style hooks — all
+  mechanics that already exist in the sim). A hero = class/role + element flavor +
+  4 archetype picks with per-hero params and palette. New hero ≈ config entry + chibi tint.
+- **Skill points: 1 per 5 hero levels** (derived `Level / 5`, never persisted). **Rank cap 5
+  per skill** ⇒ 20 points at level 100 = *exactly* enough to max the kit. Endgame is
+  "eventually complete"; the build choice is **ordering** across a months-long XP curve —
+  no respec regret, no permanent-scarcity UX tax.
+- **Ranks 1–4 are numeric growth; rank 5 is a mastery bump** (a chunkier, parameterized
+  jump — bigger multiplier / +1 chain / wider splash). "Rush one skill to mastery vs
+  spread" is the build texture, at zero bespoke code per hero.
+- **No loadouts, no prereqs.** Both actives always slotted, passives always on
+  (`SkillLoadout`/`MaxActiveSkills` retired). Keep the light `UnlockLevel` reveal cadence
+  (active₁ L1 · passive₁ L5 · active₂ L10 · passive₂ L15) — kit-assembly feel for free.
+- **Gacha hookup (later):** hero *grade* reuses the rarity ramp (Rare→Mythic colors) and
+  scales base stats/growth only — never skill count, so a Mythic hero stays cheap to author.
+  Dupes → universal shards → pity shop; dupes buy access/cosmetics, **never raw stats**.
+- **Monetization invariant (applies to all future systems):** no design may make *deferring*
+  a gem spend the rational choice; banking gems toward a known banner launch is fine.
+
+**Kit trims for the existing three** (reseeded at New Game, no migration — pre-launch):
+Warrior = quake AoE + self-sustain active, armor + thorns passives. Magician (fire) = fire
+nuke + burn AoE, mana/regen + crit passives. Thief = execute nuke + dash/multi-hit active,
+crit-chance + attack-speed passives. Exact params live in `GameConfig.Default()`.
 
 ---
 
