@@ -61,7 +61,8 @@ Phase A (core loop) and most of Phase B (depth) are done. What exists today:
   inventory cap + auto-salvage→`scrap` (threshold up to Unique) + one-click mass salvage
   (`Inventory.SalvageAllUpTo`). Every drop reads as one `Upgrades.PowerScore` verdict →
   ▲ badges, loot-feed tags, opt-in auto-equip.
-- **Heroes & build depth (Lever 3)** — Warrior / Magician / Thief, unlocked via stage clears;
+- **Heroes & build depth (Lever 3)** — Warrior / Magician / Thief / Ice Mage (stage 3/5/8
+  unlocks; Ice Mage is the first template-pipeline hero — pure config + a chibi palette);
   **per-hero leveling** (level = the power axis). **2+2 hero template (design §7.2):** every hero
   = exactly 2 actives + 2 passives from a shared archetype library, revealed at Lv 1/5/10/15 and
   always on (no loadouts, no prereq trees — heroes are data rows so a solo dev can scale the

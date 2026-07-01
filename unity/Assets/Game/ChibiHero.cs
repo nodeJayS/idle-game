@@ -25,20 +25,26 @@ namespace IdleGame.Game
 
         public static (GameObject root, ChibiAnimator anim)? Build(string defId, bool ranged)
         {
-            bool mage = defId == "magician_basic" || ranged;
+            // §7.2 pipeline: heroes are palette-varied builds on shared class bodies.
+            bool iceMage = defId == "icemage_basic";
+            bool mage = defId == "magician_basic" || iceMage || ranged;
             bool warrior = defId == "warrior_basic";
             bool thief = defId == "thief_basic";
             if (!mage && !warrior && !thief) return null;
 
             // Palette
             Color skin = new Color(0.95f, 0.80f, 0.66f);
-            Color tunic = mage ? new Color(0.66f, 0.13f, 0.15f)
+            Color tunic = iceMage ? new Color(0.42f, 0.70f, 0.86f)  // pale frost robes
+                        : mage ? new Color(0.66f, 0.13f, 0.15f)
                         : thief ? new Color(0.16f, 0.22f, 0.20f)   // dark hunter-green leathers
                         : new Color(0.20f, 0.40f, 0.78f);
-            Color limb = mage ? new Color(0.55f, 0.11f, 0.13f)
+            Color limb = iceMage ? new Color(0.32f, 0.56f, 0.72f)
+                       : mage ? new Color(0.55f, 0.11f, 0.13f)
                        : thief ? new Color(0.12f, 0.16f, 0.15f)
                        : new Color(0.17f, 0.32f, 0.62f);
             Color boot = thief ? new Color(0.10f, 0.09f, 0.09f) : new Color(0.30f, 0.22f, 0.15f);
+            Color orb = iceMage ? new Color(0.55f, 0.88f, 1f)       // frost orb vs fire orb
+                                : new Color(1f, 0.5f, 0.12f);
 
             var root = new GameObject("chibi");
             var body = Joint("body", root.transform, new Vector3(0f, Hip, 0f));
@@ -64,7 +70,7 @@ namespace IdleGame.Game
             var hand = Joint("hand", armR, new Vector3(0f, -ArmLen, 0f));
             if (warrior) BuildSword(hand);
             else if (thief) BuildDagger(hand);
-            else BuildStaff(hand);
+            else BuildStaff(hand, orb);
 
             // The thief is a dual-dagger duelist: a second blade in the off hand.
             if (thief)
@@ -95,11 +101,11 @@ namespace IdleGame.Game
             Part(PrimitiveType.Cube, hand, new Vector3(0f, -0.44f, 0f), new Vector3(0.08f, 0.62f, 0.03f), steel); // blade points down from the hand
         }
 
-        private static void BuildStaff(Transform hand)
+        private static void BuildStaff(Transform hand, Color orb)
         {
             var shaft = Mat(new Color(0.40f, 0.28f, 0.17f));
             Part(PrimitiveType.Cube, hand, new Vector3(0f, 0.22f, 0f), new Vector3(0.05f, 0.78f, 0.05f), shaft); // staff rises from the hand
-            Part(PrimitiveType.Sphere, hand, new Vector3(0f, 0.64f, 0f), Vector3.one * 0.20f, Emissive(new Color(1f, 0.5f, 0.12f))); // fire orb
+            Part(PrimitiveType.Sphere, hand, new Vector3(0f, 0.64f, 0f), Vector3.one * 0.20f, Emissive(orb)); // element orb (fire / frost)
         }
 
         private static void BuildHat(Transform head, Color robe)

@@ -565,10 +565,29 @@ namespace IdleGame.GameCore
                 Sprite = "thief",
             };
 
+            // Hero #4 — the first hero authored ON the 2+2 template (§7.2): a durable frost
+            // caster. Sturdier but slower than the fire Magician; kit params are dummy ice
+            // flavor for now (bespoke frost mechanics/VFX are a later pass).
+            cfg.Heroes["icemage_basic"] = new HeroDef
+            {
+                DefId = "icemage_basic", Name = "Ice Mage", Class = "Ice Mage", Role = "ranged",
+                BaseStats = SB((StatKey.Hp, 82), (StatKey.Atk, 15), (StatKey.Def, 6),
+                               (StatKey.MoveSpd, 3.0), (StatKey.AtkSpd, 1.0),  // slower caster than the fire mage
+                               (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.5),
+                               (StatKey.HpRegen, 1.2),
+                               (StatKey.AttackRange, 6.0),
+                               (StatKey.SplashRadius, 0.8),
+                               (StatKey.MaxMana, 130), (StatKey.ManaRegen, 7)), // deepest pool of the roster
+                GrowthPerLevel = SB((StatKey.Hp, 13), (StatKey.Atk, 3.5), (StatKey.Def, 1.3), (StatKey.MaxMana, 6)),
+                // 2+2 kit (§7.2): frost nuke + AoE blizzard; armor + mana-flow passives.
+                Skills = new List<string> { "frostbolt", "permafrost", "blizzard", "frostflow" }, Sprite = "icemage",
+            };
+
             // Progression unlocks: you start with just the Warrior; clearing stage 3 adds
-            // the Magician, and stage 5 the Thief. (More heroes/classes slot in here as content grows.)
+            // the Magician, stage 5 the Thief, stage 8 the Ice Mage. (More heroes slot in here.)
             cfg.HeroUnlocks[3] = "magician_basic";
             cfg.HeroUnlocks[5] = "thief_basic";
+            cfg.HeroUnlocks[8] = "icemage_basic";
 
             cfg.ItemBases["rusty_sword"] = new ItemBaseDef
             {
@@ -810,6 +829,31 @@ namespace IdleGame.GameCore
             {
                 Id = "killerinstinct", Name = "Killer Instinct", Passive = true, UnlockLevel = 15,
                 PassiveStat = StatKey.CritDmg, StatPerRank = 0.08, Sprite = "warcry",
+            };
+
+            // Ice Mage kit (§7.2 cadence 1/5/10/15) — dummy ice flavor on existing archetypes:
+            // a slow heavy nuke, a wide AoE, armor + mana-flow passives. Sprites reuse existing
+            // cast FX until a frost VFX pass.
+            cfg.Skills["frostbolt"] = new SkillDef
+            {
+                Id = "frostbolt", Name = "Frostbolt", Effect = SkillEffectKind.Damage, Targeting = "nearest",
+                CooldownMs = 4200, Range = 6.0, DamageMult = 2.2, ManaCost = 24, Sprite = "firebolt",
+            };
+            cfg.Skills["permafrost"] = new SkillDef  // Ice Mage: rimed armor
+            {
+                Id = "permafrost", Name = "Permafrost", Passive = true, UnlockLevel = 5,
+                PassiveStat = StatKey.Def, StatPerRank = 1.5, Sprite = "bulwark",
+            };
+            cfg.Skills["blizzard"] = new SkillDef
+            {
+                Id = "blizzard", Name = "Blizzard", Effect = SkillEffectKind.Damage, Targeting = "aoe",
+                CooldownMs = 6500, Range = 6.0, AoeRadius = 2.6, DamageMult = 1.5, ManaCost = 34, Sprite = "quake",
+                UnlockLevel = 10,
+            };
+            cfg.Skills["frostflow"] = new SkillDef   // Ice Mage: glacial mana current
+            {
+                Id = "frostflow", Name = "Frostflow", Passive = true, UnlockLevel = 15,
+                PassiveStat = StatKey.ManaRegen, StatPerRank = 0.8, Sprite = "fireball",
             };
 
             // Boss signature: a wide quake (free — bosses have no mana pool).
