@@ -180,6 +180,7 @@ namespace IdleGame.GameCore
     {
         public ModifierDef Def = null!;
         public int Strength;
+        public double Tuning = 1.0; // shop tuning multiplier on danger+reward (1.0 = untuned)
     }
 
     public enum CombatEventType { Hit, Death, LootDrop, LevelUp, WaveCleared, BossDefeated, Respawn, SkillCast, Heal }

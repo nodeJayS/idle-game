@@ -318,6 +318,28 @@ namespace IdleGame.Game
             if (_combat != null) _combat.ActiveModifiers = Modifiers.ResolveActive(_save, _cfg);
         }
 
+        /// <summary>Modifier shop: gamble a mod's tuning with gold+scrap. Persists via the reducer,
+        /// re-resolves the live farm's active set (so the tuned potency hits the next spawns), and
+        /// reports the roll in the feed. No-op with a feed note if unaffordable.</summary>
+        public void UpgradeModifier(string typeId)
+        {
+            if (!Modifiers.CanUpgrade(_save, _cfg, typeId))
+            {
+                _chat?.AddFeed("Not enough gold + scrap to upgrade that modifier.", new Color(0.9f, 0.6f, 0.5f));
+                return;
+            }
+            double before = Modifiers.TuningOf(_save, typeId);
+            _save = Modifiers.UpgradeModifier(_save, typeId, _cfg);
+            double after = Modifiers.TuningOf(_save, typeId);
+            if (_combat != null) _combat.ActiveModifiers = Modifiers.ResolveActive(_save, _cfg);
+
+            string nm = _cfg.Modifiers.TryGetValue(typeId, out var d) ? d.Name : typeId;
+            double delta = (after - before) * 100.0;
+            string sign = delta >= 0 ? "+" : "";
+            _chat?.AddFeed($"{nm} tuning rolled {sign}{delta:0.#}% → now +{(after - 1) * 100:0}%",
+                           delta >= 0 ? new Color(0.55f, 0.9f, 0.6f) : new Color(0.95f, 0.6f, 0.45f));
+        }
+
         private bool AnyPanelOpen => (_inventory != null && _inventory.IsOpen)
                                   || (_equipment != null && _equipment.IsOpen)
                                   || (_modifierPanel != null && _modifierPanel.IsOpen)

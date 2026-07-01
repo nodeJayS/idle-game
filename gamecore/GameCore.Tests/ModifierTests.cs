@@ -237,6 +237,91 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(1_000_000, s.Entities.First(e => e.Id == "E2").Hp); // no chain → 2nd enemy untouched
         }
 
+        // --- modifier shop (gamble tuning with gold + scrap) ---
+
+        private static SaveState Rich(int stage)
+        {
+            var s = AtStage(stage);
+            s.Currencies["gold"] = 1_000_000_000;
+            s.Currencies["scrap"] = 1_000_000_000;
+            return s;
+        }
+
+        [Fact]
+        public void UpgradeSpendsGoldAndScrap()
+        {
+            var s = Rich(30); // owns prosperous/studious/bountiful
+            var (g, sc) = Modifiers.UpgradeCost(s, Cfg, "prosperous");
+            var after = Modifiers.UpgradeModifier(s, "prosperous", Cfg);
+            Assert.Equal(1_000_000_000 - g, after.Currencies["gold"]);
+            Assert.Equal(1_000_000_000 - sc, after.Currencies["scrap"]);
+        }
+
+        [Fact]
+        public void UpgradeIsNoopWhenUnaffordable()
+        {
+            var s = AtStage(30);
+            s.Currencies["gold"] = 0; s.Currencies["scrap"] = 0;
+            Assert.Same(s, Modifiers.UpgradeModifier(s, "prosperous", Cfg)); // can't afford -> shares ref
+        }
+
+        [Fact]
+        public void TuningNeverDropsBelowBase()
+        {
+            var s = Rich(30);
+            for (int i = 0; i < 60; i++)
+            {
+                s = Modifiers.UpgradeModifier(s, "prosperous", Cfg);
+                Assert.True(Modifiers.TuningOf(s, "prosperous") >= 1.0); // floored at base despite −5% rolls
+            }
+        }
+
+        [Fact]
+        public void CostRisesWithTuning()
+        {
+            var s = AtStage(30);
+            long baseCost = Modifiers.UpgradeCost(s, Cfg, "prosperous").gold;
+            s.Modifiers.Tuning["prosperous"] = 2.0;
+            Assert.True(Modifiers.UpgradeCost(s, Cfg, "prosperous").gold > baseCost); // soft cap
+        }
+
+        [Fact]
+        public void UpgradeAdvancesTheRngCursor()
+        {
+            var s = Rich(30);
+            int before = s.RngCursor;
+            var after = Modifiers.UpgradeModifier(s, "prosperous", Cfg);
+            Assert.NotEqual(before, after.RngCursor); // roll persisted, can't be re-rolled
+        }
+
+        // --- hybrid rewards + tuning applied in combat ---
+
+        [Fact]
+        public void HybridModPaysBothRewardChannels()
+        {
+            var cfg = GameConfig.Default();
+            var vamp = new List<ModifierInstance> { new ModifierInstance { Def = cfg.Modifiers["vampiric"], Strength = 10, Tuning = 1.0 } };
+            var mob = Combat.InitFarm(new[] { Champ() }, 5, cfg, new Rng(1), vamp).Entities.First(e => e.Team == Team.Enemy);
+            Assert.True(mob.GoldMult > 1.0); // vampiric is now a gold+XP hybrid
+            Assert.True(mob.XpMult > 1.0);
+        }
+
+        [Fact]
+        public void TuningScalesBothDangerAndReward()
+        {
+            var cfg = GameConfig.Default();
+            (double hp, double gold) Farm(double tuning)
+            {
+                var m = new List<ModifierInstance> { new ModifierInstance { Def = cfg.Modifiers["prosperous"], Strength = 5, Tuning = tuning } };
+                var mob = Combat.InitFarm(new[] { Champ() }, 5, cfg, new Rng(1), m).Entities.First(e => e.Team == Team.Enemy);
+                return (mob.MaxHp, mob.GoldMult);
+            }
+            var lo = Farm(1.0);
+            var hi = Farm(2.0);
+            Assert.True(hi.hp > lo.hp);     // danger scales with tuning
+            Assert.True(hi.gold > lo.gold); // reward scales with tuning
+        }
+
         // --- loadout (capped toggle) ---
 
         [Fact]

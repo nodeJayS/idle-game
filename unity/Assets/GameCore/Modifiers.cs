@@ -57,7 +57,7 @@ namespace IdleGame.GameCore
             if (SameOwned(save.Modifiers.Owned, owned) && SameList(save.Modifiers.Active, active))
                 return save; // already in sync
 
-            return WithModifiers(save, new MonsterModifiers { Owned = owned, Active = active });
+            return WithModifiers(save, new MonsterModifiers { Owned = owned, Active = active, Tuning = save.Modifiers.Tuning });
         }
 
         /// <summary>Toggle a modifier type on/off. No-op (shares the ref) when: activating an unowned
@@ -73,12 +73,12 @@ namespace IdleGame.GameCore
                 if (!cfg.Modifiers.TryGetValue(typeId, out var def)) return save;
                 if (CountActiveInPool(save.Modifiers.Active, cfg, def) >= PoolCap(cfg, def)) return save; // pool full
                 var list = new List<string>(save.Modifiers.Active) { typeId };
-                return WithModifiers(save, new MonsterModifiers { Owned = save.Modifiers.Owned, Active = list });
+                return WithModifiers(save, new MonsterModifiers { Owned = save.Modifiers.Owned, Active = list, Tuning = save.Modifiers.Tuning });
             }
             if (!active) return save;
             var without = new List<string>(save.Modifiers.Active);
             without.Remove(typeId);
-            return WithModifiers(save, new MonsterModifiers { Owned = save.Modifiers.Owned, Active = without });
+            return WithModifiers(save, new MonsterModifiers { Owned = save.Modifiers.Owned, Active = without, Tuning = save.Modifiers.Tuning });
         }
 
         // ---- pool classification + caps (normal vs rare prefix/suffix) ----
@@ -161,10 +161,68 @@ namespace IdleGame.GameCore
                 if (!cfg.Modifiers.TryGetValue(typeId, out var def)) continue;
                 if (def.Mechanical && rareSlot[def.ImprintSlot] < cfg.Balance.MinActiveRarePerSlot)
                     continue; // a lone rare mod is inert (the ≥2-or-none rule)
-                result.Add(new ModifierInstance { Def = def, Strength = strength });
+                result.Add(new ModifierInstance { Def = def, Strength = strength, Tuning = TuningOf(save, typeId) });
             }
             return result;
         }
+
+        // ---- modifier shop: gamble a mod's tuning with gold + scrap ----
+
+        /// <summary>A modifier's current tuning multiplier (≥1.0; absent = 1.0 = untuned).</summary>
+        public static double TuningOf(SaveState save, string id)
+            => save.Modifiers.Tuning.TryGetValue(id, out var t) ? t : 1.0;
+
+        /// <summary>Gold + scrap to buy one upgrade roll on a mod — scales with its current tuning
+        /// (tuning^CostExp) as a soft cap.</summary>
+        public static (long gold, long scrap) UpgradeCost(SaveState save, GameConfig cfg, string id)
+        {
+            double f = Math.Pow(TuningOf(save, id), cfg.Balance.ModShopCostExp);
+            return ((long)(cfg.Balance.ModShopBaseGold * f), (long)(cfg.Balance.ModShopBaseScrap * f));
+        }
+
+        /// <summary>True if the mod is owned and the player can afford the next upgrade.</summary>
+        public static bool CanUpgrade(SaveState save, GameConfig cfg, string id)
+        {
+            if (!save.Modifiers.Owned.ContainsKey(id)) return false;
+            var (gold, scrap) = UpgradeCost(save, cfg, id);
+            return Cur(save, "gold") >= gold && Cur(save, "scrap") >= scrap;
+        }
+
+        /// <summary>Spend gold+scrap to gamble a mod's tuning: roll a delta in [RollMin, RollMax] and
+        /// apply it, floored at 1.0 (can't drop below base). No-op (shares the ref) if unowned or
+        /// unaffordable. Deterministic via the save's own rng cursor (advanced + persisted). Pure.</summary>
+        public static SaveState UpgradeModifier(SaveState save, string id, GameConfig cfg)
+        {
+            if (!CanUpgrade(save, cfg, id)) return save;
+            var (gold, scrap) = UpgradeCost(save, cfg, id);
+
+            var rng = new Rng(save.RngSeed, save.RngCursor);
+            double delta = rng.RandRange(cfg.Balance.ModShopRollMin, cfg.Balance.ModShopRollMax);
+            double next = Math.Max(1.0, TuningOf(save, id) + delta);
+
+            var tuning = new Dictionary<string, double>(save.Modifiers.Tuning) { [id] = next };
+            var currencies = new Dictionary<string, long>(save.Currencies);
+            currencies["gold"] = Cur(save, "gold") - gold;
+            currencies["scrap"] = Cur(save, "scrap") - scrap;
+
+            return new SaveState
+            {
+                Version = save.Version,
+                RngSeed = save.RngSeed,
+                RngCursor = rng.Cursor, // persist the advanced cursor so the roll can't be re-rolled
+                Heroes = save.Heroes,
+                Party = save.Party,
+                LeaderHeroId = save.LeaderHeroId,
+                Inventory = save.Inventory,
+                Currencies = currencies,
+                Progress = save.Progress,
+                Quests = save.Quests,
+                Modifiers = new MonsterModifiers { Owned = save.Modifiers.Owned, Active = save.Modifiers.Active, Tuning = tuning },
+                LastClaimAt = save.LastClaimAt,
+            };
+        }
+
+        private static long Cur(SaveState save, string key) => save.Currencies.TryGetValue(key, out var v) ? v : 0;
 
         private static SaveState WithModifiers(SaveState save, MonsterModifiers modifiers) => new SaveState
         {

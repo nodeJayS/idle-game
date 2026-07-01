@@ -59,7 +59,7 @@ files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sy
   scene in code (camera/light/ground) and `CombatView` drives the auto-battle.
   Play-mode can't be driven headlessly; visual checks are manual.
 
-## Status (349 tests passing)
+## Status (356 tests passing)
 
 **Hero leveling is a months-long chase (by design):** hero level IS the power/build-depth axis (stat
 growth + 1 skill point/level + skill-tree `UnlockLevel` gates — NOT cosmetic; the inert `AccountLevel`
@@ -107,6 +107,15 @@ chat/feed panel.
   Applied to farm trash in combat: stat mults + per-hit behaviors (lifesteal/reflect in `ApplyHit`) +
   reward (gold/XP/drop in `HandleDeath`). Bosses still *exhibit* a modifier (behavior-only) for flavor
   via `ModifierCycle`. Visual tells: aura tint + boss-HUD name.
+  - **Modifier shop + hybrid rewards ✅** — a mod's reward is now a SPLIT (`ModifierDef.Rewards` =
+    `List<RewardPart>`), so some are hybrids (Vampiric = gold+XP, Swift = XP+drop, Thorns = gold+drop).
+    Each owned mod has a persisted **tuning** multiplier (`MonsterModifiers.Tuning`, ≥1.0) that scales
+    BOTH its danger AND reward (`Combat.ApplyModifier` uses `eff = strength × tuning`). The shop
+    (`Modifiers.UpgradeModifier`, in the `ModifierPanel` per-row ⬆ button) spends **gold + scrap** to
+    roll a **±5%** delta onto that tuning, **floored at 1.0** (can't go below base); cost rises with
+    current tuning (`tuning^ModShopCostExp`) as a soft cap. Deterministic via the save's own rng cursor.
+    Gives scrap a real sink + a gamble layer. Verified live (hybrid display, tuned rows, up/down roll
+    feed).
   - **Loot-imprint mechanical modifiers (the headline hook) ◑ — slice 1 of 3 (GameCore) done.**
     A `Mechanical` modifier fights nastier via a REAL sim mechanic AND can stamp that signature onto
     its drops — a build-defining affix the normal pool never rolls, so the gear is obtainable ONLY by

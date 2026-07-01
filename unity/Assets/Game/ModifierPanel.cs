@@ -129,30 +129,44 @@ namespace IdleGame.Game
 
         private void BuildRow(Transform parent, ModifierDef def, int strength, bool active, bool applies, float y)
         {
-            var name = UiKit.Label(parent, $"{def.Name}   ·   str {strength}", 16, TextAnchor.UpperLeft, new Vector2(360f, 22f), Vector2.zero);
+            var save = _view.CurrentSave;
+            double tuning = Modifiers.TuningOf(save, def.Id);
+            double eff = strength * tuning; // shop tuning scales BOTH danger and reward
+            string tuned = tuning > 1.0001 ? $"   <color=#ffd27f>+{(tuning - 1) * 100:0}% tuned</color>" : "";
+
+            var name = UiKit.Label(parent, $"{def.Name}   ·   str {strength}{tuned}", 16, TextAnchor.UpperLeft, new Vector2(360f, 22f), Vector2.zero);
             name.color = new Color((float)def.TintR, (float)def.TintG, (float)def.TintB) * 1.15f;
+            name.supportRichText = true;
             AnchorTL(name, new Vector2(34f, y - 4f));
 
-            // Mechanical mods imprint their signature onto drops; an active-but-not-yet-applying rare mod
-            // (a lone half of a pair) shows "inert" so the ≥2 rule is legible.
-            string mech = def.Mechanical ? "    ·    <color=#d99bff>✦ imprints gear</color>" : "";
-            string inert = (active && !applies) ? "    ·    <color=#e0a070>inert (needs pair)</color>" : "";
+            string mech = def.Mechanical ? "  ·  <color=#d99bff>✦ imprints</color>" : "";
+            string inert = (active && !applies) ? "  ·  <color=#e0a070>inert (needs pair)</color>" : "";
             var sub = UiKit.Label(parent,
-                $"{MonsterSummary(def, strength)}    ·    <color=#9fe0a0>{RewardSummary(def, strength)}</color>{mech}{inert}",
-                12, TextAnchor.UpperLeft, new Vector2(460f, 30f), Vector2.zero);
+                $"{MonsterSummary(def, eff)}  ·  <color=#9fe0a0>{RewardSummary(def, eff)}</color>{mech}{inert}",
+                12, TextAnchor.UpperLeft, new Vector2(340f, 30f), Vector2.zero);
             sub.color = new Color(0.78f, 0.82f, 0.88f);
             sub.supportRichText = true;
             AnchorTL(sub, new Vector2(34f, y - 28f));
 
-            // Lock the remaining OFF rows only when THIS mod's own pool is full (per-pool cap).
-            bool full = !active && Modifiers.PoolFull(_view.CurrentSave, _cfg, def);
-            var btn = UiKit.TextButton(parent, active ? "ON" : (full ? "FULL" : "OFF"), new Vector2(74f, 34f), Vector2.zero,
-                full ? (System.Action)(() => { }) : () => { _view.SetModifierActive(def.Id, !active); Rebuild(); }, 15);
+            // ON/OFF (rightmost). Lock OFF rows only when THIS mod's own pool is full (per-pool cap).
+            bool full = !active && Modifiers.PoolFull(save, _cfg, def);
+            var btn = UiKit.TextButton(parent, active ? "ON" : (full ? "FULL" : "OFF"), new Vector2(60f, 32f), Vector2.zero,
+                full ? (System.Action)(() => { }) : () => { _view.SetModifierActive(def.Id, !active); Rebuild(); }, 14);
             btn.interactable = !full;
             var img = btn.GetComponent<Image>();
             if (img != null) img.color = active ? new Color(0.30f, 0.55f, 0.33f)
                                        : full ? new Color(0.22f, 0.24f, 0.28f) : new Color(0.30f, 0.32f, 0.38f);
-            AnchorTR((RectTransform)btn.transform, new Vector2(-16f, y - 2f));
+            AnchorTR((RectTransform)btn.transform, new Vector2(-14f, y - 2f));
+
+            // Upgrade (shop): gamble tuning with gold+scrap; cost rises as the mod climbs.
+            var (g, s) = Modifiers.UpgradeCost(save, _cfg, def.Id);
+            bool canUp = Modifiers.CanUpgrade(save, _cfg, def.Id);
+            var up = UiKit.TextButton(parent, $"⬆ {Num.Compact(g)}g+{Num.Compact(s)}s", new Vector2(120f, 32f), Vector2.zero,
+                canUp ? () => { _view.UpgradeModifier(def.Id); Rebuild(); } : (System.Action)(() => { }), 12);
+            up.interactable = canUp;
+            var upImg = up.GetComponent<Image>();
+            if (upImg != null) upImg.color = canUp ? new Color(0.34f, 0.30f, 0.46f) : new Color(0.22f, 0.22f, 0.26f);
+            AnchorTR((RectTransform)up.transform, new Vector2(-84f, y - 2f));
         }
 
         // ---- summaries ----
@@ -174,29 +188,33 @@ namespace IdleGame.Game
             return list;
         }
 
-        private string MonsterSummary(ModifierDef def, int strength)
+        private string MonsterSummary(ModifierDef def, double eff)
         {
             var parts = new List<string>();
             foreach (var kv in def.StatPerStrength)
-                parts.Add($"+{kv.Value * strength * 100:0}% {StatName(kv.Key)}");
-            double frac = Mathf.Min((float)_cfg.Balance.ModifierBehaviorCap, (float)(def.BehaviorPerStrength * strength)) * 100;
+                parts.Add($"+{kv.Value * eff * 100:0}% {StatName(kv.Key)}");
+            double frac = Mathf.Min((float)_cfg.Balance.ModifierBehaviorCap, (float)(def.BehaviorPerStrength * eff)) * 100;
             if (def.Behavior == ModifierBehavior.Vampiric) parts.Add($"lifesteal {frac:0}%");
             else if (def.Behavior == ModifierBehavior.Thorns) parts.Add($"reflect {frac:0}%");
             else if (def.Behavior == ModifierBehavior.Splash) parts.Add("attacks splash the party");
+            else if (def.Behavior == ModifierBehavior.Chain) parts.Add("attacks chain");
             return string.Join(", ", parts);
         }
 
-        private static string RewardSummary(ModifierDef def, int strength)
+        private static string ChannelName(ModifierReward c) => c switch
         {
-            double pct = def.RewardPerStrength * strength * 100;
-            string channel = def.Reward switch
-            {
-                ModifierReward.Gold => "gold",
-                ModifierReward.Xp => "XP",
-                ModifierReward.DropRate => "drop rate",
-                _ => "reward",
-            };
-            return $"+{pct:0}% {channel}";
+            ModifierReward.Gold => "gold",
+            ModifierReward.Xp => "XP",
+            ModifierReward.DropRate => "drop rate",
+            _ => "reward",
+        };
+
+        private static string RewardSummary(ModifierDef def, double eff)
+        {
+            var parts = new List<string>();
+            foreach (var p in def.Rewards) // hybrid mods list several channels
+                parts.Add($"+{p.PerStrength * eff * 100:0}% {ChannelName(p.Channel)}");
+            return string.Join(", ", parts);
         }
 
         private string NetSummary(HashSet<string> applied)
@@ -206,12 +224,16 @@ namespace IdleGame.Game
             foreach (var id in applied)
                 if (_cfg.Modifiers.TryGetValue(id, out var def) && mods.Owned.TryGetValue(id, out var strength))
                 {
-                    double r = def.RewardPerStrength * strength * 100;
-                    switch (def.Reward)
+                    double eff = strength * Modifiers.TuningOf(_view.CurrentSave, id);
+                    foreach (var p in def.Rewards)
                     {
-                        case ModifierReward.Gold: gold += r; break;
-                        case ModifierReward.Xp: xp += r; break;
-                        case ModifierReward.DropRate: drop += r; break;
+                        double r = p.PerStrength * eff * 100;
+                        switch (p.Channel)
+                        {
+                            case ModifierReward.Gold: gold += r; break;
+                            case ModifierReward.Xp: xp += r; break;
+                            case ModifierReward.DropRate: drop += r; break;
+                        }
                     }
                 }
             if (applied.Count == 0) return "Nothing applied yet — slot modifiers for harder mobs and bigger rewards.";

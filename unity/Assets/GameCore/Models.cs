@@ -120,6 +120,14 @@ namespace IdleGame.GameCore
     /// DropRate biases loot rarity upward.</summary>
     public enum ModifierReward { Gold, Xp, DropRate }
 
+    /// <summary>One channel of a modifier's reward split. A mod can pay several at once (a "hybrid"
+    /// reward, e.g. half gold + half drop rate); a plain mod is just a single part.</summary>
+    public struct RewardPart
+    {
+        public ModifierReward Channel;
+        public double PerStrength;
+    }
+
     /// <summary>An optional per-hit combat behavior a modifier grants the monster, beyond stat
     /// multipliers. Vampiric = heals a fraction of damage it deals; Thorns = reflects a fraction
     /// of damage taken back to the attacker; Splash = its attacks hit the whole party in a radius
@@ -142,6 +150,9 @@ namespace IdleGame.GameCore
     {
         public Dictionary<string, int> Owned = new Dictionary<string, int>(); // typeId -> best strength
         public List<string> Active = new List<string>();                      // typeIds applied to farm trash
+        // Modifier-shop tuning: typeId -> a multiplier (≥1.0, absent = 1.0) on BOTH the mod's monster
+        // danger AND its reward, gambled up/down (floored at 1.0) by spending gold+scrap. Persisted.
+        public Dictionary<string, double> Tuning = new Dictionary<string, double>();
     }
 
     public sealed class SaveState

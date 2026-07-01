@@ -123,8 +123,7 @@ namespace IdleGame.GameCore
         public StatBlock StatPerStrength = new StatBlock(); // per-strength stat-mult coefficients
         public ModifierBehavior Behavior = ModifierBehavior.None;
         public double BehaviorPerStrength;                  // lifesteal/thorns fraction per strength
-        public ModifierReward Reward = ModifierReward.Gold;
-        public double RewardPerStrength;                    // reward-bonus fraction per strength
+        public List<RewardPart> Rewards = new List<RewardPart>(); // reward split (one part, or hybrid)
         public double TintR, TintG, TintB;                 // client aura tint (engine-free RGB 0..1)
 
         // Loot-imprint (mechanical modifiers) — the headline hook. A Mechanical modifier makes the
@@ -293,6 +292,15 @@ namespace IdleGame.GameCore
         public int MaxActiveRarePerSlot = 2;
         public int MinActiveRarePerSlot = 2;
 
+        // Modifier shop: spend gold+scrap to gamble a mod's tuning (a multiplier on BOTH its danger AND
+        // reward, floored at 1.0). Each upgrade rolls a delta in [RollMin, RollMax] onto the tuning; the
+        // cost scales with the mod's current tuning (tuning^CostExp) as a soft cap. Tunables.
+        public long ModShopBaseGold = 2000;
+        public long ModShopBaseScrap = 30;
+        public double ModShopCostExp = 4.0;      // gold+scrap cost ≈ base × tuning^4
+        public double ModShopRollMin = -0.05;    // −5%
+        public double ModShopRollMax = 0.05;     // +5% (symmetric; floored at 1.0 so it can't drop below base)
+
         // Chaining (rare prefix): after a basic hit, the strike arcs to nearby enemies (or party
         // members, for a Chaining monster). ChainRange is the per-jump reach — kept moderate so it
         // feels like an arc, not a screen-wide zap. ChainCount (the StatKey) is floored to an int and
@@ -438,6 +446,14 @@ namespace IdleGame.GameCore
             var b = new StatBlock();
             foreach (var (k, v) in pairs) b[k] = v;
             return b;
+        }
+
+        // Reward split for a modifier — one part, or a hybrid (e.g. RW((Gold,0.04),(DropRate,0.04))).
+        private static List<RewardPart> RW(params (ModifierReward channel, double per)[] parts)
+        {
+            var list = new List<RewardPart>(parts.Length);
+            foreach (var (channel, per) in parts) list.Add(new RewardPart { Channel = channel, PerStrength = per });
+            return list;
         }
 
         /// <summary>The default content set.</summary>
@@ -756,7 +772,7 @@ namespace IdleGame.GameCore
                 Id = "vampiric", Name = "Vampiric",
                 StatPerStrength = SB((StatKey.Hp, 0.05), (StatKey.Atk, 0.02)),
                 Behavior = ModifierBehavior.Vampiric, BehaviorPerStrength = 0.010,
-                Reward = ModifierReward.Gold, RewardPerStrength = 0.08,
+                Rewards = RW((ModifierReward.Gold, 0.04), (ModifierReward.Xp, 0.04)), // hybrid: gold + XP
                 TintR = 0.85, TintG = 0.20, TintB = 0.20, // blood red
             };
             cfg.Modifiers["swift"] = new ModifierDef
@@ -764,7 +780,7 @@ namespace IdleGame.GameCore
                 Id = "swift", Name = "Swift",
                 StatPerStrength = SB((StatKey.MoveSpd, 0.05), (StatKey.AtkSpd, 0.04)),
                 Behavior = ModifierBehavior.None,
-                Reward = ModifierReward.Xp, RewardPerStrength = 0.08,
+                Rewards = RW((ModifierReward.Xp, 0.04), (ModifierReward.DropRate, 0.04)), // hybrid: XP + drop
                 TintR = 0.95, TintG = 0.85, TintB = 0.20, // yellow
             };
             cfg.Modifiers["armored"] = new ModifierDef
@@ -772,7 +788,7 @@ namespace IdleGame.GameCore
                 Id = "armored", Name = "Armored",
                 StatPerStrength = SB((StatKey.Hp, 0.12)),       // pure tank (big HP)
                 Behavior = ModifierBehavior.None,
-                Reward = ModifierReward.DropRate, RewardPerStrength = 0.05,
+                Rewards = RW((ModifierReward.DropRate, 0.05)),
                 TintR = 0.60, TintG = 0.70, TintB = 0.85, // steel blue
             };
             cfg.Modifiers["thorns"] = new ModifierDef
@@ -780,7 +796,7 @@ namespace IdleGame.GameCore
                 Id = "thorns", Name = "Thorns",
                 StatPerStrength = SB((StatKey.Hp, 0.05), (StatKey.Atk, 0.02)),
                 Behavior = ModifierBehavior.Thorns, BehaviorPerStrength = 0.008,
-                Reward = ModifierReward.Gold, RewardPerStrength = 0.07,
+                Rewards = RW((ModifierReward.Gold, 0.035), (ModifierReward.DropRate, 0.035)), // hybrid: gold + drop
                 TintR = 0.90, TintG = 0.50, TintB = 0.15, // orange
             };
             // "Boring" early modifiers (Lever 1 skeleton): a small monster-HP bump (the risk) for a
@@ -790,21 +806,21 @@ namespace IdleGame.GameCore
             {
                 Id = "prosperous", Name = "Prosperous",
                 StatPerStrength = SB((StatKey.Hp, 0.06)),
-                Reward = ModifierReward.Gold, RewardPerStrength = 0.10,
+                Rewards = RW((ModifierReward.Gold, 0.10)),
                 TintR = 0.95, TintG = 0.82, TintB = 0.30, // gold
             };
             cfg.Modifiers["studious"] = new ModifierDef
             {
                 Id = "studious", Name = "Studious",
                 StatPerStrength = SB((StatKey.Hp, 0.06)),
-                Reward = ModifierReward.Xp, RewardPerStrength = 0.10,
+                Rewards = RW((ModifierReward.Xp, 0.10)),
                 TintR = 0.45, TintG = 0.80, TintB = 0.95, // cyan
             };
             cfg.Modifiers["bountiful"] = new ModifierDef
             {
                 Id = "bountiful", Name = "Bountiful",
                 StatPerStrength = SB((StatKey.Hp, 0.08)),
-                Reward = ModifierReward.DropRate, RewardPerStrength = 0.06,
+                Rewards = RW((ModifierReward.DropRate, 0.06)),
                 TintR = 0.55, TintG = 0.85, TintB = 0.45, // green
             };
             // Mechanical / loot-imprint modifier (the headline hook), TOWER-GATED at floor 10 — an
@@ -821,7 +837,7 @@ namespace IdleGame.GameCore
                 // imprint (your gear's attacks splash wider in return).
                 StatPerStrength = SB((StatKey.Hp, 0.12), (StatKey.Atk, 0.10)),
                 Behavior = ModifierBehavior.Splash, BehaviorPerStrength = 0.25, // +0.25 tiles splash / strength
-                Reward = ModifierReward.DropRate, RewardPerStrength = 0.06,
+                Rewards = RW((ModifierReward.DropRate, 0.06)),
                 Mechanical = true, ImprintSlot = ImprintSlot.Prefix,
                 // Imprinted gear is EXTREMELY rare — a lucky stamp on a Volatile kill, not a reliable farm.
                 ImprintStat = StatKey.SplashRadius, ImprintPerStrength = 0.12, ImprintChance = 0.03,
@@ -836,7 +852,7 @@ namespace IdleGame.GameCore
                 Id = "chaining", Name = "Chaining",
                 StatPerStrength = SB((StatKey.Hp, 0.12), (StatKey.Atk, 0.10)),
                 Behavior = ModifierBehavior.Chain, BehaviorPerStrength = 0.34, // mob chain jumps = floor(0.34·str)
-                Reward = ModifierReward.Xp, RewardPerStrength = 0.06,
+                Rewards = RW((ModifierReward.Xp, 0.06)),
                 Mechanical = true, ImprintSlot = ImprintSlot.Prefix,
                 ImprintStat = StatKey.ChainCount, ImprintPerStrength = 0.34, ImprintChance = 0.03,
                 TowerUnlockFloor = 5,
@@ -852,7 +868,7 @@ namespace IdleGame.GameCore
                 Id = "leeching", Name = "Leeching",
                 StatPerStrength = SB((StatKey.Hp, 0.12), (StatKey.Atk, 0.10)),
                 Behavior = ModifierBehavior.Vampiric, BehaviorPerStrength = 0.020, // mob lifesteal
-                Reward = ModifierReward.Gold, RewardPerStrength = 0.06,
+                Rewards = RW((ModifierReward.Gold, 0.06)),
                 Mechanical = true, ImprintSlot = ImprintSlot.Suffix,
                 ImprintStat = StatKey.Lifesteal, ImprintPerStrength = 0.010, ImprintChance = 0.03,
                 TowerUnlockFloor = 10,
@@ -863,7 +879,7 @@ namespace IdleGame.GameCore
                 Id = "barbed", Name = "Thorns",
                 StatPerStrength = SB((StatKey.Hp, 0.12), (StatKey.Atk, 0.10)),
                 Behavior = ModifierBehavior.Thorns, BehaviorPerStrength = 0.015, // mob reflect
-                Reward = ModifierReward.DropRate, RewardPerStrength = 0.06,
+                Rewards = RW((ModifierReward.DropRate, 0.06)),
                 Mechanical = true, ImprintSlot = ImprintSlot.Suffix,
                 ImprintStat = StatKey.ThornsReflect, ImprintPerStrength = 0.010, ImprintChance = 0.03,
                 TowerUnlockFloor = 10,

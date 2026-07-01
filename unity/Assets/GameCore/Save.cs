@@ -103,6 +103,7 @@ namespace IdleGame.GameCore
             save.Progress.Tower ??= new TowerState(); // older saves predate the Tower mode
             save.Quests ??= new QuestBoard(); // EnsureBoard (client, needs cfg) backfills the goals
             save.Modifiers ??= new MonsterModifiers(); // none owned on older saves until a boss grants one
+            save.Modifiers.Tuning ??= new Dictionary<string, double>(); // modifier-shop tuning (new field)
 
             // Per-hero back-fills for older saves (Lever 3): no skill ranks invested yet.
             foreach (var h in save.Heroes)

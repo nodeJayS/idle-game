@@ -183,7 +183,7 @@ namespace IdleGame.GameCore
             string? modId = cfg.TowerModifierForFloor(floor);
             if (modId != null && cfg.Modifiers.TryGetValue(modId, out var modDef))
                 foreach (var e in s.Entities)
-                    if (e.Team == Team.Enemy) ApplyModifier(e, modDef, floor, cfg, behaviorOnly: false);
+                    if (e.Team == Team.Enemy) ApplyModifier(e, modDef, floor, 1.0, cfg, behaviorOnly: false);
 
             s.Kind = EncounterKind.Tower;
             s.TowerFloor = floor;
@@ -423,7 +423,7 @@ namespace IdleGame.GameCore
                 mob.WanderCdMs = rng.RandRange(0, cfg.Balance.WanderMaxMs); // ...a staggered first repick
                 ApplyRank(mob, RollRank(rng, cfg), cfg); // pack variety: maybe an elite/rare
                 foreach (var m in s.ActiveModifiers)     // player's active modifiers (Lever 1)
-                    ApplyModifier(mob, m.Def, m.Strength, cfg, behaviorOnly: false);
+                    ApplyModifier(mob, m.Def, m.Strength, m.Tuning, cfg, behaviorOnly: false);
                 s.Entities.Add(mob);
                 s.SpawnCount++;
             }
@@ -502,22 +502,29 @@ namespace IdleGame.GameCore
         /// keeps its tuned HP so it stays killable inside the challenge timer. Mutates the entity;
         /// stacks (each call multiplies stats and adds to the reward buffs). Deterministic.
         /// </summary>
-        private static void ApplyModifier(CombatEntity e, ModifierDef def, int strength, GameConfig cfg, bool behaviorOnly)
+        private static void ApplyModifier(CombatEntity e, ModifierDef def, int strength, double tuning, GameConfig cfg, bool behaviorOnly)
         {
+            // Shop tuning scales the mod's effective potency — BOTH danger and reward (floored at 1.0
+            // in the reducer, so eff ≥ strength). Bosses/tower pass tuning 1.0 (not player-tuned).
+            double eff = strength * tuning;
+
             if (!behaviorOnly)
             {
                 foreach (var kv in def.StatPerStrength)
-                    e.Stats[kv.Key] = e.Stats.Get(kv.Key) * (1.0 + kv.Value * strength);
+                    e.Stats[kv.Key] = e.Stats.Get(kv.Key) * (1.0 + kv.Value * eff);
                 e.MaxHp = e.Stats.Get(StatKey.Hp);
                 e.Hp = e.MaxHp;
                 e.AttackIntervalMs = AttackInterval(e.Stats);
 
-                double reward = def.RewardPerStrength * strength;
-                switch (def.Reward)
+                foreach (var part in def.Rewards) // reward split (hybrid mods pay several channels)
                 {
-                    case ModifierReward.Gold:     e.GoldMult += reward; break;
-                    case ModifierReward.Xp:       e.XpMult += reward; break;
-                    case ModifierReward.DropRate: e.DropRateBonus += reward; break;
+                    double reward = part.PerStrength * eff;
+                    switch (part.Channel)
+                    {
+                        case ModifierReward.Gold:     e.GoldMult += reward; break;
+                        case ModifierReward.Xp:       e.XpMult += reward; break;
+                        case ModifierReward.DropRate: e.DropRateBonus += reward; break;
+                    }
                 }
             }
 
@@ -526,16 +533,16 @@ namespace IdleGame.GameCore
                 // Mechanical: grant the mob a splash radius (additive — base is 0, so a multiplier
                 // couldn't bootstrap it) so its attacks hit the whole party. Uncapped — it's a
                 // distance in tiles, not the 0..1 sustain/reflect fraction the cap guards.
-                e.Stats[StatKey.SplashRadius] = e.Stats.Get(StatKey.SplashRadius) + def.BehaviorPerStrength * strength;
+                e.Stats[StatKey.SplashRadius] = e.Stats.Get(StatKey.SplashRadius) + def.BehaviorPerStrength * eff;
             }
             else if (def.Behavior == ModifierBehavior.Chain)
             {
                 // Mechanical: grant the mob chain jumps (additive count; floored + clamped in combat).
-                e.Stats[StatKey.ChainCount] = e.Stats.Get(StatKey.ChainCount) + def.BehaviorPerStrength * strength;
+                e.Stats[StatKey.ChainCount] = e.Stats.Get(StatKey.ChainCount) + def.BehaviorPerStrength * eff;
             }
             else
             {
-                double frac = Math.Min(cfg.Balance.ModifierBehaviorCap, def.BehaviorPerStrength * strength);
+                double frac = Math.Min(cfg.Balance.ModifierBehaviorCap, def.BehaviorPerStrength * eff);
                 if (def.Behavior == ModifierBehavior.Vampiric) e.Lifesteal = Math.Max(e.Lifesteal, frac);
                 else if (def.Behavior == ModifierBehavior.Thorns) e.ThornsReflect = Math.Max(e.ThornsReflect, frac);
             }
@@ -550,7 +557,7 @@ namespace IdleGame.GameCore
             string? typeId = cfg.ModifierTypeForStage(stage);
             if (typeId == null || !cfg.Modifiers.TryGetValue(typeId, out var def)) return;
             foreach (var e in s.Entities)
-                if (e.IsBoss) ApplyModifier(e, def, stage, cfg, behaviorOnly: true);
+                if (e.IsBoss) ApplyModifier(e, def, stage, 1.0, cfg, behaviorOnly: true);
         }
 
         /// <summary>Advance the sim one fixed step. Mutates state; returns this step's events.</summary>
