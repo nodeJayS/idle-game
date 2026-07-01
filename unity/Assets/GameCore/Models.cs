@@ -51,11 +51,12 @@ namespace IdleGame.GameCore
         public int Level = 1;
         public long Xp = 0; // remainder toward the next level; long so a months-long curve can't overflow
         public Dictionary<EquipSlot, string> Equipped = new Dictionary<EquipSlot, string>();
-        public List<string> SkillLoadout = new List<string>();
-        // Build depth (Lever 3): skillId -> points invested (rank). Absent = rank 0 (= base, today's
-        // behavior). Points are EARNED from hero level and SPENT here; unspent is derived, never
-        // persisted separately (see Skills.UnspentPoints). Threaded like SkillLoadout through every
-        // HeroInstance copy site, or an equip/level/loadout edit silently resets it.
+        // 2+2 hero template (design §7.2): the kit is fixed (2 actives + 2 passives from
+        // HeroDef.Skills, revealed by SkillDef.UnlockLevel) — there is no loadout choice.
+        // skillId -> points invested (rank). Absent = rank 0 (= base). Points are EARNED from
+        // hero level (1 per SkillPointsEveryLevels) and SPENT here; unspent is derived, never
+        // persisted (see Skills.UnspentPoints). Threaded through every HeroInstance copy site,
+        // or an equip/level edit silently resets it.
         public Dictionary<string, int> SkillRanks = new Dictionary<string, int>();
     }
 

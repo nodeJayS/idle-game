@@ -1,127 +1,72 @@
-using System;
-using System.Collections.Generic;
 using System.Linq;
 using IdleGame.GameCore;
 using Xunit;
 
 namespace IdleGame.GameCore.Tests
 {
+    /// <summary>The 2+2 hero kit (design §7.2): every hero has exactly 2 actives + 2 passives,
+    /// revealed by UnlockLevel and always on once revealed — no loadout choice, no prereq tree.</summary>
     public class SkillsTests
     {
-        // A config whose Warrior knows 5 skills (> the 4-slot cap) so loadout choice is exercised.
-        private static GameConfig BigPoolCfg()
-        {
-            var cfg = GameConfig.Default();
-            cfg.Heroes["warrior_basic"].Skills =
-                new List<string> { "cleave", "warcry", "firebolt", "mend", "boss_quake" };
-            return cfg;
-        }
+        private static readonly GameConfig Cfg = GameConfig.Default();
 
-        private static (SaveState save, string heroId, GameConfig cfg) Setup()
-        {
-            var cfg = BigPoolCfg();
-            var save = Save.NewGame(1, cfg, 0);
-            return (save, save.Heroes[0].Id, cfg);
-        }
-
-        private static List<string> Loadout(SaveState s, string heroId) =>
-            s.Heroes.First(h => h.Id == heroId).SkillLoadout;
+        private static HeroInstance HeroAt(string defId, int level) =>
+            new HeroInstance { Id = "h", DefId = defId, Level = level };
 
         [Fact]
-        public void DefaultLoadoutCapsAtMaxActiveSkills()
+        public void EveryHeroKitIsExactlyTwoActivesPlusTwoPassives()
         {
-            var cfg = BigPoolCfg();
-            var save = Save.NewGame(1, cfg, 0);
-            var loadout = Loadout(save, save.Heroes[0].Id);
-
-            Assert.Equal(cfg.Balance.MaxActiveSkills, loadout.Count);            // exactly the cap
-            Assert.Equal(new[] { "cleave", "warcry", "firebolt", "mend" }, loadout); // first N of the pool
+            foreach (var def in Cfg.Heroes.Values)
+            {
+                var hero = HeroAt(def.DefId, 1);
+                Assert.Equal(4, Skills.Known(hero, Cfg).Count);
+                Assert.Equal(2, Skills.KnownActive(hero, Cfg).Count);
+                Assert.Equal(2, Skills.KnownPassive(hero, Cfg).Count);
+            }
         }
 
         [Fact]
-        public void DefaultLoadoutTakesWholePoolWhenUnderCap()
+        public void EveryKitSkillHasADefinition()
         {
-            // A class knowing fewer skills than the cap starts with all of them.
-            var cfg = GameConfig.Default();
-            var def = new HeroDef { DefId = "x", Skills = new List<string> { "cleave", "warcry" } };
-            Assert.Equal(def.Skills, Skills.DefaultLoadout(def, cfg));
+            foreach (var def in Cfg.Heroes.Values)
+                foreach (var id in def.Skills)
+                    Assert.True(Cfg.Skills.ContainsKey(id), $"{def.DefId}: kit skill '{id}' has no SkillDef");
         }
 
         [Fact]
-        public void RealHeroesKnowMoreThanTheyCanSlot()
+        public void ActiveKitGrowsWithTheRevealCadence()
         {
-            // The expanded kits (6 known) exceed the 4-slot cap, so the loadout is a real choice.
-            var cfg = GameConfig.Default();
-            Assert.True(cfg.Heroes["warrior_basic"].Skills.Count > cfg.Balance.MaxActiveSkills);
-            Assert.True(cfg.Heroes["magician_basic"].Skills.Count > cfg.Balance.MaxActiveSkills);
-            Assert.True(cfg.Heroes["thief_basic"].Skills.Count > cfg.Balance.MaxActiveSkills);
-
-            // Every skill a hero claims to know must resolve to a real SkillDef (catches typos
-            // between the hero's pool and the cfg.Skills table — e.g. the new Thief kit).
-            foreach (var hero in cfg.Heroes.Values)
-                foreach (var skill in hero.Skills)
-                    Assert.True(cfg.Skills.ContainsKey(skill), $"{hero.DefId} references unknown skill \"{skill}\"");
-
-            var save = Save.NewGame(1, cfg, 0);
-            Assert.Equal(cfg.Balance.MaxActiveSkills, Loadout(save, save.Heroes[0].Id).Count);
+            // §7.2 cadence: active1 L1 · passive1 L5 · active2 L10 · passive2 L15.
+            Assert.Equal(new[] { "cleave" }, Skills.ActiveKit(HeroAt("warrior_basic", 1), Cfg));
+            Assert.Equal(new[] { "cleave" }, Skills.ActiveKit(HeroAt("warrior_basic", 9), Cfg));
+            Assert.Equal(new[] { "cleave", "warcry" }, Skills.ActiveKit(HeroAt("warrior_basic", 10), Cfg));
         }
 
         [Fact]
-        public void ToggleRemovesAndAddsKnownSkill()
+        public void KitPointBudgetExactlyMaxesTheKitAtLevelCap()
         {
-            var (save, heroId, cfg) = Setup(); // loadout full: cleave/warcry/firebolt/mend
-
-            var off = Skills.ToggleSkill(save, heroId, "cleave", cfg);
-            Assert.DoesNotContain("cleave", Loadout(off, heroId));
-            Assert.Equal(3, Loadout(off, heroId).Count);
-
-            var on = Skills.ToggleSkill(off, heroId, "boss_quake", cfg); // slot the 5th into the free slot
-            Assert.Contains("boss_quake", Loadout(on, heroId));
-            Assert.Equal(4, Loadout(on, heroId).Count);
+            // 20 points at level 100 == sum of MaxRank across the 4 kit skills, for every hero.
+            foreach (var def in Cfg.Heroes.Values)
+            {
+                int kitCapacity = def.Skills.Sum(id => Cfg.Skills[id].MaxRank);
+                int pointsAtCap = Skills.PointsEarned(HeroAt(def.DefId, Cfg.Balance.MaxLevel), Cfg);
+                Assert.Equal(kitCapacity, pointsAtCap);
+            }
         }
 
         [Fact]
-        public void ToggleNoOpsWhenBarIsFull()
+        public void UnlockLevelGatesInvestmentNotJustCasting()
         {
-            var (save, heroId, cfg) = Setup(); // 4/4 slots used
-            var next = Skills.ToggleSkill(save, heroId, "boss_quake", cfg); // known, not slotted, no room
+            var save = Save.NewGame(1, Cfg, 0);
+            var id = save.Heroes[0].Id;
+            // Give levels past 5 (toughness unlock) but below 15 (vitality unlock).
+            save = Progression.GrantPartyXp(save, 10_000, Cfg);
+            var hero = save.Heroes[0];
+            Assert.InRange(hero.Level, 6, 14);
 
-            Assert.Same(save, next);                                  // no-op shares the ref
-            Assert.DoesNotContain("boss_quake", Loadout(next, heroId));
-        }
-
-        [Fact]
-        public void ToggleNoOpsForUnknownSkill()
-        {
-            var (save, heroId, cfg) = Setup();
-            Assert.Same(save, Skills.ToggleSkill(save, heroId, "not_a_skill", cfg));
-        }
-
-        [Fact]
-        public void ToggleIsPure()
-        {
-            var (save, heroId, cfg) = Setup();
-            var before = new List<string>(Loadout(save, heroId));
-            Skills.ToggleSkill(save, heroId, "cleave", cfg);
-            Assert.Equal(before, Loadout(save, heroId)); // original untouched
-        }
-
-        [Fact]
-        public void SetLoadoutAcceptsValidSubset()
-        {
-            var (save, heroId, cfg) = Setup();
-            var next = Skills.SetLoadout(save, heroId, new[] { "mend", "cleave" }, cfg);
-            Assert.Equal(new[] { "mend", "cleave" }, Loadout(next, heroId)); // order preserved
-        }
-
-        [Fact]
-        public void SetLoadoutRejectsUnknownDuplicateAndOverCap()
-        {
-            var (save, heroId, cfg) = Setup();
-            Assert.Throws<InvalidOperationException>(() => Skills.SetLoadout(save, heroId, new[] { "nope" }, cfg));
-            Assert.Throws<InvalidOperationException>(() => Skills.SetLoadout(save, heroId, new[] { "cleave", "cleave" }, cfg));
-            Assert.Throws<InvalidOperationException>(() =>
-                Skills.SetLoadout(save, heroId, new[] { "cleave", "warcry", "firebolt", "mend", "boss_quake" }, cfg)); // 5 > cap
+            Assert.True(Skills.CanInvest(save, id, "toughness", Cfg));
+            Assert.False(Skills.CanInvest(save, id, "vitality", Cfg));        // not revealed yet
+            Assert.Same(save, Skills.InvestSkill(save, id, "vitality", Cfg)); // no-op
         }
     }
 }

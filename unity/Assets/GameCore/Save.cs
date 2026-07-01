@@ -51,7 +51,6 @@ namespace IdleGame.GameCore
                 Level = 1,
                 Xp = 0,
                 Equipped = new Dictionary<EquipSlot, string>(),
-                SkillLoadout = Skills.DefaultLoadout(def, cfg),
             };
         }
 

@@ -186,7 +186,7 @@ namespace IdleGame.GameCore
             LastClaimAt = save.LastClaimAt,
         };
 
-        // Equipped / SkillLoadout are unchanged here, so the new hero shares those refs.
+        // Equipped / SkillRanks are unchanged here, so the new hero shares those refs.
         private static HeroInstance WithLevel(HeroInstance hero, int level, long xp) => new HeroInstance
         {
             Id = hero.Id,
@@ -194,7 +194,6 @@ namespace IdleGame.GameCore
             Level = level,
             Xp = xp,
             Equipped = hero.Equipped,
-            SkillLoadout = hero.SkillLoadout,
             SkillRanks = hero.SkillRanks,
         };
     }

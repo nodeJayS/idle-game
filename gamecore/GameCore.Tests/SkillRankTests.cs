@@ -23,10 +23,14 @@ namespace IdleGame.GameCore.Tests
         // ---- point math ----
 
         [Fact]
-        public void PointsEarnedIsOnePerLevelGained()
+        public void PointsEarnedIsOnePerFiveLevels()
         {
             Assert.Equal(0, Skills.PointsEarned(new HeroInstance { Level = 1 }, Cfg));
-            Assert.Equal(9 * Cfg.Balance.SkillPointsPerLevel, Skills.PointsEarned(new HeroInstance { Level = 10 }, Cfg));
+            Assert.Equal(0, Skills.PointsEarned(new HeroInstance { Level = 4 }, Cfg));
+            Assert.Equal(1, Skills.PointsEarned(new HeroInstance { Level = 5 }, Cfg));
+            Assert.Equal(2, Skills.PointsEarned(new HeroInstance { Level = 10 }, Cfg));
+            // level 100 = 20 points = exactly a maxed 2+2 kit (4 skills x rank 5)
+            Assert.Equal(20, Skills.PointsEarned(new HeroInstance { Level = 100 }, Cfg));
         }
 
         [Fact]
@@ -91,7 +95,7 @@ namespace IdleGame.GameCore.Tests
             var (save, id) = LeveledWarrior();
             int earned = Skills.PointsEarned(Hero(save, id), Cfg);
             save = Skills.InvestSkill(save, id, "cleave", Cfg);
-            save = Skills.InvestSkill(save, id, "bash", Cfg);
+            save = Skills.InvestSkill(save, id, "toughness", Cfg);
 
             var respecced = Skills.RespecHero(save, id, Cfg);
 
@@ -160,11 +164,19 @@ namespace IdleGame.GameCore.Tests
         public void HigherRankDealsMoreSkillDamage()
         {
             double r0 = DamageFromOneCast(0);
-            double r5 = DamageFromOneCast(5);
+            double r4 = DamageFromOneCast(4);
 
-            // factor 1 + 0.12*5 = 1.6 -> 18 * 1.6 = 28.8
-            Assert.Equal(28.8, r5, 3);
-            Assert.True(r5 > r0);
+            // below MaxRank there is no mastery: factor 1 + 0.12*4 = 1.48 -> 18 * 1.48 = 26.64
+            Assert.Equal(26.64, r4, 3);
+            Assert.True(r4 > r0);
+        }
+
+        [Fact]
+        public void MaxRankMastersForABonusJump()
+        {
+            // At MaxRank (5) the skill masters, counting as rank 5 + MasteryBonusRanks (2) = 7:
+            // factor 1 + 0.12*7 = 1.84 -> 18 * 1.84 = 33.12 — a chunkier step than 4->5 linear.
+            Assert.Equal(33.12, DamageFromOneCast(5), 3);
         }
     }
 }

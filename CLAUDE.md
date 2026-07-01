@@ -47,7 +47,7 @@ docs/game-design.md      the durable what/why
   Play-mode can't run headlessly — visuals are verified by screenshot (Unity MCP), UI is
   hand-placed uGUI/IMGUI coords.
 
-## Current systems (396 tests passing)
+## Current systems (389 tests passing)
 
 Phase A (core loop) and most of Phase B (depth) are done. What exists today:
 
@@ -62,9 +62,12 @@ Phase A (core loop) and most of Phase B (depth) are done. What exists today:
   (`Inventory.SalvageAllUpTo`). Every drop reads as one `Upgrades.PowerScore` verdict →
   ▲ badges, loot-feed tags, opt-in auto-equip.
 - **Heroes & build depth (Lever 3)** — Warrior / Magician / Thief, unlocked via stage clears;
-  **per-hero leveling** (level = the power axis: stat growth + skill points + skill-tree gates).
-  Skills: rank-up with points, **gated tree** (`Prereq`/`UnlockLevel`), always-on **passives**.
-  XP is `long`, curve `600 × 1.19^(lvl-1)` ⇒ **~95B to level 100** (a months-long chase).
+  **per-hero leveling** (level = the power axis). **2+2 hero template (design §7.2):** every hero
+  = exactly 2 actives + 2 passives from a shared archetype library, revealed at Lv 1/5/10/15 and
+  always on (no loadouts, no prereq trees — heroes are data rows so a solo dev can scale the
+  roster for the hero-gacha arc). Points = `Level/5` derived; rank cap 5; **MaxRank = mastery**
+  (counts as rank+2 via `Skills.EffectiveRank`) ⇒ 20 points at Lv 100 exactly maxes the kit,
+  the build choice is ordering. XP curve `600 × 1.19^(lvl-1)` ⇒ ~95B to level 100.
   `AccountLevel` exists but is inert — the hook for a future cosmetic account icon.
 - **Monster modifiers (Lever 1 — the core risk/reward loop)** — two pools:
   - **Normal** stat mods (Prosperous/Studious/Bountiful/Armored/Swift/Vampiric/Thorns): unlocked

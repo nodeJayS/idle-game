@@ -4,15 +4,15 @@ using Xunit;
 
 namespace IdleGame.GameCore.Tests
 {
-    /// <summary>Lever 3 slice 2: passive skill nodes. Passives are known + investable but never
-    /// slotted in the active bar; each rank folds into Stats.ComputeHeroStats (and thus the Lever 2
-    /// power compare). Rank 0 = +0 = today's behavior.</summary>
+    /// <summary>Passive skill nodes (2+2 kit, §7.2): passives are in the kit + investable but never
+    /// cast; each rank folds into Stats.ComputeHeroStats (and thus the Lever 2 power compare),
+    /// with the MaxRank mastery bump. Rank 0 = +0.</summary>
     public class PassiveSkillTests
     {
         private static readonly GameConfig Cfg = GameConfig.Default();
 
         // A fielded solo warrior granted enough XP to have leveled (and earned skill points).
-        private static (SaveState save, string heroId) LeveledWarrior(int grantXp = 200000)
+        private static (SaveState save, string heroId) LeveledWarrior(int grantXp = 2_000_000)
         {
             var save = Progression.GrantPartyXp(Save.NewGame(1, Cfg, 0), grantXp, Cfg);
             return (save, save.Heroes[0].Id);
@@ -38,30 +38,12 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
-        public void DefaultLoadoutHasNoPassivesAndStaysFull()
-        {
-            var def = Cfg.Heroes["warrior_basic"];
-            var loadout = Skills.DefaultLoadout(def, Cfg);
-
-            Assert.Equal(Cfg.Balance.MaxActiveSkills, loadout.Count);
-            Assert.DoesNotContain(loadout, id => Skills.IsPassive(id, Cfg));
-        }
-
-        // ---- can't be slotted in the active bar ----
-
-        [Fact]
-        public void TogglingAPassiveIsANoOp()
+        public void ActiveKitNeverContainsPassives()
         {
             var (save, id) = LeveledWarrior();
-            Assert.Same(save, Skills.ToggleSkill(save, id, "toughness", Cfg));
-        }
-
-        [Fact]
-        public void SetLoadoutRejectsAPassive()
-        {
-            var (save, id) = LeveledWarrior();
-            Assert.Throws<System.InvalidOperationException>(
-                () => Skills.SetLoadout(save, id, new[] { "cleave", "toughness" }, Cfg));
+            var kit = Skills.ActiveKit(Hero(save, id), Cfg);
+            Assert.NotEmpty(kit);
+            Assert.DoesNotContain(kit, sk => Skills.IsPassive(sk, Cfg));
         }
 
         // ---- investing (reuses the slice-1 rank spine) ----
@@ -90,6 +72,20 @@ namespace IdleGame.GameCore.Tests
             double perRank = Cfg.Skills["toughness"].StatPerRank;
             double rankedDef = Stats.ComputeHeroStats(Hero(save, id), Cfg).Get(StatKey.Def);
             Assert.Equal(baseDef + 2 * perRank, rankedDef, 6);
+        }
+
+        [Fact]
+        public void MaxRankPassiveMasters()
+        {
+            // At MaxRank (5) the passive counts as rank 5 + MasteryBonusRanks (2) = 7 ranks of stat.
+            var (save, id) = LeveledWarrior();
+            double baseDef = Stats.ComputeHeroStats(Hero(save, id), Cfg).Get(StatKey.Def);
+
+            var sk = Cfg.Skills["toughness"];
+            for (int i = 0; i < sk.MaxRank; i++) save = Skills.InvestSkill(save, id, "toughness", Cfg);
+
+            double expected = baseDef + (sk.MaxRank + Cfg.Balance.MasteryBonusRanks) * sk.StatPerRank;
+            Assert.Equal(expected, Stats.ComputeHeroStats(Hero(save, id), Cfg).Get(StatKey.Def), 6);
         }
 
         [Fact]

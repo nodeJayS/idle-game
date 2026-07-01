@@ -253,7 +253,7 @@ namespace IdleGame.GameCore
                 double newMaxMana = stats.Get(StatKey.MaxMana);
 
                 e.Stats = stats;
-                e.Skills = new List<string>(hero.SkillLoadout); // active-loadout edits apply live
+                e.Skills = Skills.ActiveKit(hero, cfg); // newly-revealed kit actives apply live
                 e.SkillRanks = new Dictionary<string, int>(hero.SkillRanks); // rank invests apply live
                 e.MaxHp = newMax;
                 e.AttackIntervalMs = AttackInterval(stats);
@@ -315,7 +315,7 @@ namespace IdleGame.GameCore
                     RefId = hero.Id,
                     Slot = idx,
                     BodyRadius = cfg.Balance.UnitRadius,
-                    Skills = new List<string>(hero.SkillLoadout),
+                    Skills = Skills.ActiveKit(hero, cfg),
                     SkillRanks = new Dictionary<string, int>(hero.SkillRanks),
                     RespawnDurationMs = cfg.Balance.RespawnBaseMs + cfg.Balance.RespawnPerLevelMs * hero.Level,
                 });
@@ -388,7 +388,7 @@ namespace IdleGame.GameCore
                     RefId = hero.Id,
                     Slot = idx,
                     BodyRadius = cfg.Balance.UnitRadius,
-                    Skills = new List<string>(hero.SkillLoadout),
+                    Skills = Skills.ActiveKit(hero, cfg),
                     SkillRanks = new Dictionary<string, int>(hero.SkillRanks),
                     RespawnDurationMs = cfg.Balance.RespawnBaseMs + cfg.Balance.RespawnPerLevelMs * hero.Level,
                 });
@@ -888,9 +888,10 @@ namespace IdleGame.GameCore
                 if (e.SkillCdMs.TryGetValue(id, out var cd) && cd > 0) continue;  // on cooldown
                 if (e.Mana < sk.ManaCost) continue;                              // not enough mana
 
-                // Invested rank scales the skill's primary magnitude (Lever 3). Rank 0 => 1.0 (= base).
+                // Invested rank scales the skill's primary magnitude; at MaxRank the skill masters
+                // and counts as rank + MasteryBonusRanks (§7.2). Rank 0 => 1.0 (= base).
                 int rank = e.SkillRanks.TryGetValue(id, out var rk) ? rk : 0;
-                double rankFactor = 1.0 + sk.EffectPerRank * rank;
+                double rankFactor = 1.0 + sk.EffectPerRank * Skills.EffectiveRank(rank, sk, cfg);
 
                 switch (sk.Effect)
                 {

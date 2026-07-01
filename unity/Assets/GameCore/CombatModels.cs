@@ -77,12 +77,12 @@ namespace IdleGame.GameCore
         public double MaxMana;
 
         // Skills (M11): the entity's loadout (skill ids), per-skill cooldown remaining,
-        // and active timed buffs. Heroes get these from their SkillLoadout; bosses from
+        // and active timed buffs. Heroes get these from their revealed kit actives (Skills.ActiveKit); bosses from
         // their MonsterDef. EffectiveStat folds buffs into the read used by combat.
         public List<string> Skills = new List<string>();
         public Dictionary<string, double> SkillCdMs = new Dictionary<string, double>();
         // Build depth (Lever 3): invested rank per skill (heroes only; bosses stay rank 0). A skill's
-        // primary magnitude scales by (1 + SkillDef.EffectPerRank*rank). Mirrors HeroInstance.SkillRanks.
+        // primary magnitude scales by (1 + SkillDef.EffectPerRank*rank). Mirrors HeroInstance.SkillRanks (MaxRank => mastery, see Skills.EffectiveRank).
         public Dictionary<string, int> SkillRanks = new Dictionary<string, int>();
         public List<ActiveBuff> Buffs = new List<ActiveBuff>();
 

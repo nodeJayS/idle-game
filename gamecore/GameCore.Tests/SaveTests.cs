@@ -141,11 +141,11 @@ namespace IdleGame.GameCore.Tests
         public void LeaderSurvivesUnrelatedReducers()
         {
             // Guards the LeaderHeroId copy-through in every SaveState reducer: an unrelated
-            // change (gold, a skill toggle) must not silently reset the chosen leader.
+            // change (gold, a respec) must not silently reset the chosen leader.
             var save = Party.SetLeader(TwoHeroSave(), "h2");
             Assert.Equal("h2", Progression.GrantGold(save, 10).LeaderHeroId);
             Assert.Equal("h2", Progression.GrantPartyXp(save, 50, Cfg).LeaderHeroId);
-            Assert.Equal("h2", Skills.ToggleSkill(save, "h2", "firebolt", Cfg).LeaderHeroId);
+            Assert.Equal("h2", Skills.RespecHero(save, "h2", Cfg).LeaderHeroId);
         }
 
         [Fact]

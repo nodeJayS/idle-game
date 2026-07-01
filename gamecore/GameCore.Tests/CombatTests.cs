@@ -394,20 +394,21 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
-        public void RefreshPartyStatsSyncsActiveSkillLoadout()
+        public void RefreshPartyStatsSyncsNewlyRevealedKitActives()
         {
-            // Editing a hero's active loadout takes effect live (RefreshPartyStats re-syncs the
-            // combat entity's skills), so the Skills tab doesn't need a run restart.
+            // Leveling past a kit skill's UnlockLevel takes effect live: RefreshPartyStats
+            // re-derives the entity's actives from the kit, so no run restart is needed.
             var cfg = GameConfig.Default();
             var save = Save.NewGame(1, cfg, 0);
             var heroId = save.Heroes[0].Id;
             var s = Combat.InitFarm(new[] { save.Heroes[0] }, 1, cfg, new Rng(1));
 
-            var save2 = Skills.SetLoadout(save, heroId, new[] { "bash" }, cfg);
-            Combat.RefreshPartyStats(s, save2, cfg);
-
             var ent = s.Entities.First(e => e.Team == Team.Party && e.RefId == heroId);
-            Assert.Equal(new[] { "bash" }, ent.Skills);
+            Assert.Equal(new[] { "cleave" }, ent.Skills); // level 1: only the first active is revealed
+
+            save = Progression.GrantPartyXp(save, 2_000_000, cfg); // well past warcry's UnlockLevel 10
+            Combat.RefreshPartyStats(s, save, cfg);
+            Assert.Equal(new[] { "cleave", "warcry" }, ent.Skills);
         }
 
         [Fact]

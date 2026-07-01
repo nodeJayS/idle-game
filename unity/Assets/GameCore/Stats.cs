@@ -35,15 +35,16 @@ namespace IdleGame.GameCore
                     result[affix.Stat] = result.Get(affix.Stat) + affix.Value;
             }
 
-            // Passive skill nodes (Lever 3 slice 2): each invested rank adds StatPerRank to its
-            // PassiveStat. This is the single stat seam, so a ranked passive flows on into
-            // DerivedStats, DPS/Eff-Life, and the Lever 2 power compare automatically. Rank 0 = +0.
+            // Passive skill nodes: each invested rank adds StatPerRank to its PassiveStat, with the
+            // MaxRank mastery bump (§7.2) via EffectiveRank. This is the single stat seam, so a
+            // ranked passive flows on into DerivedStats, DPS/Eff-Life, and the Lever 2 power
+            // compare automatically. Rank 0 = +0.
             foreach (var skillId in def.Skills)
             {
                 if (!cfg.Skills.TryGetValue(skillId, out var sk) || !sk.Passive) continue;
                 int rank = hero.SkillRanks.TryGetValue(skillId, out var r) ? r : 0;
                 if (rank <= 0) continue;
-                result[sk.PassiveStat] = result.Get(sk.PassiveStat) + sk.StatPerRank * rank;
+                result[sk.PassiveStat] = result.Get(sk.PassiveStat) + sk.StatPerRank * Skills.EffectiveRank(rank, sk, cfg);
             }
 
             return result;

@@ -86,24 +86,22 @@ namespace IdleGame.GameCore
         public double BuffAmount;             // Buff: additive amount
         public double BuffDurationMs;         // Buff: how long it lasts
         public string? Sprite;
-        // Build depth (Lever 3): investing a skill point raises this skill's rank; its primary
-        // magnitude (Damage/Heal DamageMult, or Buff BuffAmount) scales by (1 + EffectPerRank*rank).
-        // Rank 0 = base = today's behavior, so existing seeded fights are unchanged.
+        // 2+2 template (design §7.2): investing a skill point raises this skill's rank; its primary
+        // magnitude (Damage/Heal DamageMult, or Buff BuffAmount) scales by (1 + EffectPerRank*eff)
+        // where eff = Skills.EffectiveRank — at MaxRank the skill masters, counting as
+        // rank + MasteryBonusRanks (the chunky "push one skill to 5" payoff). Rank 0 = base.
         public int MaxRank = 5;
         public double EffectPerRank = 0.12;   // +12% of the base effect per invested rank
-        // Build depth (Lever 3 slice 2): a passive skill is an always-on stat node, never cast — it
-        // can't be slotted in the active bar; instead each invested rank adds StatPerRank to
-        // PassiveStat, folded into Stats.ComputeHeroStats (so it flows into the stat sheet, DPS/
-        // Eff-Life, and the Lever 2 power compare for free). Rank 0 = +0 = unchanged behavior.
+        // A passive skill is an always-on stat node, never cast: each invested rank adds StatPerRank
+        // to PassiveStat (mastery-boosted at MaxRank like actives), folded into
+        // Stats.ComputeHeroStats (so it flows into the stat sheet, DPS/Eff-Life, and the Lever 2
+        // power compare for free). Rank 0 = +0 = unchanged behavior.
         public bool Passive;                  // false = active cast (default); true = passive stat node
         public StatKey PassiveStat;           // Passive: which stat each rank raises
         public double StatPerRank;            // Passive: additive amount of PassiveStat per rank
-        // Build depth (Lever 3 slice 3): skill-tree gating. A skill can only be RANKED once its gate
-        // is met — the hero is at least UnlockLevel AND (if Prereq is set) already has ≥1 rank in the
-        // Prereq skill. Roots leave Prereq null and UnlockLevel ≤ 1. Gating restricts point investment
-        // only; slotting/casting at rank 0 is unaffected, so existing seeded fights stay unchanged.
-        public string? Prereq;                // skillId that must have ≥1 rank before this can be ranked
-        public int UnlockLevel = 1;           // hero level required before this can be ranked
+        // Kit reveal cadence (§7.2): the skill exists (casts / can be ranked) only once the hero
+        // reaches UnlockLevel. No prereq trees — the 2+2 kit is flat.
+        public int UnlockLevel = 1;           // hero level required before this skill is part of the kit
     }
 
     /// <summary>
@@ -204,13 +202,14 @@ namespace IdleGame.GameCore
         public double OfflineRate = 0.70;
         public int MaxLevel = 100;
 
-        // Skills (Lever 3): how many of a hero's known skills can be slotted active at once.
-        // HeroDef.Skills is the known pool; HeroInstance.SkillLoadout is the chosen subset.
-        public int MaxActiveSkills = 4;
-
-        // Skill points (Lever 3): points earned per hero level, spent to rank up skills
-        // (Skills.InvestSkill). Unspent is derived from level − ranks spent, never persisted.
-        public int SkillPointsPerLevel = 1;
+        // 2+2 hero template (design §7.2): every hero's kit is exactly 2 actives + 2 passives
+        // (HeroDef.Skills), always on once revealed by UnlockLevel — no loadout choice. Skill
+        // points arrive 1 per SkillPointsEveryLevels hero levels (derived Level/5, never
+        // persisted), each skill caps at its MaxRank (5) ⇒ 20 points at level 100 maxes the kit;
+        // the build choice is ORDERING. At MaxRank a skill masters: it counts as
+        // rank + MasteryBonusRanks, so focusing a skill to 5 beats spreading evenly.
+        public int SkillPointsEveryLevels = 5;
+        public int MasteryBonusRanks = 2;
 
         // Goal ladder: how many short-term goals sit on the rolling board at once (always a
         // few near-term carrots). Targets/rewards scale with highest stage in Quests.cs.
@@ -528,8 +527,8 @@ namespace IdleGame.GameCore
                                (StatKey.SplashRadius, 1.0),            // slightly wider cleave (melee perk)
                                (StatKey.MaxMana, 50), (StatKey.ManaRegen, 3)), // shallow pool, slow regen
                 GrowthPerLevel = SB((StatKey.Hp, 18), (StatKey.Atk, 3), (StatKey.Def, 1.5), (StatKey.MaxMana, 2)),
-                // Known pool (6); first MaxActiveSkills are the starting active bar (see Skills.DefaultLoadout).
-                Skills = new List<string> { "cleave", "bash", "warcry", "whirlwind", "bulwark", "frenzy", "toughness", "vitality" }, Sprite = "warrior",
+                // 2+2 kit (§7.2): AoE cleave + attack war cry; armor + health passives.
+                Skills = new List<string> { "cleave", "toughness", "warcry", "vitality" }, Sprite = "warrior",
             };
 
             cfg.Heroes["magician_basic"] = new HeroDef
@@ -544,8 +543,8 @@ namespace IdleGame.GameCore
                                (StatKey.SplashRadius, 0.75),           // tight AoE (same as warrior)
                                (StatKey.MaxMana, 120), (StatKey.ManaRegen, 6)), // deep pool, fast regen (caster)
                 GrowthPerLevel = SB((StatKey.Hp, 11), (StatKey.Atk, 4), (StatKey.Def, 1), (StatKey.MaxMana, 5)),
-                // Known pool (6); first MaxActiveSkills are the starting active bar (see Skills.DefaultLoadout).
-                Skills = new List<string> { "firebolt", "fireball", "mend", "scorch", "inferno", "haste", "pyromancy", "attunement" }, Sprite = "magician", AttackFx = "fireball",
+                // 2+2 kit (§7.2): fire nuke + AoE fireball; spell-power + mana passives.
+                Skills = new List<string> { "firebolt", "pyromancy", "fireball", "attunement" }, Sprite = "magician", AttackFx = "fireball",
             };
 
             cfg.Heroes["thief_basic"] = new HeroDef
@@ -561,8 +560,8 @@ namespace IdleGame.GameCore
                                (StatKey.SplashRadius, 0.5),            // narrow — a duelist, not a cleaver
                                (StatKey.MaxMana, 70), (StatKey.ManaRegen, 5)), // mid pool to fuel quick skills
                 GrowthPerLevel = SB((StatKey.Hp, 10), (StatKey.Atk, 4), (StatKey.Def, 1), (StatKey.MaxMana, 3)),
-                // Known pool (6); first MaxActiveSkills are the starting active bar (see Skills.DefaultLoadout).
-                Skills = new List<string> { "shadowstab", "vitalstrike", "bladewhirl", "pinpoint", "quickstep", "lethality", "precision", "killerinstinct" },
+                // 2+2 kit (§7.2): fast stab + heavy vital strike; crit-chance + crit-damage passives.
+                Skills = new List<string> { "shadowstab", "precision", "vitalstrike", "killerinstinct" },
                 Sprite = "thief",
             };
 
@@ -673,7 +672,7 @@ namespace IdleGame.GameCore
             {
                 Id = "warcry", Name = "War Cry", Effect = SkillEffectKind.Buff, Targeting = "self",
                 CooldownMs = 9000, Range = 0, BuffStat = StatKey.Atk, BuffAmount = 10, BuffDurationMs = 6000,
-                ManaCost = 20, Sprite = "warcry", Prereq = "cleave", UnlockLevel = 5,
+                ManaCost = 20, Sprite = "warcry", UnlockLevel = 10,
             };
             cfg.Skills["firebolt"] = new SkillDef
             {
@@ -698,44 +697,44 @@ namespace IdleGame.GameCore
             {
                 Id = "whirlwind", Name = "Whirlwind", Effect = SkillEffectKind.Damage, Targeting = "aoe",
                 CooldownMs = 6000, Range = 1.8, AoeRadius = 2.6, DamageMult = 1.4, ManaCost = 28, Sprite = "cleave",
-                Prereq = "bash", UnlockLevel = 8,
+                UnlockLevel = 8,
             };
             cfg.Skills["bulwark"] = new SkillDef
             {
                 Id = "bulwark", Name = "Bulwark", Effect = SkillEffectKind.Buff, Targeting = "self",
                 CooldownMs = 12000, Range = 0, BuffStat = StatKey.Def, BuffAmount = 15, BuffDurationMs = 6000,
-                ManaCost = 20, Sprite = "warcry", Prereq = "warcry", UnlockLevel = 14,
+                ManaCost = 20, Sprite = "warcry", UnlockLevel = 14,
             };
             cfg.Skills["frenzy"] = new SkillDef
             {
                 Id = "frenzy", Name = "Frenzy", Effect = SkillEffectKind.Buff, Targeting = "self",
                 CooldownMs = 10000, Range = 0, BuffStat = StatKey.AtkSpd, BuffAmount = 0.5, BuffDurationMs = 6000,
-                ManaCost = 25, Sprite = "warcry", Prereq = "whirlwind", UnlockLevel = 18,
+                ManaCost = 25, Sprite = "warcry", UnlockLevel = 18,
             };
             // Fire Wizard — AoE fireball, a heavy single nuke, a big AoE ultimate, an attack-speed buff.
             cfg.Skills["fireball"] = new SkillDef
             {
                 Id = "fireball", Name = "Fireball", Effect = SkillEffectKind.Damage, Targeting = "aoe",
                 CooldownMs = 5000, Range = 6.0, AoeRadius = 2.2, DamageMult = 1.6, ManaCost = 30, Sprite = "firebolt",
-                Prereq = "firebolt", UnlockLevel = 5,
+                UnlockLevel = 10,
             };
             cfg.Skills["scorch"] = new SkillDef
             {
                 Id = "scorch", Name = "Scorch", Effect = SkillEffectKind.Damage, Targeting = "nearest",
                 CooldownMs = 4500, Range = 6.0, DamageMult = 2.6, ManaCost = 28, Sprite = "firebolt",
-                Prereq = "firebolt", UnlockLevel = 8,
+                UnlockLevel = 8,
             };
             cfg.Skills["inferno"] = new SkillDef
             {
                 Id = "inferno", Name = "Inferno", Effect = SkillEffectKind.Damage, Targeting = "aoe",
                 CooldownMs = 12000, Range = 6.0, AoeRadius = 3.2, DamageMult = 2.2, ManaCost = 50, Sprite = "quake",
-                Prereq = "fireball", UnlockLevel = 16,
+                UnlockLevel = 16,
             };
             cfg.Skills["haste"] = new SkillDef
             {
                 Id = "haste", Name = "Haste", Effect = SkillEffectKind.Buff, Targeting = "self",
                 CooldownMs = 10000, Range = 0, BuffStat = StatKey.AtkSpd, BuffAmount = 0.6, BuffDurationMs = 6000,
-                ManaCost = 25, Sprite = "warcry", Prereq = "scorch", UnlockLevel = 12,
+                ManaCost = 25, Sprite = "warcry", UnlockLevel = 12,
             };
 
             // Thief — single-target assassin: a fast cheap stab, a heavy nuke, a tight AoE, and
@@ -750,13 +749,13 @@ namespace IdleGame.GameCore
             {
                 Id = "vitalstrike", Name = "Vital Strike", Effect = SkillEffectKind.Damage, Targeting = "nearest",
                 CooldownMs = 5000, Range = 1.4, DamageMult = 3.8, ManaCost = 30, Sprite = "cleave",
-                Prereq = "shadowstab", UnlockLevel = 5,
+                UnlockLevel = 10,
             };
             cfg.Skills["bladewhirl"] = new SkillDef
             {
                 Id = "bladewhirl", Name = "Bladewhirl", Effect = SkillEffectKind.Damage, Targeting = "aoe",
                 CooldownMs = 5500, Range = 2.0, AoeRadius = 2.2, DamageMult = 1.4, ManaCost = 26, Sprite = "cleave",
-                Prereq = "shadowstab", UnlockLevel = 8,
+                UnlockLevel = 8,
             };
             cfg.Skills["pinpoint"] = new SkillDef
             {
@@ -768,13 +767,13 @@ namespace IdleGame.GameCore
             {
                 Id = "quickstep", Name = "Quickstep", Effect = SkillEffectKind.Buff, Targeting = "self",
                 CooldownMs = 10000, Range = 0, BuffStat = StatKey.AtkSpd, BuffAmount = 0.6, BuffDurationMs = 6000,
-                ManaCost = 25, Sprite = "warcry", Prereq = "pinpoint", UnlockLevel = 10,
+                ManaCost = 25, Sprite = "warcry", UnlockLevel = 10,
             };
             cfg.Skills["lethality"] = new SkillDef
             {
                 Id = "lethality", Name = "Lethality", Effect = SkillEffectKind.Buff, Targeting = "self",
                 CooldownMs = 12000, Range = 0, BuffStat = StatKey.CritDmg, BuffAmount = 0.6, BuffDurationMs = 6000,
-                ManaCost = 25, Sprite = "warcry", Prereq = "vitalstrike", UnlockLevel = 16,
+                ManaCost = 25, Sprite = "warcry", UnlockLevel = 16,
             };
 
             // Passive nodes (Lever 3 slice 2): always-on, never cast — invest points to rank them and
@@ -784,32 +783,32 @@ namespace IdleGame.GameCore
             // default MaxRank=5 each tops out at ~a few levels' worth of growth. Rank 0 = +0.
             cfg.Skills["toughness"] = new SkillDef   // Warrior: stack armor
             {
-                Id = "toughness", Name = "Toughness", Passive = true,
+                Id = "toughness", Name = "Toughness", Passive = true, UnlockLevel = 5,
                 PassiveStat = StatKey.Def, StatPerRank = 2.0, Sprite = "bulwark",
             };
             cfg.Skills["vitality"] = new SkillDef    // Warrior: deeper health pool
             {
-                Id = "vitality", Name = "Vitality", Passive = true,
+                Id = "vitality", Name = "Vitality", Passive = true, UnlockLevel = 15,
                 PassiveStat = StatKey.Hp, StatPerRank = 12.0, Sprite = "bulwark",
             };
             cfg.Skills["pyromancy"] = new SkillDef    // Magician: raw spell power
             {
-                Id = "pyromancy", Name = "Pyromancy", Passive = true,
+                Id = "pyromancy", Name = "Pyromancy", Passive = true, UnlockLevel = 5,
                 PassiveStat = StatKey.Atk, StatPerRank = 2.0, Sprite = "fireball",
             };
             cfg.Skills["attunement"] = new SkillDef   // Magician: bigger mana pool
             {
-                Id = "attunement", Name = "Attunement", Passive = true,
+                Id = "attunement", Name = "Attunement", Passive = true, UnlockLevel = 15,
                 PassiveStat = StatKey.MaxMana, StatPerRank = 10.0, Sprite = "fireball",
             };
             cfg.Skills["precision"] = new SkillDef     // Thief: more crits
             {
-                Id = "precision", Name = "Deadly Precision", Passive = true,
+                Id = "precision", Name = "Deadly Precision", Passive = true, UnlockLevel = 5,
                 PassiveStat = StatKey.CritChance, StatPerRank = 0.02, Sprite = "warcry",
             };
             cfg.Skills["killerinstinct"] = new SkillDef // Thief: harder crits
             {
-                Id = "killerinstinct", Name = "Killer Instinct", Passive = true,
+                Id = "killerinstinct", Name = "Killer Instinct", Passive = true, UnlockLevel = 15,
                 PassiveStat = StatKey.CritDmg, StatPerRank = 0.08, Sprite = "warcry",
             };
 
