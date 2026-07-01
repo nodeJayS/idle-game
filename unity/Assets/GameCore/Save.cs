@@ -101,6 +101,9 @@ namespace IdleGame.GameCore
             save.Currencies ??= new Dictionary<string, long>();
             save.Progress ??= new ProgressState();
             save.Progress.Tower ??= new TowerState(); // older saves predate the Tower mode
+            save.Progress.Achievements ??= new AchievementState(); // older saves predate the achievement ladder
+            save.Progress.Achievements.Counters ??= new Dictionary<AchievementMetric, long>();
+            save.Progress.Achievements.Claimed ??= new Dictionary<string, int>();
             save.Quests ??= new QuestBoard(); // EnsureBoard (client, needs cfg) backfills the goals
             save.Modifiers ??= new MonsterModifiers(); // none owned on older saves until a boss grants one
             save.Modifiers.Tuning ??= new Dictionary<string, double>(); // modifier-shop tuning (new field)

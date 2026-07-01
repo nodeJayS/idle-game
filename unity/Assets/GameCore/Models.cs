@@ -81,6 +81,9 @@ namespace IdleGame.GameCore
         // `Progress` reference-threading (only the 2 `new ProgressState{}` reducers must carry it),
         // and can grow without touching every SaveState copy site.
         public TowerState Tower = new TowerState();
+        // Lifetime achievement ladder (Lever 4). Nested here for the same reason as Tower — the
+        // ProgressState constructors carry it forward, so the ~20 other save-copy sites get it free.
+        public AchievementState Achievements = new AchievementState();
     }
 
     /// <summary>Tower of Ascension progress (a separate one-clear-per-floor track, distinct from the
@@ -113,6 +116,30 @@ namespace IdleGame.GameCore
     {
         public List<Quest> Active = new List<Quest>();
         public int RollCount;
+    }
+
+    /// <summary>A lifetime stat an achievement tracks (Lever 4). ADD-metrics accumulate forever
+    /// (kills, gold earned, salvages, rare+ finds, bosses); MAX-metrics keep a peak (deepest stage /
+    /// tower floor, highest hero level). The client feeds these from the SAME game events it already
+    /// feeds the goal board. Appended, not reordered — persisted as dictionary keys.</summary>
+    public enum AchievementMetric
+    {
+        MonstersKilled, BossesKilled, ItemsSalvaged, GoldEarned, RarePlusFound,
+        HighestStage, HighestTowerFloor, HeroLevel,
+    }
+
+    /// <summary>
+    /// Lifetime achievement progress (Lever 4 — the permanent milestone ladder, distinct from the
+    /// rolling <see cref="QuestBoard"/> that resets on completion). <see cref="Counters"/> hold the
+    /// lifetime value per metric; <see cref="Claimed"/> records how many tiers of each achievement
+    /// have already paid out, so a reward mints exactly once. Nested under <see cref="ProgressState"/>
+    /// (like <see cref="TowerState"/>) so it rides the existing Progress reference-threading — only
+    /// the ProgressState constructors carry it, not every SaveState copy site.
+    /// </summary>
+    public sealed class AchievementState
+    {
+        public Dictionary<AchievementMetric, long> Counters = new Dictionary<AchievementMetric, long>(); // metric -> lifetime value
+        public Dictionary<string, int> Claimed = new Dictionary<string, int>();                          // achId -> tiers paid out
     }
 
     /// <summary>Which reward channel a monster modifier boosts (thematic per type — see

@@ -83,6 +83,32 @@ namespace IdleGame.GameCore
             };
         }
 
+        /// <summary>Credit scrap to the account balance (Currencies["scrap"]). Pure. Mirrors
+        /// <see cref="GrantGold"/> — used by achievement/milestone reward payouts.</summary>
+        public static SaveState GrantScrap(SaveState save, long amount)
+        {
+            if (amount <= 0) return save;
+
+            var currencies = new Dictionary<string, long>(save.Currencies);
+            currencies["scrap"] = (currencies.TryGetValue("scrap", out var s) ? s : 0) + amount;
+
+            return new SaveState
+            {
+                Version = save.Version,
+                RngSeed = save.RngSeed,
+                RngCursor = save.RngCursor,
+                Heroes = save.Heroes,
+                Party = save.Party,
+                LeaderHeroId = save.LeaderHeroId,
+                Inventory = save.Inventory,
+                Currencies = currencies,
+                Progress = save.Progress,
+                Quests = save.Quests,
+                Modifiers = save.Modifiers,
+                LastClaimAt = save.LastClaimAt,
+            };
+        }
+
         /// <summary>
         /// Record a stage clear: bump HighestStage if this is the deepest yet, auto-advance
         /// CurrentStage, and grant any hero unlocks now satisfied
@@ -99,6 +125,7 @@ namespace IdleGame.GameCore
                 CurrentStage = stage + 1,
                 AccountLevel = save.Progress.AccountLevel,
                 Tower = save.Progress.Tower,
+                Achievements = save.Progress.Achievements,
             });
 
             // Sorted so multi-unlock grants mint hero ids deterministically.
@@ -136,6 +163,7 @@ namespace IdleGame.GameCore
                 CurrentStage = stage,
                 AccountLevel = save.Progress.AccountLevel,
                 Tower = save.Progress.Tower,
+                Achievements = save.Progress.Achievements,
             });
         }
 

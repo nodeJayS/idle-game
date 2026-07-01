@@ -1,4 +1,4 @@
 ﻿<Solution>
-  <Project Path="IdleGame.Game.csproj" />
   <Project Path="IdleGame.GameCore.csproj" />
+  <Project Path="IdleGame.Game.csproj" />
 </Solution>

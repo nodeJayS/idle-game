@@ -17,8 +17,11 @@ for anything touching rules (build + `dotnet test gamecore/GameCore.Tests`, then
   audio assets in the repo yet).
 
 ## Systems / GameCore
-- **Progression hooks (Lever 4)** — milestone rewards, escalating goals, dailies/logins,
-  achievements/codex, and eventually prestige/rebirth. The one core loop lever not started.
+- **Progression hooks (Lever 4)** — *slice 1 shipped:* the **achievement ladder** (lifetime
+  `AchievementState` under `ProgressState`; `Achievements.Record` fed the same events as quests;
+  8 tiered achievements auto-paying gold+scrap+XP; read-only panel on the control bar). Next slices:
+  daily-login / streak reward (needs `now`), a manual "collect" claim UX, achievements feeding the
+  goal board, achievements/codex polish, and eventually prestige/rebirth.
 - **Tower of Ascension — slice 3:** per-floor reward bundles (scrap/gold/gear? — TBD) + juice.
 
 ## Deferred (intentionally, until the depth above lands)

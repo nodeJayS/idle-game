@@ -234,6 +234,7 @@ namespace IdleGame.Game
         private QuestPanel? _questPanel;
         private ModifierPanel? _modifierPanel;
         private TowerView? _towerView;
+        private AchievementsPanel? _achievements;
         private readonly Dictionary<string, View> _views = new Dictionary<string, View>();
 
         private double _accMs;
@@ -295,6 +296,7 @@ namespace IdleGame.Game
         public void BindChat(ChatPanel chat) => _chat = chat;
         public void BindModifiers(ModifierPanel panel) => _modifierPanel = panel;
         public void BindTower(TowerView panel) => _towerView = panel;
+        public void BindAchievements(AchievementsPanel panel) => _achievements = panel;
 
         /// <summary>Enter a Tower-of-Ascension floor from the TowerView: convert the live encounter
         /// into the bounded tower fight IN PLACE (no scene reset), mirroring the boss challenge. The
@@ -359,7 +361,8 @@ namespace IdleGame.Game
         private bool AnyPanelOpen => (_inventory != null && _inventory.IsOpen)
                                   || (_equipment != null && _equipment.IsOpen)
                                   || (_modifierPanel != null && _modifierPanel.IsOpen)
-                                  || (_towerView != null && _towerView.IsOpen);
+                                  || (_towerView != null && _towerView.IsOpen)
+                                  || (_achievements != null && _achievements.IsOpen);
 
         public void Init(SaveState save, GameConfig cfg)
         {
@@ -513,6 +516,38 @@ namespace IdleGame.Game
             if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg); // quest XP may have leveled a hero
         }
 
+        /// <summary>Record lifetime progress toward the achievement ladder (Lever 4) and announce any
+        /// tiers that just completed. Milestone rewards can grant party XP, so a completion refreshes
+        /// live party stats. Safe to call with 0/none (the reducer no-ops). Fed from the same game
+        /// events as the goal board, plus the state-max milestones (stage/floor/level).</summary>
+        private void Award(AchievementMetric metric, long amount)
+        {
+            var (next, done) = Achievements.Record(_save, metric, amount, _cfg);
+            _save = next;
+            if (done.Count == 0) return;
+
+            foreach (var u in done)
+            {
+                var t = u.Tier;
+                var bits = new List<string>();
+                if (t.RewardGold > 0) bits.Add($"{Num.Compact(t.RewardGold)} gold");
+                if (t.RewardScrap > 0) bits.Add($"{Num.Compact(t.RewardScrap)} scrap");
+                if (t.RewardXp > 0) bits.Add($"{Num.Compact(t.RewardXp)} XP");
+                string reward = bits.Count > 0 ? $"  (+{string.Join(", ", bits)})" : "";
+                _chat?.AddFeed($"★ Achievement: {u.Name} {u.TierIndex + 1}!{reward}", new Color(1f, 0.82f, 0.32f));
+            }
+            if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg); // milestone XP may have leveled a hero
+        }
+
+        /// <summary>Highest level across all owned heroes (fielded or benched) — the source for the
+        /// HeroLevel achievement (a MAX metric, so feeding it redundantly is a harmless no-op).</summary>
+        private int MaxHeroLevel()
+        {
+            int m = 0;
+            foreach (var h in _save.Heroes) if (h.Level > m) m = h.Level;
+            return m;
+        }
+
         /// <summary>Bank pending loot/XP/gold into the save. Returns true if XP was
         /// granted (so the caller can refresh live party stats).</summary>
         private bool CommitPending()
@@ -532,6 +567,8 @@ namespace IdleGame.Game
 
                 AdvanceQuest(QuestKind.FindRarePlus, rarePlus);
                 AdvanceQuest(QuestKind.SalvageItems, loot.Salvaged.Count); // auto-salvaged this batch
+                Award(AchievementMetric.RarePlusFound, rarePlus);          // lifetime ladder (Lever 4)
+                Award(AchievementMetric.ItemsSalvaged, loot.Salvaged.Count);
 
                 // Warn once when the bag overflows; clear the latch when it has room again.
                 if (loot.BagFull)
@@ -590,7 +627,9 @@ namespace IdleGame.Game
                 _save = Progression.GrantGold(_save, earned);
                 _combat.PendingGold = 0;
                 AdvanceQuest(QuestKind.EarnGold, earned);
+                Award(AchievementMetric.GoldEarned, earned); // lifetime ladder (Lever 4)
             }
+            if (xp) Award(AchievementMetric.HeroLevel, MaxHeroLevel()); // a level-up may complete a milestone
             return xp;
         }
 
@@ -609,6 +648,8 @@ namespace IdleGame.Game
                 _save = Progression.OnStageCleared(_save, cleared, _cfg); // also syncs modifiers to depth
                 _chat?.AddFeed($"Stage {cleared} cleared!", new Color(0.55f, 0.9f, 0.55f));
                 AdvanceQuest(QuestKind.ClearStages, 1);
+                Award(AchievementMetric.BossesKilled, 1);                          // stage boss down (Lever 4)
+                Award(AchievementMetric.HighestStage, _save.Progress.HighestStage); // deepest-stage milestone
 
                 // Modifiers now unlock/upgrade by farm depth (Lever 1) — surface the beat in the feed.
                 var unlock = new Color(0.85f, 0.6f, 1f);
@@ -644,6 +685,7 @@ namespace IdleGame.Game
                     _save = Modifiers.SyncToStage(_save, _cfg);
                     Combat.RefreshPartyStats(_combat, _save, _cfg); // a new milestone buff applies at once
                     _chat?.AddFeed($"Tower floor {floor} cleared!", new Color(0.6f, 0.85f, 1f));
+                    Award(AchievementMetric.HighestTowerFloor, floor); // highest-floor milestone (Lever 4)
                     if (Tower.MilestonesCleared(_save, _cfg) > before)
                         _chat?.AddFeed($"Ascension buff! +{Tower.AccountBuffPct(_save, _cfg) * 100:0}% account power (Hp/Atk/Def).",
                                        new Color(1f, 0.85f, 0.4f));
@@ -1014,7 +1056,11 @@ namespace IdleGame.Game
                         break;
                 }
             }
-            if (enemyKills > 0) AdvanceQuest(QuestKind.KillMonsters, enemyKills);
+            if (enemyKills > 0)
+            {
+                AdvanceQuest(QuestKind.KillMonsters, enemyKills);
+                Award(AchievementMetric.MonstersKilled, enemyKills); // lifetime ladder (Lever 4)
+            }
         }
 
         private void SyncViews()
@@ -1468,6 +1514,10 @@ namespace IdleGame.Game
 
             // Tower of Ascension (alt mode): shows the highest floor cleared.
             if (Button(x, y, 190, h, $"Tower (F{Tower.HighestFloor(_save)})")) _towerView?.Toggle();
+            x += 190 + gap;
+
+            // Achievements (Lever 4): the permanent milestone ladder.
+            if (Button(x, y, 240, h, "Achievements")) _achievements?.Toggle();
             // (The party always moves as a group now; stage nav + Challenge live in the
             // top-centre HUD — see DrawTopControls.)
         }

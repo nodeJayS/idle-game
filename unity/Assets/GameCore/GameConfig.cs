@@ -151,6 +151,29 @@ namespace IdleGame.GameCore
         public ImprintSlot ImprintSlot;
     }
 
+    /// <summary>One rung of an achievement ladder: reach <see cref="Threshold"/> on the parent
+    /// achievement's metric to claim a one-time reward. Rewards are a milestone BONUS on top of
+    /// normal income (chunkier than a goal-board payout, since each mints once for good).</summary>
+    public sealed class AchievementTier
+    {
+        public long Threshold;   // metric value that completes this tier
+        public long RewardGold;
+        public long RewardScrap;
+        public int RewardXp;
+    }
+
+    /// <summary>A lifetime achievement (Lever 4): a tiered ladder over one <see cref="AchievementMetric"/>.
+    /// Tiers are ascending by threshold; crossing one pays out once (see <see cref="Achievements"/>).
+    /// <see cref="Unit"/> is a client label hint ("monsters", "gold", "stage").</summary>
+    public sealed class AchievementDef
+    {
+        public string Id = "";
+        public string Name = "";
+        public AchievementMetric Metric;
+        public string Unit = "";
+        public List<AchievementTier> Tiers = new List<AchievementTier>();
+    }
+
     /// <summary>All tunable numbers. The file you edit constantly to balance.</summary>
     public sealed class BalanceConstants
     {
@@ -420,6 +443,8 @@ namespace IdleGame.GameCore
         // The order modifiers UNLOCK as farm depth grows (one per ModifierNewEveryStages). Boring
         // income mods first, the spicier behavioral ones later; mechanical/loot-imprint mods append here.
         public List<string> ModifierUnlockOrder = new List<string>();
+        // Lifetime achievement ladder (Lever 4 — the permanent milestone hooks). See Achievements.cs.
+        public List<AchievementDef> Achievements = new List<AchievementDef>();
         public BalanceConstants Balance = new BalanceConstants();
 
         /// <summary>The modifier type a stage's boss exhibits (and grants on a kill). Cycles the
@@ -461,6 +486,12 @@ namespace IdleGame.GameCore
             foreach (var (channel, per) in parts) list.Add(new RewardPart { Channel = channel, PerStrength = per });
             return list;
         }
+
+        // One achievement tier (threshold + gold/scrap/XP reward), and an achievement (tiers ascending).
+        private static AchievementTier AT(long threshold, long gold, long scrap, int xp)
+            => new AchievementTier { Threshold = threshold, RewardGold = gold, RewardScrap = scrap, RewardXp = xp };
+        private static AchievementDef Ach(string id, string name, AchievementMetric metric, string unit, params AchievementTier[] tiers)
+            => new AchievementDef { Id = id, Name = name, Metric = metric, Unit = unit, Tiers = new List<AchievementTier>(tiers) };
 
         /// <summary>The default content set.</summary>
         public static GameConfig Default()
@@ -903,6 +934,35 @@ namespace IdleGame.GameCore
             {
                 "prosperous", "studious", "bountiful", "armored", "swift", "vampiric", "thorns",
             };
+
+            // Achievements (Lever 4) — the permanent milestone ladder that spans the whole game, fed
+            // by the same events as the goal board. Each tier mints ONCE (a chunky bonus, not income);
+            // thresholds climb geometrically so there's always a next rung, and the deep tiers are a
+            // months-out chase alongside the level-100 grind. Tuned by feel (see docs).
+            cfg.Achievements.Add(Ach("slayer", "Monster Slayer", AchievementMetric.MonstersKilled, "monsters",
+                AT(100, 500, 20, 200), AT(1_000, 5_000, 100, 2_000), AT(10_000, 50_000, 500, 20_000),
+                AT(100_000, 500_000, 3_000, 200_000), AT(1_000_000, 5_000_000, 15_000, 2_000_000)));
+            cfg.Achievements.Add(Ach("boss_hunter", "Boss Hunter", AchievementMetric.BossesKilled, "bosses",
+                AT(10, 1_000, 30, 500), AT(50, 8_000, 150, 4_000), AT(250, 60_000, 800, 30_000),
+                AT(1_000, 400_000, 4_000, 200_000)));
+            cfg.Achievements.Add(Ach("salvager", "Salvager", AchievementMetric.ItemsSalvaged, "items",
+                AT(100, 400, 40, 150), AT(1_000, 4_000, 300, 1_500), AT(10_000, 40_000, 2_000, 15_000),
+                AT(100_000, 400_000, 12_000, 150_000)));
+            cfg.Achievements.Add(Ach("tycoon", "Tycoon", AchievementMetric.GoldEarned, "gold",
+                AT(10_000, 1_000, 50, 1_000), AT(100_000, 8_000, 300, 8_000), AT(1_000_000, 60_000, 1_500, 60_000),
+                AT(100_000_000, 4_000_000, 20_000, 2_000_000)));
+            cfg.Achievements.Add(Ach("collector", "Collector", AchievementMetric.RarePlusFound, "rare+ items",
+                AT(25, 1_000, 50, 500), AT(100, 6_000, 200, 3_000), AT(500, 40_000, 1_000, 20_000),
+                AT(2_500, 300_000, 6_000, 150_000)));
+            cfg.Achievements.Add(Ach("explorer", "Explorer", AchievementMetric.HighestStage, "stage",
+                AT(10, 2_000, 50, 1_000), AT(25, 15_000, 300, 8_000), AT(50, 120_000, 1_500, 60_000),
+                AT(75, 800_000, 8_000, 400_000), AT(100, 6_000_000, 40_000, 3_000_000)));
+            cfg.Achievements.Add(Ach("ascendant", "Ascendant", AchievementMetric.HighestTowerFloor, "floor",
+                AT(5, 3_000, 80, 1_500), AT(10, 20_000, 400, 10_000), AT(20, 150_000, 2_000, 80_000),
+                AT(30, 1_000_000, 10_000, 500_000)));
+            cfg.Achievements.Add(Ach("veteran", "Veteran", AchievementMetric.HeroLevel, "level",
+                AT(10, 2_000, 60, 0), AT(25, 15_000, 300, 0), AT(50, 120_000, 1_500, 0),
+                AT(75, 800_000, 8_000, 0), AT(100, 6_000_000, 40_000, 0)));
 
             return cfg;
         }

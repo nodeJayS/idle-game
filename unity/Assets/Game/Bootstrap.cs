@@ -83,6 +83,10 @@ namespace IdleGame.Game
             tower.Bind(view, cfg);
             view.BindTower(tower);
 
+            var achievements = director.AddComponent<AchievementsPanel>();
+            achievements.Bind(view, cfg);
+            view.BindAchievements(achievements);
+
             var topbar = new GameObject("TopBar").AddComponent<TopBar>();
             topbar.transform.SetParent(session.transform);
             topbar.Bind(view, () => QuitToMenu(cfg, session, view));

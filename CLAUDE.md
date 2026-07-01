@@ -47,7 +47,7 @@ docs/game-design.md      the durable what/why
   Play-mode can't run headlessly — visuals are verified by screenshot (Unity MCP), UI is
   hand-placed uGUI/IMGUI coords.
 
-## Current systems (362 tests passing)
+## Current systems (373 tests passing)
 
 Phase A (core loop) and most of Phase B (depth) are done. What exists today:
 
@@ -81,15 +81,22 @@ Phase A (core loop) and most of Phase B (depth) are done. What exists today:
   bundles still TBD (the one unfinished slice).
 - **Idle** (offline gold/XP/loot, 12h cap), **quests** (rolling goal board), **chat/feed** panel
   (system feed live; social tabs stubbed pending the server).
+- **Achievements (Lever 4 — slice 1)** — the permanent milestone ladder, distinct from the rolling
+  goal board. Lifetime `AchievementState` (nested under `ProgressState`): ADD counters (kills/bosses/
+  salvages/gold/rares) + MAX peaks (deepest stage/floor, hero level). `Achievements.Record` (fed the
+  same events as quests) auto-pays a one-time gold+scrap+XP reward per tier crossed, announced in the
+  feed; a read-only Achievements panel (control bar) shows the ladder. 8 achievements, geometric tiers.
+  Still open: dailies/login streak, manual-claim UX, achievements-as-quest-source, prestige.
 - **Art** — *Tunic* height-blend shader + faceted vertex-coloured world + dappled light; heroes are
   code-built **chibi placeholders** (Blender models are the eventual seam).
 
 **The four loop levers** (game-design.md §7.1): 1 combat variety ✅ · 2 loot/power chase ✅ ·
-3 build depth ✅ · **4 progression hooks — not started.**
+3 build depth ✅ · **4 progression hooks — in progress** (achievement ladder shipped; dailies/prestige next).
 
 ## What's next / open
 - **Content & polish** (current focus): more heroes/enemies/mods/stages; balance/tuning; combat juice.
-- **Progression hooks (Lever 4):** milestone rewards, dailies, achievements, prestige/rebirth.
+- **Progression hooks (Lever 4):** achievement ladder shipped (slice 1); next = dailies/login streak,
+  manual-claim UX, achievements feeding the goal board, prestige/rebirth.
 - **Tower slice 3:** per-floor reward bundles.
 - **Deferred:** real Blender hero models; UI/UX uGUI layout-group refactor; console balance-sim;
   gacha + live-service (design supports both additively — game-design.md §9).
