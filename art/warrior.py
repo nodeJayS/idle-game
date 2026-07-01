@@ -1,5 +1,8 @@
 # Chibi Warrior — scripted low-poly hero model (Tunic / MapleStory-2 chibi style).
 #
+# NOTE: no longer the shipped warrior — art/valkyrie.py exports over
+# warrior_basic.fbx now. Kept as the pipeline reference + an alternate model.
+#
 # This script IS the model source: run it headless to rebuild the mesh, rig and
 # renders from nothing. No .blend file is authoritative.
 #
