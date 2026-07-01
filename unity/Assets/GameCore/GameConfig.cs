@@ -217,8 +217,11 @@ namespace IdleGame.GameCore
         public int QuestBoardSize = 3;
 
         // A major boss (every 10th stage) multiplies the stage boss's scaled stats
-        // on top of the normal monster-level scaling.
-        public double MajorBossMult = 2.5;
+        // on top of the normal monster-level scaling. NOTE: this scales the boss's
+        // DAMAGE as well as HP — sim runs against a real 3-hero save showed 2.5
+        // one-shots a frontier party (wipe) while 2.0 gives a ~10-15s fight with
+        // headroom under the 30s challenge cap. Tune against that wipe cliff.
+        public double MajorBossMult = 2.0;
 
         // Hero downing/respawn (M4.3). A downed party hero respawns after
         // RespawnBaseMs + RespawnPerLevelMs * level. A run that can't clear within
@@ -296,7 +299,7 @@ namespace IdleGame.GameCore
         // HP by BossHpMult on top, and major bosses (every 10th) by MajorBossMult again.
         public double MonsterHpGrowth = 1.18;  // +18% HP per stage level (×~4.4 by 10, ×~1.3M by 100)
         public double MonsterDmgGrowth = 1.08; // +8% atk/def per stage level (survivable)
-        public double BossHpMult = 2.5;        // a boss is ~2.5x a same-stage trash mob (cut from 5 for faster boss kills)
+        public double BossHpMult = 2.0;        // a boss is ~2x a same-stage trash mob (cut again for the 3-hero party cap)
 
         // Tower of Ascension (alt mode): a ONE-CLEAR-PER-FLOOR track, distinct from the farmable
         // ladder. STEEPER than the ladder on BOTH axes (HP and damage), so it gates on built power
