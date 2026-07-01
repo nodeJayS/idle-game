@@ -61,8 +61,9 @@ namespace IdleGame.Game
 
         private void Render(float p)
         {
-            _goldText.text = $"Gold:  {Num.Compact((long)(_gold * p))}";
-            _xpText.text = $"XP:    {Num.Compact((long)(_xp * p))}";
+            // granted amounts floor (game-design §7): never advertise more than is banked
+            _goldText.text = $"Gold:  {Num.CompactFloor((long)(_gold * p))}";
+            _xpText.text = $"XP:    {Num.CompactFloor((long)(_xp * p))}";
             _itemsText.text = $"Items: {(int)(_items * p)}";
         }
 

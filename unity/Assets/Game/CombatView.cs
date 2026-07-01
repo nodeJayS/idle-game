@@ -527,7 +527,7 @@ namespace IdleGame.Game
             if (completed.Count == 0) return;
 
             foreach (var q in completed)
-                _chat?.AddFeed($"Goal complete: {QuestPanel.QuestLabel(q)}  (+{Num.Compact(q.RewardGold)} gold)",
+                _chat?.AddFeed($"Goal complete: {QuestPanel.QuestLabel(q)}  (+{Num.CompactFloor(q.RewardGold)} gold)",
                                new Color(1f, 0.85f, 0.35f));
             if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg); // quest XP may have leveled a hero
         }
@@ -546,9 +546,9 @@ namespace IdleGame.Game
             {
                 var t = u.Tier;
                 var bits = new List<string>();
-                if (t.RewardGold > 0) bits.Add($"{Num.Compact(t.RewardGold)} gold");
-                if (t.RewardScrap > 0) bits.Add($"{Num.Compact(t.RewardScrap)} scrap");
-                if (t.RewardXp > 0) bits.Add($"{Num.Compact(t.RewardXp)} XP");
+                if (t.RewardGold > 0) bits.Add($"{Num.CompactFloor(t.RewardGold)} gold");
+                if (t.RewardScrap > 0) bits.Add($"{Num.CompactFloor(t.RewardScrap)} scrap");
+                if (t.RewardXp > 0) bits.Add($"{Num.CompactFloor(t.RewardXp)} XP");
                 string reward = bits.Count > 0 ? $"  (+{string.Join(", ", bits)})" : "";
                 _chat?.AddFeed($"★ Achievement: {u.Name} {u.TierIndex + 1}!{reward}", new Color(1f, 0.82f, 0.32f));
             }
@@ -572,7 +572,7 @@ namespace IdleGame.Game
             var (next, gems, streak, claimed) = DailyLogin.Claim(_save, _cfg, now);
             if (!claimed) return;
             _save = next;
-            _chat?.AddFeed($"Daily reward — day {streak} streak!  +{Num.Compact(gems)} gems",
+            _chat?.AddFeed($"Daily reward — day {streak} streak!  +{Num.CompactFloor(gems)} gems",
                            new Color(0.6f, 0.85f, 1f));
         }
 

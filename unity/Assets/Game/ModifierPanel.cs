@@ -161,7 +161,7 @@ namespace IdleGame.Game
             // Upgrade (shop): gamble tuning with gold+scrap; cost rises as the mod climbs.
             var (g, s) = Modifiers.UpgradeCost(save, _cfg, def.Id);
             bool canUp = Modifiers.CanUpgrade(save, _cfg, def.Id);
-            var up = UiKit.TextButton(parent, $"⬆ {Num.Compact(g)}g+{Num.Compact(s)}s", new Vector2(120f, 32f), Vector2.zero,
+            var up = UiKit.TextButton(parent, $"⬆ {Num.CompactCeil(g)}g+{Num.CompactCeil(s)}s", new Vector2(120f, 32f), Vector2.zero,
                 canUp ? () => { _view.UpgradeModifier(def.Id); Rebuild(); } : (System.Action)(() => { }), 12);
             up.interactable = canUp;
             var upImg = up.GetComponent<Image>();

@@ -68,7 +68,7 @@ namespace IdleGame.Game
             if (t >= 1f) _animating = false;
         }
 
-        private void Render(float p) => _gemsText.text = $"+{Num.Compact((long)(_gems * p))} gems";
+        private void Render(float p) => _gemsText.text = $"+{Num.CompactFloor((long)(_gems * p))} gems";
 
         private static float EaseOutCubic(float t) => 1f - Mathf.Pow(1f - t, 3f);
     }

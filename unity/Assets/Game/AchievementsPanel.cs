@@ -76,9 +76,11 @@ namespace IdleGame.Game
             long prev = claimed > 0 ? def.Tiers[claimed - 1].Threshold : 0;
             long nextT = complete ? def.Tiers[def.Tiers.Count - 1].Threshold : def.Tiers[claimed].Threshold;
 
+            // Rounding (game-design §7): progress floors (never overstate), the goal ceils
+            // (never show a target as reached before the real threshold is).
             string sub = complete
-                ? $"{Num.Compact(counter)} {def.Unit}  ·  all tiers earned"
-                : $"{Num.Compact(counter)} / {Num.Compact(nextT)} {def.Unit}";
+                ? $"{Num.CompactFloor(counter)} {def.Unit}  ·  all tiers earned"
+                : $"{Num.CompactFloor(counter)} / {Num.CompactCeil(nextT)} {def.Unit}";
             var subLbl = UiKit.Label(parent, sub, 12, TextAnchor.UpperLeft, new Vector2(340f, 18f), Vector2.zero);
             subLbl.color = new Color(0.75f, 0.79f, 0.85f);
             AnchorTL(subLbl, new Vector2(26f, y - 27f));
@@ -118,10 +120,11 @@ namespace IdleGame.Game
 
         private static string RewardText(AchievementTier t)
         {
+            // Promised rewards floor (game-design §7): never advertise more than is granted.
             var bits = new List<string>();
-            if (t.RewardGold > 0) bits.Add($"{Num.Compact(t.RewardGold)}g");
-            if (t.RewardScrap > 0) bits.Add($"{Num.Compact(t.RewardScrap)}s");
-            if (t.RewardXp > 0) bits.Add($"{Num.Compact(t.RewardXp)}xp");
+            if (t.RewardGold > 0) bits.Add($"{Num.CompactFloor(t.RewardGold)}g");
+            if (t.RewardScrap > 0) bits.Add($"{Num.CompactFloor(t.RewardScrap)}s");
+            if (t.RewardXp > 0) bits.Add($"{Num.CompactFloor(t.RewardXp)}xp");
             return bits.Count > 0 ? "+ " + string.Join("  ", bits) : "";
         }
 

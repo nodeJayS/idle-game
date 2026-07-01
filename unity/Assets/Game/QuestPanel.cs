@@ -59,7 +59,8 @@ namespace IdleGame.Game
                 if (!used) continue;
                 var q = board.Active[i];
                 _names[i].text = QuestLabel(q);
-                _counts[i].text = $"{Num.Compact(q.Progress)} / {Num.Compact(q.Target)}";
+                // progress floors, the goal ceils (game-design §7 — never show a goal as met early)
+                _counts[i].text = $"{Num.CompactFloor(q.Progress)} / {Num.CompactCeil(q.Target)}";
                 float frac = q.Target > 0 ? Mathf.Clamp01((float)((double)q.Progress / q.Target)) : 0f;
                 _fills[i].anchorMax = new Vector2(frac, 1f); // left-anchored fill: width = frac of the bar
             }
@@ -67,11 +68,12 @@ namespace IdleGame.Game
 
         public static string QuestLabel(Quest q) => q.Kind switch
         {
-            QuestKind.KillMonsters => $"Slay {Num.Compact(q.Target)} monsters",
-            QuestKind.SalvageItems => $"Salvage {Num.Compact(q.Target)} items",
-            QuestKind.EarnGold     => $"Earn {Num.Compact(q.Target)} gold",
-            QuestKind.ClearStages  => $"Clear {Num.Compact(q.Target)} stages",
-            QuestKind.FindRarePlus => $"Find {Num.Compact(q.Target)} Rare+ items",
+            // goal amounts ceil (game-design §7): never understate what's required
+            QuestKind.KillMonsters => $"Slay {Num.CompactCeil(q.Target)} monsters",
+            QuestKind.SalvageItems => $"Salvage {Num.CompactCeil(q.Target)} items",
+            QuestKind.EarnGold     => $"Earn {Num.CompactCeil(q.Target)} gold",
+            QuestKind.ClearStages  => $"Clear {Num.CompactCeil(q.Target)} stages",
+            QuestKind.FindRarePlus => $"Find {Num.CompactCeil(q.Target)} Rare+ items",
             _ => "Goal",
         };
 
