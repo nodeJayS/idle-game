@@ -233,13 +233,15 @@ namespace IdleGame.Game
         // ---- auto-salvage threshold control ----
 
         // The selectable thresholds, low→high. Legendary/Mythic are intentionally absent:
-        // they're the boss-only chase tiers, so auto-salvage never touches them.
+        // they're the top boss-only chase tiers, so auto-salvage never touches them.
+        // Unique IS offered for the late game where Unique drops become churn.
         // "& below" matches Inventory.AddLoot's `Rarity <= max` semantics.
         private static readonly (Rarity? max, string label)[] AutoSalvageOptions =
         {
             (null, "Off"),
             (Rarity.Normal, "Normal"),
             (Rarity.Rare, "Rare & below"),
+            (Rarity.Unique, "Unique & below"),
         };
 
         private static string AutoSalvageLabel(Rarity? max)
