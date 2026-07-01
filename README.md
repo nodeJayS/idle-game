@@ -4,12 +4,13 @@ A low-poly **3D idle ARPG** — Diablo/PoE-style loot & build depth. A 3-hero pa
 Progress accrues while you're away.
 
 > **Status:** the simulation lives in a pure-C# `GameCore` library (tested with
-> `dotnet test`, 216 passing) that Unity references as its client. **Phase A (core
-> loop, M0–M9) is complete**; **Phase B (depth)** is underway — multi-character
-> foundation, skills firing in combat, and a *Tunic*-style art pass (height-blend
-> shader, faceted vertex-coloured world, dappled lighting; heroes are code-built
-> chibi placeholders pending Blender models). Gacha and live-service are deferred;
-> the architecture supports both later.
+> `dotnet test`, **362 passing**) that Unity references as its client. **Phase A (core
+> loop) is complete** and most of **Phase B (depth)** is in: 3-hero roster + skills/skill
+> trees, loot + power-score legibility, a risk/reward **monster-modifier** core loop with
+> loot-imprinted exclusive gear, a **gold+scrap gamble economy** (modifier shop + item
+> reforge), a **Tower of Ascension** alt mode, and a *Tunic*-style art pass (chibi
+> placeholders pending Blender models). Gacha and live-service are deferred; the
+> architecture supports both later.
 
 ## Repo layout
 ```
@@ -70,7 +71,7 @@ Per-machine prereqs (can't be committed):
 3. Open the clone in Claude — the `UnityMCP` server connects automatically. Localhost
    only, no secrets.
 
-## Milestones
-**Phase A (M0–M9) ✅** — auto-combat, loot, leveling, stage ladder + boss gates, idle, persistence, feel pass, ranged class, polish.
-**Phase B (depth)** — M10 multi-character ✅, M11 skills ✅, Tunic art pivot ✅; roster/gacha/live-service ahead.
-Full status and the live-service roadmap are in [`CLAUDE.md`](CLAUDE.md); the durable design is in [`docs/game-design.md`](docs/game-design.md).
+## Status & roadmap
+**Phase A (core loop) ✅** — auto-combat, loot, leveling, stage ladder + boss gates, idle, persistence, feel pass.
+**Phase B (depth) — mostly in** — 3-hero roster + skills/passives/skill trees, loot legibility + auto-equip, monster modifiers + loot-imprint gear, modifier shop + item reforge, Tower of Ascension. Ahead: progression hooks (prestige/dailies), more content, then gacha/live-service.
+Current systems live in [`CLAUDE.md`](CLAUDE.md); the durable design + live-service roadmap in [`docs/game-design.md`](docs/game-design.md).

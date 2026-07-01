@@ -23,7 +23,7 @@
 | Party | **3 hero slots** from a multi-class roster; **start solo (Warrior)**, unlock the **Magician at stage 3**. Leveling is **per-hero** (see §4) |
 | Classes | Each class has its **own skill set**; skills fire automatically in combat (live, M11) |
 | Map / movement | Party **auto-navigates** stages, auto-fights, auto-loots |
-| Stages | **1–50 main ladder**; clear a **miniboss** to advance, **major boss every 10**. Endless & party modes later |
+| Stages | **1–100 main ladder**; clear a **miniboss** to advance, **major boss every 10**. Tower / endless / party modes later |
 | Hero death | Heroes are **downed** with a **per-hero respawn timer** (scales up as they get stronger); a full wipe fails the run. No permanent loss. Frequent wipes = the stage is too strong |
 | Items | Drop with random affixes; **upgradeable later via enhancement scrolls** (risk/reward, MapleStory-style) |
 | **Gacha** | **ON HOLD** — heroes *and* weapons later. Architecture must scale to it (see §9) |
@@ -65,7 +65,7 @@ If this feels good with placeholder primitives and grey/blue/yellow item rectang
 No gacha, no summoning. Heroes 2–4 unlock through progression for now (gacha slots in later — §9).
 
 ### 2.1 Stage structure, bosses & hero death
-- **50 main stages.** Each stage is a few monster packs ending in a **miniboss**; beating the miniboss marks the stage cleared and unlocks the next. Idle income keys off your **highest cleared** stage, so being stuck never breaks idle income.
+- **100 main stages.** Each stage is an endless farm zone ending in a **60s timed boss challenge**; beating it marks the stage cleared and unlocks the next. Idle income keys off your **highest cleared** stage, so being stuck never breaks idle income.
 - **Major boss every 10 stages** — a difficulty *wall* (and, later, a biome boundary). These force gear/level optimization instead of pure pushing, and are the natural home for future themed zones.
 - **Hero death = downed with a respawn timer, not permadeath.** A hero at 0 HP is downed and **respawns after a per-hero timer**; if all four are down the run **fails** (no clear, no loot). The timer **scales up with the hero's strength/level** — stronger heroes take longer to get back, so you can't lean on a single carry forever, and it doubles as a balancing lever. No permanent loss (an idle game shouldn't punish AFK play). **Repeated wipes = the stage is too strong** — go farm, level, and re-gear.
 - **Alt modes (later):** an **endless mode** (infinite scaling for a "deepest stage" chase) and a **party / co-op mode** (queue with others). Both reuse the same `GameCore` — they just build different encounters + a different `LootContext`.
@@ -244,11 +244,21 @@ to watch?* and *is there a reason to keep going?* These four levers, roughly in 
 build value, are the long-run plan; **all four are goals.** Don't reach for QoL or
 big-architecture (prestige) until the minute-to-minute is fun.
 
-1. **Combat variety** *(✅ shipped).* Two slices, both done: (a) elite/rare ranks — tougher,
-   highlighted mobs with a better-loot drop; (b) **monster modifiers** — a player-controlled
-   risk/reward knob (PoE map-mods): bosses grant modifier types (Vampiric/Swift/Armored/Thorns)
-   you toggle/stack onto farm trash for harder mobs + thematic rewards (gold/XP/drop). Hits
-   *empty* and *boring* at once. See §8 "Pack variety".
+1. **Combat variety** *(✅ shipped — and grew into the core loop).* (a) elite/rare **ranks** —
+   tougher, highlighted mobs with better loot; (b) **monster modifiers** — a player-controlled
+   risk/reward knob (PoE map-mods). This is now the game's central loop:
+   - **Two pools.** *Normal* stat mods unlock by farm depth (one per 10 stages) for a 3-slot
+     account loadout; *Rare* mechanical mods are **Tower-gated, unlocked in prefix/suffix pairs**
+     with a separate 2-prefix + 2-suffix loadout.
+   - **Loot-imprint (the headline hook).** A rare mod fights nastier via a real sim mechanic
+     (splash / chain / lifesteal / thorns) AND stamps that trait onto its drops as **exclusive
+     gear** — a stat no normal affix rolls. Anti-target-farming: a slot only applies with ≥2 active,
+     an item holds ≤1 prefix + ≤1 suffix imprint, and the imprint is a random pick among hits.
+   - **Gamble economy.** Spend **gold + scrap** to roll a ±5% delta (floored at base, escalating
+     cost) on a mod's **tuning** (scales its danger + reward; rewards can be hybrid splits) or on an
+     **item's affix values** (Reforge). One gamble verb, two surfaces — no full crafting system.
+
+   Hits *empty* and *boring* at once, and gives gold/scrap real sinks. See §8.
 2. **Loot & power chase** *(✅ shipped).* Drops legible at a glance: `Upgrades.PowerScore`
    collapses an item swap into one honest scalar (geometric mean of DPS + Effective-Life) and a
    banded Upgrade/Sidegrade/Downgrade verdict, so the bag badges upgrades (green ▲), the loot feed
@@ -302,13 +312,13 @@ single-player, local game), **Depth** (build variety + retention), **Live-servic
 | **Hero acquisition pipeline** | Start solo (Warrior); `GameConfig.HeroUnlocks` grants heroes on stage clear (stage 3 → Magician) via `Party.AcquireHero` + auto-field (`Party.FieldHero` dedupe-safe). The plug point gacha reuses later. | ✅ |
 | **World & combat feel** | Geometric difficulty (steep HP/dmg growth + `BossHpMult`), **100-stage ladder**; big open field; **party-relative PACK spawning** (clusters ring the group, quiet gaps, sparse, no distance cull); party **always-group**; follow camera + wheel zoom + shake; top-centre stage nav/Challenge + boss-clear popup. | ✅ |
 | **Art direction — *Tunic* pivot** | `TunicSurface` height-blend shader (grass-top/dirt-side + inked facet edges + crisp light); faceted vertex-coloured ground + props; clean lighting + procedural dappled light cookie. Heroes are code-built **chibi placeholders** — Blender skinned models are the eventual goal, plugging into the `CombatView` spawn/animator seam. Mixamo removed. | ✅ |
-| **Pack variety** — *✅* | (a) Elite/rare ranks (highlighted, tougher, better loot); (b) **monster modifiers** — boss-sourced, player-toggled risk/reward types (Vampiric/Swift/Armored/Thorns) applied to farm trash for harder mobs + thematic rewards. Lever #1 of §7.1. | ✅ |
+| **Monster-modifier core loop** — *✅* | Elite/rare ranks; the risk/reward **modifier** system: two pools (farm-depth normal stat mods + Tower-gated rare **loot-imprint** mods that stamp exclusive gear), a **modifier shop + item reforge** gold+scrap gamble economy, hybrid reward splits. Lever #1 of §7.1. | ✅ |
 | **Loot legibility** — *✅* | `Upgrades` power-score + verdict core (geometric DPS×Eff-Life); bag ▲ badges, loot-feed upgrade tags, compare verdict headline, opt-in auto-equip-if-better. Lever #2 of §7.1. | ✅ |
 | **Skills & skill trees** *(✅)* | Per-hero **unique** skills, leveled with skill points. **Slice 1 ✅** — 1 point/level (`Skills.InvestSkill`/`RespecHero`; ranks scale effect `×(1+EffectPerRank·rank)`, rank 0 = base; UI invest/respec in Heroes→Skills). **Slice 2 ✅ active/passive** — 6 active (≤4 equipped) + 2 always-on passive nodes/class that fold into `Stats.ComputeHeroStats`. **Slice 3 ✅ gated tree** — actives branch from 2 roots; a node needs ≥1 rank in its prereq AND `hero.Level ≥ UnlockLevel` (`SkillDef.Prereq`/`UnlockLevel`, `Skills.IsUnlocked`); gates investment only. Lever #3 of §7.1. | ✅ |
-| **Roster growth & classes** | More hero unlocks (stage 5/7/…) and new classes/kits beyond Warrior + Magician. | |
+| **Roster growth & classes** | Warrior + Magician + **Thief** (fast crit assassin), unlocked via stage clears. More heroes/classes/kits ahead. | ◑ |
 | **Social / chat IA** | Pre-release shows **System only**; Global · Friends · Guild and per-person **Whispers** (DMs) stay hidden until the server (Phase C) so players aren't shown dead features. Target IA + the re-enable seam are documented in `ChatPanel`. | ◑ |
-| **Crafting / sets / loot filter** | Affix rerolls, set bonuses, enhancement scrolls (§6.1), loot filter. | |
-| **Alt modes** | **Tower of Ascension** (user-requested) — a 100-floor tower, **exponentially** harder per floor, gating on built power so it's a long farm/upgrade goal (SW-ToA inspired). Must differ from the farm ladder: its **own** progression track, **one-time clear** per floor (not farmed), and milestone rewards (e.g. permanent account-wide buffs every 10 floors); per-floor rewards **TBD**. Build GameCore-first (`Tower.cs` reducer + `SaveState.Tower` + injected floor/curve/reward table, reusing the combat sim). Also: Endless ("deepest stage"); later party / co-op. | |
+| **Crafting / sets / loot filter** | **Item Reforge** (affix-value re-roll gamble) + **modifier shop** shipped; set bonuses, loot filter, enhancement scrolls (§6.1) still open. | ◑ |
+| **Alt modes** | **Tower of Ascension** ✅ playable — its own one-clear-per-floor track, steeper curve, no idle income, permanent account-wide buff every 10 floors, and the **gate for the rare modifier pairs** (`Tower.cs` + `TowerState` under `ProgressState`). Remaining: per-floor reward bundles (slice 3, TBD). Also planned: Endless ("deepest stage"); later party / co-op. | ◑ |
 | **Prestige & retention** | Rebirth multiplier; daily/weekly quests, login rewards, achievements, codex. | |
 | **UI/UX polish pass** | Dedicated pass **after the gameplay depth above** — the current screens are functional placeholders (IMGUI HUD + code-built uGUI, hand-placed coords). The real fix is a **uGUI layout-group refactor**; plus glyph/font audit, theming, real item/hero art hooks. | deferred |
 | **Balance sim (tooling)** | A console runner over pure `GameCore` to chart difficulty vs hero power across stages/levels/gear and find the walls. The steep geometric curves are tuned by feel today, and heroes can out-level a stage and one-shot trash. | deferred |
@@ -379,15 +389,19 @@ Unity IAP, Remote Config, Analytics.
 ---
 
 ## 10. Open next steps
-Skill FX, salvage UI, and the roster screen (with live farm swaps) are **done** — see §8
-Phase B. Gameplay-first, the next depth work is:
-- **Roster growth & classes:** acquire heroes 2–4 via progression; add classes/kits.
-- **Gear depth:** sets, enhancement scrolls (§6.1), affix reroll, loot filter.
+The three combat/build/loot levers (§7.1 #1–3) are shipped: monster-modifier core loop +
+loot-imprint gear, loot legibility + auto-equip, skills/passives/gated trees. The Tower alt
+mode, the gold+scrap gamble economy (modifier shop + item reforge), a 3-hero roster (Warrior/
+Magician/Thief), and a months-long hero-leveling curve are in. Gameplay-first, next:
+- **Content & polish (current focus):** more heroes/classes, enemy variety, more mods & stages;
+  balance/tuning; combat juice + sound.
+- **Progression hooks (Lever 4, §7.1 #4):** milestone rewards, dailies/logins, achievements/codex,
+  then prestige/rebirth.
+- **Tower slice 3:** per-floor reward bundles.
+- **Gear depth (remaining):** set bonuses, loot filter, enhancement scrolls (§6.1).
 - **Alt modes:** endless ("deepest stage"), then party/co-op.
-- **Prestige & retention:** rebirth multiplier; daily/weekly quests, login rewards, achievements, codex.
 - **Then** gacha + live-service per §8/§9.
 
-**UI/UX polish is its own milestone, sequenced *after* the depth gameplay above** (decided
-June 2026). Today's screens are deliberately functional placeholders (IMGUI HUD + code-built
-uGUI, primitive art); polish — layout/scale/theming, a glyph/font audit, control-bar redesign,
-and real item/hero art hooks — lands as one focused pass rather than being interleaved now.
+**UI/UX polish is its own milestone, sequenced *after* the depth gameplay above** — today's
+screens are functional placeholders (IMGUI HUD + code-built uGUI, hand-placed coords); the fix
+is one focused pass: a uGUI layout-group refactor + glyph/font audit + theming + real art hooks.
