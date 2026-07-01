@@ -44,6 +44,81 @@ namespace IdleGame.GameCore.Tests
             Assert.NotSame(save.Inventory, next.Inventory);
         }
 
+        // --- Reforge (item shop) ---
+
+        private static SaveState RichWith(Item item)
+        {
+            var s = Save.NewGame(1, Cfg, 0);
+            s.Inventory.Add(item);
+            s.Currencies["gold"] = 100_000_000;
+            s.Currencies["scrap"] = 100_000_000;
+            return s;
+        }
+
+        private static Item AtkItem(double value, int ilvl = 10)
+        {
+            var it = It("rf", Rarity.Rare, "rusty_sword", ilvl);
+            it.Affixes.Add(new Affix { Stat = StatKey.Atk, Value = value });
+            return it;
+        }
+
+        [Fact]
+        public void ReforgeSpendsGoldAndScrap()
+        {
+            var s = RichWith(AtkItem(5));
+            var (g, sc) = Inventory.ReforgeCost(s.Inventory[s.Inventory.Count - 1], Cfg);
+            var after = Inventory.Reforge(s, "rf", Cfg);
+            Assert.Equal(100_000_000 - g, after.Currencies["gold"]);
+            Assert.Equal(100_000_000 - sc, after.Currencies["scrap"]);
+        }
+
+        [Fact]
+        public void ReforgeIsNoopWhenUnaffordable()
+        {
+            var s = RichWith(AtkItem(5));
+            s.Currencies["gold"] = 0; s.Currencies["scrap"] = 0;
+            Assert.Same(s, Inventory.Reforge(s, "rf", Cfg)); // can't afford -> shares ref
+        }
+
+        [Fact]
+        public void ReforgeKeepsAffixesWithinLegitRange()
+        {
+            var def = Cfg.AffixPool.Find(d => d.Stat == StatKey.Atk)!;
+            double min = def.ValueMinPerItemLevel * 10, max = def.ValueMaxPerItemLevel * 10;
+            var s = RichWith(AtkItem(max, 10)); // start at the ceiling
+            for (int i = 0; i < 40; i++) s = Inventory.Reforge(s, "rf", Cfg);
+            double v = s.Inventory.Find(i => i.Id == "rf")!.Affixes.Find(a => a.Stat == StatKey.Atk)!.Value;
+            Assert.InRange(v, min, max); // random-walk stays clamped to the item's legit roll range
+        }
+
+        [Fact]
+        public void ReforgeLeavesImprintAffixesUntouched()
+        {
+            var it = AtkItem(5, 10);
+            it.Affixes.Add(new Affix { Stat = StatKey.SplashRadius, Value = 1.2 }); // imprint (not in pool)
+            var after = Inventory.Reforge(RichWith(it), "rf", Cfg);
+            double splash = after.Inventory.Find(i => i.Id == "rf")!.Affixes.Find(a => a.Stat == StatKey.SplashRadius)!.Value;
+            Assert.Equal(1.2, splash); // imprint preserved
+        }
+
+        [Fact]
+        public void CannotReforgeAnItemWithNoNormalAffixes()
+        {
+            var it = It("imp", Rarity.Rare, "rusty_sword", 10);
+            it.Affixes.Add(new Affix { Stat = StatKey.SplashRadius, Value = 1.2 }); // imprint only
+            Assert.False(Inventory.CanReforge(RichWith(it), "imp", Cfg));
+        }
+
+        [Fact]
+        public void ReforgeIsPureAndAdvancesTheCursor()
+        {
+            var s = RichWith(AtkItem(5));
+            var after = Inventory.Reforge(s, "rf", Cfg);
+            Assert.NotEqual(s.RngCursor, after.RngCursor);                 // roll persisted
+            Assert.NotSame(s.Inventory, after.Inventory);                  // new list
+            Assert.Equal(5, s.Inventory.Find(i => i.Id == "rf")!.Affixes.Find(a => a.Stat == StatKey.Atk)!.Value); // input untouched
+        }
+
         // --- M10.2: inventory cap + auto-salvage ---
 
         [Fact]

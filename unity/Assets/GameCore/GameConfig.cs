@@ -301,6 +301,12 @@ namespace IdleGame.GameCore
         public double ModShopRollMin = -0.05;    // −5%
         public double ModShopRollMax = 0.05;     // +5% (symmetric; floored at 1.0 so it can't drop below base)
 
+        // Reforge (item shop): the SAME gamble verb pointed at gear — spend gold+scrap to re-roll an
+        // item's normal affix values by ModShopRollMin/Max, clamped to each affix's legit [min,max] for
+        // its item level (imprint affixes are left untouched). Cost scales with item level + rarity.
+        public long ReforgeBaseGold = 500;
+        public long ReforgeBaseScrap = 10;
+
         // Chaining (rare prefix): after a basic hit, the strike arcs to nearby enemies (or party
         // members, for a Chaining monster). ChainRange is the per-jump reach — kept moderate so it
         // feels like an arc, not a screen-wide zap. ChainCount (the StatKey) is floored to an int and

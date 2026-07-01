@@ -165,6 +165,21 @@ namespace IdleGame.Game
                 y -= 22f;
             }
 
+            // Reforge (item shop): gamble the normal affix values with gold+scrap. Works on any item
+            // (including equipped gear); disabled if it has no normal affixes or you can't afford it.
+            if (item.Affixes.Exists(a => !Loot.IsImprintStat(a.Stat, _cfg)))
+            {
+                var (rg, rs) = Inventory.ReforgeCost(item, _cfg);
+                bool canRf = Inventory.CanReforge(save, item.Id, _cfg);
+                var rf = UiKit.TextButton(_detail, $"Reforge  {Num.Compact(rg)}g + {Num.Compact(rs)}s", new Vector2(260, 40),
+                    new Vector2(0, -150), canRf
+                        ? () => { _view.ReforgeItem(item.Id); ShowDetail(_view.CurrentSave, _view.CurrentSave.Inventory.Find(i => i.Id == item.Id)); }
+                        : (System.Action)(() => { }), 15);
+                rf.interactable = canRf;
+                var rfImg = rf.GetComponent<Image>();
+                if (rfImg != null) rfImg.color = canRf ? new Color(0.34f, 0.30f, 0.46f) : new Color(0.24f, 0.24f, 0.28f);
+            }
+
             var owner = EquippedByWhom(save, item.Id);
             if (owner != null)
             {

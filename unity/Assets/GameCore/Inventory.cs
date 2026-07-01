@@ -90,6 +90,74 @@ namespace IdleGame.GameCore
             return result;
         }
 
+        // ---- Reforge (item shop): the modifier-shop gamble verb, pointed at gear ----
+
+        /// <summary>Gold + scrap to reforge an item — scales with its item level and rarity.</summary>
+        public static (long gold, long scrap) ReforgeCost(Item item, GameConfig cfg)
+        {
+            long mult = (1 + item.ItemLevel) * (1 + (int)item.Rarity);
+            return (cfg.Balance.ReforgeBaseGold * mult, cfg.Balance.ReforgeBaseScrap * mult);
+        }
+
+        /// <summary>True if the item is owned, has at least one reforgeable (normal, pool-rolled) affix,
+        /// and the player can afford the cost. Imprint affixes aren't reforgeable.</summary>
+        public static bool CanReforge(SaveState save, string itemId, GameConfig cfg)
+        {
+            var item = save.Inventory.Find(i => i.Id == itemId);
+            if (item == null || !item.Affixes.Exists(a => cfg.AffixPool.Exists(d => d.Stat == a.Stat))) return false;
+            var (g, s) = ReforgeCost(item, cfg);
+            long gold = save.Currencies.TryGetValue("gold", out var gv) ? gv : 0;
+            long scrap = save.Currencies.TryGetValue("scrap", out var sv) ? sv : 0;
+            return gold >= g && scrap >= s;
+        }
+
+        /// <summary>Spend gold+scrap to re-roll an item's NORMAL affix values by ±ModShopRoll, clamped to
+        /// each affix's legit [min,max] for its item level. Imprint affixes (not in the pool) are kept
+        /// as-is. No-op (shares the ref) if it can't be reforged/afforded. Deterministic via the save's
+        /// own rng cursor (advanced + persisted). Pure — returns a new save with a fresh item copy.</summary>
+        public static SaveState Reforge(SaveState save, string itemId, GameConfig cfg)
+        {
+            if (!CanReforge(save, itemId, cfg)) return save;
+            var item = save.Inventory.Find(i => i.Id == itemId)!;
+            var (gold, scrap) = ReforgeCost(item, cfg);
+
+            var rng = new Rng(save.RngSeed, save.RngCursor);
+            var newAffixes = new List<Affix>(item.Affixes.Count);
+            foreach (var a in item.Affixes)
+            {
+                var def = cfg.AffixPool.Find(d => d.Stat == a.Stat);
+                if (def == null) { newAffixes.Add(new Affix { Stat = a.Stat, Value = a.Value }); continue; } // imprint: keep
+                double min = def.ValueMinPerItemLevel * item.ItemLevel;
+                double max = def.ValueMaxPerItemLevel * item.ItemLevel;
+                double rolled = a.Value * (1.0 + rng.RandRange(cfg.Balance.ModShopRollMin, cfg.Balance.ModShopRollMax));
+                newAffixes.Add(new Affix { Stat = a.Stat, Value = Math.Min(max, Math.Max(min, rolled)) });
+            }
+
+            var newItem = new Item { Id = item.Id, BaseId = item.BaseId, Rarity = item.Rarity, ItemLevel = item.ItemLevel, Affixes = newAffixes };
+            var nextInventory = new List<Item>(save.Inventory);
+            nextInventory[nextInventory.FindIndex(i => i.Id == itemId)] = newItem;
+
+            var currencies = new Dictionary<string, long>(save.Currencies);
+            currencies["gold"] = (save.Currencies.TryGetValue("gold", out var g) ? g : 0) - gold;
+            currencies["scrap"] = (save.Currencies.TryGetValue("scrap", out var s) ? s : 0) - scrap;
+
+            return new SaveState
+            {
+                Version = save.Version,
+                RngSeed = save.RngSeed,
+                RngCursor = rng.Cursor, // persist so the roll can't be re-rolled
+                Heroes = save.Heroes,
+                Party = save.Party,
+                LeaderHeroId = save.LeaderHeroId,
+                Inventory = nextInventory,
+                Currencies = currencies,
+                Progress = save.Progress,
+                Quests = save.Quests,
+                Modifiers = save.Modifiers,
+                LastClaimAt = save.LastClaimAt,
+            };
+        }
+
         /// <summary>
         /// Manually salvage one loose item to scrap. Throws on unknown item or one that's
         /// equipped (so the player can never accidentally scrap worn gear). Pure.

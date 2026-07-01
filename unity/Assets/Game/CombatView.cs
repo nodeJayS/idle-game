@@ -340,6 +340,22 @@ namespace IdleGame.Game
                            delta >= 0 ? new Color(0.55f, 0.9f, 0.6f) : new Color(0.95f, 0.6f, 0.45f));
         }
 
+        /// <summary>Reforge (item shop): gamble an item's normal affix values with gold+scrap. Persists
+        /// via the reducer + reports in the feed. No-op with a note if it can't be reforged/afforded.</summary>
+        public void ReforgeItem(string itemId)
+        {
+            if (!Inventory.CanReforge(_save, itemId, _cfg))
+            {
+                _chat?.AddFeed("Not enough gold + scrap to reforge that item.", new Color(0.9f, 0.6f, 0.5f));
+                return;
+            }
+            var item = _save.Inventory.Find(i => i.Id == itemId);
+            _save = Inventory.Reforge(_save, itemId, _cfg);
+            if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg); // reforged worn gear applies at once
+            string nm = item != null ? StatDisplay.ItemName(item, _cfg) : "item";
+            _chat?.AddFeed($"Reforged {nm} — its affixes re-rolled.", new Color(0.7f, 0.8f, 1f));
+        }
+
         private bool AnyPanelOpen => (_inventory != null && _inventory.IsOpen)
                                   || (_equipment != null && _equipment.IsOpen)
                                   || (_modifierPanel != null && _modifierPanel.IsOpen)

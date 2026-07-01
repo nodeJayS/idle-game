@@ -59,7 +59,7 @@ files (`..\unity\Assets\GameCore\**\*.cs`), so there's no copy and nothing to sy
   scene in code (camera/light/ground) and `CombatView` drives the auto-battle.
   Play-mode can't be driven headlessly; visual checks are manual.
 
-## Status (356 tests passing)
+## Status (362 tests passing)
 
 **Hero leveling is a months-long chase (by design):** hero level IS the power/build-depth axis (stat
 growth + 1 skill point/level + skill-tree `UnlockLevel` gates — NOT cosmetic; the inert `AccountLevel`
@@ -116,6 +116,15 @@ chat/feed panel.
     current tuning (`tuning^ModShopCostExp`) as a soft cap. Deterministic via the save's own rng cursor.
     Gives scrap a real sink + a gamble layer. Verified live (hybrid display, tuned rows, up/down roll
     feed).
+  - **Reforge (item shop) ✅ — the SAME gamble verb, pointed at gear** (deliberately reused so it's one
+    mechanic in two places, not two). `Inventory.Reforge` spends gold+scrap to re-roll an item's NORMAL
+    affix values by ±`ModShopRoll`, clamped to each affix's legit [min,max] for its item level; imprint
+    affixes are left untouched (exclusive traits stay fixed). Cost scales with item level × rarity
+    (`ReforgeBaseGold/Scrap`). Deterministic via the save's rng cursor. UI: a "Reforge Ng+Ns" button in
+    the bag item detail (works on equipped gear too), `CombatView.ReforgeItem` reports in the feed.
+    Verified live (values re-roll within range, imprint preserved). **Decision: NO full item-crafting
+    system** (add/remove affixes, tiers) — deliberately avoiding mechanic bloat; Reforge is the whole
+    item-modify feature.
   - **Loot-imprint mechanical modifiers (the headline hook) ◑ — slice 1 of 3 (GameCore) done.**
     A `Mechanical` modifier fights nastier via a REAL sim mechanic AND can stamp that signature onto
     its drops — a build-defining affix the normal pool never rolls, so the gear is obtainable ONLY by
