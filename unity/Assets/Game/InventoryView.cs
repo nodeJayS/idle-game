@@ -97,6 +97,7 @@ namespace IdleGame.Game
 
             // rarity color reference (since names no longer carry the rarity word — color is the cue)
             BuildRarityLegend(panel.transform);
+            BuildMassSalvage(panel.transform);
 
             // right: item details
             var box = UiKit.Panel(panel.transform, new Vector2(300, 520), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(310, -20));
@@ -287,6 +288,25 @@ namespace IdleGame.Game
             Settings.AutoSalvageMax = max;
             _autoSalvageOpen = false; // collapse after choosing
             Rebuild();
+        }
+
+        // ---- mass salvage ----
+
+        /// <summary>One-click bag cleanup: scrap every loose item at or below the auto-salvage
+        /// threshold (the panel's rarity selector doubles as the cap). Disabled while the
+        /// threshold is Off so the cap is always an explicit player choice.</summary>
+        private void BuildMassSalvage(Transform parent)
+        {
+            var cap = Settings.AutoSalvageMax;
+            bool enabled = cap != null;
+            var btn = UiKit.TextButton(parent, enabled ? $"Salvage all ≤ {StatDisplay.RarityName(cap!.Value)}" : "Salvage all: set threshold",
+                new Vector2(250, 40), new Vector2(320, -300),
+                enabled ? () => { _view.SalvageAll(cap.Value); Rebuild(); } : (System.Action)(() => { }), 15);
+            btn.interactable = enabled;
+            var img = btn.GetComponent<Image>();
+            if (img != null) img.color = enabled ? new Color(0.42f, 0.26f, 0.26f) : new Color(0.24f, 0.24f, 0.28f);
+            var lbl = btn.GetComponentInChildren<Text>();
+            if (lbl != null && enabled) lbl.color = AutoSalvageColor(cap);
         }
 
         // ---- auto-equip-if-better toggle ----

@@ -358,6 +358,22 @@ namespace IdleGame.Game
             _chat?.AddFeed($"Reforged {nm} — its affixes re-rolled.", new Color(0.7f, 0.8f, 1f));
         }
 
+        /// <summary>Mass-salvage (InventoryView's "Salvage all" button): scrap every loose item at or
+        /// below the cap via the pure reducer + report the haul in the feed. Equipped gear survives.</summary>
+        public void SalvageAll(Rarity cap)
+        {
+            var (next, count, scrap) = Inventory.SalvageAllUpTo(_save, cap, _cfg);
+            if (count == 0)
+            {
+                _chat?.AddFeed($"No loose {StatDisplay.RarityName(cap)}-and-below items to salvage.",
+                               new Color(0.72f, 0.76f, 0.82f));
+                return;
+            }
+            _save = next;
+            _chat?.AddFeed($"Salvaged {count} items ≤ {StatDisplay.RarityName(cap)}  (+{Num.CompactFloor(scrap)} scrap)",
+                           new Color(0.7f, 0.8f, 1f));
+        }
+
         private bool AnyPanelOpen => (_inventory != null && _inventory.IsOpen)
                                   || (_equipment != null && _equipment.IsOpen)
                                   || (_modifierPanel != null && _modifierPanel.IsOpen)

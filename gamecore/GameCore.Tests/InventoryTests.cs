@@ -247,5 +247,61 @@ namespace IdleGame.GameCore.Tests
 
             Assert.Throws<System.InvalidOperationException>(() => Inventory.SalvageItem(save, "w", Cfg));
         }
+
+        [Fact]
+        public void SalvageAllUpToScrapsLooseItemsAtOrBelowCap()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            save = Inventory.AddItems(save, new[]
+            {
+                It("n", Rarity.Normal, "rusty_sword", 2),
+                It("r", Rarity.Rare, "rusty_sword", 3),
+                It("u", Rarity.Unique, "rusty_sword", 4),
+                It("L", Rarity.Legendary, "rusty_sword", 5),
+            });
+            long expect = Cfg.Balance.ScrapValue(Rarity.Normal, 2) + Cfg.Balance.ScrapValue(Rarity.Rare, 3);
+
+            var (next, count, scrap) = Inventory.SalvageAllUpTo(save, Rarity.Rare, Cfg);
+
+            Assert.Equal(2, count);
+            Assert.Equal(expect, scrap);
+            Assert.Equal(expect, next.Currencies["scrap"]);
+            Assert.DoesNotContain(next.Inventory, i => i.Id == "n");
+            Assert.DoesNotContain(next.Inventory, i => i.Id == "r");
+            Assert.Contains(next.Inventory, i => i.Id == "u"); // above the cap, kept
+            Assert.Contains(next.Inventory, i => i.Id == "L");
+            Assert.Equal(4, save.Inventory.Count); // input untouched (pure)
+        }
+
+        [Fact]
+        public void SalvageAllUpToNeverTouchesEquippedGear()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            save = Inventory.AddItems(save, new[]
+            {
+                It("worn", Rarity.Normal, "rusty_sword"),
+                It("loose", Rarity.Normal, "leather_cap"),
+            });
+            save = Inventory.EquipItem(save, "h1", "worn", Cfg);
+
+            var (next, count, _) = Inventory.SalvageAllUpTo(save, Rarity.Mythic, Cfg);
+
+            Assert.Equal(1, count);
+            Assert.Contains(next.Inventory, i => i.Id == "worn");      // equipped survives even at max cap
+            Assert.DoesNotContain(next.Inventory, i => i.Id == "loose");
+        }
+
+        [Fact]
+        public void SalvageAllUpToWithNoMatchesIsANoOp()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            save = Inventory.AddItems(save, new[] { It("u", Rarity.Unique) });
+
+            var (next, count, scrap) = Inventory.SalvageAllUpTo(save, Rarity.Rare, Cfg);
+
+            Assert.Equal(0, count);
+            Assert.Equal(0, scrap);
+            Assert.Same(save, next); // unchanged input handed back
+        }
     }
 }

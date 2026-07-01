@@ -176,6 +176,35 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>
+        /// Mass-salvage: convert EVERY loose (unequipped) item with Rarity &lt;= <paramref name="cap"/>
+        /// to scrap in one action. Equipped gear is never touched (the same guard as
+        /// <see cref="SalvageItem"/>, applied per item instead of thrown). Returns the new save
+        /// plus how many items were scrapped and the scrap gained; a no-match call returns the
+        /// input save unchanged. Pure.
+        /// </summary>
+        public static (SaveState Save, int Count, long Scrap) SalvageAllUpTo(SaveState save, Rarity cap, GameConfig cfg)
+        {
+            var equipped = EquippedIds(save);
+            var nextInventory = new List<Item>(save.Inventory.Count);
+            int count = 0;
+            long scrap = 0;
+            foreach (var it in save.Inventory)
+            {
+                if (it.Rarity <= cap && !equipped.Contains(it.Id))
+                {
+                    count++;
+                    scrap += cfg.Balance.ScrapValue(it.Rarity, it.ItemLevel);
+                }
+                else
+                {
+                    nextInventory.Add(it);
+                }
+            }
+            if (count == 0) return (save, 0, 0);
+            return (Build(save, nextInventory, AddScrap(save.Currencies, scrap)), count, scrap);
+        }
+
+        /// <summary>
         /// Equip an owned item on a hero. The slot is derived from the item's base.
         /// Replaces whatever was in that slot (the old item stays in the pool).
         /// Throws on unknown hero, item not in inventory, unknown base, or an item
