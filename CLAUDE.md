@@ -99,8 +99,11 @@ Phase A (core loop) and most of Phase B (depth) are done. What exists today:
   with a milestone bonus every 7th day. A launch `DailyLoginModal` (Collect → `CombatView.ClaimDailyLogin`)
   is the beat; gems show in the HUD. Still open: manual achievement-claim UX, the gem SINK (gacha/shop),
   real-money purchase, prestige/rebirth.
-- **Art** — *Tunic* height-blend shader + faceted vertex-coloured world + dappled light; heroes are
-  code-built **chibi placeholders** (Blender models are the eventual seam).
+- **Art** — *Tunic* height-blend shader + faceted vertex-coloured world + dappled light. Heroes:
+  **scripted Blender models** are the pipeline now (`art/<hero>.py` = the model source; headless
+  build→render-iterate→FBX to `Resources/Models/<defId>.fbx`; `ModelHero` rebuilds the joint
+  skeleton and reparents the flat name-prefixed parts, so `ChibiAnimator` drives them unchanged —
+  warrior shipped). Heroes without a model fall back to the code-built `ChibiHero` chibis.
 
 **The four loop levers** (game-design.md §7.1): 1 combat variety ✅ · 2 loot/power chase ✅ ·
 3 build depth ✅ · **4 progression hooks — in progress** (achievement ladder + daily-login premium
@@ -113,7 +116,8 @@ currency shipped; gem sink/gacha + prestige next).
 - **Progression hooks (Lever 4):** achievement ladder (slice 1) + daily-login premium currency
   (slice 2) shipped; next = a gem SINK (gacha/shop), manual achievement-claim UX, prestige/rebirth.
 - **Tower slice 3:** per-floor reward bundles.
-- **Deferred:** real Blender hero models; UI/UX uGUI layout-group refactor; console balance-sim;
+- **Deferred:** Blender models for the remaining heroes (+ monsters); UI/UX uGUI layout-group
+  refactor; console balance-sim;
   gacha + live-service (design supports both additively — game-design.md §9).
 
 ## Conventions

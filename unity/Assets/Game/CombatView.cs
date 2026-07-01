@@ -830,7 +830,8 @@ namespace IdleGame.Game
             {
                 var hero = _save.Heroes.Find(h => h.Id == e.RefId);
                 bool ranged = hero != null && _cfg.Heroes.TryGetValue(hero.DefId, out var hd0) && hd0.Role == "ranged";
-                var built = hero != null ? ChibiHero.Build(hero.DefId, ranged) : null;
+                // Blender model if one ships for this def, else the code-built chibi.
+                var built = hero != null ? ModelHero.Build(hero.DefId) ?? ChibiHero.Build(hero.DefId, ranged) : null;
                 if (built != null) { model = built.Value.root; heroAnim = built.Value.anim; }
             }
             if (model != null)
