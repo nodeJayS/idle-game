@@ -59,7 +59,7 @@ namespace IdleGame.GameCore
             AddParty(s, party, cfg);
 
             var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
-            s.Loot = LootContext.ForStage(rt);
+            s.Loot = LootContext.ForStage(rt, cfg);
             double scale = StageScale(rt, cfg);
 
             for (int j = 0; j < rt.PackCount; j++)
@@ -92,7 +92,7 @@ namespace IdleGame.GameCore
             AddParty(s, party, cfg);
 
             var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
-            s.Loot = LootContext.ForStage(rt);
+            s.Loot = LootContext.ForStage(rt, cfg);
 
             int initial = Math.Min(cfg.Balance.SpawnBatchSize, cfg.Balance.MobCap);
             if (initial > 0) SpawnPack(s, rt, cfg, rng, initial);
@@ -113,7 +113,7 @@ namespace IdleGame.GameCore
             AddParty(s, party, cfg);
 
             var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
-            s.Loot = LootContext.ForStage(rt);
+            s.Loot = LootContext.ForStage(rt, cfg);
 
             if (cfg.Monsters.TryGetValue(rt.BossId, out var boss))
             {
@@ -138,7 +138,7 @@ namespace IdleGame.GameCore
             RestoreParty(s);
 
             var rt = cfg.Stages.Find(r => r.Stage == s.Stage) ?? cfg.Stages[0];
-            s.Loot = LootContext.ForStage(rt);
+            s.Loot = LootContext.ForStage(rt, cfg);
             if (cfg.Monsters.TryGetValue(rt.BossId, out var boss))
             {
                 double major = rt.IsMajorBoss ? cfg.Balance.MajorBossMult : 1.0;
@@ -222,7 +222,7 @@ namespace IdleGame.GameCore
 
             var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
             s.Stage = stage;
-            s.Loot = LootContext.ForStage(rt);
+            s.Loot = LootContext.ForStage(rt, cfg);
             s.Kind = EncounterKind.Farm;
             s.TimeMs = 0;
             s.Status = CombatStatus.Running;

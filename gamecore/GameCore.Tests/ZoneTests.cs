@@ -106,6 +106,46 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(Cfg.ZoneForStage(20)!.BossId, s.Entities.Single(e => e.IsBoss).RefId);
         }
 
+        // --- Zone drop tables ("boots drop best in the ruins") ---
+
+        [Fact]
+        public void ForStageCarriesTheZonesFavoredSlot()
+        {
+            // zone 1 (intro) is uniform; zone 2 (Ruined Courtyard) favors Boots
+            Assert.Null(LootContext.ForStage(Cfg.Stages.First(s => s.Stage == 5), Cfg).FavoredSlot);
+            Assert.Equal(EquipSlot.Boots,
+                LootContext.ForStage(Cfg.Stages.First(s => s.Stage == 15), Cfg).FavoredSlot);
+        }
+
+        [Fact]
+        public void EveryActiveSlotHasAFavoringZone()
+        {
+            foreach (var slot in EquipSlots.Active)
+                Assert.Contains(Cfg.Zones, z => z.FavoredSlot == slot);
+        }
+
+        [Fact]
+        public void FavoredSlotSkewsTheDropBasePick()
+        {
+            int BootCount(int stage, uint seed)
+            {
+                var ctx = LootContext.ForStage(Cfg.Stages.First(s => s.Stage == stage), Cfg);
+                var rng = new Rng(seed);
+                int boots = 0;
+                for (int i = 0; i < 1000; i++)
+                {
+                    var item = Loot.RollContextItem(rng, ctx, Cfg);
+                    if (Cfg.ItemBases[item.BaseId].Slot == EquipSlot.Boots) boots++;
+                }
+                return boots;
+            }
+
+            int uniform = BootCount(5, 42);  // woods: ~1/5 of drops
+            int favored = BootCount(15, 42); // ruins: ~3/7 of drops
+            Assert.True(favored > uniform * 3 / 2,
+                $"ruins boots {favored} not clearly above woods boots {uniform}");
+        }
+
         [Fact]
         public void SpawnsFallBackWithoutZones()
         {

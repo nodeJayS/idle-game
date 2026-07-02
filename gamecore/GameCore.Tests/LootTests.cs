@@ -265,7 +265,7 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void ForStageCapsTrashRarityAtRare()
         {
-            var ctx = LootContext.ForStage(Cfg.Stages.First(s => s.Stage == 50)); // deepest, richest stage
+            var ctx = LootContext.ForStage(Cfg.Stages.First(s => s.Stage == 50), Cfg); // deepest, richest stage
             var rng = new Rng(12);
             for (int i = 0; i < 5000; i++)
                 Assert.True((int)Loot.RollRarity(rng, ctx, Cfg) <= (int)Rarity.Rare);

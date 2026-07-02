@@ -92,6 +92,10 @@ namespace IdleGame.GameCore
         public string Name = "";
         public List<string> TrashMonsters = new List<string>(); // cycled by spawn index
         public string BossId = "";
+        // Zone drop table (the "farm destinations" hook): drops in this zone favor one
+        // equip slot ("boots drop best in the ruins") by Balance.ZoneFavoredSlotMult.
+        // null = uniform (the intro zone). Rides LootContext so Loot stays mode-agnostic.
+        public EquipSlot? FavoredSlot;
         // Client hints only (engine-free RGB 0..1, like ModifierDef tints): the faceted
         // ground palette and an accent for props/fog. PropSet names the prop family the
         // client scatters ("forest", "ruins", …) — unknown sets fall back to the default look.
@@ -227,6 +231,11 @@ namespace IdleGame.GameCore
         // ±this fraction reads as a Sidegrade, not an up/down-grade — so a 0.1% wiggle doesn't flash
         // a green ▲ and auto-equip doesn't churn on noise. 0.005 = 0.5%.
         public double UpgradeBandPct = 0.005;
+
+        // Zone drop tables (roadmap 4): how strongly a zone's FavoredSlot outweighs the
+        // other bases in the drop pick. 3x over 5 single-base slots ≈ 43% of drops vs the
+        // uniform 20% — noticeable enough to park a farm on, not a hard lock.
+        public double ZoneFavoredSlotMult = 3.0;
 
         // Daily login (Lever 4 — the premium-currency hook). Claiming once per UTC day grants GEMS
         // (the premium currency, in Currencies[PremiumCurrency]); consecutive days build a streak for
@@ -607,10 +616,10 @@ namespace IdleGame.GameCore
 
         private static ZoneDef Zone(string id, string name, string propSet,
             (double r, double g, double b) ground, (double r, double g, double b) accent,
-            string boss, params string[] trash)
+            string boss, EquipSlot? favored, params string[] trash)
             => new ZoneDef
             {
-                Id = id, Name = name, PropSet = propSet, BossId = boss,
+                Id = id, Name = name, PropSet = propSet, BossId = boss, FavoredSlot = favored,
                 TrashMonsters = new List<string>(trash),
                 GroundR = ground.r, GroundG = ground.g, GroundB = ground.b,
                 AccentR = accent.r, AccentG = accent.g, AccentB = accent.b,
@@ -864,26 +873,29 @@ namespace IdleGame.GameCore
 
             // Zone 1's palette = the client's shipped ground/foliage colours exactly, so
             // the early game keeps its current look (the client lerps props toward Accent).
+            // FavoredSlot gives each zone a drop-table identity ("where do I park my farm
+            // tonight"): zone 1 stays uniform (the intro), the rest cycle the 5 slots so
+            // every slot has a best-in-class zone in both halves of the ladder.
             cfg.Zones.Add(Zone("verdant_woods", "Verdant Woods", "forest",
-                (0.33, 0.50, 0.35), (0.44, 0.62, 0.30), "goblin_king", "slime", "goblin"));
+                (0.33, 0.50, 0.35), (0.44, 0.62, 0.30), "goblin_king", null, "slime", "goblin"));
             cfg.Zones.Add(Zone("ruined_courtyard", "Ruined Courtyard", "ruins",
-                (0.55, 0.54, 0.50), (0.42, 0.40, 0.38), "grave_knight", "bone_rattler", "stone_sentry"));
+                (0.55, 0.54, 0.50), (0.42, 0.40, 0.38), "grave_knight", EquipSlot.Boots, "bone_rattler", "stone_sentry"));
             cfg.Zones.Add(Zone("murkwater_swamp", "Murkwater Swamp", "swamp",
-                (0.35, 0.42, 0.30), (0.24, 0.32, 0.22), "bog_horror", "bog_toad", "marsh_wisp"));
+                (0.35, 0.42, 0.30), (0.24, 0.32, 0.22), "bog_horror", EquipSlot.Helm, "bog_toad", "marsh_wisp"));
             cfg.Zones.Add(Zone("amber_dunes", "Amber Dunes", "desert",
-                (0.80, 0.68, 0.42), (0.66, 0.52, 0.30), "dune_wurm", "dust_scarab", "dune_stalker"));
+                (0.80, 0.68, 0.42), (0.66, 0.52, 0.30), "dune_wurm", EquipSlot.Gloves, "dust_scarab", "dune_stalker"));
             cfg.Zones.Add(Zone("frostpeak_tundra", "Frostpeak Tundra", "tundra",
-                (0.82, 0.87, 0.92), (0.58, 0.70, 0.82), "glacier_golem", "ice_sprite", "frost_wolf"));
+                (0.82, 0.87, 0.92), (0.58, 0.70, 0.82), "glacier_golem", EquipSlot.Chest, "ice_sprite", "frost_wolf"));
             cfg.Zones.Add(Zone("ember_caldera", "Ember Caldera", "volcano",
-                (0.35, 0.25, 0.22), (0.78, 0.30, 0.16), "ash_tyrant", "magma_imp", "cinder_hound"));
+                (0.35, 0.25, 0.22), (0.78, 0.30, 0.16), "ash_tyrant", EquipSlot.Weapon, "magma_imp", "cinder_hound"));
             cfg.Zones.Add(Zone("gloom_hollow", "Gloom Hollow", "cavern",
-                (0.28, 0.26, 0.34), (0.45, 0.38, 0.58), "nightmare_maw", "cave_bat", "gloom_shade"));
+                (0.28, 0.26, 0.34), (0.45, 0.38, 0.58), "nightmare_maw", EquipSlot.Boots, "cave_bat", "gloom_shade"));
             cfg.Zones.Add(Zone("storm_coast", "Storm Coast", "coast",
-                (0.42, 0.50, 0.58), (0.30, 0.42, 0.55), "tempest_naga", "tide_crab", "storm_caller"));
+                (0.42, 0.50, 0.58), (0.30, 0.42, 0.55), "tempest_naga", EquipSlot.Helm, "tide_crab", "storm_caller"));
             cfg.Zones.Add(Zone("astral_ruins", "Astral Ruins", "astral",
-                (0.40, 0.34, 0.55), (0.60, 0.48, 0.85), "riftwalker", "void_wisp", "rune_construct"));
+                (0.40, 0.34, 0.55), (0.60, 0.48, 0.85), "riftwalker", EquipSlot.Gloves, "void_wisp", "rune_construct"));
             cfg.Zones.Add(Zone("crown_of_the_world", "Crown of the World", "summit",
-                (0.75, 0.70, 0.55), (0.90, 0.82, 0.55), "world_ender", "crown_seraph", "chaos_spawn"));
+                (0.75, 0.70, 0.55), (0.90, 0.82, 0.55), "world_ender", EquipSlot.Weapon, "crown_seraph", "chaos_spawn"));
 
             for (int i = 0; i < 100; i++)
             {

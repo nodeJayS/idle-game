@@ -15,12 +15,19 @@ namespace IdleGame.GameCore
         public int ItemLevel;        // power/scaling of dropped items
         public double DropRateMult;  // bias toward higher rarity
         public Rarity? MaxRarity;    // ceiling for rolled rarity; null = uncapped (Mythic)
+        // Zone drop table (roadmap 4): drops favor this equip slot by FavoredSlotMult in
+        // the base pick ("boots drop best in the ruins"). null / mult<=1 = uniform. Set
+        // from the stage's zone in ForStage — Loot itself stays zone-unaware.
+        public EquipSlot? FavoredSlot;
+        public double FavoredSlotMult;
 
-        public static LootContext ForStage(StageDef stage) => new LootContext
+        public static LootContext ForStage(StageDef stage, GameConfig cfg) => new LootContext
         {
             ItemLevel = stage.AffixItemLevel,
             DropRateMult = stage.DropRateMult,
             MaxRarity = Rarity.Rare, // trash/idle ceiling; Unique/Legendary/Mythic are boss-only
+            FavoredSlot = cfg.ZoneForStage(stage.Stage)?.FavoredSlot,
+            FavoredSlotMult = cfg.Balance.ZoneFavoredSlotMult,
         };
     }
 
@@ -140,13 +147,14 @@ namespace IdleGame.GameCore
 
         /// <summary>
         /// Roll one guaranteed item for a loot context (no drop-chance gate): pick a
-        /// base uniformly, roll rarity, assemble. Used by <see cref="RollDrop"/> once a
-        /// drop is confirmed, and directly by idle accrual which grants a fixed count.
+        /// base (favoring the context's zone slot, if any), roll rarity, assemble. Used
+        /// by <see cref="RollDrop"/> once a drop is confirmed, and directly by idle
+        /// accrual which grants a fixed count.
         /// </summary>
         public static Item RollContextItem(Rng rng, LootContext ctx, GameConfig cfg)
         {
             var rarity = RollRarity(rng, ctx, cfg);
-            return RollItem(rng, PickBaseId(rng, cfg), ctx.ItemLevel, rarity, cfg);
+            return RollItem(rng, PickBaseId(rng, ctx, cfg), ctx.ItemLevel, rarity, cfg);
         }
 
         /// <summary>
@@ -170,7 +178,7 @@ namespace IdleGame.GameCore
                 var rarity = roll < b.BossMythicChance ? Rarity.Mythic
                            : roll < b.BossMythicChance + b.BossLegendaryChance ? Rarity.Legendary
                            : Rarity.Unique;
-                items.Add(RollItem(rng, PickBaseId(rng, cfg), ctx.ItemLevel, rarity, cfg));
+                items.Add(RollItem(rng, PickBaseId(rng, ctx, cfg), ctx.ItemLevel, rarity, cfg));
             }
             for (int i = 0; i < extras; i++)
                 items.Add(RollContextItem(rng, ctx, cfg)); // ordinary extras (ctx caps at Rare)
@@ -294,12 +302,19 @@ namespace IdleGame.GameCore
             return false;
         }
 
-        /// <summary>Pick an item base uniformly (deterministic: keys sorted first).</summary>
-        private static string PickBaseId(Rng rng, GameConfig cfg)
+        /// <summary>Pick an item base (deterministic: keys sorted first). Uniform unless the
+        /// context favors a slot (the zone drop table), which outweighs its bases.</summary>
+        private static string PickBaseId(Rng rng, LootContext ctx, GameConfig cfg)
         {
             var baseIds = new List<string>(cfg.ItemBases.Keys);
             baseIds.Sort(StringComparer.Ordinal); // dictionary order isn't stable
-            return baseIds[rng.RandInt(0, baseIds.Count - 1)];
+            if (ctx.FavoredSlot == null || ctx.FavoredSlotMult <= 1.0)
+                return baseIds[rng.RandInt(0, baseIds.Count - 1)];
+
+            var entries = new List<(string item, double weight)>(baseIds.Count);
+            foreach (var id in baseIds)
+                entries.Add((id, cfg.ItemBases[id].Slot == ctx.FavoredSlot ? ctx.FavoredSlotMult : 1.0));
+            return rng.WeightedPick(entries);
         }
     }
 }

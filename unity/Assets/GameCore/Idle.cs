@@ -80,7 +80,7 @@ namespace IdleGame.GameCore
                 var stage = cfg.Stages.Find(s => s.Stage == highest);
                 if (stage != null)
                 {
-                    var ctx = LootContext.ForStage(stage);
+                    var ctx = LootContext.ForStage(stage, cfg);
                     uint seed = unchecked((uint)(save.RngSeed ^ (ulong)save.LastClaimAt));
                     var rng = new Rng(seed);
                     for (int i = 0; i < report.LootCount; i++)

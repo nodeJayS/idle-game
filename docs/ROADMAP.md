@@ -15,7 +15,7 @@ manifest tints, per-hero animators/sounds). Roster on the **archetype backbone**
 (Warrior/Rogue/Magician stat templates; class = overrides): Knight, Fire Mage,
 Assassin, Priest (party heal-over-time) — Ice Mage shelved for a comeback.
 Future classes slot in as archetype + overrides: Brawler/Swordsman (Warrior),
-Ninja/Archer (Rogue), Summoner/Ice Mage (Magician). 423 GameCore tests green.
+Ninja/Archer (Rogue), Summoner/Ice Mage (Magician). 426 GameCore tests green.
 
 ## Priorities, in order
 
@@ -70,10 +70,13 @@ tonight" decision engine. Slices:
    ground + scattered props from the ZoneDef hints on stage/floor change (zone 1
    = the shipped palette exactly), plus a "Now entering <Zone>" feed beat.
    Verified in Play across woods/ruins/swamp. Prop SHAPE swaps ride slice 3.
-3. Monster art: 2–3 zone-specific scripted-Blender designs per zone (the
-   `art/<name>.py` low-poly pipeline), rolled out zone by zone.
-4. Optional zone-flavored drop tables so farming has destinations ("boots drop
-   best in the ruins").
+3. ✅ SHIPPED 2026-07-02 — zone drop tables: each zone (except the intro) favors
+   one equip slot ×3 in the drop base pick (`ZoneDef.FavoredSlot` →
+   `LootContext`; boots DO drop best in the ruins). Every slot has a favoring
+   zone in both halves of the ladder. UI surfacing (stage picker hint) pending.
+4. Monster art: 2–3 zone-specific scripted-Blender designs per zone (the
+   `art/<name>.py` low-poly pipeline), rolled out zone by zone. THE remaining
+   chunk (prop-shape swaps per zone ride along).
 
 ### 5. Content & tuning pass (after 4)
 More stages/mods/monster kits; balance sim in console (backlogged); XP-curve

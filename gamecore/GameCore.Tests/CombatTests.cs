@@ -384,7 +384,7 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void RankDropsAreGuaranteedBundleAndDeterministic()
         {
-            var ctx = LootContext.ForStage(Cfg.Stages[9]); // a deeper stage for richer rolls
+            var ctx = LootContext.ForStage(Cfg.Stages[9], Cfg); // a deeper stage for richer rolls
             var a = Loot.RollRankDrops(new Rng(7), ctx, Cfg, count: 4, rateMult: 5.0);
             var b = Loot.RollRankDrops(new Rng(7), ctx, Cfg, count: 4, rateMult: 5.0);
 
