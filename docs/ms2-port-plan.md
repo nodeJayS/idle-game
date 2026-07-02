@@ -21,7 +21,17 @@ f_body skinned on the measured 19-bone rig with decoded idle/run/attack in-game
 
 ---
 
-## Phase 0 — Full-fidelity NIF importer (unblocks everything else)
+## Phase 0 — Full-fidelity NIF importer — ✅ DONE 2026-07-02
+`art/tools/nif_import.py`: NiMesh semantics (INDEX/POSITION(_BP)/NORMAL(_BP)/
+TEXCOORD/BLENDINDICES/BLENDWEIGHT/BONE_PALETTE), real skin weights via
+NiSkinningMeshModifier bone lists, texture chain (byte-granular scan),
+OverrideColor0 tint (MS2 customization: grayscale skin tex x color; pure-primary
+values = face-mask placeholders, skip). f_body = 10 parts (HR scalp, CL_Skin,
+FA face w/ alpha `00300003_f_cuteface.dds`, FA_Skin, FA_EA ears, GL hands,
+PA_Skin, SH, PA_Panty, CL_Bra). DDS ship as-is next to the FBX (Unity reads
+DXT natively; Blender can't re-encode); SkinnedHero.SetupMaterial wires
+textures by material name at runtime + URP alpha-clip for the face + skin tint.
+Verified in Play. Original phase text follows:
 Extend the NIF parser to pull **UVs, normals, vertex colors, real skin weights**
 (NiSkinningMeshModifier) and **material/texture references**, importing straight
 NIF→Blender (retire the lossy PLY hop). DDS → Unity materials with alpha-clip
@@ -80,6 +90,6 @@ death, level-up, UI) + BGM. ~1 session incl. tooling.
 ## Decisions locked
 - 2026-07-01: IP rule overruled — real MS2 assets ship.
 - 2026-07-02: goal set (this doc).
-- Pending user input: (a) baked vs modular gear first — recommend baked;
-  (b) VFX rebuild vs port attempt — recommend rebuild; (c) skills = MS2 flavor
-  poured into the 2+2 template vs replacing the template — recommend keep 2+2.
+- 2026-07-02 (user): (a) gear = BAKED body+gear FBX per hero; (b) VFX =
+  rebuilt "inspired-by" effects; (c) skills = MS2 names/numbers/anims poured
+  into the existing 2+2 archetype template (game-design.md balance preserved).

@@ -1,15 +1,16 @@
-# Skinned MS2 female base body — imports the extracted f_body mesh directly
-# (IP rule overruled by user 2026-07-01: real mesh, local extract at
-# C:\Games\MapleStory2\Extracted) and rigs it on the 19-bone skeleton measured
-# from f_body.nif (art/tools/nif_skeleton.py). This is the base "person";
-# equipment layers on later.
-#
-# Clips (idle/run/attack) are rebuilt from art/motion/*.json — world-space
-# rotation deltas decoded from the MS2 .kf files by art/tools/kf_motion.py —
-# applied per frame as pose-bone matrix_basis, then baked into FBX actions.
+# Skinned MS2 female base body — full-fidelity import from the extracted client
+# files (IP rule overruled by user 2026-07-01). Phase 0/1 of docs/ms2-port-plan.md:
+# art/tools/nif_import.py parses f_body.nif directly (UVs, authored normals,
+# REAL skin weights + bone palettes, per-part textures incl. the alpha face),
+# the body goes on the 19-bone skeleton measured from the same NIF, and the
+# idle/run/attack actions are rebuilt from art/motion/*.json (world-space deltas
+# decoded from the MS2 .kf files by art/tools/kf_motion.py).
 #
 #   blender -b --python art/skinned_body.py -- --export <file.fbx>
 #       [--renders <dir>] [--pose] [--animtest <dir>]
+#
+# Export also converts the referenced DDS textures to PNG next to the FBX so
+# Unity's material import finds them by name.
 #
 # Conventions: built in MS2 cm (Z-up, faces -Y), scaled x0.01 + applied before
 # clips/export so 133.5 cm -> 1.335 game units (matches the chibi height).
@@ -20,15 +21,16 @@ import sys
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 
-MOTION_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "motion")
+ART_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(ART_DIR, "tools"))
+from nif_import import load_nif  # noqa: E402
+
+NIF = r"C:\Games\MapleStory2\Extracted\Character\female\f_body.nif"
+EXTRACT_ROOT = r"C:\Games\MapleStory2\Extracted"
+MOTION_DIR = os.path.join(ART_DIR, "motion")
 CLIPS = ("idle", "run", "attack")
 
-BLEND = r"C:\Games\MapleStory2\Extracted\f_body.blend"
-MESH_NAME = "MS2_f_body"
-
 # --- measured Bip01 joints (cm, world; from nif_skeleton.py on f_body.nif) -----
-# name: (head, tail, parent). Tails point at the child joint (or the measured
-# nub/weapon/toe landmark for leaf bones).
 J = {
     "pelvis":   ((0, -2.0, 45.3),    (0, -2.5, 48.9),    None),
     "spine":    ((0, -2.5, 48.9),    (0, -3.2, 54.7),    "pelvis"),
@@ -56,39 +58,151 @@ J = {
     "footR":    ((-9.85, 2.92, 8.61), (-9.97, -3.22, 0.0), "calfR"),
 }
 
-SKIN_SRGB = (0.99, 0.85, 0.74)
 
+def map_bone(bip):
+    """Bip01 name -> our rig bone; extras fold into the nearest kept ancestor."""
+    base = {
+        "Bip01 Pelvis": "pelvis", "Bip01 Spine": "spine", "Bip01 Spine1": "spine1",
+        "Bip01 Spine2": "spine2", "Bip01 Neck": "neck", "Bip01 Head": "head",
+        "Bip01 HeadNub": "head",
+    }
+    if bip in base:
+        return base[bip]
+    for tag, side in ((" L ", "L"), (" R ", "R")):
+        if tag in bip:
+            part = bip.split(tag, 1)[1]
+            if part.startswith("Finger") or part == "Hand":
+                return "hand" + side
+            if part.startswith("ForeTwist") or part == "Forearm":
+                return "forearm" + side
+            if part.startswith("UpperTwist") or part == "UpperArm":
+                return "uarm" + side
+            if part == "Clavicle":
+                return "clav" + side
+            if part == "Thigh":
+                return "thigh" + side
+            if part == "Calf":
+                return "calf" + side
+            if part in ("Foot", "Toe0"):
+                return "foot" + side
+    if bip.startswith("Tail_Point"):
+        return "head"           # hair tail helpers live on the head
+    return "pelvis"             # NonAccum / Footsteps / Bip01 / unknown
+
+
+# --- textures --------------------------------------------------------------------
+
+_tex_cache = {}
+
+def find_texture(name):
+    if name in _tex_cache:
+        return _tex_cache[name]
+    for root, _dirs, files in os.walk(EXTRACT_ROOT):
+        for fn in files:
+            if fn.lower() == name.lower():
+                _tex_cache[name] = os.path.join(root, fn)
+                return _tex_cache[name]
+    _tex_cache[name] = None
+    print("  ! texture not found:", name)
+    return None
+
+
+_materials = {}
 
 def srgb_to_linear(c):
     return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
 
 
-def import_body():
-    bpy.ops.wm.append(
-        filepath=BLEND + "/Object/" + MESH_NAME,
-        directory=BLEND + "/Object/",
-        filename=MESH_NAME)
-    obj = bpy.data.objects[MESH_NAME]
-    obj.location = (0, 0, 0)
-    obj.rotation_euler = (0, 0, 0)
-    obj.scale = (1, 1, 1)  # blend stores a 0.01 object scale; mesh data is raw cm
-    print("body dimensions (cm expected):", tuple(round(d, 1) for d in obj.dimensions))
-    bpy.context.view_layer.objects.active = obj
-    obj.select_set(True)
-
-    obj.data.materials.clear()
-    c = tuple(srgb_to_linear(v) for v in SKIN_SRGB)
-    m = bpy.data.materials.new("skin")
+def material_for(tex_name, alpha, tint):
+    key = (tex_name, alpha, tint)
+    if key in _materials:
+        return _materials[key]
+    m = bpy.data.materials.new(os.path.splitext(tex_name or "skin")[0])
     m.use_nodes = True
     bsdf = m.node_tree.nodes.get("Principled BSDF")
     if bsdf:
-        bsdf.inputs["Base Color"].default_value = (*c, 1.0)
         bsdf.inputs["Roughness"].default_value = 0.9
-    m.diffuse_color = (*c, 1.0)
-    obj.data.materials.append(m)
-    for p in obj.data.polygons:
-        p.use_smooth = True
-    return obj
+        path = find_texture(tex_name) if tex_name else None
+        if path:
+            img = bpy.data.images.load(path)
+            tex = m.node_tree.nodes.new("ShaderNodeTexImage")
+            tex.image = img
+            color_out = tex.outputs["Color"]
+            if tint:
+                # MS2 customization: grayscale skin texture x OverrideColor0
+                mix = m.node_tree.nodes.new("ShaderNodeMix")
+                mix.data_type = "RGBA"
+                mix.blend_type = "MULTIPLY"
+                mix.inputs["Factor"].default_value = 1.0
+                m.node_tree.links.new(color_out, mix.inputs["A"])
+                mix.inputs["B"].default_value = (
+                    *[srgb_to_linear(c) for c in tint], 1.0)
+                color_out = mix.outputs["Result"]
+            m.node_tree.links.new(color_out, bsdf.inputs["Base Color"])
+            if alpha:
+                m.node_tree.links.new(tex.outputs["Alpha"], bsdf.inputs["Alpha"])
+    if alpha:
+        try:
+            m.blend_method = "CLIP"
+        except (AttributeError, TypeError):
+            pass
+    _materials[key] = m
+    return m
+
+
+# --- mesh build from the NIF -------------------------------------------------------
+
+def build_from_nif():
+    parts = []
+    for md in load_nif(NIF):
+        me = bpy.data.meshes.new(md["name"])
+        me.from_pydata([Vector(v) for v in md["verts"]], [], md["tris"])
+        me.validate()
+        if md["uvs"]:
+            uvl = me.uv_layers.new()
+            for loop in me.loops:
+                u, v = md["uvs"][loop.vertex_index]
+                uvl.data[loop.index].uv = (u, 1.0 - v)  # DX -> GL v-flip
+        for p in me.polygons:
+            p.use_smooth = True
+        if md["normals"]:
+            try:
+                me.normals_split_custom_set_from_vertices(
+                    [Vector(n).normalized() for n in md["normals"]])
+            except (AttributeError, RuntimeError) as e:
+                print("  ! custom normals failed on %s: %s" % (md["name"], e))
+        me.materials.append(material_for(md["texture"], md["alpha"], md["tint"]))
+
+        obj = bpy.data.objects.new(md["name"], me)
+        bpy.context.scene.collection.objects.link(obj)
+
+        # REAL weights: BLENDINDICES -> BONE_PALETTE -> modifier bone list -> our rig
+        groups = {}
+        def vg(bone):
+            if bone not in groups:
+                groups[bone] = obj.vertex_groups.new(name=bone)
+            return groups[bone]
+
+        if md["skinned"] and md["blend_indices"]:
+            pal = md["bone_palette"] or list(range(len(md["bone_names"])))
+            names = md["bone_names"]
+            for vi, bi in enumerate(md["blend_indices"]):
+                bw = md["blend_weights"][vi] if md["blend_weights"] else (1.0,)
+                w = list(bw[:3]) + [max(0.0, 1.0 - sum(bw[:3]))] if len(bw) == 3 else list(bw)
+                for k in range(min(4, len(bi))):
+                    if w[k] <= 0.001:
+                        continue
+                    slot = pal[bi[k]] if bi[k] < len(pal) else bi[k]
+                    bip = names[slot] if slot < len(names) else None
+                    if bip:
+                        vg(map_bone(bip)).add([vi], w[k], "ADD")
+        else:
+            # static part (HR scalp cap) — rides the head
+            vg("head").add(list(range(len(me.vertices))), 1.0, "REPLACE")
+        parts.append(obj)
+        print("  part %-10s %4dv tex=%s alpha=%s" %
+              (md["name"], len(me.vertices), md["texture"], md["alpha"]))
+    return parts
 
 
 def build_armature():
@@ -106,53 +220,33 @@ def build_armature():
     return arm_obj
 
 
-def skin(body, arm):
-    bpy.ops.object.select_all(action="DESELECT")
-    body.select_set(True)
-    arm.select_set(True)
-    bpy.context.view_layer.objects.active = arm
-    bpy.ops.object.parent_set(type="ARMATURE_AUTO")
-
-    # heat-map misses disconnected shells — rigidly bind leftovers to the
-    # nearest bone segment so nothing is left behind at the origin when posed
-    def seg_dist(p, a, b):
-        ab = Vector(b) - Vector(a)
-        t = max(0.0, min(1.0, (p - Vector(a)).dot(ab) / ab.length_squared))
-        return (p - (Vector(a) + ab * t)).length
-
-    fixed = 0
-    for v in body.data.vertices:
-        if any(g.weight > 0.01 for g in v.groups):
-            continue
-        best = min(J, key=lambda n: seg_dist(v.co, J[n][0], J[n][1]))
-        vg = body.vertex_groups.get(best) or body.vertex_groups.new(name=best)
-        vg.add([v.index], 1.0, "REPLACE")
-        fixed += 1
-    print("skin: %d verts heat-mapped, %d rigid-bound to nearest bone"
-          % (len(body.data.vertices) - fixed, fixed))
+def attach(parts, arm):
+    for obj in parts:
+        obj.parent = arm
+        obj.modifiers.new("Armature", "ARMATURE").object = arm
 
 
-def scale_to_game_units(body):
-    h = body.dimensions.z
-    print("body height before scale: %.3f" % h)
-    if h < 10:  # already in game units — don't shrink twice
+def scale_to_game_units(parts):
+    hi = max(max((obj.matrix_world @ Vector(c)).z for c in obj.bound_box)
+             for obj in parts)
+    if hi < 10:
         return
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.transform.resize(value=(0.01, 0.01, 0.01))
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    print("body height after scale: %.3f" % body.dimensions.z)
+    print("scaled to game units")
 
+
+# --- clips from decoded MS2 motion --------------------------------------------------
 
 def build_clips(arm):
     """One Blender action per decoded MS2 clip. The JSON carries per-frame
-    world-space rotation deltas (armature space == MS2 world space here), so:
+    world-space rotation deltas (armature space == MS2 world space here):
         M_pose(bone) = T(head_pose) @ Rdelta @ R_rest
-    and matrix_basis = rest_relative form of that — computed analytically so
-    no depsgraph updates are needed inside the frame loop."""
+    matrix_basis computed analytically — no depsgraph updates in the loop."""
     bpy.context.view_layer.objects.active = arm
     bpy.ops.object.mode_set(mode="POSE")
-    scene = bpy.context.scene
-    scene.render.fps = 30
+    bpy.context.scene.render.fps = 30
 
     rest_local = {b.name: b.matrix_local.copy() for b in arm.data.bones}
     parent_of = {b.name: b.parent.name if b.parent else None for b in arm.data.bones}
@@ -165,7 +259,7 @@ def build_clips(arm):
         arm.animation_data.action = act
         frames = data["frames"]
         for fr in range(frames):
-            pose_mat = {}  # armature-space pose matrix per bone this frame
+            pose_mat = {}
             for name in J:  # dict order = parents before children
                 pb = arm.pose.bones[name]
                 rl = rest_local[name]
@@ -178,7 +272,6 @@ def build_clips(arm):
                     head = rl.to_translation()
                     if name == "pelvis" and data.get("pelvis_dt"):
                         dt = data["pelvis_dt"][fr]
-                        # in-place: keep sway(x) + bob(z), drop forward drift(y)
                         head = head + Vector((dt[0], 0.0, dt[2]))
                     m = r_target.to_4x4()
                     m.translation = head
@@ -196,33 +289,41 @@ def build_clips(arm):
                 if pname is None:
                     pb.keyframe_insert("location", frame=fr)
         act.use_fake_user = True
-        # NLA strip so the FBX exporter emits every action as its own take
-        track = arm.animation_data.nla_tracks.new()
-        track.name = clip
-        track.strips.new(clip, 0, act)
-        track.mute = True
         print("clip %-7s %d frames (%.2fs)" % (clip, frames, data["duration"]))
     arm.animation_data.action = None
+    for pb in arm.pose.bones:  # back to rest — keyframing left the last pose set
+        pb.matrix_basis = Matrix.Identity(4)
     bpy.ops.object.mode_set(mode="OBJECT")
 
 
-def render_anim_frames(arm, out_dir):
-    """Contact-sheet renders: 4 frames per clip, f34 view — the eyeball check."""
-    scene = bpy.context.scene
-    for clip in CLIPS:
-        act = bpy.data.actions[clip]
-        arm.animation_data.action = act
-        span = int(act.frame_range[1])
-        for i, frac in enumerate((0.0, 0.25, 0.5, 0.75)):
-            fr = int(span * frac)
-            scene.frame_set(fr)
-            scene.render.filepath = "%s/%s_%d_f%02d.png" % (out_dir, clip, i, fr)
-            bpy.ops.render.render(write_still=True)
-            print("rendered", scene.render.filepath)
-    arm.animation_data.action = None
+# --- render / export ----------------------------------------------------------------
+
+def export_textures_png(out_dir):
+    for img in bpy.data.images:
+        if img.source != "FILE":
+            continue
+        png = os.path.join(out_dir, os.path.splitext(os.path.basename(img.filepath))[0] + ".png")
+        try:
+            img.file_format = "PNG"
+            img.filepath_raw = png
+            img.save()
+        except RuntimeError:
+            # some DDS compressions have no CPU-side pixels until copied
+            try:
+                copy = bpy.data.images.new(img.name + "_png", img.size[0], img.size[1],
+                                           alpha=True)
+                copy.pixels = list(img.pixels)
+                copy.file_format = "PNG"
+                copy.filepath_raw = png
+                copy.save()
+            except (RuntimeError, ValueError) as e:
+                print("  ! could not convert %s: %s" % (img.name, e))
+                continue
+        print("texture ->", png)
 
 
 def export_fbx(path):
+    export_textures_png(os.path.dirname(os.path.abspath(path)))
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.export_scene.fbx(
         filepath=path,
@@ -232,9 +333,10 @@ def export_fbx(path):
         apply_scale_options="FBX_SCALE_UNITS",
         bake_space_transform=False,
         add_leaf_bones=False,
+        path_mode="STRIP",   # Unity resolves textures by name from the same folder
         bake_anim=True,
         bake_anim_use_nla_strips=False,
-        bake_anim_use_all_actions=True,   # one take per action: idle/run/attack
+        bake_anim_use_all_actions=True,
         bake_anim_simplify_factor=0.0,
     )
     print("exported", path)
@@ -253,6 +355,7 @@ def setup_scene():
         scene.view_settings.view_transform = "Standard"
     except TypeError:
         pass
+
     world = bpy.data.worlds.new("World")
     scene.world = world
     world.use_nodes = True
@@ -260,8 +363,9 @@ def setup_scene():
     if bg:
         bg.inputs[0].default_value = (0.86, 0.88, 0.91, 1.0)
         bg.inputs[1].default_value = 0.45
+
     target = bpy.data.objects.new("LookAt", None)
-    target.location = (0, 0, 0.67)
+    target.location = (0, 0, 0.72)
     scene.collection.objects.link(target)
 
     def tracked(obj, loc):
@@ -276,6 +380,7 @@ def setup_scene():
     fill = bpy.data.lights.new("Fill", "SUN")
     fill.energy = 1.0
     tracked(bpy.data.objects.new("Fill", fill), (-3.0, -1.0, 2.0))
+
     cam = bpy.data.cameras.new("Cam")
     cam_obj = tracked(bpy.data.objects.new("Cam", cam), (1.55, -1.9, 1.35))
     scene.camera = cam_obj
@@ -285,7 +390,8 @@ def setup_scene():
 def render_views(cam_obj, out_dir):
     scene = bpy.context.scene
     views = {"body_front": (0.0, -2.4, 1.0), "body_f34": (1.55, -1.9, 1.35),
-             "body_side": (2.4, 0.0, 1.0)}
+             "body_side": (2.4, 0.0, 1.0),
+             "body_face": (0.35, -1.35, 1.25)}
     for name, loc in views.items():
         cam_obj.location = loc
         scene.render.filepath = "%s/%s.png" % (out_dir, name)
@@ -293,17 +399,32 @@ def render_views(cam_obj, out_dir):
         print("rendered", scene.render.filepath)
 
 
+def render_anim_frames(arm, out_dir):
+    scene = bpy.context.scene
+    for clip in CLIPS:
+        act = bpy.data.actions[clip]
+        arm.animation_data.action = act
+        span = int(act.frame_range[1])
+        for i, frac in enumerate((0.0, 0.25, 0.5, 0.75)):
+            fr = int(span * frac)
+            scene.frame_set(fr)
+            scene.render.filepath = "%s/%s_%d_f%02d.png" % (out_dir, clip, i, fr)
+            bpy.ops.render.render(write_still=True)
+            print("rendered", scene.render.filepath)
+    arm.animation_data.action = None
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     bpy.ops.wm.read_factory_settings(use_empty=True)
 
-    body = import_body()
+    parts = build_from_nif()
     arm = build_armature()
-    skin(body, arm)
-    scale_to_game_units(body)
+    attach(parts, arm)
+    scale_to_game_units(parts)
+    build_clips(arm)
 
     if "--pose" in argv:
-        # deformation sanity check: swing limbs and let the render show tearing
         import math
         bpy.context.view_layer.objects.active = arm
         bpy.ops.object.mode_set(mode="POSE")
@@ -314,8 +435,6 @@ def main():
         arm.pose.bones["head"].rotation_mode = "XYZ"
         arm.pose.bones["head"].rotation_euler = (0, 0, math.radians(20))
         bpy.ops.object.mode_set(mode="OBJECT")
-
-    build_clips(arm)
 
     if "--export" in argv:
         export_fbx(argv[argv.index("--export") + 1])

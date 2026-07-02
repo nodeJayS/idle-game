@@ -30,9 +30,33 @@ namespace IdleGame.Game
             var root = Object.Instantiate(prefab);
             root.name = defId;
             foreach (var r in root.GetComponentsInChildren<Renderer>())
-                foreach (var m in r.materials) Bootstrap.MakeMatte(m);
+                foreach (var m in r.materials) SetupMaterial(m);
             var anim = root.AddComponent<SkinnedHeroAnim>();
             return (root, anim);
+        }
+
+        /// <summary>Blender's FBX export strips texture paths, so wire the DDS
+        /// textures (shipped next to the FBX, named after the material) back up
+        /// at runtime; the alpha-textured face shell needs URP alpha-clip.</summary>
+        private static void SetupMaterial(Material m)
+        {
+            string texName = m.name.Replace(" (Instance)", "").ToLowerInvariant();
+            if (m.mainTexture == null)
+            {
+                var tex = Resources.Load<Texture2D>("Models/" + texName);
+                if (tex != null) m.mainTexture = tex;
+            }
+            if (texName.Contains("face"))
+            {
+                m.SetFloat("_AlphaClip", 1f);
+                m.SetFloat("_Cutoff", 0.5f);
+                m.EnableKeyword("_ALPHATEST_ON");
+            }
+            // MS2 tints its grayscale skin texture per character (OverrideColor0
+            // in the NIF; f_body default below). Hero manifests own this later.
+            if (texName.Contains("skin"))
+                m.color = new Color(0.78f, 0.549f, 0.408f);
+            Bootstrap.MakeMatte(m);
         }
     }
 
