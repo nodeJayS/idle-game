@@ -79,8 +79,9 @@ tonight" decision engine. Slices:
    primitive fallback; rank/mod tells = gentle tint + faint glow, NOT the
    primitives' flat repaint). ✅ Zone 2 shipped 2026-07-02 (Bone Rattler /
    Stone Sentry / Grave Knight, verified in Play incl. boss + facing).
-   REMAINING: zones 3–10 rosters, zone 1 slime/goblin models, per-zone
-   prop-shape swaps.
+   ✅ Zone 3 shipped 2026-07-02 (Bog Toad / Marsh Wisp / Bog Horror; `rock()`
+   grew a taper param for teardrop/flame silhouettes). REMAINING: zones 4–10
+   rosters, zone 1 slime/goblin models, per-zone prop-shape swaps.
 
 ### 5. Content & tuning pass (after 4)
 More stages/mods/monster kits; balance sim in console (backlogged); XP-curve
