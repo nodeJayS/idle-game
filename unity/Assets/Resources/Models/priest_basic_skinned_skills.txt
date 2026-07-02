@@ -1,0 +1,3 @@
+_attack 0 Skill_Priest_AngelRay_Cast
+holysmite 2 Skill_Priest_HolyExplosion_Cast
+sanctify 1 Skill_Priest_GreaterHeal_Cast

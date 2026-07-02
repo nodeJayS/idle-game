@@ -86,7 +86,11 @@ namespace IdleGame.Game
         private static void SetupMaterial(Material m,
             System.Collections.Generic.Dictionary<string, Color> tints)
         {
-            string texName = m.name.Replace(" (Instance)", "").ToLowerInvariant();
+            string fullName = m.name.Replace(" (Instance)", "").ToLowerInvariant();
+            // Two parts sharing a texture but differing in tint duplicate the Blender
+            // material as "<name>.001" — the texture resolves by the STRIPPED name,
+            // while the tints sidecar keys the full (possibly suffixed) name.
+            string texName = System.Text.RegularExpressions.Regex.Replace(fullName, @"\.\d+$", "");
             if (m.mainTexture == null)
             {
                 var tex = Resources.Load<Texture2D>("Models/" + texName);
@@ -98,7 +102,7 @@ namespace IdleGame.Game
                 m.SetFloat("_Cutoff", 0.5f);
                 m.EnableKeyword("_ALPHATEST_ON");
             }
-            if (tints.TryGetValue(texName, out var tint))
+            if (tints.TryGetValue(fullName, out var tint) || tints.TryGetValue(texName, out tint))
                 m.color = tint;
             Bootstrap.MakeMatte(m);
         }

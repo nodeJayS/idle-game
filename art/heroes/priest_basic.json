@@ -1,0 +1,51 @@
+{
+  "id": "priest_basic",
+  "gender": "male",
+  "items": [
+    "Item/0/02/00200014_m_dandywolf_a.nif",
+    "Item/1/13/11301145_c_goldlaurelcrown_a.nif",
+    "Item/1/14/11400441_m_clsoulbinder06.nif",
+    "Item/1/15/11500001_m_basicsportwearpants.nif",
+    "Item/1/17/11701077_m_shemperorionc01.nif"
+  ],
+  "attach": [
+    {
+      "nif": "Item/1/52/15200144_luminousangelic_staff.nif",
+      "bone": "handR",
+      "point": "Weapon_Hand_R_Point"
+    }
+  ],
+  "attack_sound": "Skill_Priest_AngelRay_Cast",
+  "skills": {
+    "sanctify": {
+      "slot": 1,
+      "sound": "Skill_Priest_GreaterHeal_Cast"
+    },
+    "holysmite": {
+      "slot": 2,
+      "sound": "Skill_Priest_HolyExplosion_Cast"
+    }
+  },
+  "tints": {
+    "11400441": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "11500001": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "15200144": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "11701077": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  }
+}

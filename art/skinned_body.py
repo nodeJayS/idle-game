@@ -195,15 +195,20 @@ def nearest_bone(center):
     return min(J, key=lambda n: seg_d(J[n][0], J[n][1]))
 
 
-def build_parts(nif_path, hide=frozenset(), rigid_bone=None, xform=None):
+def build_parts(nif_path, hide=frozenset(), rigid_bone=None, xform=None, tints=None):
     """Build Blender objects for a NIF's parts. hide = part names to skip;
-    rigid_bone + xform (world pos, rot3x3) = hand-space attachment mode."""
+    rigid_bone + xform (world pos, rot3x3) = hand-space attachment mode.
+    tints = manifest override map (item id -> [r,g,b]): dyeable items carry a
+    default OverrideColor0 dye (often NOT the texture's natural color) — the
+    manifest picks the dye instead. [1,1,1] = neutral (texture as authored)."""
     parts, names = [], set()
     nif_stem = os.path.splitext(os.path.basename(nif_path))[0]
     item_id = nif_stem[:8] if nif_stem[:8].isdigit() else None
     near_dir = os.path.dirname(nif_path)
     for md in load_nif(nif_path):
         names.add(md["name"])
+        if tints and item_id in tints:
+            md["tint"] = tuple(tints[item_id])
         if md["name"] in hide:
             print("  hide %-10s (replaced by gear)" % md["name"])
             continue
@@ -545,9 +550,10 @@ def main():
 
     parts = []
     provided = set()
+    tint_over = (hero or {}).get("tints")
     if hero:
         for rel in hero.get("items", []):
-            objs, names = build_parts(os.path.join(EXTRACT_ROOT, rel))
+            objs, names = build_parts(os.path.join(EXTRACT_ROOT, rel), tints=tint_over)
             parts += objs
             provided |= names
     # body: gear replaces same-named parts; worn slots hide the underwear
@@ -563,7 +569,8 @@ def main():
         for att in hero.get("attach", []):
             objs, _ = build_parts(os.path.join(EXTRACT_ROOT, att["nif"]),
                                   rigid_bone=att["bone"],
-                                  xform=weapon_points[att["point"]])
+                                  xform=weapon_points[att["point"]],
+                                  tints=tint_over)
             parts += objs
 
     arm = build_armature()
