@@ -69,7 +69,7 @@ namespace IdleGame.GameCore
         public bool IsMajorBoss => Stage % 10 == 0;
     }
 
-    public enum SkillEffectKind { Damage, Heal, Buff }
+    public enum SkillEffectKind { Damage, Heal, Buff, Dash }
 
     public sealed class SkillDef
     {
@@ -527,8 +527,8 @@ namespace IdleGame.GameCore
                                (StatKey.SplashRadius, 1.0),            // slightly wider cleave (melee perk)
                                (StatKey.MaxMana, 50), (StatKey.ManaRegen, 3)), // shallow pool, slow regen
                 GrowthPerLevel = SB((StatKey.Hp, 18), (StatKey.Atk, 3), (StatKey.Def, 1.5), (StatKey.MaxMana, 2)),
-                // 2+2 kit (§7.2): AoE cleave + attack war cry; armor + health passives.
-                Skills = new List<string> { "cleave", "toughness", "warcry", "vitality" }, Sprite = "warrior",
+                // 2+2 kit (§7.2): spinning AoE + a shield-charge gap closer; armor + health passives.
+                Skills = new List<string> { "cycloneslash", "toughness", "shieldcharge", "vitality" }, Sprite = "warrior",
             };
 
             cfg.Heroes["magician_basic"] = new HeroDef
@@ -681,7 +681,20 @@ namespace IdleGame.GameCore
                 });
             }
 
-            // Warrior: melee cleave (AoE) + a self attack buff. Magician: ranged nuke + a heal.
+            // Warrior actives: a spinning AoE slash + a shield-charge gap closer.
+            // (cleave/warcry retired 2026-07-02 — Save.Migrate transfers invested ranks.)
+            cfg.Skills["cycloneslash"] = new SkillDef
+            {
+                Id = "cycloneslash", Name = "Cyclone Slash", Effect = SkillEffectKind.Damage, Targeting = "aoe",
+                CooldownMs = 5000, Range = 1.8, AoeRadius = 2.2, DamageMult = 1.5, ManaCost = 18, Sprite = "cleave",
+            };
+            cfg.Skills["shieldcharge"] = new SkillDef
+            {
+                Id = "shieldcharge", Name = "Shield Charge", Effect = SkillEffectKind.Dash, Targeting = "nearest",
+                CooldownMs = 8000, Range = 6.0, DamageMult = 2.0, ManaCost = 20, Sprite = "charge",
+                UnlockLevel = 10,
+            };
+            // Library rows (no kit uses these today — §7.2 keeps the archetype shelf stocked).
             cfg.Skills["cleave"] = new SkillDef
             {
                 Id = "cleave", Name = "Cleave", Effect = SkillEffectKind.Damage, Targeting = "aoe",

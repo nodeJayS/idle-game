@@ -1,0 +1,2 @@
+cycloneslash 1 Skill_Knight_CycloneShield_Cast
+shieldcharge 2 Skill_Knight_ShieldRush_Cast

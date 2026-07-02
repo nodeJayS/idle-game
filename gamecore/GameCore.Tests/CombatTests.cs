@@ -404,11 +404,11 @@ namespace IdleGame.GameCore.Tests
             var s = Combat.InitFarm(new[] { save.Heroes[0] }, 1, cfg, new Rng(1));
 
             var ent = s.Entities.First(e => e.Team == Team.Party && e.RefId == heroId);
-            Assert.Equal(new[] { "cleave" }, ent.Skills); // level 1: only the first active is revealed
+            Assert.Equal(new[] { "cycloneslash" }, ent.Skills); // level 1: only the first active is revealed
 
-            save = Progression.GrantPartyXp(save, 2_000_000, cfg); // well past warcry's UnlockLevel 10
+            save = Progression.GrantPartyXp(save, 2_000_000, cfg); // well past shieldcharge's UnlockLevel 10
             Combat.RefreshPartyStats(s, save, cfg);
-            Assert.Equal(new[] { "cleave", "warcry" }, ent.Skills);
+            Assert.Equal(new[] { "cycloneslash", "shieldcharge" }, ent.Skills);
         }
 
         [Fact]

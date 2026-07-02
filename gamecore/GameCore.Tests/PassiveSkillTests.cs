@@ -34,7 +34,7 @@ namespace IdleGame.GameCore.Tests
             Assert.Contains("toughness", Skills.Known(hero, Cfg));
             Assert.DoesNotContain("toughness", Skills.KnownActive(hero, Cfg));
             Assert.Contains("toughness", Skills.KnownPassive(hero, Cfg));
-            Assert.Contains("cleave", Skills.KnownActive(hero, Cfg));
+            Assert.Contains("cycloneslash", Skills.KnownActive(hero, Cfg));
         }
 
         [Fact]

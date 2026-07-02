@@ -101,6 +101,50 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void DashSkillClosesTheGapAndStrikes()
+        {
+            var caster = Mk("A", Team.Party, 0, skills: "shieldcharge"); // dash, range 6, x2.0
+            var enemy = Mk("B", Team.Enemy, 4.0);                        // well outside melee
+            var s = St(caster, enemy);
+
+            var ev = Step(s);
+
+            Assert.Contains(ev, e => e.Type == CombatEventType.SkillCast && e.SkillId == "shieldcharge" && e.SourceId == "A");
+            Assert.Equal(1000 - 20, E(s, "B").Hp);                       // 10 atk * 2.0 on arrival
+            // landing = body radii + 0.15 margin: touching, inside the 1.2 attack range
+            double gap = Vec2.Distance(E(s, "A").Pos, E(s, "B").Pos);
+            Assert.True(gap <= 1.1, $"expected melee contact after the dash, gap={gap}");
+            Assert.True(E(s, "A").SkillCdMs["shieldcharge"] > 0);
+        }
+
+        [Fact]
+        public void DashIsSavedWhenAlreadyInMeleeContact()
+        {
+            var caster = Mk("A", Team.Party, 0, skills: "shieldcharge");
+            var enemy = Mk("B", Team.Enemy, 0.4); // already touching
+            var s = St(caster, enemy);
+
+            var ev = Step(s);
+
+            Assert.DoesNotContain(ev, e => e.Type == CombatEventType.SkillCast);
+            Assert.Contains(ev, e => e.Type == CombatEventType.Hit && e.SourceId == "A"); // basic attack instead
+            // (position not asserted: overlapping bodies get nudged by separation physics)
+        }
+
+        [Fact]
+        public void DashRespectsItsRange()
+        {
+            var caster = Mk("A", Team.Party, 0, skills: "shieldcharge");
+            var enemy = Mk("B", Team.Enemy, 8.0); // beyond range 6
+            var s = St(caster, enemy);
+
+            var ev = Step(s);
+
+            Assert.DoesNotContain(ev, e => e.Type == CombatEventType.SkillCast);
+            Assert.Equal(1000, E(s, "B").Hp);
+        }
+
+        [Fact]
         public void HealSkillRestoresTheMostHurtAlly()
         {
             var healer = Mk("A", Team.Party, 0, skills: "mend"); // heal, lowestHp, range 8, mult 2.0

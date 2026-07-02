@@ -37,9 +37,9 @@ namespace IdleGame.GameCore.Tests
         public void ActiveKitGrowsWithTheRevealCadence()
         {
             // §7.2 cadence: active1 L1 · passive1 L5 · active2 L10 · passive2 L15.
-            Assert.Equal(new[] { "cleave" }, Skills.ActiveKit(HeroAt("warrior_basic", 1), Cfg));
-            Assert.Equal(new[] { "cleave" }, Skills.ActiveKit(HeroAt("warrior_basic", 9), Cfg));
-            Assert.Equal(new[] { "cleave", "warcry" }, Skills.ActiveKit(HeroAt("warrior_basic", 10), Cfg));
+            Assert.Equal(new[] { "cycloneslash" }, Skills.ActiveKit(HeroAt("warrior_basic", 1), Cfg));
+            Assert.Equal(new[] { "cycloneslash" }, Skills.ActiveKit(HeroAt("warrior_basic", 9), Cfg));
+            Assert.Equal(new[] { "cycloneslash", "shieldcharge" }, Skills.ActiveKit(HeroAt("warrior_basic", 10), Cfg));
         }
 
         [Fact]

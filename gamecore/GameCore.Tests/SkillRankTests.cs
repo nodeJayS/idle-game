@@ -41,7 +41,7 @@ namespace IdleGame.GameCore.Tests
             Assert.True(earned > 0);
             Assert.Equal(earned, Skills.UnspentPoints(Hero(save, id), Cfg)); // nothing spent yet
 
-            save = Skills.InvestSkill(save, id, "cleave", Cfg);
+            save = Skills.InvestSkill(save, id, "cycloneslash", Cfg);
             Assert.Equal(earned - 1, Skills.UnspentPoints(Hero(save, id), Cfg));
         }
 
@@ -53,11 +53,11 @@ namespace IdleGame.GameCore.Tests
             var (save, id) = LeveledWarrior();
             int before = Skills.UnspentPoints(Hero(save, id), Cfg);
 
-            var next = Skills.InvestSkill(save, id, "cleave", Cfg);
+            var next = Skills.InvestSkill(save, id, "cycloneslash", Cfg);
 
-            Assert.Equal(1, Skills.RankOf(Hero(next, id), "cleave"));
+            Assert.Equal(1, Skills.RankOf(Hero(next, id), "cycloneslash"));
             Assert.Equal(before - 1, Skills.UnspentPoints(Hero(next, id), Cfg));
-            Assert.Equal(0, Skills.RankOf(Hero(save, id), "cleave")); // input untouched (pure)
+            Assert.Equal(0, Skills.RankOf(Hero(save, id), "cycloneslash")); // input untouched (pure)
         }
 
         [Fact]
@@ -65,8 +65,8 @@ namespace IdleGame.GameCore.Tests
         {
             var save = Save.NewGame(1, Cfg, 0);   // level 1 -> 0 points
             var id = save.Heroes[0].Id;
-            Assert.False(Skills.CanInvest(save, id, "cleave", Cfg));
-            Assert.Same(save, Skills.InvestSkill(save, id, "cleave", Cfg)); // no-op shares the ref
+            Assert.False(Skills.CanInvest(save, id, "cycloneslash", Cfg));
+            Assert.Same(save, Skills.InvestSkill(save, id, "cycloneslash", Cfg)); // no-op shares the ref
         }
 
         [Fact]
@@ -81,12 +81,12 @@ namespace IdleGame.GameCore.Tests
         public void CannotExceedMaxRank()
         {
             var (save, id) = LeveledWarrior();
-            int max = Cfg.Skills["cleave"].MaxRank;
-            for (int i = 0; i < max; i++) save = Skills.InvestSkill(save, id, "cleave", Cfg);
+            int max = Cfg.Skills["cycloneslash"].MaxRank;
+            for (int i = 0; i < max; i++) save = Skills.InvestSkill(save, id, "cycloneslash", Cfg);
 
-            Assert.Equal(max, Skills.RankOf(Hero(save, id), "cleave"));
-            Assert.False(Skills.CanInvest(save, id, "cleave", Cfg));
-            Assert.Same(save, Skills.InvestSkill(save, id, "cleave", Cfg)); // capped -> no-op
+            Assert.Equal(max, Skills.RankOf(Hero(save, id), "cycloneslash"));
+            Assert.False(Skills.CanInvest(save, id, "cycloneslash", Cfg));
+            Assert.Same(save, Skills.InvestSkill(save, id, "cycloneslash", Cfg)); // capped -> no-op
         }
 
         [Fact]
@@ -94,14 +94,14 @@ namespace IdleGame.GameCore.Tests
         {
             var (save, id) = LeveledWarrior();
             int earned = Skills.PointsEarned(Hero(save, id), Cfg);
-            save = Skills.InvestSkill(save, id, "cleave", Cfg);
+            save = Skills.InvestSkill(save, id, "cycloneslash", Cfg);
             save = Skills.InvestSkill(save, id, "toughness", Cfg);
 
             var respecced = Skills.RespecHero(save, id, Cfg);
 
             Assert.Equal(0, Skills.PointsSpent(Hero(respecced, id)));
             Assert.Equal(earned, Skills.UnspentPoints(Hero(respecced, id), Cfg));
-            Assert.Equal(0, Skills.RankOf(Hero(respecced, id), "cleave"));
+            Assert.Equal(0, Skills.RankOf(Hero(respecced, id), "cycloneslash"));
         }
 
         // ---- save threading ----
@@ -110,13 +110,13 @@ namespace IdleGame.GameCore.Tests
         public void SkillRanksSurviveUnrelatedReducers()
         {
             var (save, id) = LeveledWarrior();
-            save = Skills.InvestSkill(save, id, "cleave", Cfg);
+            save = Skills.InvestSkill(save, id, "cycloneslash", Cfg);
 
             var afterGold = Progression.GrantGold(save, 100);
-            Assert.Equal(1, Skills.RankOf(Hero(afterGold, id), "cleave"));
+            Assert.Equal(1, Skills.RankOf(Hero(afterGold, id), "cycloneslash"));
 
             var afterXp = Progression.GrantPartyXp(save, 50000, Cfg); // level-up keeps ranks
-            Assert.Equal(1, Skills.RankOf(Hero(afterXp, id), "cleave"));
+            Assert.Equal(1, Skills.RankOf(Hero(afterXp, id), "cycloneslash"));
         }
 
         // ---- combat scaling ----

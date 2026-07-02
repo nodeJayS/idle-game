@@ -113,7 +113,21 @@ Extract FMOD banks (`python-fsb5` or vgmstream) → OGG into Unity; use the Xml
 sound tables to map events → sound ids. Wire into CombatView seams (attack, hit,
 death, level-up, UI) + BGM. ~1 session incl. tooling.
 
-## Phase 5 — Skills (data) and VFX (rebuild)
+## Phase 5 — ✅ DONE 2026-07-02 (REVISED per user: no MS2 names/numbers)
+User decision: GameCore skill DATA stays ours (2+2 template, own balance);
+MS2 supplies only presentation (clips + sounds). Shipped:
+- GameCore: SkillEffectKind.Dash (gap closer: leap to nearest in Range, strike
+  on arrival, skipped in melee contact). Warrior actives reworked: cycloneslash
+  (aoe spin, 5s cd) + shieldcharge (dash, 8s cd, unlock L10); cleave/warcry
+  stay as library rows; Save.Migrate transfers invested ranks. 392 tests pass.
+- Presentation bindings: manifest "skills" section (our skill id -> slot +
+  MS2 sound set) exports as <fbx>_skills.txt; SkinnedHeroAnim.TriggerSkill
+  routes to Skill1/Skill2 states (knight_cycloneshield / knight_shieldrush
+  clips) + plays the bound sound. Skill2 plays THROUGH the dash (exit-time
+  only); Skill1 cancels on movement. Chibi heroes fall back to TriggerAttack.
+- VFX: rebuilt "charge" ground rings on CombatJuice (takeoff + arrival).
+Verified live: Skill1+Skill2 fired in combat, dash = 3.2-unit frame jump.
+Original phase text follows:
 - **Data:** parse skill tables from Xml.m2d (Maple2.File schemas); translate into
   GameCore `GameConfig` entries. GameCore stays pure C# — this is data mapping
   only. Keep the 2+2 archetype template as the frame; MS2 supplies names, numbers,

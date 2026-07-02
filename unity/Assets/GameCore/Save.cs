@@ -110,7 +110,13 @@ namespace IdleGame.GameCore
 
             // Per-hero back-fills for older saves (Lever 3): no skill ranks invested yet.
             foreach (var h in save.Heroes)
+            {
                 h.SkillRanks ??= new Dictionary<string, int>();
+                // Warrior kit rework (2026-07-02): cleave -> cycloneslash,
+                // warcry -> shieldcharge. Invested ranks follow the new actives.
+                TransferRank(h.SkillRanks, "cleave", "cycloneslash");
+                TransferRank(h.SkillRanks, "warcry", "shieldcharge");
+            }
 
             // Normalize the party to PartySize, preserving the first slots. An older save
             // with a longer party (the cap was once 4) keeps its first PartySize heroes;
@@ -126,6 +132,15 @@ namespace IdleGame.GameCore
             }
 
             return save;
+        }
+
+        /// <summary>Move invested ranks from a retired kit skill onto its replacement
+        /// (keeps spent points consistent; no-op if none invested or already moved).</summary>
+        private static void TransferRank(Dictionary<string, int> ranks, string from, string to)
+        {
+            if (!ranks.TryGetValue(from, out var r) || r <= 0) { ranks.Remove(from); return; }
+            ranks[to] = Math.Max(ranks.TryGetValue(to, out var existing) ? existing : 0, r);
+            ranks.Remove(from);
         }
     }
 }

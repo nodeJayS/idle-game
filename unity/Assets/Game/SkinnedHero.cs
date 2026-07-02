@@ -13,6 +13,7 @@ namespace IdleGame.Game
         void SetMoving(bool moving);
         void SetMoveSpeed(float unitsPerSec);
         void TriggerAttack();
+        void TriggerSkill(string skillId);
         void TriggerHit();
         void SetDowned(bool downed);
     }
@@ -36,7 +37,25 @@ namespace IdleGame.Game
             foreach (var r in root.GetComponentsInChildren<Renderer>())
                 foreach (var m in r.materials) SetupMaterial(m, tints);
             var anim = root.AddComponent<SkinnedHeroAnim>();
+            anim.SkillBindings = LoadSkills(defId);
             return (root, anim);
+        }
+
+        /// <summary>Skill presentation bindings from the hero manifest, exported by
+        /// art/skinned_body.py as "skillId slot soundSet" lines next to the FBX.
+        /// Our GameCore skill ids -> which Skill state plays + which MS2 sound.</summary>
+        private static System.Collections.Generic.Dictionary<string, (int slot, string sound)> LoadSkills(string defId)
+        {
+            var map = new System.Collections.Generic.Dictionary<string, (int, string)>();
+            var txt = Resources.Load<TextAsset>("Models/" + defId + "_skinned_skills");
+            if (txt == null) return map;
+            foreach (var line in txt.text.Split('\n'))
+            {
+                var f = line.Trim().Split(' ');
+                if (f.Length != 3) continue;
+                map[f[0]] = (int.Parse(f[1]), f[2]);
+            }
+            return map;
         }
 
         /// <summary>MS2 customization tints (OverrideColor0 per material — skin
@@ -91,9 +110,15 @@ namespace IdleGame.Game
         private static readonly int MovingId = Animator.StringToHash("Moving");
         private static readonly int AttackId = Animator.StringToHash("Attack");
         private static readonly int Attack2Id = Animator.StringToHash("Attack2");
+        private static readonly int Skill1Id = Animator.StringToHash("Skill1");
+        private static readonly int Skill2Id = Animator.StringToHash("Skill2");
         private static readonly int BoreId = Animator.StringToHash("Bore");
         private static readonly int HitId = Animator.StringToHash("Hit");
         private static readonly int DeadId = Animator.StringToHash("Dead");
+
+        /// <summary>GameCore skill id -> (Skill state slot, MS2 sound set). Loaded
+        /// from the manifest-exported bindings by SkinnedHero.Build.</summary>
+        public System.Collections.Generic.Dictionary<string, (int slot, string sound)>? SkillBindings;
 
         /// <summary>Ground speed the MS2 run cycle was authored for (units/s).
         /// The chibi sprint covers ~1.5 body heights per 0.6s cycle. Playback
@@ -151,6 +176,17 @@ namespace IdleGame.Game
         {
             if (_animator == null || _moving || _downed) return; // never swing mid-slide
             _animator.SetTrigger(Random.value < 0.5f ? AttackId : Attack2Id);
+        }
+
+        public void TriggerSkill(string skillId)
+        {
+            if (_animator == null || _downed) return;
+            if (SkillBindings != null && SkillBindings.TryGetValue(skillId, out var b))
+            {
+                _animator.SetTrigger(b.slot == 2 ? Skill2Id : Skill1Id);
+                SoundFx.Play(b.sound, 0.5f);
+            }
+            else TriggerAttack(); // unbound skill: fall back to a basic swing
         }
 
         public void TriggerHit()

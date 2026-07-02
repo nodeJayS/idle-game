@@ -12,5 +12,9 @@
   "attach": [
     { "nif": "Item/1/32/13200204_goldenlongsword.nif", "bone": "handR", "point": "Weapon_Hand_R_Point" },
     { "nif": "Item/1/41/14100024_goldaquilashield.nif", "bone": "handL", "point": "Weapon_Hand_L_Point" }
-  ]
+  ],
+  "skills": {
+    "cycloneslash": { "slot": 1, "sound": "Skill_Knight_CycloneShield_Cast" },
+    "shieldcharge": { "slot": 2, "sound": "Skill_Knight_ShieldRush_Cast" }
+  }
 }

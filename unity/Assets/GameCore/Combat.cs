@@ -928,6 +928,23 @@ namespace IdleGame.GameCore
                         e.Buffs.Add(new ActiveBuff { Stat = sk.BuffStat, Amount = sk.BuffAmount * rankFactor, RemainingMs = sk.BuffDurationMs });
                         return true;
                     }
+                    case SkillEffectKind.Dash:
+                    {
+                        // Gap closer: leap to the nearest enemy within Range and strike on
+                        // arrival. Skipped when already in melee contact — the cooldown is
+                        // worth more than a zero-distance hop.
+                        var target = PickDamageTarget(s, e, sk);
+                        if (target == null) continue;
+                        double gap = Vec2.Distance(e.Pos, target.Pos);
+                        double contact = e.BodyRadius + target.BodyRadius + 0.15;
+                        if (gap <= contact + 0.5) continue;
+                        CastStart(e, sk, target.Id, events);
+                        double inv = contact / gap; // land on the approach side, just touching
+                        e.Pos = new Vec2(target.Pos.X - (target.Pos.X - e.Pos.X) * inv,
+                                         target.Pos.Y - (target.Pos.Y - e.Pos.Y) * inv);
+                        ApplyHit(s, e, target, cfg, rng, events, sk.DamageMult * rankFactor);
+                        return true;
+                    }
                 }
             }
             return false;

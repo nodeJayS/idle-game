@@ -133,6 +133,14 @@ namespace IdleGame.Game
             // Warrior cleave: an expanding orange shockwave on the ground at the target.
             _skillFx["cleave"] = (src, tgt) => GroundRing(GroundAt(tgt), 1.8f, new Color(1f, 0.65f, 0.2f), 0.35f);
 
+            // Shield Charge: a launch ring at the takeoff spot + an arrival ring on the
+            // target — reads as the dash streak without a bespoke particle.
+            _skillFx["charge"] = (src, tgt) =>
+            {
+                GroundRing(GroundAt(src), 0.9f, new Color(0.75f, 0.85f, 1f), 0.25f);
+                GroundRing(GroundAt(tgt), 1.2f, new Color(0.75f, 0.85f, 1f), 0.35f);
+            };
+
             // Boss quake: a big red ground wave at the boss + a shake.
             _skillFx["quake"] = (src, tgt) =>
             {
@@ -1038,7 +1046,7 @@ namespace IdleGame.Game
                             }
                         }
                         // lunge toward the foe for offensive skills, a small upward cast-pop otherwise
-                        TriggerLunge(ev.SourceId, ev.TargetId, towardTarget: isDamage);
+                        TriggerLunge(ev.SourceId, ev.TargetId, towardTarget: isDamage, skillId: ev.SkillId);
                         break;
                     }
                     case CombatEventType.Heal:
@@ -1206,15 +1214,20 @@ namespace IdleGame.Game
 
         /// <summary>Kick off a lunge on the source view toward the target (or upward for a
         /// self/heal cast). Duration scales inversely with AtkSpd so faster actors snap.</summary>
-        private void TriggerLunge(string? sourceId, string? targetId, bool towardTarget)
+        private void TriggerLunge(string? sourceId, string? targetId, bool towardTarget, string? skillId = null)
         {
             if (sourceId == null || !_views.TryGetValue(sourceId, out var sv) || sv.Go == null) return;
 
-            // Skeletal heroes play their swing/cast clip instead of the capsule lunge.
+            // Skeletal heroes play their swing/cast clip instead of the capsule lunge;
+            // named skills route to their bound clip + sound (manifest bindings).
             if (sv.Anim != null)
             {
-                sv.Anim.TriggerAttack();
-                SoundFx.Play("Swing_Sword", 0.4f);
+                if (skillId != null) sv.Anim.TriggerSkill(skillId);
+                else
+                {
+                    sv.Anim.TriggerAttack();
+                    SoundFx.Play("Swing_Sword", 0.4f);
+                }
                 return;
             }
 
