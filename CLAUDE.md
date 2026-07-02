@@ -113,7 +113,11 @@ Phase A (core loop) and most of Phase B (depth) are done. What exists today:
 currency shipped; gem sink/gacha + prestige next).
 
 ## What's next / open
-- **Content & polish** (current focus): more heroes/enemies/mods/stages; balance/tuning; combat juice.
+- **⭐ MS2-style hero pipeline** (current focus): rebuild heroes with real MapleStory-2
+  proportions + a skinned 16–18-bone skeleton + clips authored from measured MS2 motion.
+  Full self-contained handover plan: [`docs/ms2-hero-pipeline-plan.md`](docs/ms2-hero-pipeline-plan.md)
+  (extracted reference assets live outside the repo at `C:\Games\MapleStory2\Extracted\`).
+- **Content & polish**: more heroes/enemies/mods/stages; balance/tuning; combat juice.
   (The 2026-07-01 UX + rebalance batch — Mythic rarity, boss re-tune, mass salvage, wallet HUD,
   party-bar polish, rounding sweep — is fully shipped; see backlog.md.)
 - **Progression hooks (Lever 4):** achievement ladder (slice 1) + daily-login premium currency

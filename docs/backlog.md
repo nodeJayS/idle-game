@@ -16,6 +16,15 @@ for anything touching rules (build + `dotnet test gamecore/GameCore.Tests`, then
 > polish (red HP / deep-blue mana / shadowed text / hero level) + grouped control bar,
 > and the floor/ceil rounding sweep. Details in git history.
 
+## ⭐ NEXT SESSION — MS2-style hero pipeline
+The full handover plan is **[`ms2-hero-pipeline-plan.md`](ms2-hero-pipeline-plan.md)** —
+read it first; it's self-contained (what's extracted where, working tools, measured
+proportions, slices A–E, and the gotchas). Short version: rebuild the warrior with real
+MapleStory-2 proportions (Slice A, geometry only), then a 16–18-bone skinned skeleton +
+clips authored from measured MS2 motion (B–D), then scale the roster (E). Reference
+assets live OUTSIDE the repo at `C:\Games\MapleStory2\Extracted\` (`ms2_knight.blend`
+is the look target). Heroes only — monsters stay rigid/faceted.
+
 ## Next focus — content & polish
 - **More content:** additional heroes/classes & kits, enemy variety, more normal + rare
   modifiers, deeper/more stages.
