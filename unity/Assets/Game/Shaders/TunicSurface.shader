@@ -22,6 +22,13 @@ Shader "IdleGame/TunicSurface"
         _ShadowImpact("Shadow Strength", Range(0,1))    = 0.7
         _WindStrength("Wind Strength", Float)           = 0.0
         _WindSpeed   ("Wind Speed", Float)              = 1.5
+        // Hand-drawn ground detail (Tunic's painted grass strokes / stone tiles), a
+        // code-generated tileable brightness map projected in world XZ so it needs no
+        // UVs on the faceted mesh. Applied only to UP-facing area (the _TopColor zone);
+        // authored around 0.5 = neutral. Strength 0 (default) = exactly the old look.
+        _DetailTex     ("Ground Detail (world XZ, 0.5 = neutral)", 2D) = "gray" {}
+        _DetailScale   ("Detail World Scale (units per tile)", Float) = 8.0
+        _DetailStrength("Detail Strength", Range(0,1)) = 0.0
     }
 
     SubShader
@@ -56,7 +63,12 @@ Shader "IdleGame/TunicSurface"
                 float _ShadowImpact;
                 float _WindStrength;
                 float _WindSpeed;
+                float _DetailScale;
+                float _DetailStrength;
             CBUFFER_END
+
+            TEXTURE2D(_DetailTex);
+            SAMPLER(sampler_DetailTex);
 
             struct Attributes
             {
@@ -108,6 +120,12 @@ Shader "IdleGame/TunicSurface"
                 half up = smoothstep(_SlopeLo, _SlopeHi, N.y);
                 half3 albedo = lerp(_SideColor.rgb, _TopColor.rgb, up);
                 albedo *= IN.color.rgb; // flat vertex-colour tint (white = no tint)
+
+                // Hand-drawn ground detail (Tunic's painted grass/tiles): a tileable
+                // brightness map (0.5 = neutral) projected in world XZ, up-faces only.
+                half detail = SAMPLE_TEXTURE2D(_DetailTex, sampler_DetailTex,
+                                               IN.positionWS.xz / max(_DetailScale, 0.01)).r;
+                albedo *= lerp(1.0, detail * 2.0, _DetailStrength * up);
 
                 // Inked facet edges: fwidth of the world normal spikes at facet creases
                 // (flat-shaded faces are constant inside, discontinuous at their borders).

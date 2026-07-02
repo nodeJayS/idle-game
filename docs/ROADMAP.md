@@ -70,6 +70,11 @@ tonight" decision engine. Slices:
    ground + scattered props from the ZoneDef hints on stage/floor change (zone 1
    = the shipped palette exactly), plus a "Now entering <Zone>" feed beat.
    Verified in Play across woods/ruins/swamp. Prop SHAPE swaps ride slice 3.
+   ✅ PLUS (same day): hand-drawn ground detail — `GroundDetail` paints tileable
+   brightness maps in code (grass strokes / chunky stone pavers / sand ripples /
+   snow speckle / cooled cracks per PropSet), world-XZ projected by TunicSurface's
+   new `_DetailTex` on up-faces only. CHUNKY marks on purpose: fine ones mip away
+   at gameplay distance.
 3. ✅ SHIPPED 2026-07-02 — zone drop tables: each zone (except the intro) favors
    one equip slot ×3 in the drop base pick (`ZoneDef.FavoredSlot` →
    `LootContext`; boots DO drop best in the ruins). Every slot has a favoring

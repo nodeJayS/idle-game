@@ -27,9 +27,11 @@ namespace IdleGame.Game
         private static readonly Color DefaultSide = new Color(0.42f, 0.31f, 0.21f);
 
         /// <summary>Zone reskin (roadmap 4): retint the field from a zone's palette hints —
-        /// ground colour on the up-faces, dirt sides leaning toward the zone accent. null (or
-        /// the fallback material) restores the default grass. The mesh/mottle never rebuilds:
-        /// the vertex colours are brightness mottle, so they read on any hue.</summary>
+        /// ground colour on the up-faces, dirt sides leaning toward the zone accent — and
+        /// swap in the zone's hand-drawn detail pattern (grass strokes / stone tiles / sand
+        /// ripples...; see <see cref="GroundDetail"/>). null (or the fallback material)
+        /// restores the default grass. The mesh/mottle never rebuilds: the vertex colours
+        /// are brightness mottle, so they read on any hue.</summary>
         public static void SetZone(ZoneDef? zone)
         {
             if (_mat == null || !_mat.HasProperty("_TopColor")) return;
@@ -37,11 +39,21 @@ namespace IdleGame.Game
             {
                 _mat.SetColor("_TopColor", DefaultTop);
                 _mat.SetColor("_SideColor", DefaultSide);
+                SetDetail(GroundDetail.Style.Grass);
                 return;
             }
             var accent = new Color((float)zone.AccentR, (float)zone.AccentG, (float)zone.AccentB);
             _mat.SetColor("_TopColor", new Color((float)zone.GroundR, (float)zone.GroundG, (float)zone.GroundB));
             _mat.SetColor("_SideColor", Color.Lerp(DefaultSide, accent, 0.35f));
+            SetDetail(GroundDetail.StyleFor(zone.PropSet));
+        }
+
+        private static void SetDetail(GroundDetail.Style style)
+        {
+            var (scale, strength) = GroundDetail.TuningFor(style);
+            _mat.SetTexture("_DetailTex", GroundDetail.Get(style));
+            _mat.SetFloat("_DetailScale", scale);
+            _mat.SetFloat("_DetailStrength", strength);
         }
 
         public static void Build(GameConfig cfg)
@@ -134,6 +146,7 @@ namespace IdleGame.Game
             _mat.SetFloat("_EdgeDark", 0.12f);   // low: the ground has many facet edges, don't grid it
             _mat.SetFloat("_EdgeSharp", 6f);
             _mat.SetFloat("_ShadowImpact", 0.7f);
+            SetDetail(GroundDetail.Style.Grass); // painted blades from the first frame (menu screen)
             return _mat;
         }
     }
