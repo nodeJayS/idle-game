@@ -47,13 +47,13 @@ docs/game-design.md      the durable what/why
   Play-mode can't run headlessly — visuals are verified by screenshot (Unity MCP), UI is
   hand-placed uGUI/IMGUI coords.
 
-## Current systems (389 tests passing)
+## Current systems (401 tests passing)
 
 Phase A (core loop) and most of Phase B (depth) are done. What exists today:
 
-- **Combat** — deterministic auto-battle; melee/range, crit, mana skills (damage/AoE/heal/buff)
-  on `AtkSpd` cooldowns, splash, chain, lifesteal, thorns. Farm = downed heroes respawn; boss &
-  Tower = do-or-die (no respawn).
+- **Combat** — deterministic auto-battle; melee/range, crit, mana skills (damage/AoE/heal/
+  buff incl. party-wide heal-over-time via `HpRegenPct` buffs) on `AtkSpd` cooldowns, splash,
+  chain, lifesteal, thorns. Farm = downed heroes respawn; boss & Tower = do-or-die (no respawn).
 - **Farm ladder** — 100 stages, geometric difficulty, endless per-stage farming, 60s mini/major
   boss gates (major every 10), tiered rates, elite/rare **pack ranks** (tougher, better loot).
 - **Loot & power (Lever 2)** — 5 rarities (**Normal/Rare/Unique/Legendary/Mythic**=red; Unique+
@@ -61,9 +61,12 @@ Phase A (core loop) and most of Phase B (depth) are done. What exists today:
   inventory cap + auto-salvage→`scrap` (threshold up to Unique) + one-click mass salvage
   (`Inventory.SalvageAllUpTo`). Every drop reads as one `Upgrades.PowerScore` verdict →
   ▲ badges, loot-feed tags, opt-in auto-equip.
-- **Heroes & build depth (Lever 3)** — Warrior / Magician / Thief / Ice Mage (stage 3/5/8
-  unlocks; Ice Mage is the first template-pipeline hero — pure config + a chibi palette);
-  **per-hero leveling** (level = the power axis). **2+2 hero template (design §7.2):** every hero
+- **Heroes & build depth (Lever 3)** — Knight / Magician (fire) / Assassin / Priest
+  (party-HoT healer, first male-body hero). Unlocks at stage 3/5/10, granted RETROACTIVELY
+  on load by `Progression.SyncHeroUnlocks` (a def removed from `HeroUnlocks` is stripped
+  from saves — that's how the Ice Mage is shelved; its def stays in config for a comeback).
+  Display names are cfg-only; def ids stay `warrior_basic`/`thief_basic`/etc.
+  **Per-hero leveling** (level = the power axis). **2+2 hero template (design §7.2):** every hero
   = exactly 2 actives + 2 passives from a shared archetype library, revealed at Lv 1/5/10/15 and
   always on (no loadouts, no prereq trees — heroes are data rows so a solo dev can scale the
   roster for the hero-gacha arc). Points = `Level/5` derived; rank cap 5; **MaxRank = mastery**
@@ -99,33 +102,24 @@ Phase A (core loop) and most of Phase B (depth) are done. What exists today:
   with a milestone bonus every 7th day. A launch `DailyLoginModal` (Collect → `CombatView.ClaimDailyLogin`)
   is the beat; gems show in the HUD. Still open: manual achievement-claim UX, the gem SINK (gacha/shop),
   real-money purchase, prestige/rebirth.
-- **Art** — *Tunic* height-blend shader + faceted vertex-coloured world + dappled light. Heroes:
-  **scripted Blender models** are the pipeline now (`art/<hero>.py` = the model source; headless
-  build→render-iterate→FBX to `Resources/Models/<defId>.fbx`; `ModelHero` rebuilds the joint
-  skeleton and reparents the flat name-prefixed parts, so `ChibiAnimator` drives them unchanged).
-  **Hero art direction: smooth "toy" style** — heroes are smooth-shaded/beveled/rounded while the
-  world stays faceted, so characters pop (warrior shipped in this style; `art/valkyrie.py` is a
-  shelved faceted design kept for its techniques). Heroes without a model fall back to the
-  code-built `ChibiHero` chibis.
+- **Art** — *Tunic* height-blend shader + faceted vertex-coloured world + dappled light.
+  **Heroes: the MS2 skinned pipeline is SHIPPED and standard** (all 4 roster heroes on it):
+  a hero = `art/heroes/<defId>.json` manifest (gender, gear NIFs, weapon attaches, dye
+  `tints`, skill/sound bindings) + 9 decoded clips in `art/motion/<defId>/` + one headless
+  `art/skinned_body.py` bake → `Resources/Models/<defId>_skinned.fbx`; then Unity menu
+  `Tools > Build Hero Animators` (importer clips + per-hero override controller). ALWAYS
+  eyeball `--renders` before `--export` — item transforms/dyes lie. History + phase notes:
+  `docs/archive/ms2-port-plan.md`. Fallback chain stays SkinnedHero→ModelHero→ChibiHero.
 
 **The four loop levers** (game-design.md §7.1): 1 combat variety ✅ · 2 loot/power chase ✅ ·
 3 build depth ✅ · **4 progression hooks — in progress** (achievement ladder + daily-login premium
 currency shipped; gem sink/gacha + prestige next).
 
 ## What's next / open
-- **⭐ MS2-style hero pipeline** (current focus): rebuild heroes with real MapleStory-2
-  proportions + a skinned 16–18-bone skeleton + clips authored from measured MS2 motion.
-  Full self-contained handover plan: [`docs/ms2-hero-pipeline-plan.md`](docs/ms2-hero-pipeline-plan.md)
-  (extracted reference assets live outside the repo at `C:\Games\MapleStory2\Extracted\`).
-- **Content & polish**: more heroes/enemies/mods/stages; balance/tuning; combat juice.
-  (The 2026-07-01 UX + rebalance batch — Mythic rarity, boss re-tune, mass salvage, wallet HUD,
-  party-bar polish, rounding sweep — is fully shipped; see backlog.md.)
-- **Progression hooks (Lever 4):** achievement ladder (slice 1) + daily-login premium currency
-  (slice 2) shipped; next = a gem SINK (gacha/shop), manual achievement-claim UX, prestige/rebirth.
-- **Tower slice 3:** per-floor reward bundles.
-- **Deferred:** Blender models for the remaining heroes (+ monsters); UI/UX uGUI layout-group
-  refactor; console balance-sim;
-  gacha + live-service (design supports both additively — game-design.md §9).
+**One source of truth: [`docs/ROADMAP.md`](docs/ROADMAP.md)** — the ordered priority
+list (gacha gem sink ⭐, Tower slice 3, combat presentation debt, MS2 monsters, then
+content/tuning; parked items at the bottom). Update it in the same commit that ships
+a roadmap item. Finished plans live in `docs/archive/`; details in git history.
 
 ## Conventions
 - **GameCore-first:** build + `dotnet test` a piece, then wire into Unity and verify by screenshot.

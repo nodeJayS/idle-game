@@ -1,0 +1,68 @@
+# Roadmap — the ONE "what's next" doc (updated 2026-07-02)
+
+The living priority list. When something ships, update this file in the same
+commit. Durable design (loops, economy, data model, live-service arc) stays in
+[`game-design.md`](game-design.md); session orientation in [`../CLAUDE.md`](../CLAUDE.md);
+finished plans move to [`archive/`](archive/) (history lives in git, not here).
+
+## Where the game stands (one paragraph)
+
+Core loop ✅ (farm ladder, loot/affixes/imprints, modifiers, Tower, quests,
+achievements, daily login/gems). Build depth ✅ (2+2 kits, per-hero levels,
+gamble economy). **MS2 asset pipeline ✅ and proven end-to-end**: a new hero =
+one manifest + 9 decoded clips + one bake (both genders, dyeable gear via
+manifest tints, per-hero animators/sounds). Roster: Knight, Magician (fire),
+Assassin, Priest (party heal-over-time) — Ice Mage shelved for a comeback.
+401 GameCore tests green.
+
+## Priorities, in order
+
+### 1. ⭐ Gem sink → hero gacha MVP (Lever 4, the strategic one)
+Gems accrue from daily logins with NO spend since 2026-07-02 — the economy's
+promise is unredeemed. Everything is staged for this: heroes are config rows
+(2+2 template), `Party.AcquireHero` is the documented acquisition plug point,
+and the pipeline makes banner heroes cheap to produce. Slices:
+1. GameCore: `Gacha.Roll` reducer — gem cost, seeded RNG via the persisted
+   cursor (can't re-roll), duplicate → hero XP or scrap, pity counter in save.
+2. UI: a banner panel (control bar) + reveal beat (rarity flash, feed line).
+3. Content: 1–2 banner heroes. **Candidate #1: the Ice Mage comeback** as the
+   launch banner (def + kit already in config; presentation recon archived in
+   [`archive/handoff-icemage-male.md`](archive/handoff-icemage-male.md) —
+   female body this time to contrast the male Priest, or keep male; ice gear
+   via manifest tints).
+
+### 2. Tower slice 3 — per-floor reward bundles (small, unblocks a loop)
+The one unfinished system slice. Floors currently pay only via milestones;
+per-floor bundles make pushing feel rewarded run-to-run. GameCore-first,
+sim-testable, ~1 session.
+
+### 3. Combat presentation debt (polish the new roster)
+- Per-hero impact sounds: `PlayImpact` hardcodes `Hit_SwordDefault` for every
+  hit in the game (same fix pattern as the shipped per-hero attack sounds).
+- Sanctify needs a heal visual (golden ground ring / sparkle on buffed heroes)
+  and Holy Smite a cast flourish — both are `_skillFx` ADD-ON POINT entries.
+- Hero-float quirk backlog item: CombatView.SyncViews writes v.Height into
+  hero Y for capsules (pre-existing; check it still matters).
+
+### 4. Monsters on the MS2 pipeline (big visual win, opens content)
+Mobs are still capsules/primitives. The port machinery (NIF importer, kf
+decoder, kfm sets) extends to `Npc/` models. Start with 2–3 farm mobs + one
+boss; SpawnView gets the same skinned→fallback chain heroes have. Unlocks the
+"enemy variety" content lever properly.
+
+### 5. Content & tuning pass (after 4)
+More stages/mods/monster kits; balance sim in console (backlogged); XP-curve
+check at the new roster size.
+
+### 6. Later / parked
+- Prestige/rebirth + manual achievement-claim UX (Lever 4 leftovers).
+- Real-money gem purchase (needs the gacha proven fun first).
+- Server authority arc (design §9) — GameCore stays pure for exactly this.
+- Xml.m2d item-table extraction (manifests by item id; likely explains the
+  odd hat socket conventions) — do when the roster/wardrobe grows.
+- Ice Mage full kit pass if not used as gacha banner (#1).
+
+## Standing rules (short version — CLAUDE.md has the full set)
+GameCore-first, one verified slice per commit. No MS2 music (SFX only). No MS2
+skill names/numbers (2+2 template is ours). Raw extracts stay outside the repo.
+Back up save.json around Play verification.
