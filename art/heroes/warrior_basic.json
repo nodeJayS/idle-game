@@ -1,0 +1,16 @@
+{
+  "id": "warrior_basic",
+  "gender": "female",
+  "items": [
+    "Item/0/02/00200008_f_basichair01_a.nif",
+    "Item/1/13/11300479_c_cpempireknight_d.nif",
+    "Item/1/14/11400416_f_clempireknight.nif",
+    "Item/1/15/11500336_f_paempireknight.nif",
+    "Item/1/16/11600420_f_glempireknight.nif",
+    "Item/1/17/11700447_f_shempireknight.nif"
+  ],
+  "attach": [
+    { "nif": "Item/1/32/13200204_goldenlongsword.nif", "bone": "handR", "point": "Weapon_Hand_R_Point" },
+    { "nif": "Item/1/41/14100024_goldaquilashield.nif", "bone": "handL", "point": "Weapon_Hand_L_Point" }
+  ]
+}

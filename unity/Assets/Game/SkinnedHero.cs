@@ -29,16 +29,35 @@ namespace IdleGame.Game
 
             var root = Object.Instantiate(prefab);
             root.name = defId;
+            var tints = LoadTints(defId);
             foreach (var r in root.GetComponentsInChildren<Renderer>())
-                foreach (var m in r.materials) SetupMaterial(m);
+                foreach (var m in r.materials) SetupMaterial(m, tints);
             var anim = root.AddComponent<SkinnedHeroAnim>();
             return (root, anim);
+        }
+
+        /// <summary>MS2 customization tints (OverrideColor0 per material — skin
+        /// tone, hair colour), exported by art/skinned_body.py as
+        /// "name r g b" lines next to the FBX.</summary>
+        private static System.Collections.Generic.Dictionary<string, Color> LoadTints(string defId)
+        {
+            var tints = new System.Collections.Generic.Dictionary<string, Color>();
+            var txt = Resources.Load<TextAsset>("Models/" + defId + "_skinned_tints");
+            if (txt == null) return tints;
+            foreach (var line in txt.text.Split('\n'))
+            {
+                var f = line.Trim().Split(' ');
+                if (f.Length != 4) continue;
+                tints[f[0]] = new Color(float.Parse(f[1]), float.Parse(f[2]), float.Parse(f[3]));
+            }
+            return tints;
         }
 
         /// <summary>Blender's FBX export strips texture paths, so wire the DDS
         /// textures (shipped next to the FBX, named after the material) back up
         /// at runtime; the alpha-textured face shell needs URP alpha-clip.</summary>
-        private static void SetupMaterial(Material m)
+        private static void SetupMaterial(Material m,
+            System.Collections.Generic.Dictionary<string, Color> tints)
         {
             string texName = m.name.Replace(" (Instance)", "").ToLowerInvariant();
             if (m.mainTexture == null)
@@ -52,10 +71,8 @@ namespace IdleGame.Game
                 m.SetFloat("_Cutoff", 0.5f);
                 m.EnableKeyword("_ALPHATEST_ON");
             }
-            // MS2 tints its grayscale skin texture per character (OverrideColor0
-            // in the NIF; f_body default below). Hero manifests own this later.
-            if (texName.Contains("skin"))
-                m.color = new Color(0.78f, 0.549f, 0.408f);
+            if (tints.TryGetValue(texName, out var tint))
+                m.color = tint;
             Bootstrap.MakeMatte(m);
         }
     }

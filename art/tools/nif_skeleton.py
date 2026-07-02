@@ -122,8 +122,8 @@ def load_nodes(path, verbose=False):
     return nodes, parent
 
 
-def load_world_positions(path):
-    """-> {node_name: (x, y, z) world}. The measurement API other tools import."""
+def load_world_transforms(path):
+    """-> {node_name: (pos (x,y,z), rot row-major 3x3)}. World-space."""
     nodes, parent = load_nodes(path)
 
     def matmul(a, b):
@@ -151,7 +151,12 @@ def load_world_positions(path):
             world_pos[c] = tuple(world_pos[i][d] + off[d] for d in range(3))
             world_rot[c] = matmul(world_rot[i], rot)
             stack.append(c)
-    return {nodes[i][0]: world_pos[i] for i in nodes}
+    return {nodes[i][0]: (world_pos[i], world_rot[i]) for i in nodes}
+
+
+def load_world_positions(path):
+    """-> {node_name: (x, y, z) world}. The measurement API other tools import."""
+    return {n: t[0] for n, t in load_world_transforms(path).items()}
 
 
 def main():

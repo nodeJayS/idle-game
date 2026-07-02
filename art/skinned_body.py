@@ -24,7 +24,7 @@ from mathutils import Matrix, Quaternion, Vector
 ART_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(ART_DIR, "tools"))
 from nif_import import load_nif  # noqa: E402
-from nif_skeleton import load_world_positions  # noqa: E402
+from nif_skeleton import load_world_positions, load_world_transforms  # noqa: E402
 
 EXTRACT_ROOT = r"C:\Games\MapleStory2\Extracted"
 GENDERS = {
@@ -116,6 +116,7 @@ def find_texture(name):
 
 
 _materials = {}
+_tints = {}  # unity material name (lower) -> sRGB tint, written next to the FBX
 
 def srgb_to_linear(c):
     return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
@@ -126,6 +127,8 @@ def material_for(tex_name, alpha, tint):
     if key in _materials:
         return _materials[key]
     m = bpy.data.materials.new(os.path.splitext(tex_name or "skin")[0])
+    if tint:
+        _tints[m.name.lower()] = tint
     m.use_nodes = True
     bsdf = m.node_tree.nodes.get("Principled BSDF")
     if bsdf:
@@ -158,13 +161,42 @@ def material_for(tex_name, alpha, tint):
     return m
 
 
-# --- mesh build from the NIF -------------------------------------------------------
+# --- mesh build from NIFs ------------------------------------------------------------
 
-def build_from_nif():
-    parts = []
-    for md in load_nif(NIF):
+def nearest_bone(center):
+    """Closest J bone segment to a point — anchors static (unskinned) parts."""
+    def seg_d(a, b):
+        av, bv, cv = Vector(a), Vector(b), Vector(center)
+        ab = bv - av
+        t = max(0.0, min(1.0, (cv - av).dot(ab) / max(ab.length_squared, 1e-9)))
+        return (cv - (av + ab * t)).length
+    return min(J, key=lambda n: seg_d(J[n][0], J[n][1]))
+
+
+def build_parts(nif_path, hide=frozenset(), rigid_bone=None, xform=None):
+    """Build Blender objects for a NIF's parts. hide = part names to skip;
+    rigid_bone + xform (world pos, rot3x3) = hand-space attachment mode."""
+    parts, names = [], set()
+    for md in load_nif(nif_path):
+        names.add(md["name"])
+        if md["name"] in hide:
+            print("  hide %-10s (replaced by gear)" % md["name"])
+            continue
+        verts = md["verts"]
+        normals = md["normals"]
+        if xform is not None:
+            # hand-space item: place at the weapon point's world transform
+            t, R = xform
+            verts = [(R[0] * v[0] + R[1] * v[1] + R[2] * v[2] + t[0],
+                      R[3] * v[0] + R[4] * v[1] + R[5] * v[2] + t[1],
+                      R[6] * v[0] + R[7] * v[1] + R[8] * v[2] + t[2]) for v in verts]
+            if normals:
+                normals = [(R[0] * n[0] + R[1] * n[1] + R[2] * n[2],
+                            R[3] * n[0] + R[4] * n[1] + R[5] * n[2],
+                            R[6] * n[0] + R[7] * n[1] + R[8] * n[2]) for n in normals]
+
         me = bpy.data.meshes.new(md["name"])
-        me.from_pydata([Vector(v) for v in md["verts"]], [], md["tris"])
+        me.from_pydata([Vector(v) for v in verts], [], md["tris"])
         me.validate()
         if md["uvs"]:
             uvl = me.uv_layers.new()
@@ -173,10 +205,10 @@ def build_from_nif():
                 uvl.data[loop.index].uv = (u, 1.0 - v)  # DX -> GL v-flip
         for p in me.polygons:
             p.use_smooth = True
-        if md["normals"]:
+        if normals:
             try:
                 me.normals_split_custom_set_from_vertices(
-                    [Vector(n).normalized() for n in md["normals"]])
+                    [Vector(n).normalized() for n in normals])
             except (AttributeError, RuntimeError) as e:
                 print("  ! custom normals failed on %s: %s" % (md["name"], e))
         me.materials.append(material_for(md["texture"], md["alpha"], md["tint"]))
@@ -191,9 +223,11 @@ def build_from_nif():
                 groups[bone] = obj.vertex_groups.new(name=bone)
             return groups[bone]
 
-        if md["skinned"] and md["blend_indices"]:
+        if rigid_bone is not None:
+            vg(rigid_bone).add(list(range(len(me.vertices))), 1.0, "REPLACE")
+        elif md["skinned"] and md["blend_indices"]:
             pal = md["bone_palette"] or list(range(len(md["bone_names"])))
-            names = md["bone_names"]
+            bnames = md["bone_names"]
             for vi, bi in enumerate(md["blend_indices"]):
                 bw = md["blend_weights"][vi] if md["blend_weights"] else (1.0,)
                 w = list(bw[:3]) + [max(0.0, 1.0 - sum(bw[:3]))] if len(bw) == 3 else list(bw)
@@ -201,16 +235,17 @@ def build_from_nif():
                     if w[k] <= 0.001:
                         continue
                     slot = pal[bi[k]] if bi[k] < len(pal) else bi[k]
-                    bip = names[slot] if slot < len(names) else None
+                    bip = bnames[slot] if slot < len(bnames) else None
                     if bip:
                         vg(map_bone(bip)).add([vi], w[k], "ADD")
         else:
-            # static part (HR scalp cap) — rides the head
-            vg("head").add(list(range(len(me.vertices))), 1.0, "REPLACE")
+            # static model-space part (scalp, hair, hood) — anchor to nearest bone
+            c = [sum(v[d] for v in verts) / len(verts) for d in range(3)]
+            vg(nearest_bone(c)).add(list(range(len(me.vertices))), 1.0, "REPLACE")
         parts.append(obj)
-        print("  part %-10s %4dv tex=%s alpha=%s" %
+        print("  part %-12s %4dv tex=%s alpha=%s" %
               (md["name"], len(me.vertices), md["texture"], md["alpha"]))
-    return parts
+    return parts, names
 
 
 def build_armature():
@@ -319,8 +354,21 @@ def export_textures_dds(out_dir):
         print("texture ->", dst)
 
 
+def export_tints(path):
+    """Per-material sRGB tints (MS2 OverrideColor0) for SkinnedHero to apply —
+    plain 'name r g b' lines, one per tinted material."""
+    if not _tints:
+        return
+    txt = os.path.splitext(path)[0] + "_tints.txt"
+    with open(txt, "w") as fh:
+        for name, (r, g, b) in sorted(_tints.items()):
+            fh.write("%s %.4f %.4f %.4f\n" % (name, r, g, b))
+    print("tints ->", txt)
+
+
 def export_fbx(path):
     export_textures_dds(os.path.dirname(os.path.abspath(path)))
+    export_tints(path)
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.export_scene.fbx(
         filepath=path,
@@ -414,15 +462,45 @@ def render_anim_frames(arm, out_dir):
 def main():
     global NIF, MOTION_DIR, J
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    gender = argv[argv.index("--gender") + 1] if "--gender" in argv else "female"
+
+    hero = None
+    if "--hero" in argv:
+        with open(argv[argv.index("--hero") + 1]) as fh:
+            hero = json.load(fh)
+        gender = hero["gender"]
+    else:
+        gender = argv[argv.index("--gender") + 1] if "--gender" in argv else "female"
     NIF = GENDERS[gender]
     MOTION_DIR = os.path.join(ART_DIR, "motion", gender)
     J = joints_from_nif(NIF)
-    print("gender=%s nif=%s" % (gender, os.path.basename(NIF)))
+    print("gender=%s nif=%s hero=%s" % (gender, os.path.basename(NIF),
+                                        hero["id"] if hero else "-"))
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
 
-    parts = build_from_nif()
+    parts = []
+    provided = set()
+    if hero:
+        for rel in hero.get("items", []):
+            objs, names = build_parts(os.path.join(EXTRACT_ROOT, rel))
+            parts += objs
+            provided |= names
+    # body: gear replaces same-named parts; worn slots hide the underwear
+    hide = set(provided)
+    if any(n.startswith("CL") for n in provided):
+        hide.add("CL_Bra")
+    if any(n.startswith("PA") for n in provided):
+        hide.add("PA_Panty")
+    body_objs, _ = build_parts(NIF, hide=hide)
+    parts += body_objs
+    if hero:
+        weapon_points = load_world_transforms(NIF)
+        for att in hero.get("attach", []):
+            objs, _ = build_parts(os.path.join(EXTRACT_ROOT, att["nif"]),
+                                  rigid_bone=att["bone"],
+                                  xform=weapon_points[att["point"]])
+            parts += objs
+
     arm = build_armature()
     attach(parts, arm)
     scale_to_game_units(parts)

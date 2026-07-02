@@ -56,7 +56,18 @@ One parameterized body script replaces `skinned_body.py`; per-gender skinned FBX
 with real face/skin textures and NIF-authored weights (replaces heat-map guess).
 *Output:* `body_female.fbx`, `body_male.fbx` + textures. Small once Phase 0 lands.
 
-## Phase 2 — Equipment → unique heroes
+## Phase 2 — Equipment → unique heroes — ✅ CORE DONE 2026-07-02
+Hero manifests work: `art/heroes/<defId>.json` (gender + item NIF paths +
+hand-space attach list) → `skinned_body.py --hero <json>` bakes body+gear into
+one FBX. Hiding rule: gear parts replace SAME-NAMED body parts (glove item
+carries its own GL/GL_Skin) + worn CL/PA hide bra/panty. Weapons/shields
+transform by the Weapon_*_Point world transform and rigid-bind to the hand
+bones. Per-material MS2 tints (skin/hair OverrideColor0) export as
+<fbx>_tints.txt; SkinnedHero applies them at runtime. warrior_basic =
+empireknight set + basichair01 + goldaquilashield + goldenlongsword, verified
+in Play. REMAINING in this phase: extract Xml.m2d + Maple2.File item table so
+manifests can reference item IDS instead of raw NIF paths; male gear variants.
+Original phase text follows:
 1. Extract `Xml.m2d`; use Maple2.File to dump the **item table** (item id → mesh
    path, slot, gender variants, icon).
 2. Importer binds worn-item NIFs to the body skeleton (they're authored in body
