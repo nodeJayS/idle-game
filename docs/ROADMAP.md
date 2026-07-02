@@ -83,8 +83,9 @@ tonight" decision engine. Slices:
    grew a taper param for teardrop/flame silhouettes). ✅ Zone 4 shipped
    2026-07-02 (Dust Scarab / hooded Dune Stalker / Dune Wurm burst-worm boss).
    ✅ Zone 5 shipped 2026-07-02 (Ice Sprite / Frost Wolf — first quadruped /
-   Glacier Golem cyclops). REMAINING: zones 6–10 rosters, zone 1 slime/goblin
-   models, per-zone prop-shape swaps.
+   Glacier Golem cyclops). ✅ Zone 6 shipped 2026-07-02 (Magma Imp / Cinder
+   Hound — lava-mane wolf chassis / Ash Tyrant demon-lord). REMAINING: zones
+   7–10 rosters, zone 1 slime/goblin models, per-zone prop-shape swaps.
 
 ### 5. Content & tuning pass (after 4)
 More stages/mods/monster kits; balance sim in console (backlogged); XP-curve

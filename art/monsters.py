@@ -53,11 +53,16 @@ COLORS = {
     "icecore": (0.70, 0.98, 1.00),
     "fur":    (0.86, 0.90, 0.95),
     "furdark": (0.46, 0.56, 0.70),
+    # zone 6 — Ember Caldera
+    "basalt": (0.22, 0.19, 0.18),
+    "basaltdark": (0.14, 0.12, 0.11),
+    "lava":   (1.00, 0.45, 0.12),
+    "ash":    (0.45, 0.40, 0.38),
 }
 # modest strengths: Unity's FBX import drops emission anyway (base colour carries
 # the look there); these only need to READ in the eyeball renders, not blow out.
 EMISSIVE = {"amber": 6.0, "ember": 8.0, "wisp": 0.8, "wispcore": 2.5, "sludge": 1.2,
-            "icecore": 2.0}
+            "icecore": 2.0, "lava": 3.0}
 
 _materials = {}
 
@@ -437,6 +442,70 @@ def build_glacier_golem():
     box("spikeB2", (0.08, 0.08, 0.30), (-0.14, 0.34, 1.30), "icedeep", taper_top=0.15, rot=(0.5, 0, -0.1))
 
 
+# --- zone 6: Ember Caldera ----------------------------------------------------------
+
+def build_magma_imp():
+    """A squat basalt imp: dark cracked body with a lava seam glowing through,
+    horned head, ember eyes, stubby limbs. ~0.85u tall."""
+    rock("body", 0.24, (0, 0, 0.40), "basalt", scale=(1.05, 0.95, 1.05), seed=131, jitter=0.20, subdiv=2)
+    # lava seam glowing through the chest (faces -Y)
+    rock("seam", 0.10, (0, -0.18, 0.40), "lava", scale=(1.2, 0.6, 1.6), seed=132, jitter=0.15)
+    rock("head", 0.16, (0, -0.02, 0.74), "basalt", seed=133, jitter=0.16)
+    # swept-back horns
+    box("hornL", (0.05, 0.05, 0.16), (0.10, 0.04, 0.90), "basaltdark", taper_top=0.2, rot=(0.5, 0, -0.35))
+    box("hornR", (0.05, 0.05, 0.16), (-0.10, 0.04, 0.90), "basaltdark", taper_top=0.2, rot=(0.5, 0, 0.35))
+    rock("eyeL", 0.04, (0.07, -0.15, 0.78), "lava", seed=134, jitter=0.05)
+    rock("eyeR", 0.04, (-0.07, -0.15, 0.78), "lava", seed=135, jitter=0.05)
+    # stubby limbs
+    box("armL", (0.07, 0.07, 0.22), (0.26, -0.04, 0.36), "basaltdark", rot=(0.2, 0, -0.4))
+    box("armR", (0.07, 0.07, 0.22), (-0.26, -0.04, 0.36), "basaltdark", rot=(0.2, 0, 0.4))
+    box("legL", (0.09, 0.10, 0.16), (0.12, 0, 0.09), "basaltdark", taper_top=0.75)
+    box("legR", (0.09, 0.10, 0.16), (-0.12, 0, 0.09), "basaltdark", taper_top=0.75)
+
+
+def build_cinder_hound():
+    """A charcoal hound on the frost-wolf chassis: basalt body, a GLOWING lava
+    ridge for a mane, ember eyes, ash snout, lava-tipped tail. ~0.85u tall."""
+    rock("body", 0.26, (0, 0.06, 0.48), "basalt", scale=(0.95, 1.75, 0.95), seed=141, jitter=0.14, subdiv=2)
+    rock("mane", 0.19, (0, 0.12, 0.70), "lava", scale=(0.75, 1.35, 0.55), seed=142, jitter=0.20)
+    rock("head", 0.16, (0, -0.44, 0.66), "basalt", scale=(1.0, 1.1, 1.0), seed=143, jitter=0.12)
+    box("snout", (0.11, 0.18, 0.09), (0, -0.60, 0.60), "ash")
+    box("nose", (0.05, 0.04, 0.04), (0, -0.70, 0.62), "socket")
+    box("earL", (0.05, 0.04, 0.12), (0.09, -0.38, 0.84), "basaltdark", taper_top=0.25)
+    box("earR", (0.05, 0.04, 0.12), (-0.09, -0.38, 0.84), "basaltdark", taper_top=0.25)
+    rock("eyeL", 0.035, (0.09, -0.55, 0.70), "ember", seed=144, jitter=0.05)
+    rock("eyeR", 0.035, (-0.09, -0.55, 0.70), "ember", seed=145, jitter=0.05)
+    for name, x, y in (("legFL", 0.14, -0.26), ("legFR", -0.14, -0.26), ("legBL", 0.14, 0.34), ("legBR", -0.14, 0.34)):
+        box(name, (0.08, 0.08, 0.42), (x, y, 0.21), "basaltdark", taper_top=0.8)
+    rock("tail", 0.08, (0, 0.52, 0.64), "basaltdark", scale=(0.8, 1.8, 0.8), seed=146, jitter=0.15)
+    rock("tailtip", 0.06, (0, 0.66, 0.68), "lava", seed=147, jitter=0.1)
+
+
+def build_ash_tyrant():
+    """BOSS — a basalt demon-lord: cracked boulder bulk over planted legs, lava
+    veins burning through the chest and shoulders, great trim horns, ember
+    eyes. ~2.3u tall."""
+    rock("footL", 0.24, (0.28, 0, 0.20), "basaltdark", scale=(1.0, 1.15, 0.75), seed=151, jitter=0.2)
+    rock("footR", 0.24, (-0.28, 0, 0.20), "basaltdark", scale=(1.0, 1.15, 0.75), seed=152, jitter=0.2)
+    rock("torso", 0.56, (0, 0, 1.00), "basalt", scale=(1.15, 0.9, 1.0), seed=153, jitter=0.24, subdiv=2)
+    # lava veins burning through the chest + shoulder cracks (front -Y)
+    rock("vein1", 0.16, (0.10, -0.42, 1.10), "lava", scale=(1.4, 0.5, 1.8), seed=154, jitter=0.15)
+    rock("vein2", 0.10, (-0.20, -0.40, 0.86), "lava", scale=(1.3, 0.5, 1.5), seed=155, jitter=0.15)
+    rock("head", 0.28, (0, -0.04, 1.74), "basalt", scale=(1.0, 0.95, 0.85), seed=156, jitter=0.18, subdiv=2)
+    # great horns sweeping up-outward
+    prism("hornL", [(0, 0), (0.22, 0.08), (0.42, 0.34), (0.16, 0.09)], 0.07,
+          (0.16, 0, 1.88), "trim", axis="y")
+    prism("hornR", [(0, 0), (-0.22, 0.08), (-0.42, 0.34), (-0.16, 0.09)], 0.07,
+          (-0.16, 0, 1.88), "trim", axis="y")
+    rock("eyeL", 0.06, (0.10, -0.27, 1.78), "ember", seed=157, jitter=0.05)
+    rock("eyeR", 0.06, (-0.10, -0.27, 1.78), "ember", seed=158, jitter=0.05)
+    # heavy arms with lava-cracked fists
+    rock("armL", 0.21, (0.68, 0.02, 0.86), "basaltdark", scale=(0.9, 0.9, 1.7), seed=159, jitter=0.22)
+    rock("armR", 0.21, (-0.68, 0.02, 0.86), "basaltdark", scale=(0.9, 0.9, 1.7), seed=160, jitter=0.22)
+    rock("fistL", 0.16, (0.69, -0.02, 0.44), "lava", seed=161, jitter=0.15)
+    rock("fistR", 0.16, (-0.69, -0.02, 0.44), "lava", seed=162, jitter=0.15)
+
+
 MONSTERS = {
     # zone 2 — Ruined Courtyard (trash, trash, boss)
     "bone_rattler": (build_bone_rattler, 0.55, 2.1),
@@ -454,6 +523,10 @@ MONSTERS = {
     "ice_sprite": (build_ice_sprite, 0.55, 2.0),
     "frost_wolf": (build_frost_wolf, 0.50, 2.4),
     "glacier_golem": (build_glacier_golem, 1.15, 4.0),
+    # zone 6 — Ember Caldera
+    "magma_imp": (build_magma_imp, 0.50, 2.0),
+    "cinder_hound": (build_cinder_hound, 0.50, 2.4),
+    "ash_tyrant": (build_ash_tyrant, 1.15, 4.0),
 }
 
 # --- render / export -------------------------------------------------------------
