@@ -13,6 +13,8 @@ namespace IdleGame.Game
         void SetMoving(bool moving);
         void SetMoveSpeed(float unitsPerSec);
         void TriggerAttack();
+        void TriggerHit();
+        void SetDowned(bool downed);
     }
 
     /// <summary>
@@ -88,6 +90,10 @@ namespace IdleGame.Game
     {
         private static readonly int MovingId = Animator.StringToHash("Moving");
         private static readonly int AttackId = Animator.StringToHash("Attack");
+        private static readonly int Attack2Id = Animator.StringToHash("Attack2");
+        private static readonly int BoreId = Animator.StringToHash("Bore");
+        private static readonly int HitId = Animator.StringToHash("Hit");
+        private static readonly int DeadId = Animator.StringToHash("Dead");
 
         /// <summary>Ground speed the MS2 run cycle was authored for (units/s).
         /// The chibi sprint covers ~1.5 body heights per 0.6s cycle. Playback
@@ -96,7 +102,10 @@ namespace IdleGame.Game
 
         private Animator? _animator;
         private bool _moving;
+        private bool _downed;
         private float _speedScale = 1f;
+        private float _idleT;
+        private float _nextBore = 8f;
 
         private void Awake()
         {
@@ -120,15 +129,41 @@ namespace IdleGame.Game
         private void Update()
         {
             if (_animator == null) return;
-            // scale only the run cycle — idle breathing and attacks play as authored
+            // scale only the run cycle — everything else plays as authored
             bool running = _animator.GetCurrentAnimatorStateInfo(0).IsName("Run");
             _animator.speed = running ? _speedScale : 1f;
+
+            // long idle -> a bored fidget now and then (MS2's bore clip)
+            if (!_moving && !_downed)
+            {
+                _idleT += Time.deltaTime;
+                if (_idleT >= _nextBore)
+                {
+                    _animator.SetTrigger(BoreId);
+                    _idleT = 0f;
+                    _nextBore = Random.Range(7f, 14f);
+                }
+            }
+            else _idleT = 0f;
         }
 
         public void TriggerAttack()
         {
-            if (_animator == null || _moving) return; // never swing mid-slide
-            _animator.SetTrigger(AttackId);
+            if (_animator == null || _moving || _downed) return; // never swing mid-slide
+            _animator.SetTrigger(Random.value < 0.5f ? AttackId : Attack2Id);
+        }
+
+        public void TriggerHit()
+        {
+            if (_animator == null || _downed) return;
+            _animator.SetTrigger(HitId);
+        }
+
+        public void SetDowned(bool downed)
+        {
+            if (_animator == null || _downed == downed) return;
+            _downed = downed;
+            _animator.SetBool(DeadId, downed);
         }
     }
 }

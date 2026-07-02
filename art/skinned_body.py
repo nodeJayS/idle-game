@@ -31,7 +31,14 @@ GENDERS = {
     "female": r"C:\Games\MapleStory2\Extracted\Character\female\f_body.nif",
     "male":   r"C:\Games\MapleStory2\Extracted\Character\male\m_body.nif",
 }
-CLIPS = ("idle", "run", "attack")
+
+
+def clip_roles():
+    """Every decoded clip in the gender's motion dir becomes an FBX take,
+    named by its role (idle/run/attack/attack2/bore/hit/death/...)."""
+    import glob
+    return sorted(os.path.splitext(os.path.basename(p))[0]
+                  for p in glob.glob(os.path.join(MOTION_DIR, "*.json")))
 
 # module state set by main() from --gender
 NIF = GENDERS["female"]
@@ -295,7 +302,7 @@ def build_clips(arm):
     parent_of = {b.name: b.parent.name if b.parent else None for b in arm.data.bones}
 
     arm.animation_data_create()
-    for clip in CLIPS:
+    for clip in clip_roles():
         with open(os.path.join(MOTION_DIR, clip + ".json")) as fh:
             data = json.load(fh)
         act = bpy.data.actions.new(clip)
@@ -446,7 +453,7 @@ def render_views(cam_obj, out_dir):
 
 def render_anim_frames(arm, out_dir):
     scene = bpy.context.scene
-    for clip in CLIPS:
+    for clip in clip_roles():
         act = bpy.data.actions[clip]
         arm.animation_data.action = act
         span = int(act.frame_range[1])

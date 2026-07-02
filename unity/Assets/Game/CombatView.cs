@@ -1052,6 +1052,7 @@ namespace IdleGame.Game
                             if (ent != null && ent.Team == Team.Party)
                             {
                                 Paint(v.Go, DownedColor); // downed, not dead — keep the view
+                                v.Anim?.SetDowned(true);  // skeletal heroes collapse (death clip)
                             }
                             else
                             {
@@ -1071,6 +1072,7 @@ namespace IdleGame.Game
                         {
                             rv.Go.SetActive(true);
                             Paint(rv.Go, rv.BaseColor);
+                            rv.Anim?.SetDowned(false); // back on their feet
                         }
                         break;
                     case CombatEventType.BossDefeated:
@@ -1195,6 +1197,7 @@ namespace IdleGame.Game
             hv.KnockMag = 0.18f;
             hv.KnockDur = 0.14f;
             hv.KnockT = hv.KnockDur;
+            hv.Anim?.TriggerHit(); // skeletal heroes flinch with the MS2 knock-back clip
         }
 
         /// <summary>Kick off a lunge on the source view toward the target (or upward for a

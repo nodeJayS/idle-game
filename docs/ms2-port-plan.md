@@ -80,7 +80,17 @@ Original phase text follows:
 *Output:* the empireknight warrior (finally with her gear), then any hero is a
 manifest entry. 1–2 sessions.
 
-## Phase 3 — Animation library
+## Phase 3 — Animation library — ✅ DONE 2026-07-02
+7-clip set decoded for the warrior (female): idle, sword_run, crossswing +
+guardianswing (TriggerAttack picks randomly), knight_bore fidget (fires after
+7–14s uninterrupted idle), knock_back hit flinch, dead_a collapse. Every JSON
+in art/motion/<gender>/ becomes an FBX take automatically (clip_roles()).
+HeroAnimator: 7 states; Dead bool (AnyState→Death, Death→Idle on revive), Hit
+from Idle/Run/Bore, movement cancels everything. Seams: ApplyHitReaction →
+TriggerHit, party Death → SetDowned(true), Respawn → SetDowned(false).
+Verified in Play (Idle/Run/Attack/Hit seen live; Death/revive driven directly).
+.kfm manifest parsing deferred — hero manifests list clips explicitly instead.
+Original phase text follows:
 Parse the `.kfm` manifests (class/weapon → anim-set mapping); batch `kf_motion.py`
 over the needed sets (idle/walk/run/bore/hit/dead + per-weapon attacks + skill
 anims). Clip sets keyed by weapon type; shared AnimatorController + per-hero
