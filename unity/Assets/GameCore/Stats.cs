@@ -28,8 +28,12 @@ namespace IdleGame.GameCore
             foreach (var item in equipped)
             {
                 if (cfg.ItemBases.TryGetValue(item.BaseId, out var baseDef))
+                {
+                    // enhancement (+N) multiplies the BASE's stats only; affixes as rolled
+                    double enh = 1.0 + cfg.Balance.EnhanceBasePctPerLevel * item.Enhance;
                     foreach (var kv in baseDef.BaseStats)
-                        result[kv.Key] = result.Get(kv.Key) + kv.Value;
+                        result[kv.Key] = result.Get(kv.Key) + kv.Value * enh;
+                }
 
                 foreach (var affix in item.Affixes)
                     result[affix.Stat] = result.Get(affix.Stat) + affix.Value;

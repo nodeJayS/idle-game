@@ -81,6 +81,7 @@ namespace IdleGame.Game
             var suf = Loot.ImprintForSlot(item, cfg, ImprintSlot.Suffix);
             if (pre != null) name = pre.Name + " " + name;       // "Volatile Rusty Sword"
             if (suf != null) name = name + " of " + suf.Name;    // "… of Leeching"
+            if (item.Enhance > 0) name = "+" + item.Enhance + " " + name; // "+7 Rusty Sword"
             return name;
         }
 

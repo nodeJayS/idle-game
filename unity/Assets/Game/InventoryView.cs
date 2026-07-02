@@ -73,8 +73,10 @@ namespace IdleGame.Game
                         new Vector2(130, 30), new Vector2(-215, 274)).color = new Color(0.75f, 0.78f, 0.85f);
 
             BuildAutoEquip(panel.transform);
-            // persisted order: the inventory list IS the display order, so Sort survives reopen
-            UiKit.TextButton(panel.transform, "Sort", new Vector2(90, 46), new Vector2(105, 274),
+            // persisted order: the inventory list IS the display order, so Sort survives
+            // reopen. Bottom row between the rarity legend and "Salvage all" (the top row
+            // is fully occupied by auto-salvage / auto-equip / Close).
+            UiKit.TextButton(panel.transform, "Sort", new Vector2(85, 40), new Vector2(135, -300),
                              () => { _view.SortInventory(); Rebuild(); }, 15);
             UiKit.TextButton(panel.transform, "Close", new Vector2(110, 50), new Vector2(400, 274), Close, 22);
 
@@ -155,7 +157,15 @@ namespace IdleGame.Game
             y -= 22f;
             UiKit.Label(_detail, $"{SlotOf(item)} · item level {item.ItemLevel}", 13, TextAnchor.MiddleLeft,
                         new Vector2(270, 22), new Vector2(0, y));
-            y -= 26f;
+            y -= 22f;
+            if (item.Enhance > 0)
+            {
+                UiKit.Label(_detail, $"Enhanced +{item.Enhance} · +{item.Enhance * _cfg.Balance.EnhanceBasePctPerLevel * 100:0}% base stats",
+                            13, TextAnchor.MiddleLeft, new Vector2(270, 20), new Vector2(0, y))
+                     .color = new Color(0.55f, 0.9f, 0.55f);
+                y -= 22f;
+            }
+            y -= 4f;
             var affixes = new List<Affix>(item.Affixes);
             affixes.Sort((x, z) => StatDisplay.Rank(x.Stat).CompareTo(StatDisplay.Rank(z.Stat)));
             foreach (var a in affixes)
@@ -167,6 +177,25 @@ namespace IdleGame.Game
                     UiKit.Label(_detail, $"+{StatDisplay.Value(a.Stat, a.Value)} {StatDisplay.Label(a.Stat)}", 13, TextAnchor.MiddleLeft,
                                 new Vector2(270, 20), new Vector2(0, y));
                 y -= 22f;
+            }
+
+            // Enhance (THE scrap sink): +5% of the item BASE's stats per level. Safe to +5,
+            // can fail +6..+9 (scrap only), can DROP a level from +10 up. Any item, worn or loose.
+            if (item.Enhance < _cfg.Balance.EnhanceMax)
+            {
+                long ec = _cfg.Balance.EnhanceCost(item);
+                int nextLvl = item.Enhance + 1;
+                double chance = _cfg.Balance.EnhanceSuccess[nextLvl - 1];
+                bool canEn = Inventory.CanEnhance(save, item.Id, _cfg);
+                string odds = chance >= 1.0 ? "" :
+                    nextLvl >= _cfg.Balance.EnhanceDropFrom ? $"  {chance * 100:0}% ⚠" : $"  {chance * 100:0}%";
+                var en = UiKit.TextButton(_detail, $"Enhance → +{nextLvl}  {Num.CompactCeil(ec)}s{odds}", new Vector2(260, 40),
+                    new Vector2(0, -104), canEn
+                        ? () => { _view.EnhanceItem(item.Id); ShowDetail(_view.CurrentSave, _view.CurrentSave.Inventory.Find(i => i.Id == item.Id)); }
+                        : (System.Action)(() => { }), 15);
+                en.interactable = canEn;
+                var enImg = en.GetComponent<Image>();
+                if (enImg != null) enImg.color = canEn ? new Color(0.26f, 0.42f, 0.32f) : new Color(0.24f, 0.24f, 0.28f);
             }
 
             // Reforge (item shop): gamble the normal affix values with gold+scrap. Works on any item

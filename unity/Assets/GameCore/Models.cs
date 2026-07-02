@@ -93,6 +93,10 @@ namespace IdleGame.GameCore
         public Rarity Rarity;
         public int ItemLevel;
         public List<Affix> Affixes = new List<Affix>();
+        // Enhancement level (+N): multiplies the item BASE's stats only (+5%/level via
+        // Balance.EnhanceBasePctPerLevel) — affix rolls stay as rolled (rolls are
+        // Reforge's domain, the base is Enhance's). Absent in old saves => 0.
+        public int Enhance;
     }
 
     public sealed class ProgressState

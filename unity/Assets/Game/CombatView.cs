@@ -387,6 +387,23 @@ namespace IdleGame.Game
         /// (rarity desc, then item level) via the pure reducer.</summary>
         public void SortInventory() => _save = Inventory.Sort(_save, _cfg);
 
+        /// <summary>InventoryView's "Enhance" button: one +1 attempt via the pure
+        /// reducer (scrap cost, rng-cursor gamble); report the outcome in the feed.</summary>
+        public void EnhanceItem(string itemId)
+        {
+            var r = Inventory.Enhance(_save, itemId, _cfg);
+            if (r == null) return;
+            _save = r.Save;
+            var item = _save.Inventory.Find(i => i.Id == itemId);
+            string name = item != null ? StatDisplay.ItemName(item, _cfg) : "item";
+            if (r.Success)
+                _chat?.AddFeed($"⚒ Enhanced: {name}", new Color(0.55f, 0.9f, 0.55f));
+            else if (r.Dropped)
+                _chat?.AddFeed($"⚒ Enhance failed — dropped to +{r.Level}", new Color(1f, 0.55f, 0.4f));
+            else
+                _chat?.AddFeed($"⚒ Enhance failed (+{r.Level} kept)", new Color(0.85f, 0.75f, 0.5f));
+        }
+
         /// <summary>Mass-salvage (InventoryView's "Salvage all" button): scrap every loose item at or
         /// below the cap via the pure reducer + report the haul in the feed. Equipped gear survives.</summary>
         public void SalvageAll(Rarity cap)

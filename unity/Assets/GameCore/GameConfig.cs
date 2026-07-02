@@ -434,6 +434,23 @@ namespace IdleGame.GameCore
         public long ScrapValue(Rarity rarity, int itemLevel)
             => ScrapValueByRarity[(int)rarity] + Math.Max(0, itemLevel);
 
+        // ---- Gear enhancement (2026-07-02) — THE scrap sink. +N multiplies the item
+        // BASE's stats by EnhanceBasePctPerLevel each (affixes untouched: rolls are
+        // Reforge's domain). +1..+5 always land; +6..+9 can fail costing only the
+        // scrap; +10..+15 fails DROP one level (the item itself is never destroyed).
+        // Cost escalates geometrically off the item's scrap value, so to +15 costs
+        // ~100x what the item salvages for — a deep, self-scaling sink.
+        public int EnhanceMax = 15;
+        public double EnhanceBasePctPerLevel = 0.05;
+        // success chance of ATTEMPTING level N = EnhanceSuccess[N-1]
+        public double[] EnhanceSuccess = { 1, 1, 1, 1, 1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.45, 0.4, 0.35, 0.3, 0.25 };
+        public int EnhanceDropFrom = 10;   // failed attempts at/above this level lose a level
+        public double EnhanceCostBase = 0.6;
+        public double EnhanceCostGrowth = 1.3;
+        public long EnhanceCost(Item item) => (long)Math.Ceiling(
+            ScrapValue(item.Rarity, item.ItemLevel)
+            * EnhanceCostBase * Math.Pow(EnhanceCostGrowth, item.Enhance));
+
         // Hero leveling is a LONG-HAUL chase — level 100 is meant to take months of farming, not days.
         // XpCurve(level) is the XP from `level` to `level+1`, geometric. The curve stays gentle through
         // the early skill-unlock levels (~5–18) then compounds hard, so the back half is the grind.

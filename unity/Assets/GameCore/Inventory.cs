@@ -133,7 +133,7 @@ namespace IdleGame.GameCore
                 newAffixes.Add(new Affix { Stat = a.Stat, Value = Math.Min(max, Math.Max(min, rolled)) });
             }
 
-            var newItem = new Item { Id = item.Id, BaseId = item.BaseId, Rarity = item.Rarity, ItemLevel = item.ItemLevel, Affixes = newAffixes };
+            var newItem = new Item { Id = item.Id, BaseId = item.BaseId, Rarity = item.Rarity, ItemLevel = item.ItemLevel, Affixes = newAffixes, Enhance = item.Enhance };
             var nextInventory = new List<Item>(save.Inventory);
             nextInventory[nextInventory.FindIndex(i => i.Id == itemId)] = newItem;
 
@@ -156,6 +156,63 @@ namespace IdleGame.GameCore
                 Modifiers = save.Modifiers,
                 LastClaimAt = save.LastClaimAt,
             };
+        }
+
+        /// <summary>One enhancement attempt's outcome (the save inside is post-attempt).</summary>
+        public sealed class EnhanceResult
+        {
+            public SaveState Save = null!;
+            public bool Success;
+            public int Level;      // the item's enhancement level AFTER the attempt
+            public bool Dropped;   // a high-tier fail cost a level
+            public long Cost;      // scrap spent
+        }
+
+        /// <summary>True if the item is owned, below Balance.EnhanceMax, and the next
+        /// attempt is affordable in scrap.</summary>
+        public static bool CanEnhance(SaveState save, string itemId, GameConfig cfg)
+        {
+            var item = save.Inventory.Find(i => i.Id == itemId);
+            if (item == null || item.Enhance >= cfg.Balance.EnhanceMax) return false;
+            long scrap = save.Currencies.TryGetValue("scrap", out var s) ? s : 0;
+            return scrap >= cfg.Balance.EnhanceCost(item);
+        }
+
+        /// <summary>
+        /// Spend scrap on one +1 enhancement attempt. +1..+5 always land; +6..+9 can
+        /// fail (only the scrap is lost); attempts at/above Balance.EnhanceDropFrom
+        /// DROP one level on a fail — the item itself is never destroyed. Deterministic
+        /// via the save's rng cursor (advanced + persisted, same as Reforge). Returns
+        /// null if it can't be attempted; otherwise pure — a fresh save + item copy.
+        /// </summary>
+        public static EnhanceResult? Enhance(SaveState save, string itemId, GameConfig cfg)
+        {
+            if (!CanEnhance(save, itemId, cfg)) return null;
+            var item = save.Inventory.Find(i => i.Id == itemId)!;
+            long cost = cfg.Balance.EnhanceCost(item);
+
+            var rng = new Rng(save.RngSeed, save.RngCursor);
+            int attempted = item.Enhance + 1;
+            bool success = rng.Next() < cfg.Balance.EnhanceSuccess[attempted - 1];
+            bool dropped = !success && attempted >= cfg.Balance.EnhanceDropFrom;
+            int level = success ? attempted
+                      : dropped ? Math.Max(0, item.Enhance - 1)
+                      : item.Enhance;
+
+            var newItem = new Item
+            {
+                Id = item.Id, BaseId = item.BaseId, Rarity = item.Rarity,
+                ItemLevel = item.ItemLevel, Affixes = item.Affixes, Enhance = level,
+            };
+            var nextInventory = new List<Item>(save.Inventory);
+            nextInventory[nextInventory.FindIndex(i => i.Id == itemId)] = newItem;
+
+            var currencies = new Dictionary<string, long>(save.Currencies);
+            currencies["scrap"] = (save.Currencies.TryGetValue("scrap", out var s) ? s : 0) - cost;
+
+            var next = Build(save, nextInventory, currencies);
+            next.RngCursor = rng.Cursor; // persist so the roll can't be re-rolled
+            return new EnhanceResult { Save = next, Success = success, Level = level, Dropped = dropped, Cost = cost };
         }
 
         /// <summary>
