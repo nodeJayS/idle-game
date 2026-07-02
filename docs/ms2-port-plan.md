@@ -97,7 +97,17 @@ anims). Clip sets keyed by weapon type; shared AnimatorController + per-hero
 overrides (AnimatorOverrideController). Decoder exists — this is batching + wiring.
 ~1 session.
 
-## Phase 4 — Sound
+## Phase 4 — Sound — ✅ DONE 2026-07-02
+`art/tools/fsb_extract.py`: pure-python FSB5 extractor — MS2 banks are all
+MPEG codec, so samples are raw MP3 (no transcoding, no external tools).
+Shipped set (Resources/Sound/): Swing_Sword x3, Hit_SwordDefault x3, wizard
+fireball launch, CH_Levelup, BadWood_Dead x2, BGM_Ellinia_field_01. SoundFx
+helper (variant sets by _NN suffix, per-set rate limit, 2D one-shot + BGM
+loop channels). Hooks: TriggerLunge->swing, PlayImpact->hit, enemy Death,
+level-up, fireball launch, session start->BGM. Verified live (BGM isPlaying,
+FX channel active). NOTE: audio is silent under EditorApplication.Step
+(editor pause-step) — verify sound with real Play, not stepped frames.
+Original phase text follows:
 Extract FMOD banks (`python-fsb5` or vgmstream) → OGG into Unity; use the Xml
 sound tables to map events → sound ids. Wire into CombatView seams (attack, hit,
 death, level-up, UI) + BGM. ~1 session incl. tooling.

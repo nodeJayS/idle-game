@@ -98,6 +98,7 @@ namespace IdleGame.Game
                 go.transform.localScale = Vector3.one * (crit ? 0.8f : 0.6f);
                 Paint(go, new Color(1f, 0.55f, 0.15f));
                 Glow(go, new Color(1f, 0.5f, 0.1f) * 2.5f); // make it read against the ground
+                SoundFx.Play("Skill_Wizard_FireBall_Ball", 0.4f);
                 go.AddComponent<Projectile>().Launch(from, to, 14f, () => PlayImpact(to, amount, crit));
             };
 
@@ -205,6 +206,7 @@ namespace IdleGame.Game
             if (_juice == null) return;
             if (Settings.DamageNumbers) _juice.DamageNumber(at, amount, crit);
             if (crit && Settings.ScreenShake) _rig?.Shake(0.15f);
+            SoundFx.Play("Hit_SwordDefault", crit ? 0.6f : 0.45f);
         }
 
         /// <summary>Resolve an attacker's basic-attack visual hint (hero or monster def).</summary>
@@ -447,6 +449,7 @@ namespace IdleGame.Game
                 if (e.Team == Team.Party)
                     heroDefs.Add(_save.Heroes.Find(h => h.Id == e.RefId)?.DefId + ":" + AttackFxFor(e.Id));
             Debug.Log($"[CombatView] {_combat.Kind} start: stage {_combat.Stage}; party = [{string.Join(", ", heroDefs)}].");
+            SoundFx.PlayBgm("BGM_Ellinia_field_01"); // no-op if already playing
         }
 
         private void Update()
@@ -655,6 +658,7 @@ namespace IdleGame.Game
                 if (PartyLevelSum() > before)
                 {
                     _chat?.AddFeed("Level up!", new Color(0.5f, 0.85f, 1f));
+                    SoundFx.Play("CH_Levelup", 0.55f);
                     if (_juice != null)
                         foreach (var e in _combat.Entities)
                             if (e.Team == Team.Party && e.Alive && _views.TryGetValue(e.Id, out var lv) && lv.Go != null)
@@ -1062,6 +1066,7 @@ namespace IdleGame.Game
                                 (deathPos ??= new Dictionary<string, Vector3>())[ev.EntityId] = v.Go.transform.position;
                                 _views.Remove(ev.EntityId);
                                 enemyKills++;
+                                SoundFx.Play("BadWood_Dead", 0.4f);
                                 v.Go.AddComponent<DeathFx>()
                                     .Configure(0.45f, v.Go.transform.localScale, v.LastHitDir * 0.6f, sink: 0.4f);
                             }
@@ -1207,7 +1212,12 @@ namespace IdleGame.Game
             if (sourceId == null || !_views.TryGetValue(sourceId, out var sv) || sv.Go == null) return;
 
             // Skeletal heroes play their swing/cast clip instead of the capsule lunge.
-            if (sv.Anim != null) { sv.Anim.TriggerAttack(); return; }
+            if (sv.Anim != null)
+            {
+                sv.Anim.TriggerAttack();
+                SoundFx.Play("Swing_Sword", 0.4f);
+                return;
+            }
 
             Vector3 dir = Vector3.up;
             float mag = 0.28f;
