@@ -20,8 +20,8 @@
 | Engine | **Unity (C#)**, 3D URP |
 | Art direction | **2.5D isometric, low-poly 3D** — fixed iso camera over low-poly models; readable, cheap to produce, light on mobile |
 | Sim | **`GameCore`** — pure C# library, no `UnityEngine` refs; Unity is a read-only client |
-| Party | **3 hero slots** from a multi-class roster; **start solo (Warrior)**, unlock the **Magician at stage 3**. Leveling is **per-hero** (see §4) |
-| Classes | Each class has its **own skill set**; skills fire automatically in combat (live, M11) |
+| Party | **3 hero slots** from a multi-class roster; **start solo (Knight)**, unlocks at stages 3/5/10 (Fire Mage / Priest / Assassin), granted retroactively on load. Leveling is **per-hero** (see §4) |
+| Classes | **Archetype → class taxonomy (2026-07-02):** three families — **Warrior** (Knight; later Swordsman/Brawler), **Rogue** (Assassin; later Ninja/Archer), **Magician** (Fire Mage, Priest; later Ice Mage/Summoner). An `ArchetypeDef` = stat template + shared passive pool; a class = per-key overrides (`GameConfig.FromArchetype`). `Role` (melee/ranged/support) stays the sim's separate mechanical axis — an Archer is a Rogue with Role=ranged. Each class has its **own skill set**; skills fire automatically in combat |
 | Map / movement | Party **auto-navigates** stages, auto-fights, auto-loots |
 | Stages | **1–100 main ladder**; clear a **miniboss** to advance, **major boss every 10**. Tower / endless / party modes later |
 | Hero death | Heroes are **downed** with a **per-hero respawn timer** (scales up as they get stronger); a full wipe fails the run. No permanent loss. Frequent wipes = the stage is too strong |
@@ -53,7 +53,7 @@ If this feels good with placeholder primitives and grey/blue/yellow item rectang
 ## 2. MVP — the vertical slice (build this and nothing more in v1)
 
 1. **Stage zone** — a small 3D zone the party auto-walks through.
-2. **Auto-combat** — 3-slot party (start solo Warrior; Magician unlocks at stage 3), auto-target nearest monsters, auto-attack/auto-skill on cooldown. Heroes can be **downed**; a full party wipe fails the run.
+2. **Auto-combat** — 3-slot party (start solo Knight; unlocks by stage), auto-target nearest monsters, auto-attack/auto-skill on cooldown. Heroes can be **downed**; a full party wipe fails the run.
 3. **Monster packs + a miniboss** — clear the packs, **miniboss gates the next stage**; a **major boss every 10 stages**.
 4. **Loot drops** — monsters drop gear with rarity + random affixes; auto-pickup.
 5. **Equip & stats** — equip gear on a hero; stats recompute; party gets stronger.
@@ -314,10 +314,10 @@ one is a **data row, not a system** — so the kit is fixed-shape and trees are 
 - **Monetization invariant (applies to all future systems):** no design may make *deferring*
   a gem spend the rational choice; banking gems toward a known banner launch is fine.
 
-**Kit trims for the existing three** (reseeded at New Game, no migration — pre-launch):
-Warrior = quake AoE + self-sustain active, armor + thorns passives. Magician (fire) = fire
-nuke + burn AoE, mana/regen + crit passives. Thief = execute nuke + dash/multi-hit active,
-crit-chance + attack-speed passives. Exact params live in `GameConfig.Default()`.
+**Current kits** (exact params live in `GameConfig.Default()`): Knight = spinning AoE +
+shield-charge dash, armor + health passives. Fire Mage = fire nuke + AoE fireball,
+spell-power + mana passives. Assassin = fast stab + heavy vital strike, crit passives.
+Priest = party heal-over-time + AoE smite, sustain + mana-flow passives.
 
 ---
 
@@ -357,7 +357,7 @@ single-player, local game), **Depth** (build variety + retention), **Live-servic
 | **Monster-modifier core loop** — *✅* | Elite/rare ranks; the risk/reward **modifier** system: two pools (farm-depth normal stat mods + Tower-gated rare **loot-imprint** mods that stamp exclusive gear), a **modifier shop + item reforge** gold+scrap gamble economy, hybrid reward splits. Lever #1 of §7.1. | ✅ |
 | **Loot legibility** — *✅* | `Upgrades` power-score + verdict core (geometric DPS×Eff-Life); bag ▲ badges, loot-feed upgrade tags, compare verdict headline, opt-in auto-equip-if-better. Lever #2 of §7.1. | ✅ |
 | **Skills & skill trees** *(✅)* | Per-hero **unique** skills, leveled with skill points. **Slice 1 ✅** — 1 point/level (`Skills.InvestSkill`/`RespecHero`; ranks scale effect `×(1+EffectPerRank·rank)`, rank 0 = base; UI invest/respec in Heroes→Skills). **Slice 2 ✅ active/passive** — 6 active (≤4 equipped) + 2 always-on passive nodes/class that fold into `Stats.ComputeHeroStats`. **Slice 3 ✅ gated tree** — actives branch from 2 roots; a node needs ≥1 rank in its prereq AND `hero.Level ≥ UnlockLevel` (`SkillDef.Prereq`/`UnlockLevel`, `Skills.IsUnlocked`); gates investment only. Lever #3 of §7.1. | ✅ |
-| **Roster growth & classes** | Warrior + Magician + **Thief** (fast crit assassin), unlocked via stage clears. More heroes/classes/kits ahead. | ◑ |
+| **Roster growth & classes** | **Archetype backbone** (Warrior/Rogue/Magician templates + passive pools, §1 Classes row): Knight + Fire Mage + Assassin + Priest live, all on the MS2 skinned pipeline; Ice Mage shelved as the gacha-banner candidate. New classes = archetype + overrides + one art bake. | ◑ |
 | **Social / chat IA** | Pre-release shows **System only**; Global · Friends · Guild and per-person **Whispers** (DMs) stay hidden until the server (Phase C) so players aren't shown dead features. Target IA + the re-enable seam are documented in `ChatPanel`. | ◑ |
 | **Crafting / sets / loot filter** | **Item Reforge** (affix-value re-roll gamble) + **modifier shop** shipped; set bonuses, loot filter, enhancement scrolls (§6.1) still open. | ◑ |
 | **Alt modes** | **Tower of Ascension** ✅ playable — its own one-clear-per-floor track, steeper curve, no idle income, permanent account-wide buff every 10 floors, and the **gate for the rare modifier pairs** (`Tower.cs` + `TowerState` under `ProgressState`). Remaining: per-floor reward bundles (slice 3, TBD). Also planned: Endless ("deepest stage"); later party / co-op. | ◑ |
@@ -433,8 +433,9 @@ Unity IAP, Remote Config, Analytics.
 ## 10. Open next steps
 The three combat/build/loot levers (§7.1 #1–3) are shipped: monster-modifier core loop +
 loot-imprint gear, loot legibility + auto-equip, skills/passives/gated trees. The Tower alt
-mode, the gold+scrap gamble economy (modifier shop + item reforge), a 3-hero roster (Warrior/
-Magician/Thief), and a months-long hero-leveling curve are in. Gameplay-first, next:
+mode, the gold+scrap gamble economy (modifier shop + item reforge), a 4-class roster on the
+archetype backbone (Knight/Fire Mage/Assassin/Priest), and a months-long hero-leveling
+curve are in. Gameplay-first, next:
 - **Content & polish (current focus):** more heroes/classes, enemy variety, more mods & stages;
   balance/tuning; combat juice + sound.
 - **Progression hooks (Lever 4, §7.1 #4):** milestone rewards, dailies/logins, achievements/codex,

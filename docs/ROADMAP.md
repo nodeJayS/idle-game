@@ -11,9 +11,11 @@ Core loop ✅ (farm ladder, loot/affixes/imprints, modifiers, Tower, quests,
 achievements, daily login/gems). Build depth ✅ (2+2 kits, per-hero levels,
 gamble economy). **MS2 asset pipeline ✅ and proven end-to-end**: a new hero =
 one manifest + 9 decoded clips + one bake (both genders, dyeable gear via
-manifest tints, per-hero animators/sounds). Roster: Knight, Magician (fire),
+manifest tints, per-hero animators/sounds). Roster on the **archetype backbone**
+(Warrior/Rogue/Magician stat templates; class = overrides): Knight, Fire Mage,
 Assassin, Priest (party heal-over-time) — Ice Mage shelved for a comeback.
-401 GameCore tests green.
+Future classes slot in as archetype + overrides: Brawler/Swordsman (Warrior),
+Ninja/Archer (Rogue), Summoner/Ice Mage (Magician). 405 GameCore tests green.
 
 ## Priorities, in order
 

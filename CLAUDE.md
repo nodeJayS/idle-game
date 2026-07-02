@@ -47,7 +47,7 @@ docs/game-design.md      the durable what/why
   Play-mode can't run headlessly — visuals are verified by screenshot (Unity MCP), UI is
   hand-placed uGUI/IMGUI coords.
 
-## Current systems (401 tests passing)
+## Current systems (405 tests passing)
 
 Phase A (core loop) and most of Phase B (depth) are done. What exists today:
 
@@ -61,12 +61,15 @@ Phase A (core loop) and most of Phase B (depth) are done. What exists today:
   inventory cap + auto-salvage→`scrap` (threshold up to Unique) + one-click mass salvage
   (`Inventory.SalvageAllUpTo`). Every drop reads as one `Upgrades.PowerScore` verdict →
   ▲ badges, loot-feed tags, opt-in auto-equip.
-- **Heroes & build depth (Lever 3)** — Knight / Magician (fire) / Assassin / Priest
-  (party-HoT healer, first male-body hero). Unlocks at stage 3/5/10, granted RETROACTIVELY
-  on load by `Progression.SyncHeroUnlocks` (a def removed from `HeroUnlocks` is stripped
-  from saves — that's how the Ice Mage is shelved; its def stays in config for a comeback).
-  Display names are cfg-only; def ids stay `warrior_basic`/`thief_basic`/etc.
-  **Per-hero leveling** (level = the power axis). **2+2 hero template (design §7.2):** every hero
+- **Heroes & build depth (Lever 3)** — **archetype → class backbone**: three families
+  (`ArchetypeDef` Warrior/Rogue/Magician = stat template + shared passive pool) and a
+  class = per-key overrides via `GameConfig.FromArchetype`; `Role` (melee/ranged/support)
+  stays the sim's separate mechanical axis. Live classes: Knight (Warrior) / Fire Mage
+  (Magician) / Assassin (Rogue) / Priest (Magician, party-HoT healer, first male body).
+  Unlocks at stage 3/5/10, granted RETROACTIVELY on load by `Progression.SyncHeroUnlocks`
+  (a def removed from `HeroUnlocks` is stripped from saves — that's how the Ice Mage is
+  shelved for a comeback). Display names are cfg-only; def ids stay `warrior_basic`/
+  `thief_basic`/etc. **Per-hero leveling** (level = the power axis). **2+2 hero template (design §7.2):** every hero
   = exactly 2 actives + 2 passives from a shared archetype library, revealed at Lv 1/5/10/15 and
   always on (no loadouts, no prereq trees — heroes are data rows so a solo dev can scale the
   roster for the hero-gacha arc). Points = `Level/5` derived; rank cap 5; **MaxRank = mastery**

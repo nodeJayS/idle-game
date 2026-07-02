@@ -11,12 +11,34 @@ namespace IdleGame.GameCore
     // from JSON; GameConfig.Default() is the built-in content set.
     // ------------------------------------------------------------------------
 
+    /// <summary>
+    /// A hero FAMILY — the content backbone (design decision 2026-07-02). Two axes,
+    /// never merged: Archetype answers "who is this hero's family?" (the stat template
+    /// new classes copy from, the shared passive pool, gacha/roster grouping, which
+    /// MS2 animation library the art draws on); HeroDef.Role answers "how does the sim
+    /// fight them?" (melee/ranged/support). An Archer is a Rogue with Role=ranged.
+    /// Three families — Warrior, Rogue, Magician; add a fourth only when a class
+    /// genuinely fits none.
+    /// </summary>
+    public sealed class ArchetypeDef
+    {
+        public string Id = "";
+        public string Name = "";
+        // The template a new class starts from. Classes carry only per-key OVERRIDES;
+        // GameConfig resolves them into the HeroDef at build time, so runtime code
+        // keeps reading plain HeroDef.BaseStats/GrowthPerLevel.
+        public StatBlock BaseStats = new StatBlock();
+        public StatBlock GrowthPerLevel = new StatBlock();
+        // The shared passive library (§7.2) this family's 2+2 kits draw from.
+        public List<string> PassivePool = new List<string>();
+    }
+
     public sealed class HeroDef
     {
         public string DefId = "";
-        public string Name = "";
-        public string Class = "";
-        public string Role = "melee"; // melee | ranged | support
+        public string Name = "";       // the CLASS ("Knight", "Fire Mage", "Ninja"...)
+        public string Archetype = "";  // the FAMILY ("warrior" | "rogue" | "magician")
+        public string Role = "melee";  // melee | ranged | support — the sim's axis
         public StatBlock BaseStats = new StatBlock();
         public StatBlock GrowthPerLevel = new StatBlock();
         public List<string> Skills = new List<string>();
@@ -448,6 +470,7 @@ namespace IdleGame.GameCore
 
     public sealed class GameConfig
     {
+        public Dictionary<string, ArchetypeDef> Archetypes = new Dictionary<string, ArchetypeDef>();
         public Dictionary<string, HeroDef> Heroes = new Dictionary<string, HeroDef>();
         public Dictionary<string, ItemBaseDef> ItemBases = new Dictionary<string, ItemBaseDef>();
         public List<AffixDef> AffixPool = new List<AffixDef>();
@@ -511,103 +534,138 @@ namespace IdleGame.GameCore
         private static AchievementDef Ach(string id, string name, AchievementMetric metric, string unit, params AchievementTier[] tiers)
             => new AchievementDef { Id = id, Name = name, Metric = metric, Unit = unit, Tiers = new List<AchievementTier>(tiers) };
 
+        /// <summary>Resolve a class onto its archetype template: the def's stat blocks
+        /// carry only per-key OVERRIDES; everything else comes from the family. Runtime
+        /// code keeps reading plain HeroDef.BaseStats/GrowthPerLevel — the merge happens
+        /// once, here, at config build.</summary>
+        private static HeroDef FromArchetype(ArchetypeDef arch, HeroDef def)
+        {
+            def.Archetype = arch.Id;
+            def.BaseStats = Merge(arch.BaseStats, def.BaseStats);
+            def.GrowthPerLevel = Merge(arch.GrowthPerLevel, def.GrowthPerLevel);
+            return def;
+        }
+
+        private static StatBlock Merge(StatBlock template, StatBlock overrides)
+        {
+            var merged = new StatBlock(template);
+            foreach (var kv in overrides) merged[kv.Key] = kv.Value;
+            return merged;
+        }
+
         /// <summary>The default content set.</summary>
         public static GameConfig Default()
         {
             var cfg = new GameConfig();
 
-            cfg.Heroes["warrior_basic"] = new HeroDef
-            {
-                // Display rename 2026-07-02: sword-and-board reads Knight (def id stays
-                // warrior_basic — saves, manifests and the FBX all key off it).
-                DefId = "warrior_basic", Name = "Knight", Class = "Knight", Role = "melee",
-                BaseStats = SB((StatKey.Hp, 120), (StatKey.Atk, 14), (StatKey.Def, 8),
-                               (StatKey.MoveSpd, 3.0), (StatKey.AtkSpd, 0.85), // sturdy but swings slower than the mage
-                               (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.5),
-                               (StatKey.HpRegen, 1.5),                 // very small sustain (hp/sec)
-                               (StatKey.AttackRange, 1.2),             // melee
-                               (StatKey.SplashRadius, 1.0),            // slightly wider cleave (melee perk)
-                               (StatKey.MaxMana, 50), (StatKey.ManaRegen, 3)), // shallow pool, slow regen
-                GrowthPerLevel = SB((StatKey.Hp, 18), (StatKey.Atk, 3), (StatKey.Def, 1.5), (StatKey.MaxMana, 2)),
-                // 2+2 kit (§7.2): spinning AoE + a shield-charge gap closer; armor + health passives.
-                Skills = new List<string> { "cycloneslash", "toughness", "shieldcharge", "vitality" }, Sprite = "warrior",
-            };
+            // ---- Archetypes (the roster backbone, 2026-07-02) --------------------------
+            // Three families; a class = FromArchetype(family, overrides). The family is
+            // content DNA (stat template, passive pool, MS2 anim library, future gacha
+            // banners); HeroDef.Role stays the sim's mechanical axis. An Archer would be
+            // a Rogue with Role=ranged; a Brawler a Warrior with speed overrides.
 
-            cfg.Heroes["magician_basic"] = new HeroDef
+            var warrior = cfg.Archetypes["warrior"] = new ArchetypeDef
             {
-                DefId = "magician_basic", Name = "Magician", Class = "Magician", Role = "ranged",
-                // fragile (low HP/Def) but hits harder from range, with a tighter AoE
+                Id = "warrior", Name = "Warrior", // tanky front line: high Hp/Def, slow swings
+                BaseStats = SB((StatKey.Hp, 120), (StatKey.Atk, 14), (StatKey.Def, 8),
+                               (StatKey.MoveSpd, 3.0), (StatKey.AtkSpd, 0.85),
+                               (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.5),
+                               (StatKey.HpRegen, 1.5),
+                               (StatKey.AttackRange, 1.2),
+                               (StatKey.SplashRadius, 1.0),            // wide cleave (melee perk)
+                               (StatKey.MaxMana, 50), (StatKey.ManaRegen, 3)),
+                GrowthPerLevel = SB((StatKey.Hp, 18), (StatKey.Atk, 3), (StatKey.Def, 1.5), (StatKey.MaxMana, 2)),
+                PassivePool = new List<string> { "toughness", "vitality" },
+            };
+            var rogue = cfg.Archetypes["rogue"] = new ArchetypeDef
+            {
+                Id = "rogue", Name = "Rogue", // crit glass cannon: fastest, most fragile
+                BaseStats = SB((StatKey.Hp, 64), (StatKey.Atk, 16), (StatKey.Def, 3),
+                               (StatKey.MoveSpd, 3.4), (StatKey.AtkSpd, 1.45),
+                               (StatKey.CritChance, 0.22), (StatKey.CritDmg, 1.9), // crit IS the identity
+                               (StatKey.HpRegen, 1.0),
+                               (StatKey.AttackRange, 1.2),
+                               (StatKey.SplashRadius, 0.5),            // duelists, not cleavers
+                               (StatKey.MaxMana, 70), (StatKey.ManaRegen, 5)),
+                GrowthPerLevel = SB((StatKey.Hp, 10), (StatKey.Atk, 4), (StatKey.Def, 1), (StatKey.MaxMana, 3)),
+                PassivePool = new List<string> { "precision", "killerinstinct" },
+            };
+            var magician = cfg.Archetypes["magician"] = new ArchetypeDef
+            {
+                Id = "magician", Name = "Magician", // fragile ranged casters on a deep mana pool
                 BaseStats = SB((StatKey.Hp, 72), (StatKey.Atk, 17), (StatKey.Def, 4),
-                               (StatKey.MoveSpd, 3.0), (StatKey.AtkSpd, 1.15), // fragile but casts/attacks faster
+                               (StatKey.MoveSpd, 3.0), (StatKey.AtkSpd, 1.15),
                                (StatKey.CritChance, 0.07), (StatKey.CritDmg, 1.5),
                                (StatKey.HpRegen, 1.0),
                                (StatKey.AttackRange, 6.0),             // max reach; still fine point-blank
-                               (StatKey.SplashRadius, 0.75),           // tight AoE (same as warrior)
-                               (StatKey.MaxMana, 120), (StatKey.ManaRegen, 6)), // deep pool, fast regen (caster)
+                               (StatKey.SplashRadius, 0.75),
+                               (StatKey.MaxMana, 120), (StatKey.ManaRegen, 6)),
                 GrowthPerLevel = SB((StatKey.Hp, 11), (StatKey.Atk, 4), (StatKey.Def, 1), (StatKey.MaxMana, 5)),
-                // 2+2 kit (§7.2): fire nuke + AoE fireball; spell-power + mana passives.
-                Skills = new List<string> { "firebolt", "pyromancy", "fireball", "attunement" }, Sprite = "magician", AttackFx = "fireball",
+                PassivePool = new List<string> { "pyromancy", "attunement", "permafrost", "frostflow", "devotion", "benediction" },
             };
 
-            cfg.Heroes["thief_basic"] = new HeroDef
+            // ---- Classes (def ids are save/asset keys — they never change) --------------
+
+            // Knight IS the Warrior template (renamed from "Warrior" 2026-07-02).
+            cfg.Heroes["warrior_basic"] = FromArchetype(warrior, new HeroDef
             {
-                // Display rename 2026-07-02: Assassin (def id stays thief_basic).
-                DefId = "thief_basic", Name = "Assassin", Class = "Assassin", Role = "melee",
-                // glass-cannon assassin: lowest HP/Def of the roster, fastest swings, and crit-built
-                // (high CritChance + CritDmg) so its DPS lives in single-target burst, not durability.
-                BaseStats = SB((StatKey.Hp, 64), (StatKey.Atk, 16), (StatKey.Def, 3),
-                               (StatKey.MoveSpd, 3.4), (StatKey.AtkSpd, 1.45), // fastest mover + attacker
-                               (StatKey.CritChance, 0.22), (StatKey.CritDmg, 1.9), // crit is the whole identity
-                               (StatKey.HpRegen, 1.0),
-                               (StatKey.AttackRange, 1.2),             // melee, same reach as the warrior
-                               (StatKey.SplashRadius, 0.5),            // narrow — a duelist, not a cleaver
-                               (StatKey.MaxMana, 70), (StatKey.ManaRegen, 5)), // mid pool to fuel quick skills
-                GrowthPerLevel = SB((StatKey.Hp, 10), (StatKey.Atk, 4), (StatKey.Def, 1), (StatKey.MaxMana, 3)),
+                DefId = "warrior_basic", Name = "Knight", Role = "melee",
+                // 2+2 kit (§7.2): spinning AoE + a shield-charge gap closer; armor + health passives.
+                Skills = new List<string> { "cycloneslash", "toughness", "shieldcharge", "vitality" }, Sprite = "warrior",
+            });
+
+            // Fire Mage IS the Magician template (renamed from "Magician" 2026-07-02).
+            cfg.Heroes["magician_basic"] = FromArchetype(magician, new HeroDef
+            {
+                DefId = "magician_basic", Name = "Fire Mage", Role = "ranged",
+                // 2+2 kit (§7.2): fire nuke + AoE fireball; spell-power + mana passives.
+                Skills = new List<string> { "firebolt", "pyromancy", "fireball", "attunement" }, Sprite = "magician", AttackFx = "fireball",
+            });
+
+            // Assassin IS the Rogue template (renamed from "Thief" 2026-07-02); the
+            // future Ninja is the same family with Role=ranged (throwing stars).
+            cfg.Heroes["thief_basic"] = FromArchetype(rogue, new HeroDef
+            {
+                DefId = "thief_basic", Name = "Assassin", Role = "melee",
                 // 2+2 kit (§7.2): fast stab + heavy vital strike; crit-chance + crit-damage passives.
                 Skills = new List<string> { "shadowstab", "precision", "vitalstrike", "killerinstinct" },
                 Sprite = "thief",
-            };
+            });
 
-            // Ice Mage — SHELVED (2026-07-02): def + kit stay for the future reintroduction,
-            // but it's absent from HeroUnlocks so it can't be obtained, and
-            // Progression.SyncHeroUnlocks strips it from saves that had the placeholder.
-            // (Originally the first hero authored ON the 2+2 template, §7.2.)
-            cfg.Heroes["icemage_basic"] = new HeroDef
+            // Ice Mage — SHELVED (2026-07-02): def + kit stay for the future reintroduction
+            // (gacha banner candidate), but it's absent from HeroUnlocks so it can't be
+            // obtained, and Progression.SyncHeroUnlocks strips it from saves that had it.
+            // Magician family: sturdier/slower than the Fire Mage, deepest mana pool.
+            cfg.Heroes["icemage_basic"] = FromArchetype(magician, new HeroDef
             {
-                DefId = "icemage_basic", Name = "Ice Mage", Class = "Ice Mage", Role = "ranged",
+                DefId = "icemage_basic", Name = "Ice Mage", Role = "ranged",
                 BaseStats = SB((StatKey.Hp, 82), (StatKey.Atk, 15), (StatKey.Def, 6),
-                               (StatKey.MoveSpd, 3.0), (StatKey.AtkSpd, 1.0),  // slower caster than the fire mage
-                               (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.5),
-                               (StatKey.HpRegen, 1.2),
-                               (StatKey.AttackRange, 6.0),
-                               (StatKey.SplashRadius, 0.8),
-                               (StatKey.MaxMana, 130), (StatKey.ManaRegen, 7)), // deepest pool of the roster
+                               (StatKey.AtkSpd, 1.0), (StatKey.CritChance, 0.05),
+                               (StatKey.HpRegen, 1.2), (StatKey.SplashRadius, 0.8),
+                               (StatKey.MaxMana, 130), (StatKey.ManaRegen, 7)),
                 GrowthPerLevel = SB((StatKey.Hp, 13), (StatKey.Atk, 3.5), (StatKey.Def, 1.3), (StatKey.MaxMana, 6)),
                 // 2+2 kit (§7.2): frost nuke + AoE blizzard; armor + mana-flow passives.
                 Skills = new List<string> { "frostbolt", "permafrost", "blizzard", "frostflow" }, Sprite = "icemage",
-            };
+            });
 
-            // Hero #5 — the party's first SUPPORT (and first male-body hero): a holy caster
-            // whose identity is the party heal-over-time, with a modest AoE smite for
-            // downtime. Low Atk (his power is the heal, which scales off MaxHp, not Atk).
-            cfg.Heroes["priest_basic"] = new HeroDef
+            // Priest — Magician family, the party's first SUPPORT (and first male-body
+            // hero): the party heal-over-time is the identity; low Atk on purpose (the
+            // heal scales off MaxHp, not Atk).
+            cfg.Heroes["priest_basic"] = FromArchetype(magician, new HeroDef
             {
-                DefId = "priest_basic", Name = "Priest", Class = "Priest", Role = "ranged",
+                DefId = "priest_basic", Name = "Priest", Role = "ranged",
                 BaseStats = SB((StatKey.Hp, 90), (StatKey.Atk, 12), (StatKey.Def, 5),
-                               (StatKey.MoveSpd, 3.0), (StatKey.AtkSpd, 0.95),
-                               (StatKey.CritChance, 0.04), (StatKey.CritDmg, 1.5),
-                               (StatKey.HpRegen, 1.2),
-                               (StatKey.AttackRange, 6.0),
-                               (StatKey.SplashRadius, 0.7),
+                               (StatKey.AtkSpd, 0.95), (StatKey.CritChance, 0.04),
+                               (StatKey.HpRegen, 1.2), (StatKey.SplashRadius, 0.7),
                                (StatKey.MaxMana, 140), (StatKey.ManaRegen, 7)),
                 GrowthPerLevel = SB((StatKey.Hp, 12), (StatKey.Atk, 3), (StatKey.Def, 1.2), (StatKey.MaxMana, 6)),
                 // 2+2 kit (§7.2): party HoT + AoE smite; sustain + mana-flow passives.
                 Skills = new List<string> { "sanctify", "devotion", "holysmite", "benediction" },
                 Sprite = "priest", AttackFx = "holybolt",
-            };
+            });
 
             // Progression unlocks: you start with just the Knight; reaching stage 3 adds
-            // the Magician, stage 5 the Priest, stage 10 the Assassin. Retroactive:
+            // the Fire Mage, stage 5 the Priest, stage 10 the Assassin. Retroactive:
             // Progression.SyncHeroUnlocks grants any table row at/below HighestStage on
             // load, and REMOVES owned heroes whose def leaves this table (that's how the
             // Ice Mage is shelved — its def stays below for the future reintroduction).
