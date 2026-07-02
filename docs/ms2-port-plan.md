@@ -39,7 +39,17 @@ NIF→Blender (retire the lossy PLY hop). DDS → Unity materials with alpha-cli
 (the face plate/lash shells are alpha-textured overlays).
 *Output:* `art/tools/nif_import.py` usable by every later phase. ~1 session.
 
-## Phase 1 — Base bodies (the "person" both genders)
+## Phase 1 — Base bodies — ✅ DONE 2026-07-02
+Pipeline is gender-parameterized: `art/skinned_body.py --gender male|female`
+(joint table now DERIVED from each body NIF via nif_skeleton.load_world_positions
+— no hardcoded skeletons), `kf_motion.py --nif <body.nif>` decodes against the
+matching rest skeleton, clips live in `art/motion/<gender>/`. Male body verified
+in Blender (BraveFace `00300001_M_BraveFace.dds`, `M_PA_D.DDS` trunks, own idle
+timing 2.20s); female re-exported + Unity-verified. Male FBX deliberately NOT
+shipped to Unity yet — Phase 2 bakes body+gear per hero def, so the naked male
+body has no consumer until then. Gotcha fixed: never mutate Blender images for
+texture conversion (breaks rendering); DDS are copied as-is at export, lowercase.
+Original phase text follows:
 Run f_body AND m_body through the Phase-0 importer onto their measured skeletons
 (re-run nif_skeleton on m_body — layout is the same Bip01, proportions differ).
 One parameterized body script replaces `skinned_body.py`; per-gender skinned FBX

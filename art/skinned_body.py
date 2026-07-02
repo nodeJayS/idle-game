@@ -24,39 +24,47 @@ from mathutils import Matrix, Quaternion, Vector
 ART_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(ART_DIR, "tools"))
 from nif_import import load_nif  # noqa: E402
+from nif_skeleton import load_world_positions  # noqa: E402
 
-NIF = r"C:\Games\MapleStory2\Extracted\Character\female\f_body.nif"
 EXTRACT_ROOT = r"C:\Games\MapleStory2\Extracted"
-MOTION_DIR = os.path.join(ART_DIR, "motion")
+GENDERS = {
+    "female": r"C:\Games\MapleStory2\Extracted\Character\female\f_body.nif",
+    "male":   r"C:\Games\MapleStory2\Extracted\Character\male\m_body.nif",
+}
 CLIPS = ("idle", "run", "attack")
 
-# --- measured Bip01 joints (cm, world; from nif_skeleton.py on f_body.nif) -----
-J = {
-    "pelvis":   ((0, -2.0, 45.3),    (0, -2.5, 48.9),    None),
-    "spine":    ((0, -2.5, 48.9),    (0, -3.2, 54.7),    "pelvis"),
-    "spine1":   ((0, -3.2, 54.7),    (0, -3.4, 60.4),    "spine"),
-    "spine2":   ((0, -3.4, 60.4),    (0, -0.35, 77.3),   "spine1"),
-    "neck":     ((0, -0.35, 77.3),   (0, -0.03, 81.4),   "spine2"),
-    "head":     ((0, -0.03, 81.4),   (0, -0.08, 133.0),  "neck"),
+# module state set by main() from --gender
+NIF = GENDERS["female"]
+MOTION_DIR = os.path.join(ART_DIR, "motion", "female")
+J = {}
 
-    "clavL":    ((3.19, 0.05, 75.5),  (9.95, 0.24, 73.3),  "spine2"),
-    "uarmL":    ((9.95, 0.24, 73.3),  (19.68, 0.68, 61.2), "clavL"),
-    "forearmL": ((19.68, 0.68, 61.2), (28.0, 1.04, 50.9),  "uarmL"),
-    "handL":    ((28.0, 1.04, 50.9),  (34.3, 1.5, 41.2),   "forearmL"),
 
-    "clavR":    ((-3.19, 0.05, 75.5),  (-9.95, 0.24, 73.3),  "spine2"),
-    "uarmR":    ((-9.95, 0.24, 73.3),  (-19.68, 0.68, 61.2), "clavR"),
-    "forearmR": ((-19.68, 0.68, 61.2), (-28.0, 1.04, 50.9),  "uarmR"),
-    "handR":    ((-28.0, 1.04, 50.9),  (-34.3, 1.5, 41.2),   "forearmR"),
+def joints_from_nif(nif_path):
+    """The 19-bone rig, measured straight from the body NIF (cm, world).
+    Tails point at the child joint / measured landmark."""
+    w = load_world_positions(nif_path)
 
-    "thighL":   ((7.76, -2.0, 45.3),  (9.01, 0.69, 23.4),  "pelvis"),
-    "calfL":    ((9.01, 0.69, 23.4),  (9.85, 2.92, 8.61),  "thighL"),
-    "footL":    ((9.85, 2.92, 8.61),  (9.97, -3.22, 0.0),  "calfL"),
+    def p(n):
+        return w["Bip01 " + n]
 
-    "thighR":   ((-7.76, -2.0, 45.3), (-9.01, 0.69, 23.4), "pelvis"),
-    "calfR":    ((-9.01, 0.69, 23.4), (-9.85, 2.92, 8.61), "thighR"),
-    "footR":    ((-9.85, 2.92, 8.61), (-9.97, -3.22, 0.0), "calfR"),
-}
+    J = {
+        "pelvis": (p("Pelvis"), p("Spine"), None),
+        "spine":  (p("Spine"), p("Spine1"), "pelvis"),
+        "spine1": (p("Spine1"), p("Spine2"), "spine"),
+        "spine2": (p("Spine2"), p("Neck"), "spine1"),
+        "neck":   (p("Neck"), p("Head"), "spine2"),
+        "head":   (p("Head"), p("HeadNub"), "neck"),
+    }
+    for s in ("L", "R"):
+        t = s
+        J["clav" + t] = (p(s + " Clavicle"), p(s + " UpperArm"), "spine2")
+        J["uarm" + t] = (p(s + " UpperArm"), p(s + " Forearm"), "clav" + t)
+        J["forearm" + t] = (p(s + " Forearm"), p(s + " Hand"), "uarm" + t)
+        J["hand" + t] = (p(s + " Hand"), w["Weapon_Hand_%s_Point" % s], "forearm" + t)
+        J["thigh" + t] = (p(s + " Thigh"), p(s + " Calf"), "pelvis")
+        J["calf" + t] = (p(s + " Calf"), p(s + " Foot"), "thigh" + t)
+        J["foot" + t] = (p(s + " Foot"), p(s + " Toe0"), "calf" + t)
+    return J
 
 
 def map_bone(bip):
@@ -298,32 +306,21 @@ def build_clips(arm):
 
 # --- render / export ----------------------------------------------------------------
 
-def export_textures_png(out_dir):
+def export_textures_dds(out_dir):
+    """Unity decodes DXT natively — ship the DDS as-is, lowercase names so
+    SkinnedHero's Resources.Load lookup is build-safe. (Never mutate the
+    Blender images here: a failed in-place PNG re-encode breaks rendering.)"""
+    import shutil
     for img in bpy.data.images:
-        if img.source != "FILE":
+        if img.source != "FILE" or not os.path.exists(img.filepath):
             continue
-        png = os.path.join(out_dir, os.path.splitext(os.path.basename(img.filepath))[0] + ".png")
-        try:
-            img.file_format = "PNG"
-            img.filepath_raw = png
-            img.save()
-        except RuntimeError:
-            # some DDS compressions have no CPU-side pixels until copied
-            try:
-                copy = bpy.data.images.new(img.name + "_png", img.size[0], img.size[1],
-                                           alpha=True)
-                copy.pixels = list(img.pixels)
-                copy.file_format = "PNG"
-                copy.filepath_raw = png
-                copy.save()
-            except (RuntimeError, ValueError) as e:
-                print("  ! could not convert %s: %s" % (img.name, e))
-                continue
-        print("texture ->", png)
+        dst = os.path.join(out_dir, os.path.basename(img.filepath).lower())
+        shutil.copyfile(img.filepath, dst)
+        print("texture ->", dst)
 
 
 def export_fbx(path):
-    export_textures_png(os.path.dirname(os.path.abspath(path)))
+    export_textures_dds(os.path.dirname(os.path.abspath(path)))
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.export_scene.fbx(
         filepath=path,
@@ -415,7 +412,14 @@ def render_anim_frames(arm, out_dir):
 
 
 def main():
+    global NIF, MOTION_DIR, J
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    gender = argv[argv.index("--gender") + 1] if "--gender" in argv else "female"
+    NIF = GENDERS[gender]
+    MOTION_DIR = os.path.join(ART_DIR, "motion", gender)
+    J = joints_from_nif(NIF)
+    print("gender=%s nif=%s" % (gender, os.path.basename(NIF)))
+
     bpy.ops.wm.read_factory_settings(use_empty=True)
 
     parts = build_from_nif()

@@ -90,8 +90,8 @@ def parse_ninode(f, off, size, strings, flags_bytes):
         return None
 
 
-def main():
-    path = sys.argv[1]
+def load_nodes(path, verbose=False):
+    """-> ({block_idx: (name, trans, rot, scale, children)}, parent map)."""
     f = open(path, "rb")
     types, type_index, sizes, strings, offsets = read_header(f)
 
@@ -108,33 +108,23 @@ def main():
                 break
             nodes[i] = r
         if ok and nodes:
-            print("# flags width: %d bytes; %d NiNodes" % (flags_bytes, len(nodes)))
+            if verbose:
+                print("# flags width: %d bytes; %d NiNodes" % (flags_bytes, len(nodes)))
             break
+    f.close()
     if not nodes:
-        print("FAILED to parse NiNodes with either flags width")
-        return 1
-
+        raise ValueError("FAILED to parse NiNodes with either flags width: " + path)
     parent = {}
     for i, (_, _, _, _, children) in nodes.items():
         for c in children:
             if c in nodes:
                 parent[c] = i
+    return nodes, parent
 
-    def world(i):
-        name, t, r, s, _ = nodes[i]
-        if i not in parent:
-            return t
-        p = world(parent[i])
-        pn, pt, pr, ps, _ = nodes[parent[i]]
-        # world = parent_world_pos + parent_rot * (t * parent_scale)... walk up
-        # the chain accumulating rotation. Do it iteratively instead:
-        return None  # replaced below
 
-    # iterative accumulation root->leaf
-    import collections
-    roots = [i for i in nodes if i not in parent]
-    world_pos = {}
-    world_rot = {}
+def load_world_positions(path):
+    """-> {node_name: (x, y, z) world}. The measurement API other tools import."""
+    nodes, parent = load_nodes(path)
 
     def matmul(a, b):
         return [sum(a[r * 3 + k] * b[k * 3 + c] for k in range(3))
@@ -143,9 +133,12 @@ def main():
     def matvec(a, v):
         return tuple(sum(a[r * 3 + k] * v[k] for k in range(3)) for r in range(3))
 
+    roots = [i for i in nodes if i not in parent]
+    world_pos = {}
+    world_rot = {}
     stack = list(roots)
     for r in roots:
-        name, t, rot, s, _ = nodes[r]
+        _, t, rot, _, _ = nodes[r]
         world_pos[r] = t
         world_rot[r] = rot
     while stack:
@@ -153,20 +146,24 @@ def main():
         for c in nodes[i][4]:
             if c not in nodes:
                 continue
-            name, t, rot, s, _ = nodes[c]
-            wp = world_pos[i]
-            wr = world_rot[i]
-            off = matvec(wr, t)
-            world_pos[c] = (wp[0] + off[0], wp[1] + off[1], wp[2] + off[2])
-            world_rot[c] = matmul(wr, rot)
+            _, t, rot, _, _ = nodes[c]
+            off = matvec(world_rot[i], t)
+            world_pos[c] = tuple(world_pos[i][d] + off[d] for d in range(3))
+            world_rot[c] = matmul(world_rot[i], rot)
             stack.append(c)
+    return {nodes[i][0]: world_pos[i] for i in nodes}
+
+
+def main():
+    path = sys.argv[1]
+    nodes, parent = load_nodes(path, verbose=True)
+    world = load_world_positions(path)
+    by_name = {nodes[i][0]: i for i in nodes}
 
     csv = "--csv" in sys.argv
-    order = sorted(nodes, key=lambda i: (world_pos[i][2],))
-    for i in order:
-        name = nodes[i][0]
-        x, y, z = world_pos[i]
-        p = nodes[i]
+    for name in sorted(world, key=lambda n: world[n][2]):
+        x, y, z = world[name]
+        i = by_name[name]
         pname = nodes[parent[i]][0] if i in parent else "-"
         if csv:
             print("%s,%s,%.4f,%.4f,%.4f" % (name, pname, x, y, z))

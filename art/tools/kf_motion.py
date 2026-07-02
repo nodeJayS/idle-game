@@ -19,9 +19,9 @@ import struct
 import sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from nif_skeleton import read_header  # noqa: E402
+from nif_skeleton import read_header, load_world_positions  # noqa: E402
 
-FBODY_NIF = r"C:\Games\MapleStory2\Extracted\Character\female\f_body.nif"
+FBODY_NIF = r"C:\Games\MapleStory2\Extracted\Character\female\f_body.nif"  # default rest
 FPS = 30
 FLT_INVALID = -3.402823e38  # -FLT_MAX marks "channel not posed"
 
@@ -114,9 +114,9 @@ def parse_ninode_block(f, off, size, strings):
     return name, trans, rot, children
 
 
-def load_rest_skeleton():
+def load_rest_skeleton(nif_path):
     """name -> (parent_name, local_trans, local_quat) + world composition."""
-    f = open(FBODY_NIF, "rb")
+    f = open(nif_path, "rb")
     types, tidx, sizes, strings, offs = read_header(f)
     nodes = {}
     for i in range(len(offs)):
@@ -300,7 +300,9 @@ def vlerp(v0, v1, a):
 
 def main():
     kf_path, out_path = sys.argv[1], sys.argv[2]
-    rest = load_rest_skeleton()
+    nif_path = sys.argv[sys.argv.index("--nif") + 1] if "--nif" in sys.argv else FBODY_NIF
+    rest = load_rest_skeleton(nif_path)
+    pelvis_world = load_world_positions(nif_path)["Bip01 Pelvis"]
     (duration, textkeys, const_pose, spline_chan,
      shorts, n_ctrl, transform_data) = load_kf(kf_path)
     frames = max(2, int(round(duration * FPS)) + 1)
@@ -367,7 +369,6 @@ def main():
 
     bones = {BONE_MAP[b]: {"dq": []} for b in BONE_MAP}
     pelvis_dt = []
-    pelvis_rest_w = None
     for fr in range(frames):
         cache = {}
         for bip, ours in BONE_MAP.items():
@@ -375,11 +376,7 @@ def main():
             dq = qmul(wq, qconj(rest_world[bip]))
             bones[ours]["dq"].append([round(c, 6) for c in qnorm(dq)])
             if bip == "Bip01 Pelvis":
-                if pelvis_rest_w is None:
-                    _, r_tr, _ = rest[bip]
-                    # rest world pos of pelvis from measured table (cm)
-                    pelvis_rest_w = (0.013, -1.996, 45.298)
-                pelvis_dt.append([round((wpos[d] - pelvis_rest_w[d]) * 0.01, 6)
+                pelvis_dt.append([round((wpos[d] - pelvis_world[d]) * 0.01, 6)
                                   for d in range(3)])
 
     out = {"source": os.path.basename(kf_path), "duration": duration, "fps": FPS,
