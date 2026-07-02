@@ -1226,7 +1226,7 @@ namespace IdleGame.Game
                 else
                 {
                     sv.Anim.TriggerAttack();
-                    SoundFx.Play("Swing_Sword", 0.4f);
+                    SoundFx.Play(sv.Anim.AttackSound, 0.4f);
                 }
                 return;
             }

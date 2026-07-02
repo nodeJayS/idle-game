@@ -375,13 +375,18 @@ def export_tints(path):
 
 def export_skills(path, hero):
     """GameCore skill id -> (Skill state slot, MS2 sound set) — 'id slot sound'
-    lines SkinnedHero reads to route TriggerSkill to the right clip + sound."""
+    lines SkinnedHero reads to route TriggerSkill to the right clip + sound.
+    A reserved '_attack 0 <sound>' line carries the manifest's basic-attack
+    sound override (casters shouldn't clang like a sword)."""
     skills = (hero or {}).get("skills")
-    if not skills:
+    atk = (hero or {}).get("attack_sound")
+    if not skills and not atk:
         return
     txt = os.path.splitext(path)[0] + "_skills.txt"
     with open(txt, "w") as fh:
-        for sid, b in sorted(skills.items()):
+        if atk:
+            fh.write("_attack 0 %s\n" % atk)
+        for sid, b in sorted((skills or {}).items()):
             fh.write("%s %d %s\n" % (sid, b["slot"], b["sound"]))
     print("skills ->", txt)
 

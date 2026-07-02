@@ -16,6 +16,11 @@ namespace IdleGame.Game
         void TriggerSkill(string skillId);
         void TriggerHit();
         void SetDowned(bool downed);
+
+        /// <summary>Sound set for the basic attack. Default = the sword swing;
+        /// skinned heroes override it from their manifest (a ranged caster
+        /// shouldn't clang like a sword).</summary>
+        string AttackSound => "Swing_Sword";
     }
 
     /// <summary>
@@ -117,8 +122,13 @@ namespace IdleGame.Game
         private static readonly int DeadId = Animator.StringToHash("Dead");
 
         /// <summary>GameCore skill id -> (Skill state slot, MS2 sound set). Loaded
-        /// from the manifest-exported bindings by SkinnedHero.Build.</summary>
+        /// from the manifest-exported bindings by SkinnedHero.Build. The reserved
+        /// "_attack" id carries the basic-attack sound override.</summary>
         public System.Collections.Generic.Dictionary<string, (int slot, string sound)>? SkillBindings;
+
+        public string AttackSound =>
+            SkillBindings != null && SkillBindings.TryGetValue("_attack", out var b)
+                ? b.sound : "Swing_Sword";
 
         /// <summary>Ground speed the MS2 run cycle was authored for (units/s).
         /// The chibi sprint covers ~1.5 body heights per 0.6s cycle. Playback
@@ -136,8 +146,15 @@ namespace IdleGame.Game
         {
             _animator = GetComponent<Animator>();
             if (_animator == null) _animator = gameObject.AddComponent<Animator>();
-            _animator.runtimeAnimatorController =
-                Resources.Load<RuntimeAnimatorController>("Models/HeroAnimator");
+            // The shared controller's states reference ONE hero's clips, so each
+            // hero ships an AnimatorOverrideController remapping the states onto
+            // its own FBX takes (built by Tools > Build Hero Animators). The
+            // GameObject is named defId by SkinnedHero.Build before AddComponent.
+            var ctrl = Resources.Load<RuntimeAnimatorController>(
+                "Models/" + gameObject.name + "Animator");
+            if (ctrl == null)
+                ctrl = Resources.Load<RuntimeAnimatorController>("Models/HeroAnimator");
+            _animator.runtimeAnimatorController = ctrl;
             _animator.applyRootMotion = false;
         }
 
