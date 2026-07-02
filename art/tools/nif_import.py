@@ -24,7 +24,7 @@ import struct
 import sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from nif_skeleton import read_header  # noqa: E402
+from nif_skeleton import read_header, load_nodes  # noqa: E402
 
 FMT_SIZE = {
     0x00010215: 2,   # uint16 x1 (index)
@@ -105,7 +105,10 @@ def parse_nimesh(nif, i):
     name = nif.string(struct.unpack_from("<I", raw, p)[0]); p += 4
     ne = struct.unpack_from("<I", raw, p)[0]; p += 4
     extras = list(struct.unpack_from("<%di" % ne, raw, p)); p += 4 * ne + 4 + 2  # +ctrl+flags
-    p += 12 + 36 + 4  # trs
+    trs = (struct.unpack_from("<3f", raw, p),
+           list(struct.unpack_from("<9f", raw, p + 12)),
+           struct.unpack_from("<f", raw, p + 48)[0])
+    p += 12 + 36 + 4
     np_ = struct.unpack_from("<I", raw, p)[0]; p += 4
     props = list(struct.unpack_from("<%di" % np_, raw, p)); p += 4 * np_ + 4  # +collision
     nmat = struct.unpack_from("<I", raw, p)[0]; p += 4 + 8 * nmat + 5  # mats+active+update
@@ -123,7 +126,7 @@ def parse_nimesh(nif, i):
         stream_list.append((ref, sems))
     nmod = struct.unpack_from("<I", raw, p)[0]; p += 4
     mods = list(struct.unpack_from("<%di" % nmod, raw, p))
-    return name, props, stream_list, mods, extras
+    return name, props, stream_list, mods, extras, trs
 
 
 def tint_of(nif, extras):
@@ -176,15 +179,62 @@ def texture_of(nif, prop_refs):
     return None
 
 
+def _matmul(a, b):
+    return [sum(a[r * 3 + k] * b[k * 3 + c] for k in range(3))
+            for r in range(3) for c in range(3)]
+
+
+def _matvec(a, v):
+    return tuple(sum(a[r * 3 + k] * v[k] for k in range(3)) for r in range(3))
+
+
+_IDENT = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+
+
+def _is_ident(t, rot, s):
+    return (all(abs(x) < 1e-3 for x in t) and abs(s - 1.0) < 1e-3
+            and all(abs(rot[i] - _IDENT[i]) < 1e-3 for i in range(9)))
+
+
+def _mesh_worlds(path):
+    """World transform per NiMesh block: the NiNode chain composed with the
+    mesh's own TRS. Items authored with non-identity transforms (offset robes,
+    socket-local hair) need this; most gear is identity."""
+    try:
+        nodes, parent = load_nodes(path)
+    except ValueError:
+        return {}
+    roots = [i for i in nodes if i not in parent]
+    wp, wr, meshparent = {}, {}, {}
+    stack = list(roots)
+    for r in roots:
+        _, t, rot, _, _ = nodes[r]
+        wp[r], wr[r] = t, rot
+    while stack:
+        i = stack.pop()
+        for c in nodes[i][4]:
+            if c in nodes:
+                _, t, rot, _, _ = nodes[c]
+                off = _matvec(wr[i], t)
+                wp[c] = tuple(wp[i][d] + off[d] for d in range(3))
+                wr[c] = _matmul(wr[i], rot)
+                stack.append(c)
+            else:
+                meshparent[c] = i
+    return {"pos": wp, "rot": wr, "meshparent": meshparent}
+
+
 def load_nif(path):
     nif = Nif(path)
+    worlds = _mesh_worlds(path)
     meshes = []
     for mi in nif.blocks_of("NiMesh"):
-        name, props, stream_list, mods, extras = parse_nimesh(nif, mi)
+        name, props, stream_list, mods, extras, trs = parse_nimesh(nif, mi)
         mesh = {"name": name, "verts": None, "tris": [], "normals": None,
                 "uvs": None, "blend_indices": None, "blend_weights": None,
                 "bone_palette": None, "bone_names": [], "texture": None,
-                "alpha": False, "skinned": False, "tint": tint_of(nif, extras)}
+                "alpha": False, "skinned": False, "socketed": False,
+                "tint": tint_of(nif, extras)}
         for ref, sems in stream_list:
             parsed = parse_datastream(nif, ref)
             if parsed is None:
@@ -220,8 +270,30 @@ def load_nif(path):
                 mesh["skinned"] = True
                 mesh["bone_names"] = skin_bones(nif, m)
         if mesh["verts"]:
+            _apply_world(mesh, worlds, mi, trs)
             meshes.append(mesh)
     return meshes
+
+
+def _apply_world(mesh, worlds, mi, trs):
+    """Bake the mesh's world transform (node chain ∘ own TRS) into the verts.
+    Identity for most gear; non-identity marks the part 'socketed': static
+    socketed parts (hair/hats) are authored head-local and the consumer must
+    compose the body's Bip01 Head transform on top."""
+    t, rot, s = trs
+    if worlds and mi in worlds["meshparent"]:
+        pi = worlds["meshparent"][mi]
+        pp, pr = worlds["pos"][pi], worlds["rot"][pi]
+        off = _matvec(pr, t)
+        t = tuple(pp[d] + off[d] for d in range(3))
+        rot = _matmul(pr, rot)
+    if _is_ident(t, rot, s):
+        return
+    mesh["socketed"] = True
+    mesh["verts"] = [tuple(t[d] + sum(rot[d * 3 + k] * v[k] * s for k in range(3))
+                           for d in range(3)) for v in mesh["verts"]]
+    if mesh["normals"]:
+        mesh["normals"] = [_matvec(rot, n) for n in mesh["normals"]]
 
 
 def _summary(path):

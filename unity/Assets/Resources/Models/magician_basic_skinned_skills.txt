@@ -1,0 +1,3 @@
+_attack 0 Skill_Wizard_MagicClaw_Cast
+fireball 2 Skill_Magician_FireBall_Cut_Cast
+firebolt 1 Skill_Wizard_FlameBurst_Cast

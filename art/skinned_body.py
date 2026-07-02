@@ -44,6 +44,7 @@ def clip_roles():
 NIF = GENDERS["female"]
 MOTION_DIR = os.path.join(ART_DIR, "motion", "warrior_basic")
 J = {}
+HEAD = None  # body's Bip01 Head world (pos, rot3x3) — socket for hair/hat items
 
 
 def joints_from_nif(nif_path):
@@ -191,6 +192,17 @@ def build_parts(nif_path, hide=frozenset(), rigid_bone=None, xform=None):
             continue
         verts = md["verts"]
         normals = md["normals"]
+        if xform is None and md["socketed"] and not md["skinned"]:
+            # static socket-local part (hair/hat authored against the head):
+            # compose the body's Bip01 Head world transform on top
+            hp, hr = HEAD
+            verts = [(hr[0] * v[0] + hr[1] * v[1] + hr[2] * v[2] + hp[0],
+                      hr[3] * v[0] + hr[4] * v[1] + hr[5] * v[2] + hp[1],
+                      hr[6] * v[0] + hr[7] * v[1] + hr[8] * v[2] + hp[2]) for v in verts]
+            if normals:
+                normals = [(hr[0] * n[0] + hr[1] * n[1] + hr[2] * n[2],
+                            hr[3] * n[0] + hr[4] * n[1] + hr[5] * n[2],
+                            hr[6] * n[0] + hr[7] * n[1] + hr[8] * n[2]) for n in normals]
         if xform is not None:
             # hand-space item: place at the weapon point's world transform
             t, R = xform
@@ -486,7 +498,7 @@ def render_anim_frames(arm, out_dir):
 
 
 def main():
-    global NIF, MOTION_DIR, J
+    global NIF, MOTION_DIR, J, HEAD
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 
     hero = None
@@ -501,6 +513,7 @@ def main():
     # builds fall back to the gender dir (male smoke clips live there)
     MOTION_DIR = os.path.join(ART_DIR, "motion", hero["id"] if hero else gender)
     J = joints_from_nif(NIF)
+    HEAD = load_world_transforms(NIF)["Bip01 Head"]
     print("gender=%s nif=%s hero=%s" % (gender, os.path.basename(NIF),
                                         hero["id"] if hero else "-"))
 
