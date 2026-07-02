@@ -610,6 +610,11 @@ namespace IdleGame.GameCore
                 double regen = e.Stats.Get(StatKey.HpRegen);
                 if (regen > 0) e.Hp = Math.Min(e.MaxHp, e.Hp + regen * dtMs / 1000.0);
 
+                // Heal-over-time (priest Sanctify): buff-granted % of MaxHp per second.
+                // EffectiveStat because the stat only ever comes from ActiveBuffs.
+                double hotPct = e.EffectiveStat(StatKey.HpRegenPct);
+                if (hotPct > 0) e.Hp = Math.Min(e.MaxHp, e.Hp + e.MaxHp * hotPct * dtMs / 1000.0);
+
                 // Mana regen (M10): fills toward MaxMana.
                 double mregen = e.Stats.Get(StatKey.ManaRegen);
                 if (mregen > 0 && e.MaxMana > 0) e.Mana = Math.Min(e.MaxMana, e.Mana + mregen * dtMs / 1000.0);
@@ -924,6 +929,17 @@ namespace IdleGame.GameCore
                     case SkillEffectKind.Buff:
                     {
                         if (!AnyEnemyAlive(s, e.Team)) continue; // don't waste buffs out of combat
+                        // Party-wide buff (priest Sanctify): every living ally gets it. A
+                        // heal-over-time is additionally gated on someone actually being hurt.
+                        if (sk.Targeting == "party")
+                        {
+                            if (sk.BuffStat == StatKey.HpRegenPct && !AnyAllyInjured(s, e.Team)) continue;
+                            CastStart(e, sk, e.Id, events);
+                            foreach (var o in s.Entities)
+                                if (o.Team == e.Team && o.Alive)
+                                    o.Buffs.Add(new ActiveBuff { Stat = sk.BuffStat, Amount = sk.BuffAmount * rankFactor, RemainingMs = sk.BuffDurationMs });
+                            return true;
+                        }
                         CastStart(e, sk, e.Id, events);
                         e.Buffs.Add(new ActiveBuff { Stat = sk.BuffStat, Amount = sk.BuffAmount * rankFactor, RemainingMs = sk.BuffDurationMs });
                         return true;
@@ -998,6 +1014,15 @@ namespace IdleGame.GameCore
                 }
             }
             return best;
+        }
+
+        /// <summary>Any living teammate missing health — gates the party heal-over-time
+        /// so its cooldown isn't burned at full HP.</summary>
+        private static bool AnyAllyInjured(CombatState s, Team team)
+        {
+            foreach (var o in s.Entities)
+                if (o.Alive && o.Team == team && o.Hp < o.MaxHp - 0.5) return true;
+            return false;
         }
 
         private static bool AnyEnemyAlive(CombatState s, Team team)

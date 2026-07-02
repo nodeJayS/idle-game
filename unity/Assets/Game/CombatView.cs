@@ -102,6 +102,19 @@ namespace IdleGame.Game
                 go.AddComponent<Projectile>().Launch(from, to, 14f, () => PlayImpact(to, amount, crit));
             };
 
+            // Priest basic attack: a bright holy bolt (warm white-gold, so it reads as
+            // light against both the ground and the fire mage's oranges).
+            _projectileFx["holybolt"] = (from, to, amount, crit) =>
+            {
+                var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
+                go.name = "HolyBolt";
+                go.transform.localScale = Vector3.one * (crit ? 0.75f : 0.55f);
+                Paint(go, new Color(1f, 0.97f, 0.8f));
+                Glow(go, new Color(1f, 0.95f, 0.6f) * 2.5f);
+                go.AddComponent<Projectile>().Launch(from, to, 15f, () => PlayImpact(to, amount, crit));
+            };
+
             // Magician firebolt: a fat, hot meteor lobbed at the target. Routed through the
             // projectile path (not the cast-time skill FX) so the damage number pops on
             // IMPACT, in sync with the meteor landing — like the basic fireball does.

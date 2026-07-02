@@ -33,7 +33,9 @@ namespace IdleGame.GameCore
     // stats — in no item base's AllowedAffixes, so they only ever reach gear via Loot.ImprintDrop
     // (the rare suffix mods of Leeching / of Thorns). Read in Combat.ApplyHit alongside the same-named
     // monster-behavior fields, so a hero with the stat leeches/reflects exactly like a modded monster.
-    public enum StatKey { Hp, Atk, Def, MoveSpd, CritChance, CritDmg, HpRegen, AttackRange, SplashRadius, MaxMana, ManaRegen, AtkSpd, Lifesteal, ThornsReflect, ChainCount }
+    // HpRegenPct = fraction of MaxHp healed per second — only ever granted by heal-over-time
+    // BUFFS (priest Sanctify), never rolled on gear; flat HpRegen stays the hp/sec stat.
+    public enum StatKey { Hp, Atk, Def, MoveSpd, CritChance, CritDmg, HpRegen, AttackRange, SplashRadius, MaxMana, ManaRegen, AtkSpd, Lifesteal, ThornsReflect, ChainCount, HpRegenPct }
 
     /// <summary>A bag of stat values. Partial blocks simply omit keys.</summary>
     public sealed class StatBlock : Dictionary<StatKey, double>

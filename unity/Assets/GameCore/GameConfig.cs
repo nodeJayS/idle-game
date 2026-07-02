@@ -583,11 +583,32 @@ namespace IdleGame.GameCore
                 Skills = new List<string> { "frostbolt", "permafrost", "blizzard", "frostflow" }, Sprite = "icemage",
             };
 
+            // Hero #5 — the party's first SUPPORT (and first male-body hero): a holy caster
+            // whose identity is the party heal-over-time, with a modest AoE smite for
+            // downtime. Low Atk (his power is the heal, which scales off MaxHp, not Atk).
+            cfg.Heroes["priest_basic"] = new HeroDef
+            {
+                DefId = "priest_basic", Name = "Priest", Class = "Priest", Role = "ranged",
+                BaseStats = SB((StatKey.Hp, 90), (StatKey.Atk, 12), (StatKey.Def, 5),
+                               (StatKey.MoveSpd, 3.0), (StatKey.AtkSpd, 0.95),
+                               (StatKey.CritChance, 0.04), (StatKey.CritDmg, 1.5),
+                               (StatKey.HpRegen, 1.2),
+                               (StatKey.AttackRange, 6.0),
+                               (StatKey.SplashRadius, 0.7),
+                               (StatKey.MaxMana, 140), (StatKey.ManaRegen, 7)),
+                GrowthPerLevel = SB((StatKey.Hp, 12), (StatKey.Atk, 3), (StatKey.Def, 1.2), (StatKey.MaxMana, 6)),
+                // 2+2 kit (§7.2): party HoT + AoE smite; sustain + mana-flow passives.
+                Skills = new List<string> { "sanctify", "devotion", "holysmite", "benediction" },
+                Sprite = "priest", AttackFx = "holybolt",
+            };
+
             // Progression unlocks: you start with just the Warrior; clearing stage 3 adds
-            // the Magician, stage 5 the Thief, stage 8 the Ice Mage. (More heroes slot in here.)
+            // the Magician, stage 5 the Thief, stage 8 the Ice Mage, stage 12 the Priest.
+            // (More heroes slot in here.)
             cfg.HeroUnlocks[3] = "magician_basic";
             cfg.HeroUnlocks[5] = "thief_basic";
             cfg.HeroUnlocks[8] = "icemage_basic";
+            cfg.HeroUnlocks[12] = "priest_basic";
 
             cfg.ItemBases["rusty_sword"] = new ItemBaseDef
             {
@@ -866,6 +887,32 @@ namespace IdleGame.GameCore
             cfg.Skills["frostflow"] = new SkillDef   // Ice Mage: glacial mana current
             {
                 Id = "frostflow", Name = "Frostflow", Passive = true, UnlockLevel = 15,
+                PassiveStat = StatKey.ManaRegen, StatPerRank = 0.8, Sprite = "fireball",
+            };
+
+            // Priest kit (§7.2 cadence 1/5/10/15) — the party HoT is the identity: every
+            // living ally regens BuffAmount x MaxHp per second for the duration (rank
+            // scales the rate). Gated in Combat.TryCastSkill on someone being hurt.
+            cfg.Skills["sanctify"] = new SkillDef
+            {
+                Id = "sanctify", Name = "Sanctify", Effect = SkillEffectKind.Buff, Targeting = "party",
+                CooldownMs = 15000, Range = 0, BuffStat = StatKey.HpRegenPct, BuffAmount = 0.20,
+                BuffDurationMs = 10000, ManaCost = 45, Sprite = "warcry",
+            };
+            cfg.Skills["devotion"] = new SkillDef    // Priest: enduring body
+            {
+                Id = "devotion", Name = "Devotion", Passive = true, UnlockLevel = 5,
+                PassiveStat = StatKey.HpRegen, StatPerRank = 0.6, Sprite = "bulwark",
+            };
+            cfg.Skills["holysmite"] = new SkillDef
+            {
+                Id = "holysmite", Name = "Holy Smite", Effect = SkillEffectKind.Damage, Targeting = "aoe",
+                CooldownMs = 6000, Range = 6.0, AoeRadius = 2.4, DamageMult = 1.6, ManaCost = 32, Sprite = "quake",
+                UnlockLevel = 10,
+            };
+            cfg.Skills["benediction"] = new SkillDef // Priest: flowing grace
+            {
+                Id = "benediction", Name = "Benediction", Passive = true, UnlockLevel = 15,
                 PassiveStat = StatKey.ManaRegen, StatPerRank = 0.8, Sprite = "fireball",
             };
 
