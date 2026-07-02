@@ -1,5 +1,19 @@
 # Handoff: magician + thief on the MS2 skinned pipeline (written 2026-07-02)
 
+**STATUS: DONE 2026-07-02** — §0 per-hero motion dirs, §3.5 per-hero
+AnimatorOverrideControllers (`Tools > Build Hero Animators` +
+`unity/Assets/Editor/HeroAnimatorBuilder.cs`) and per-hero basic-attack
+sound (manifest `attack_sound` → reserved `_attack` binding), magician
+(fireprism set + mage hat + inferno staff, wizard clips/SFX) and thief
+(shadowspike set + dual darksteel daggers, assassin clips/SFX) all shipped
+and Play-verified. NOTE the kit correction: magician actives are firebolt
+(L1) + fireball (L10) per GameConfig — scorch is only a library row.
+Pipeline learning: nif_import now bakes each NiMesh's node-chain world
+transform; static parts with a non-identity chain are head-socket-local
+and skinned_body re-bases them by Bip01 Head. Items still vary in
+authoring convention (the fireprism/witch HATS resist all of them) — the
+render-eyeball step is what catches a bad item; just pick another.
+
 **Read first:** `CLAUDE.md`, then `docs/ms2-port-plan.md` (every phase ✅ done,
 with per-phase status notes = the format knowledge). The warrior is the fully
 worked example — trace her files before building anything.
