@@ -823,6 +823,17 @@ namespace IdleGame.Game
             _combat.ActiveModifiers = Modifiers.ResolveActive(_save, _cfg); // re-apply toggles to the resumed farm
             _accMs = 0; _outcomeTimer = 0; _resolved = false;
             ReconcileViews();
+            // Heroes who died in the boss fight are healed by ResumeFarm directly (no
+            // Respawn EVENT fires), so resync their views out of the death pose too —
+            // otherwise they walk the farm stuck in the death clip + downed paint.
+            foreach (var e in _combat.Entities)
+                if (e.Team == Team.Party && e.Alive &&
+                    _views.TryGetValue(e.Id, out var v) && v.Go != null)
+                {
+                    v.Go.SetActive(true);
+                    Paint(v.Go, v.BaseColor);
+                    v.Anim?.SetDowned(false);
+                }
         }
 
         // ---- views ----
