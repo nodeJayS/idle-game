@@ -129,21 +129,70 @@ namespace IdleGame.GameCore
                 Daily = save.Progress.Daily,
             });
 
+            next = SyncHeroUnlocks(next, cfg);
+
+            // Farm depth drives the Modifiers (Lever 1): unlock/upgrade owned modifiers for the new
+            // highest stage. Idempotent, so replaying a cleared stage is a no-op.
+            return Modifiers.SyncToStage(next, cfg);
+        }
+
+        /// <summary>
+        /// Align the owned roster to the unlock table for the save's HighestStage:
+        /// every unlock at or below it is granted (level 1, no gear, auto-fielded into
+        /// the first empty slot) — retroactive, so a table change reaches existing
+        /// saves at load, not just on the next boss clear. Heroes whose def has LEFT
+        /// the table (disabled content, e.g. the shelved Ice Mage) are removed from
+        /// the roster and their party slot freed. Idempotent; the starter is exempt.
+        /// </summary>
+        public static SaveState SyncHeroUnlocks(SaveState save, GameConfig cfg)
+        {
+            var next = save;
+
             // Sorted so multi-unlock grants mint hero ids deterministically.
             foreach (var unlock in cfg.HeroUnlocks.OrderBy(u => u.Key))
             {
-                if (unlock.Key > highest) continue;                              // not reached yet
+                if (unlock.Key > next.Progress.HighestStage) continue;           // not reached yet
                 if (next.Heroes.Exists(h => h.DefId == unlock.Value)) continue;  // already owned
 
                 string heroId = "h" + (next.Heroes.Count + 1);
+                while (next.Heroes.Exists(h => h.Id == heroId)) heroId += "x";   // removed rows leave id gaps
                 next = Party.AcquireHero(next, unlock.Value, cfg, heroId);
                 int empty = Array.IndexOf(next.Party, (string?)null);
                 if (empty >= 0) next = Party.FieldHero(next, empty, heroId);      // join the party
             }
 
-            // Farm depth drives the Modifiers (Lever 1): unlock/upgrade owned modifiers for the new
-            // highest stage. Idempotent, so replaying a cleared stage is a no-op.
-            return Modifiers.SyncToStage(next, cfg);
+            // Disabled content: obtainable = starter + the unlock table.
+            var obtainable = new HashSet<string>(cfg.HeroUnlocks.Values) { Save.StarterHeroDef };
+            if (next.Heroes.Exists(h => !obtainable.Contains(h.DefId)))
+            {
+                var gone = new HashSet<string>();
+                var kept = new List<HeroInstance>();
+                foreach (var h in next.Heroes)
+                    if (obtainable.Contains(h.DefId)) kept.Add(h); else gone.Add(h.Id);
+                var party = (string?[])next.Party.Clone();
+                for (int i = 0; i < party.Length; i++)
+                    if (party[i] != null && gone.Contains(party[i]!)) party[i] = null;
+                string? leader = next.LeaderHeroId != null && gone.Contains(next.LeaderHeroId)
+                    ? null : next.LeaderHeroId;
+                next = new SaveState
+                {
+                    Version = next.Version,
+                    RngSeed = next.RngSeed,
+                    RngCursor = next.RngCursor,
+                    Heroes = kept,
+                    Party = party,
+                    LeaderHeroId = leader,
+                    Inventory = next.Inventory,
+                    Currencies = next.Currencies,
+                    Progress = next.Progress,
+                    Quests = next.Quests,
+                    Modifiers = next.Modifiers,
+                    LastClaimAt = next.LastClaimAt,
+                };
+                if (Array.TrueForAll(next.Party, s => s == null) && next.Heroes.Count > 0)
+                    next = Party.FieldHero(next, 0, next.Heroes[0].Id); // never leave an empty field
+            }
+            return next;
         }
 
         /// <summary>

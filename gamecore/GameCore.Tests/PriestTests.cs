@@ -121,7 +121,7 @@ namespace IdleGame.GameCore.Tests
             Assert.True(Cfg.Skills[hero.Skills[1]].Passive);  // devotion   (L5 passive)
             Assert.False(Cfg.Skills[hero.Skills[2]].Passive); // holysmite  (L10 active)
             Assert.True(Cfg.Skills[hero.Skills[3]].Passive);  // benediction(L15 passive)
-            Assert.Equal("priest_basic", Cfg.HeroUnlocks[12]);
+            Assert.Equal("priest_basic", Cfg.HeroUnlocks[5]);
         }
     }
 }

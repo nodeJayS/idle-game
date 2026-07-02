@@ -518,7 +518,9 @@ namespace IdleGame.GameCore
 
             cfg.Heroes["warrior_basic"] = new HeroDef
             {
-                DefId = "warrior_basic", Name = "Warrior", Class = "Warrior", Role = "melee",
+                // Display rename 2026-07-02: sword-and-board reads Knight (def id stays
+                // warrior_basic — saves, manifests and the FBX all key off it).
+                DefId = "warrior_basic", Name = "Knight", Class = "Knight", Role = "melee",
                 BaseStats = SB((StatKey.Hp, 120), (StatKey.Atk, 14), (StatKey.Def, 8),
                                (StatKey.MoveSpd, 3.0), (StatKey.AtkSpd, 0.85), // sturdy but swings slower than the mage
                                (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.5),
@@ -549,7 +551,8 @@ namespace IdleGame.GameCore
 
             cfg.Heroes["thief_basic"] = new HeroDef
             {
-                DefId = "thief_basic", Name = "Thief", Class = "Thief", Role = "melee",
+                // Display rename 2026-07-02: Assassin (def id stays thief_basic).
+                DefId = "thief_basic", Name = "Assassin", Class = "Assassin", Role = "melee",
                 // glass-cannon assassin: lowest HP/Def of the roster, fastest swings, and crit-built
                 // (high CritChance + CritDmg) so its DPS lives in single-target burst, not durability.
                 BaseStats = SB((StatKey.Hp, 64), (StatKey.Atk, 16), (StatKey.Def, 3),
@@ -565,9 +568,10 @@ namespace IdleGame.GameCore
                 Sprite = "thief",
             };
 
-            // Hero #4 — the first hero authored ON the 2+2 template (§7.2): a durable frost
-            // caster. Sturdier but slower than the fire Magician; kit params are dummy ice
-            // flavor for now (bespoke frost mechanics/VFX are a later pass).
+            // Ice Mage — SHELVED (2026-07-02): def + kit stay for the future reintroduction,
+            // but it's absent from HeroUnlocks so it can't be obtained, and
+            // Progression.SyncHeroUnlocks strips it from saves that had the placeholder.
+            // (Originally the first hero authored ON the 2+2 template, §7.2.)
             cfg.Heroes["icemage_basic"] = new HeroDef
             {
                 DefId = "icemage_basic", Name = "Ice Mage", Class = "Ice Mage", Role = "ranged",
@@ -602,13 +606,14 @@ namespace IdleGame.GameCore
                 Sprite = "priest", AttackFx = "holybolt",
             };
 
-            // Progression unlocks: you start with just the Warrior; clearing stage 3 adds
-            // the Magician, stage 5 the Thief, stage 8 the Ice Mage, stage 12 the Priest.
-            // (More heroes slot in here.)
+            // Progression unlocks: you start with just the Knight; reaching stage 3 adds
+            // the Magician, stage 5 the Priest, stage 10 the Assassin. Retroactive:
+            // Progression.SyncHeroUnlocks grants any table row at/below HighestStage on
+            // load, and REMOVES owned heroes whose def leaves this table (that's how the
+            // Ice Mage is shelved — its def stays below for the future reintroduction).
             cfg.HeroUnlocks[3] = "magician_basic";
-            cfg.HeroUnlocks[5] = "thief_basic";
-            cfg.HeroUnlocks[8] = "icemage_basic";
-            cfg.HeroUnlocks[12] = "priest_basic";
+            cfg.HeroUnlocks[5] = "priest_basic";
+            cfg.HeroUnlocks[10] = "thief_basic";
 
             cfg.ItemBases["rusty_sword"] = new ItemBaseDef
             {
