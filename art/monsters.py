@@ -63,11 +63,18 @@ COLORS = {
     "shadowdeep": (0.13, 0.12, 0.19),
     "violet": (0.62, 0.42, 0.95),
     "batfur": (0.34, 0.30, 0.40),
+    # zone 8 — Storm Coast
+    "shell":  (0.75, 0.45, 0.30),
+    "shelldark": (0.52, 0.28, 0.18),
+    "foam":   (0.85, 0.92, 0.94),
+    "seagrey": (0.40, 0.48, 0.55),
+    "storm":  (0.45, 0.85, 1.00),
+    "nagascale": (0.28, 0.52, 0.58),
 }
 # modest strengths: Unity's FBX import drops emission anyway (base colour carries
 # the look there); these only need to READ in the eyeball renders, not blow out.
 EMISSIVE = {"amber": 6.0, "ember": 8.0, "wisp": 0.8, "wispcore": 2.5, "sludge": 1.2,
-            "icecore": 2.0, "lava": 3.0, "violet": 2.5}
+            "icecore": 2.0, "lava": 3.0, "violet": 2.5, "storm": 2.5}
 
 _materials = {}
 
@@ -572,6 +579,73 @@ def build_nightmare_maw():
     rock("tail", 0.20, (0, 0.10, 0.42), "shadow", scale=(0.9, 0.9, 1.8), seed=196, jitter=0.2, taper=0.5)
 
 
+# --- zone 8: Storm Coast --------------------------------------------------------------
+
+def build_tide_crab():
+    """A squat armored crab: wide flat carapace, two heavy claws, three legs a
+    side, eye stalks. The zone's tanky fodder. ~0.5u tall, wide."""
+    rock("carapace", 0.30, (0, 0.02, 0.32), "shell", scale=(1.35, 1.0, 0.60), seed=201, jitter=0.14, subdiv=2)
+    rock("belly", 0.26, (0, 0.02, 0.20), "shelldark", scale=(1.30, 0.95, 0.45), seed=202, jitter=0.12)
+    # heavy claws held forward (-Y), shoulders tucked under the carapace rim
+    rock("clawL", 0.16, (0.30, -0.24, 0.20), "shelldark", scale=(1.2, 1.1, 0.8), seed=203, jitter=0.16)
+    rock("clawR", 0.16, (-0.30, -0.24, 0.20), "shelldark", scale=(1.2, 1.1, 0.8), seed=204, jitter=0.16)
+    box("pincerL", (0.10, 0.14, 0.05), (0.32, -0.40, 0.24), "foam")
+    box("pincerR", (0.10, 0.14, 0.05), (-0.32, -0.40, 0.24), "foam")
+    # three legs a side
+    for i, (y, rz) in enumerate([(-0.06, 0.5), (0.10, 0.65), (0.24, 0.8)]):
+        box("legL%d" % i, (0.20, 0.05, 0.05), (0.32, y, 0.10), "shelldark", rot=(0, 0, rz))
+        box("legR%d" % i, (0.20, 0.05, 0.05), (-0.32, y, 0.10), "shelldark", rot=(0, 0, -rz))
+    # eye stalks
+    box("stalkL", (0.035, 0.035, 0.14), (0.09, -0.20, 0.50), "shelldark")
+    box("stalkR", (0.035, 0.035, 0.14), (-0.09, -0.20, 0.50), "shelldark")
+    rock("eyeL", 0.04, (0.09, -0.21, 0.58), "socket", seed=205, jitter=0.05)
+    rock("eyeR", 0.04, (-0.09, -0.21, 0.58), "socket", seed=206, jitter=0.05)
+
+
+def build_storm_caller():
+    """A hovering storm elemental: a dark cloud puff crackling with a storm-lit
+    core, lightning shards hanging beneath, glowing eyes. Bottom ~0.35u."""
+    # cloud puff (three overlapping lumps)
+    rock("cloud1", 0.22, (0, 0, 0.78), "seagrey", scale=(1.2, 1.0, 0.85), seed=211, jitter=0.20, subdiv=2)
+    rock("cloud2", 0.16, (0.16, 0.06, 0.90), "seagrey", scale=(1.1, 1.0, 0.85), seed=212, jitter=0.22)
+    rock("cloud3", 0.14, (-0.16, 0.02, 0.88), "seagrey", scale=(1.1, 1.0, 0.85), seed=213, jitter=0.22)
+    # storm core glowing through the front + eyes
+    rock("core", 0.10, (0, -0.16, 0.76), "storm", scale=(1.3, 0.6, 1.1), seed=214, jitter=0.12)
+    rock("eyeL", 0.04, (0.10, -0.20, 0.86), "storm", seed=215, jitter=0.05)
+    rock("eyeR", 0.04, (-0.10, -0.20, 0.86), "storm", seed=216, jitter=0.05)
+    # lightning shards hanging beneath
+    box("bolt1", (0.05, 0.05, 0.22), (0.10, -0.04, 0.52), "storm", taper_top=0.2, rot=(3.14159, 0, 0.15))
+    box("bolt2", (0.045, 0.045, 0.18), (-0.12, 0.02, 0.48), "storm", taper_top=0.2, rot=(3.14159, 0, -0.2))
+
+
+def build_tempest_naga():
+    """BOSS — a sea-serpent naga risen tall from a double coil: scaled body,
+    foam belly plates, crested head with storm eyes, a storm-pronged trident
+    in one hand. ~2.3u tall."""
+    rock("coil1", 0.44, (0, 0, 0.20), "nagascale", scale=(1.25, 1.25, 0.50), seed=221, jitter=0.16, subdiv=2)
+    rock("coil2", 0.34, (0.04, 0.04, 0.52), "nagascale", scale=(1.15, 1.15, 0.50), seed=222, jitter=0.16)
+    # rising body with foam belly plates on the front
+    rock("body", 0.24, (0, 0.02, 1.15), "nagascale", scale=(1.0, 0.9, 2.1), seed=223, jitter=0.12, taper=0.15)
+    rock("belly", 0.15, (0, -0.16, 1.05), "foam", scale=(1.1, 0.5, 2.2), seed=224, jitter=0.10)
+    # arms
+    box("armL", (0.09, 0.10, 0.40), (0.30, -0.06, 1.32), "nagascale", taper_top=0.7, rot=(0.3, 0, -0.35))
+    box("armR", (0.09, 0.10, 0.40), (-0.30, -0.06, 1.32), "nagascale", taper_top=0.7, rot=(0.3, 0, 0.35))
+    # crested head with storm eyes + fangs (faces -Y)
+    rock("head", 0.20, (0, -0.06, 1.86), "nagascale", scale=(1.0, 1.2, 0.9), seed=225, jitter=0.12)
+    prism("crest", [(-0.16, 0), (0.16, 0), (0.10, 0.26), (-0.08, 0.22)], 0.05,
+          (0, 0.10, 1.98), "storm", axis="y")
+    rock("eyeL", 0.05, (0.09, -0.24, 1.90), "storm", seed=226, jitter=0.05)
+    rock("eyeR", 0.05, (-0.09, -0.24, 1.90), "storm", seed=227, jitter=0.05)
+    box("fangL", (0.03, 0.03, 0.09), (0.06, -0.24, 1.72), "bone")
+    box("fangR", (0.03, 0.03, 0.09), (-0.06, -0.24, 1.72), "bone")
+    # trident planted at the right hand (pole meets the arm tip)
+    box("pole", (0.05, 0.05, 1.30), (-0.38, -0.20, 0.85), "shelldark")
+    box("prong1", (0.05, 0.05, 0.26), (-0.38, -0.20, 1.60), "storm", taper_top=0.2)
+    box("prong2", (0.05, 0.05, 0.20), (-0.28, -0.20, 1.54), "storm", taper_top=0.2, rot=(0, 0, -0.2))
+    box("prong3", (0.05, 0.05, 0.20), (-0.48, -0.20, 1.54), "storm", taper_top=0.2, rot=(0, 0, 0.2))
+    box("cross", (0.24, 0.05, 0.05), (-0.38, -0.20, 1.46), "shelldark")
+
+
 MONSTERS = {
     # zone 2 — Ruined Courtyard (trash, trash, boss)
     "bone_rattler": (build_bone_rattler, 0.55, 2.1),
@@ -597,6 +671,10 @@ MONSTERS = {
     "cave_bat": (build_cave_bat, 0.60, 2.0),
     "gloom_shade": (build_gloom_shade, 0.75, 2.4),
     "nightmare_maw": (build_nightmare_maw, 1.15, 4.0),
+    # zone 8 — Storm Coast
+    "tide_crab": (build_tide_crab, 0.30, 2.2),
+    "storm_caller": (build_storm_caller, 0.70, 2.2),
+    "tempest_naga": (build_tempest_naga, 1.15, 4.0),
 }
 
 # --- render / export -------------------------------------------------------------

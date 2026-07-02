@@ -87,8 +87,10 @@ tonight" decision engine. Slices:
    Hound — lava-mane wolf chassis / Ash Tyrant demon-lord). ✅ Zone 7 shipped
    2026-07-02 (Cave Bat / Gloom Shade wraith / Nightmare Maw void-head;
    MonsterModel.Tint now scales aura emission by material luma so dark
-   palettes don't wash to the mod colour). REMAINING: zones 8–10 rosters,
-   zone 1 slime/goblin models, per-zone prop-shape swaps.
+   palettes don't wash to the mod colour). ✅ Zone 8 shipped 2026-07-02 (Tide
+   Crab / Storm Caller cloud elemental / Tempest Naga with storm trident).
+   REMAINING: zones 9–10 rosters, zone 1 slime/goblin models, per-zone
+   prop-shape swaps.
 
 ### 5. Content & tuning pass (after 4)
 More stages/mods/monster kits; balance sim in console (backlogged); XP-curve
