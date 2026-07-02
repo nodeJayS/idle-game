@@ -47,10 +47,17 @@ COLORS = {
     "chitindark": (0.30, 0.19, 0.11),
     "sand":   (0.82, 0.70, 0.46),
     "sandshadow": (0.60, 0.48, 0.30),
+    # zone 5 — Frostpeak Tundra
+    "ice":    (0.78, 0.88, 0.95),
+    "icedeep": (0.52, 0.70, 0.88),
+    "icecore": (0.70, 0.98, 1.00),
+    "fur":    (0.86, 0.90, 0.95),
+    "furdark": (0.46, 0.56, 0.70),
 }
 # modest strengths: Unity's FBX import drops emission anyway (base colour carries
 # the look there); these only need to READ in the eyeball renders, not blow out.
-EMISSIVE = {"amber": 6.0, "ember": 8.0, "wisp": 0.8, "wispcore": 2.5, "sludge": 1.2}
+EMISSIVE = {"amber": 6.0, "ember": 8.0, "wisp": 0.8, "wispcore": 2.5, "sludge": 1.2,
+            "icecore": 2.0}
 
 _materials = {}
 
@@ -372,6 +379,64 @@ def build_dune_wurm():
     rock("chunk2", 0.08, (-0.48, 0.20, 0.28), "sand", seed=98, jitter=0.3)
 
 
+# --- zone 5: Frostpeak Tundra -------------------------------------------------------
+
+def build_ice_sprite():
+    """A hovering shard-imp: one tall faceted crystal with glowing eyes, two
+    splayed shard arms, a ring of small shards below. Bottom at ~0.15u."""
+    rock("body", 0.22, (0, 0, 0.55), "ice", scale=(1.0, 0.9, 1.9), seed=101, jitter=0.12,
+         subdiv=2, taper=0.65)
+    rock("eyeL", 0.045, (0.08, -0.17, 0.68), "icecore", seed=102, jitter=0.05)
+    rock("eyeR", 0.045, (-0.08, -0.17, 0.68), "icecore", seed=103, jitter=0.05)
+    # shard arms angled outward
+    box("armL", (0.06, 0.06, 0.30), (0.26, 0, 0.52), "icedeep", taper_top=0.3, rot=(0, -0.5, 0))
+    box("armR", (0.06, 0.06, 0.30), (-0.26, 0, 0.52), "icedeep", taper_top=0.3, rot=(0, 0.5, 0))
+    # orbiting shard ring near the base
+    box("shard1", (0.05, 0.05, 0.16), (0.20, -0.12, 0.22), "icedeep", taper_top=0.2, rot=(0.2, 0, 0.3))
+    box("shard2", (0.05, 0.05, 0.14), (-0.22, -0.06, 0.20), "icedeep", taper_top=0.2, rot=(-0.1, 0, -0.35))
+    box("shard3", (0.05, 0.05, 0.15), (0.02, 0.22, 0.21), "icedeep", taper_top=0.2, rot=(0.3, 0, 0.05))
+
+
+def build_frost_wolf():
+    """A lean tundra wolf: long low body, dark back mane, snouted head with
+    pricked ears and ice-blue eyes, four legs, a swept tail. ~0.85u tall."""
+    rock("body", 0.26, (0, 0.06, 0.48), "fur", scale=(0.95, 1.75, 0.95), seed=111, jitter=0.12, subdiv=2)
+    rock("mane", 0.20, (0, 0.14, 0.68), "furdark", scale=(0.95, 1.30, 0.60), seed=112, jitter=0.18)
+    # head + snout + nose (faces -Y)
+    rock("head", 0.16, (0, -0.44, 0.66), "fur", scale=(1.0, 1.1, 1.0), seed=113, jitter=0.10)
+    box("snout", (0.11, 0.18, 0.09), (0, -0.60, 0.60), "furdark")
+    box("nose", (0.05, 0.04, 0.04), (0, -0.70, 0.62), "socket")
+    # pricked ears
+    box("earL", (0.05, 0.04, 0.12), (0.09, -0.38, 0.84), "furdark", taper_top=0.25)
+    box("earR", (0.05, 0.04, 0.12), (-0.09, -0.38, 0.84), "furdark", taper_top=0.25)
+    rock("eyeL", 0.035, (0.09, -0.55, 0.70), "icecore", seed=114, jitter=0.05)
+    rock("eyeR", 0.035, (-0.09, -0.55, 0.70), "icecore", seed=115, jitter=0.05)
+    # four legs planted on the ground
+    for name, x, y in (("legFL", 0.14, -0.26), ("legFR", -0.14, -0.26), ("legBL", 0.14, 0.34), ("legBR", -0.14, 0.34)):
+        box(name, (0.08, 0.08, 0.42), (x, y, 0.21), "fur", taper_top=0.8)
+    # swept tail
+    rock("tail", 0.09, (0, 0.52, 0.62), "furdark", scale=(0.8, 1.9, 0.8), seed=116, jitter=0.15)
+
+
+def build_glacier_golem():
+    """BOSS — a glacial boulder golem: ice-rock feet/torso/head like the Stone
+    Sentry's language but blue glacial ice, crystal spikes on the shoulders and
+    back, a blazing cyan eye band. ~2.3u tall."""
+    rock("footL", 0.24, (0.28, 0, 0.20), "icedeep", scale=(1.0, 1.15, 0.75), seed=121, jitter=0.2)
+    rock("footR", 0.24, (-0.28, 0, 0.20), "icedeep", scale=(1.0, 1.15, 0.75), seed=122, jitter=0.2)
+    rock("torso", 0.58, (0, 0, 1.02), "ice", scale=(1.1, 0.9, 1.0), seed=123, jitter=0.26, subdiv=2)
+    rock("head", 0.30, (0, -0.04, 1.78), "ice", scale=(1.0, 0.95, 0.85), seed=124, jitter=0.2, subdiv=2)
+    box("eye", (0.22, 0.20, 0.07), (0, -0.28, 1.78), "icecore") # deep enough to stay proud of the facets
+    # hanging arm boulders
+    rock("armL", 0.22, (0.70, 0.02, 0.78), "icedeep", scale=(0.9, 0.9, 1.6), seed=125, jitter=0.24)
+    rock("armR", 0.22, (-0.70, 0.02, 0.78), "icedeep", scale=(0.9, 0.9, 1.6), seed=126, jitter=0.24)
+    # crystal spikes rooted in the shoulders, tilted so the tips clear the crown
+    box("spikeL", (0.11, 0.11, 0.50), (0.40, 0.06, 1.56), "icecore", taper_top=0.12, rot=(0, 0, -0.45))
+    box("spikeR", (0.11, 0.11, 0.50), (-0.40, 0.06, 1.56), "icecore", taper_top=0.12, rot=(0, 0, 0.45))
+    box("spikeB1", (0.09, 0.09, 0.36), (0.10, 0.32, 1.44), "icedeep", taper_top=0.15, rot=(0.45, 0, 0.1))
+    box("spikeB2", (0.08, 0.08, 0.30), (-0.14, 0.34, 1.30), "icedeep", taper_top=0.15, rot=(0.5, 0, -0.1))
+
+
 MONSTERS = {
     # zone 2 — Ruined Courtyard (trash, trash, boss)
     "bone_rattler": (build_bone_rattler, 0.55, 2.1),
@@ -385,6 +450,10 @@ MONSTERS = {
     "dust_scarab": (build_dust_scarab, 0.35, 2.0),
     "dune_stalker": (build_dune_stalker, 0.70, 2.6),
     "dune_wurm": (build_dune_wurm, 1.20, 4.2),
+    # zone 5 — Frostpeak Tundra
+    "ice_sprite": (build_ice_sprite, 0.55, 2.0),
+    "frost_wolf": (build_frost_wolf, 0.50, 2.4),
+    "glacier_golem": (build_glacier_golem, 1.15, 4.0),
 }
 
 # --- render / export -------------------------------------------------------------
