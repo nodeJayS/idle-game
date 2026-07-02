@@ -51,3 +51,5 @@ npm-debug.log*
 # ===== Local-only placeholder font (proprietary; do NOT ship or commit) =====
 unity/Assets/Resources/Fonts/UIFont.ttf
 unity/Assets/Resources/Fonts/UIFont.ttf.meta
+
+__pycache__/

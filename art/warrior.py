@@ -1,7 +1,9 @@
-# Chibi Warrior — scripted hero model, SMOOTH "toy" style: heroes are the only
-# smooth/rounded thing in a faceted low-poly world, so they pop. Organic parts
-# (head, hair, body, limbs) are smooth-shaded and beveled; metal (sword, shield
-# boss) stays crisp.
+# Chibi Warrior — scripted hero model, SMOOTH "toy" style with REAL MapleStory 2
+# proportions (measured from the extracted f_body mesh — see
+# docs/ms2-hero-pipeline-plan.md): head ~42% of total height and WIDER than
+# body+arms; slim tapered torso; the silhouette mass comes from GEAR (hood +
+# wings, layered pauldrons, skirt flare, armored boots, big kite shield).
+# Design = the hooded shield-knight from art/valkyrie.py, rebuilt smooth.
 #
 #   blender -b --python art/warrior.py -- --renders <dir>
 #   blender -b --python art/warrior.py -- --export <file.fbx>
@@ -28,19 +30,27 @@ ARM_LEN = 0.42
 HIP_X = 0.13
 HEAD_CZ = HIP + TORSO_H + 0.27 * 0.85
 
+# Visual head radius — bigger than the joint constant (geometry is free; only
+# BONES must stay fixed). Head sphere = 0.62 wide, ~42% of the ~1.45 height.
+HEAD_VR = 0.30
+
 # --- palette (sRGB) -------------------------------------------------------------
 COLORS = {
-    "skin":  (0.96, 0.80, 0.64),
+    "skin":  (0.99, 0.85, 0.74),
+    "hair":  (0.50, 0.29, 0.12),
+    "hood":  (0.35, 0.19, 0.12),
+    "cloth": (0.58, 0.36, 0.20),
     "tunic": (0.15, 0.38, 0.88),
-    "limb":  (0.11, 0.27, 0.66),
-    "boot":  (0.40, 0.27, 0.14),
-    "hair":  (0.46, 0.27, 0.11),
-    "belt":  (0.25, 0.16, 0.09),
-    "steel": (0.78, 0.81, 0.87),
-    "dark":  (0.30, 0.31, 0.36),
-    "wood":  (0.52, 0.34, 0.16),
-    "eye":   (0.08, 0.07, 0.09),
+    "gold":  (0.93, 0.71, 0.18),
+    "teal":  (0.25, 0.78, 0.92),
+    "boot":  (0.30, 0.20, 0.13),
+    "belt":  (0.22, 0.15, 0.10),
+    "steel": (0.80, 0.83, 0.88),
+    "dark":  (0.20, 0.15, 0.12),
+    "blue":  (0.16, 0.33, 0.82),
     "white": (0.97, 0.97, 0.97),
+    "iris":  (0.13, 0.45, 0.95),
+    "pupil": (0.06, 0.06, 0.09),
 }
 
 _materials = {}
@@ -125,84 +135,180 @@ def ball(name, radius, loc, material, bone, scale=(1, 1, 1), segs=24, rings=16,
     return register(obj, material, bone, smooth)
 
 
+def prism(name, outline, depth, loc, material, bone, axis="x"):
+    """Extruded polygon (flat-shaded, crisp): outline is [(a, b), ...] in the
+    plane perpendicular to `axis`; depth extrudes along the axis."""
+    n = len(outline)
+    verts = []
+    for off in (-depth / 2.0, depth / 2.0):
+        for (a, b) in outline:
+            verts.append(Vector((off, a, b)) if axis == "x" else Vector((a, off, b)))
+    faces = [list(range(n - 1, -1, -1)), list(range(n, 2 * n))]
+    for i in range(n):
+        j = (i + 1) % n
+        faces.append([i, j, n + j, n + i])
+    me = bpy.data.meshes.new(name)
+    me.from_pydata([v[:] for v in verts], [], faces)
+    me.update()
+    obj = bpy.data.objects.new(name, me)
+    obj.location = loc
+    bpy.context.scene.collection.objects.link(obj)
+    return register(obj, material, bone, smooth=False)
+
+
+# --- head: face, layered anime eyes, sculpted hair, hood + wings ----------------
+
+def build_eyes(head_c):
+    """Layered MS2 eyes: sclera -> iris -> pupil -> two highlights."""
+    for sx in (-1, 1):
+        e = head_c + Vector((sx * 0.115, 0, -0.02))
+        ball("sclera", 0.085, e + Vector((0, -0.268, 0)),
+             "white", "head", scale=(0.80, 0.25, 1.25), segs=16, rings=12)
+        ball("iris", 0.060, e + Vector((0, -0.285, -0.004)),
+             "iris", "head", scale=(0.85, 0.25, 1.20), segs=16, rings=12)
+        ball("pupil", 0.033, e + Vector((0, -0.298, -0.008)),
+             "pupil", "head", scale=(0.85, 0.25, 1.15), segs=12, rings=8)
+        ball("glint", 0.016, e + Vector((sx * -0.020, -0.308, 0.035)),
+             "white", "head", segs=12, rings=8)
+        ball("glint2", 0.009, e + Vector((sx * 0.016, -0.310, -0.030)),
+             "white", "head", segs=12, rings=8)
+
+
 def build_hair(head_c):
-    """Bowl cut with real thickness: trimmed sphere shell + solidify, smooth."""
+    """Sculpted clumps, not a bowl shell: fringe under the hood + side/back locks."""
+    for i, (fx, fz) in enumerate(((-0.14, 0.09), (0.0, 0.12), (0.14, 0.09))):
+        ball("fringe%d" % i, 0.115, head_c + Vector((fx, -0.255, fz)),
+             "hair", "head", scale=(0.60, 0.38, 0.50))
+    for sx in (-1, 1):
+        ball("sidelock", 0.095, head_c + Vector((sx * 0.285, -0.09, -0.10)),
+             "hair", "head", scale=(0.42, 0.60, 1.45))
+    for sx in (-1, 1):
+        box("backlock", (0.085, 0.06, 0.38), head_c + Vector((sx * 0.12, 0.29, -0.36)),
+            "hair", "head", taper_bottom=0.45, bevel=0.02, seg=2)
+
+
+def build_hood(head_c):
+    """Cowl shell around the big head + swept horn-wings (the MS2 knight cap)."""
+    r = HEAD_VR * 1.12
     bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=16,
-                                         radius=HEAD_R * 1.09, location=(0, 0, 0))
+                                         radius=r, location=(0, 0, 0))
     obj = bpy.context.active_object
-    obj.name = "hair"
+    obj.name = "hood"
     bm = bmesh.new()
     bm.from_mesh(obj.data)
-    doomed = [v for v in bm.verts if v.co.z < min(0.055, -0.5 * v.co.y - 0.02)]
+    doomed = [v for v in bm.verts
+              if v.co.y < -r * 0.20 and abs(v.co.x) < r * 0.70
+              and v.co.z < r * 0.45]
     bmesh.ops.delete(bm, geom=doomed, context="VERTS")
     bm.to_mesh(obj.data)
     bm.free()
     s = obj.modifiers.new("Solid", "SOLIDIFY")
-    s.thickness = 0.035
+    s.thickness = 0.03
     s.offset = 1.0
     apply_mods(obj)
-    obj.location = head_c + Vector((0, 0.015, 0.02))
-    return register(obj, "hair", "head")
+    obj.location = head_c + Vector((0, 0.01, 0.02))
+    register(obj, "hood", "head")
+    # gold browband tucked against the face at the hood's opening
+    box("browband", (0.52, 0.05, 0.055), head_c + Vector((0, -0.26, 0.17)),
+        "gold", "head", bevel=0.02, seg=2)
+    # swept horn-wings off the sides of the hood, tilted outward
+    wing = [(-0.02, -0.02), (0.10, 0.02), (0.24, 0.16), (0.34, 0.36),
+            (0.26, 0.34), (0.12, 0.16), (0.00, 0.08)]
+    for sx in (-1, 1):
+        w = prism("hoodwing", wing, 0.045, head_c + Vector((sx * 0.30, 0.02, 0.06)),
+                  "hood", "head")
+        w.rotation_euler = (0, sx * 0.35, 0)
 
+
+def build_plume(head_c):
+    """Teal feather arcing up the right side of the hood."""
+    base = head_c + Vector((0.22, 0.05, 0.30))
+    steps = ((Vector((0.00, 0.00, 0.02)), 0.080, 1.5),
+             (Vector((0.030, 0.035, 0.14)), 0.070, 1.7),
+             (Vector((0.055, 0.080, 0.26)), 0.055, 1.9))
+    for i, (off, r, zs) in enumerate(steps):
+        ball("plume%d" % i, r, base + off, "teal", "head",
+             scale=(0.30, 0.75, zs), segs=16, rings=12)
+    ball("plumesocket", 0.05, base + Vector((0, 0, -0.03)), "gold", "head",
+         segs=12, rings=8)
+
+
+# --- gear -------------------------------------------------------------------------
 
 def build_sword():
     hand = Vector((SHOULDER_X, 0, SHOULDER_Z - ARM_LEN))
     box("grip", (0.05, 0.05, 0.14), hand + Vector((0, 0, -0.02)), "belt", "hand",
         bevel=0.012, seg=2, smooth=False)
-    box("guard", (0.22, 0.06, 0.045), hand + Vector((0, 0, -0.10)), "dark", "hand",
+    box("guard", (0.23, 0.06, 0.05), hand + Vector((0, 0, -0.10)), "gold", "hand",
         bevel=0.012, seg=2, smooth=False)
-    box("blade", (0.075, 0.03, 0.50), hand + Vector((0, 0, -0.38)), "steel", "hand",
+    box("blade", (0.085, 0.032, 0.46), hand + Vector((0, 0, -0.36)), "steel", "hand",
         bevel=0.01, seg=1, smooth=False)
-    tip = box("tip", (0.075, 0.03, 0.09), hand + Vector((0, 0, -0.675)), "steel", "hand",
+    tip = box("tip", (0.085, 0.032, 0.09), hand + Vector((0, 0, -0.635)), "steel", "hand",
               taper_top=0.02, bevel=0, smooth=False)
     for v in tip.data.vertices:
         v.co.z = -v.co.z
 
 
 def build_shield():
-    """Round wooden buckler, smooth face, crisp steel boss."""
-    c = Vector((-SHOULDER_X - 0.11, 0, SHOULDER_Z - ARM_LEN * 0.55))
-    bpy.ops.mesh.primitive_cylinder_add(vertices=28, radius=0.16, depth=0.045,
-                                        location=(0, 0, 0), rotation=(0, 1.5708, 0))
-    obj = bpy.context.active_object
-    obj.name = "shield"
-    b = obj.modifiers.new("Bevel", "BEVEL")
-    b.width = 0.015
-    b.segments = 2
-    apply_mods(obj)
-    obj.location = c
-    register(obj, "wood", "armL")
-    ball("boss", 0.05, c + Vector((-0.025, 0, 0)), "steel", "armL", scale=(0.6, 1, 1))
+    """Big blue kite shield (half the body) with a gold rim + boss, left forearm."""
+    c = Vector((-SHOULDER_X - 0.10, 0, SHOULDER_Z - ARM_LEN * 0.55))
+    k = 1.3
+    kite = [(a * k, b * k) for (a, b) in
+            [(-0.15, 0.13), (-0.165, 0.03), (-0.11, -0.10), (0.0, -0.235),
+             (0.11, -0.10), (0.165, 0.03), (0.15, 0.13), (0.0, 0.165)]]
+    rim = [(a * 1.16, b * 1.16) for (a, b) in kite]
+    prism("shieldrim", rim, 0.045, c, "gold", "armL")
+    prism("shieldface", kite, 0.062, c, "blue", "armL")
+    ball("shieldboss", 0.06, c + Vector((-0.035, 0, 0.02)), "gold", "armL",
+         scale=(0.6, 1, 1), segs=16, rings=12)
 
+
+# --- character ---------------------------------------------------------------------
 
 def build_character():
-    # Soft rounded torso + belt.
-    box("torso", (0.50, 0.36, TORSO_H), (0, 0, HIP + TORSO_H / 2), "tunic", "body",
-        taper_top=0.85, bevel=0.07, seg=4)
-    box("belt", (0.505, 0.365, 0.07), (0, 0, HIP + 0.08), "belt", "body", bevel=0.02, seg=2)
+    # Slim tapered torso (MS2 hourglass — the head dwarfs it): blue tunic chest
+    # narrowing to the waist, belt, then a cloth skirt flaring at the hem.
+    box("chest", (0.32, 0.24, 0.26), (0, 0, 0.78), "tunic", "body",
+        taper_bottom=0.80, bevel=0.05, seg=4)
+    box("chesttrim", (0.27, 0.205, 0.05), (0, 0, 0.645), "gold", "body",
+        bevel=0.015, seg=2)
+    box("belt", (0.265, 0.20, 0.055), (0, 0, 0.60), "belt", "body", bevel=0.015, seg=2)
+    box("skirt", (0.27, 0.21, 0.20), (0, 0, 0.51), "cloth", "body",
+        taper_top=0.92, taper_bottom=1.50, bevel=0.03, seg=3)
 
-    # Smooth ball head, thick bowl-cut hair, eyes with glints.
+    # The head: ~42% of total height, wider than body+arms (per measured f_body).
     head_c = Vector((0, 0, HEAD_CZ))
-    ball("head", HEAD_R, head_c, "skin", "head")
+    ball("head", HEAD_VR, head_c, "skin", "head", scale=(1.05, 0.95, 1.0))
+    build_eyes(head_c)
     build_hair(head_c)
-    for sx in (-1, 1):
-        ball("eye", 0.068, head_c + Vector((sx * 0.105, -0.235, -0.025)),
-             "eye", "head", scale=(0.85, 0.32, 1.30), segs=16, rings=12)
-        ball("glint", 0.016, head_c + Vector((sx * 0.088, -0.266, 0.008)),
-             "white", "head", segs=12, rings=8)
+    build_hood(head_c)
+    build_plume(head_c)
 
-    # Soft limbs, ball fists.
+    # Thin arms tight to the body; layered pauldrons carry the shoulder mass.
     for sx, bone in ((-1, "armL"), (1, "armR")):
-        box("arm" + bone[-1], (0.15, 0.15, ARM_LEN - 0.07),
-            (sx * SHOULDER_X, 0, SHOULDER_Z - (ARM_LEN - 0.07) / 2), "limb", bone,
-            bevel=0.06, seg=4)
-        ball("fist" + bone[-1], 0.075, (sx * SHOULDER_X, 0, SHOULDER_Z - ARM_LEN),
+        box("arm" + bone[-1], (0.085, 0.085, 0.28),
+            (sx * SHOULDER_X, 0, SHOULDER_Z - 0.155), "tunic", bone,
+            bevel=0.035, seg=3)
+        ball("pauldron" + bone[-1], 0.10, (sx * 0.24, 0, SHOULDER_Z + 0.01),
+             "steel", bone, scale=(0.90, 0.85, 0.55))
+        ball("pauldron2" + bone[-1], 0.085, (sx * 0.265, 0, SHOULDER_Z - 0.045),
+             "steel", bone, scale=(0.80, 0.75, 0.50))
+        box("cuff" + bone[-1], (0.125, 0.125, 0.09),
+            (sx * SHOULDER_X, 0, SHOULDER_Z - ARM_LEN + 0.085), "gold", bone,
+            bevel=0.025, seg=2)
+        ball("fist" + bone[-1], 0.065, (sx * SHOULDER_X, 0, SHOULDER_Z - ARM_LEN),
              "skin", bone, segs=16, rings=12)
+
+    # Short legs, chunky armored boots with gold-trimmed cuffs.
     for sx, bone in ((-1, "legL"), (1, "legR")):
-        box("leg" + bone[-1], (0.16, 0.16, 0.30), (sx * HIP_X, 0, HIP - 0.15),
-            "limb", bone, bevel=0.06, seg=4)
-        box("boot" + bone[-1], (0.19, 0.24, 0.13), (sx * HIP_X, -0.025, 0.065),
-            "boot", bone, bevel=0.05, seg=4)
+        box("leg" + bone[-1], (0.13, 0.13, 0.24), (sx * HIP_X, 0, 0.32),
+            "belt", bone, bevel=0.04, seg=3)
+        box("boot" + bone[-1], (0.17, 0.24, 0.15), (sx * HIP_X, -0.02, 0.085),
+            "boot", bone, bevel=0.045, seg=4)
+        box("bootcuff" + bone[-1], (0.19, 0.19, 0.07), (sx * HIP_X, 0.005, 0.185),
+            "boot", bone, bevel=0.025, seg=3)
+        box("boottrim" + bone[-1], (0.20, 0.20, 0.035), (sx * HIP_X, 0.005, 0.215),
+            "gold", bone, bevel=0.012, seg=2)
 
     build_sword()
     build_shield()
