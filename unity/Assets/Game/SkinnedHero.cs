@@ -42,7 +42,7 @@ namespace IdleGame.Game
             foreach (var r in root.GetComponentsInChildren<Renderer>())
                 foreach (var m in r.materials) SetupMaterial(m, tints);
             var anim = root.AddComponent<SkinnedHeroAnim>();
-            anim.SkillBindings = LoadSkills(defId);
+            anim.Init(defId, LoadSkills(defId));
             return (root, anim);
         }
 
@@ -122,18 +122,19 @@ namespace IdleGame.Game
         private static readonly int DeadId = Animator.StringToHash("Dead");
 
         /// <summary>GameCore skill id -> (Skill state slot, MS2 sound set). Loaded
-        /// from the manifest-exported bindings by SkinnedHero.Build. The reserved
-        /// "_attack" id carries the basic-attack sound override.</summary>
+        /// from the manifest-exported bindings by SkinnedHero.Build. Reserved ids:
+        /// "_attack" = basic-attack sound override, "_run" = native run speed.</summary>
         public System.Collections.Generic.Dictionary<string, (int slot, string sound)>? SkillBindings;
 
         public string AttackSound =>
             SkillBindings != null && SkillBindings.TryGetValue("_attack", out var b)
                 ? b.sound : "Swing_Sword";
 
-        /// <summary>Ground speed the MS2 run cycle was authored for (units/s).
-        /// The chibi sprint covers ~1.5 body heights per 0.6s cycle. Playback
-        /// scales by actual/native so feet match the ground instead of gliding.</summary>
-        private const float NativeRunSpeed = 2.5f;
+        /// <summary>Ground speed the hero's MS2 run cycle was authored for
+        /// (units/s). Playback scales by actual/native so feet match the ground
+        /// instead of gliding. 2.5 fits the warrior's 0.6s cycle; a manifest
+        /// "run_speed" (reserved "_run" binding) overrides it per hero.</summary>
+        private float _nativeRunSpeed = 2.5f;
 
         private Animator? _animator;
         private bool _moving;
@@ -146,16 +147,28 @@ namespace IdleGame.Game
         {
             _animator = GetComponent<Animator>();
             if (_animator == null) _animator = gameObject.AddComponent<Animator>();
-            // The shared controller's states reference ONE hero's clips, so each
-            // hero ships an AnimatorOverrideController remapping the states onto
-            // its own FBX takes (built by Tools > Build Hero Animators). The
-            // GameObject is named defId by SkinnedHero.Build before AddComponent.
-            var ctrl = Resources.Load<RuntimeAnimatorController>(
-                "Models/" + gameObject.name + "Animator");
-            if (ctrl == null)
-                ctrl = Resources.Load<RuntimeAnimatorController>("Models/HeroAnimator");
-            _animator.runtimeAnimatorController = ctrl;
+            // safe default; Init swaps in the hero's own override controller
+            _animator.runtimeAnimatorController =
+                Resources.Load<RuntimeAnimatorController>("Models/HeroAnimator");
             _animator.applyRootMotion = false;
+        }
+
+        /// <summary>Called by SkinnedHero.Build right after AddComponent. The
+        /// shared controller's states reference ONE hero's clips, so each hero
+        /// ships an AnimatorOverrideController remapping the states onto its own
+        /// FBX takes (built by Tools > Build Hero Animators).</summary>
+        public void Init(string defId,
+            System.Collections.Generic.Dictionary<string, (int slot, string sound)> bindings)
+        {
+            SkillBindings = bindings;
+            if (bindings.TryGetValue("_run", out var r) &&
+                float.TryParse(r.sound, System.Globalization.NumberStyles.Float,
+                               System.Globalization.CultureInfo.InvariantCulture, out var speed))
+                _nativeRunSpeed = speed;
+            var ctrl = Resources.Load<RuntimeAnimatorController>(
+                "Models/" + defId + "Animator");
+            if (ctrl != null && _animator != null)
+                _animator.runtimeAnimatorController = ctrl;
         }
 
         public void SetMoving(bool moving)
@@ -166,7 +179,7 @@ namespace IdleGame.Game
         }
 
         public void SetMoveSpeed(float unitsPerSec) =>
-            _speedScale = Mathf.Clamp(unitsPerSec / NativeRunSpeed, 0.4f, 2.2f);
+            _speedScale = Mathf.Clamp(unitsPerSec / _nativeRunSpeed, 0.4f, 2.2f);
 
         private void Update()
         {

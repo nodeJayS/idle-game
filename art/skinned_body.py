@@ -110,15 +110,20 @@ def map_bone(bip):
 
 _tex_cache = {}
 
-def find_texture(name):
-    if name in _tex_cache:
-        return _tex_cache[name]
-    for root, _dirs, files in os.walk(EXTRACT_ROOT):
-        for fn in files:
-            if fn.lower() == name.lower():
-                _tex_cache[name] = os.path.join(root, fn)
-                return _tex_cache[name]
-    _tex_cache[name] = None
+def find_texture(name, near=None):
+    """Resolve a texture basename, looking next to the referencing NIF first —
+    generic names (MAP_D, Hair_D) recur across the extract with DIFFERENT
+    content, so a global walk can grab the wrong file."""
+    key = (name.lower(), near)
+    if key in _tex_cache:
+        return _tex_cache[key]
+    for root_dir in ([near] if near else []) + [EXTRACT_ROOT]:
+        for root, _dirs, files in os.walk(root_dir):
+            for fn in files:
+                if fn.lower() == name.lower():
+                    _tex_cache[key] = os.path.join(root, fn)
+                    return _tex_cache[key]
+    _tex_cache[key] = None
     print("  ! texture not found:", name)
     return None
 
@@ -130,20 +135,29 @@ def srgb_to_linear(c):
     return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
 
 
-def material_for(tex_name, alpha, tint):
-    key = (tex_name, alpha, tint)
+def material_for(tex_name, alpha, tint, item_id=None, near=None):
+    """Material (and its runtime-lookup name) for a part's texture. Item
+    textures without the 8-digit id prefix (Hair_D, MAP_D...) get renamed
+    <itemid>_<stem>: those generic names recur across items with different
+    files, and all heroes ship textures into ONE Resources/Models dir."""
+    stem = os.path.splitext(tex_name or "skin")[0]
+    shared = {"f_skin_body_d", "m_skin_body_d", "f_cl", "f_pa", "m_pa"}
+    if item_id and not stem[:8].isdigit() and stem.lower() not in shared:
+        stem = "%s_%s" % (item_id, stem)
+    key = (stem, alpha, tint)
     if key in _materials:
         return _materials[key]
-    m = bpy.data.materials.new(os.path.splitext(tex_name or "skin")[0])
+    m = bpy.data.materials.new(stem)
     if tint:
         _tints[m.name.lower()] = tint
     m.use_nodes = True
     bsdf = m.node_tree.nodes.get("Principled BSDF")
     if bsdf:
         bsdf.inputs["Roughness"].default_value = 0.9
-        path = find_texture(tex_name) if tex_name else None
+        path = find_texture(tex_name, near) if tex_name else None
         if path:
             img = bpy.data.images.load(path)
+            img["dds_name"] = stem.lower() + ".dds"
             tex = m.node_tree.nodes.new("ShaderNodeTexImage")
             tex.image = img
             color_out = tex.outputs["Color"]
@@ -185,6 +199,9 @@ def build_parts(nif_path, hide=frozenset(), rigid_bone=None, xform=None):
     """Build Blender objects for a NIF's parts. hide = part names to skip;
     rigid_bone + xform (world pos, rot3x3) = hand-space attachment mode."""
     parts, names = [], set()
+    nif_stem = os.path.splitext(os.path.basename(nif_path))[0]
+    item_id = nif_stem[:8] if nif_stem[:8].isdigit() else None
+    near_dir = os.path.dirname(nif_path)
     for md in load_nif(nif_path):
         names.add(md["name"])
         if md["name"] in hide:
@@ -230,7 +247,8 @@ def build_parts(nif_path, hide=frozenset(), rigid_bone=None, xform=None):
                     [Vector(n).normalized() for n in normals])
             except (AttributeError, RuntimeError) as e:
                 print("  ! custom normals failed on %s: %s" % (md["name"], e))
-        me.materials.append(material_for(md["texture"], md["alpha"], md["tint"]))
+        me.materials.append(material_for(md["texture"], md["alpha"], md["tint"],
+                                         item_id=item_id, near=near_dir))
 
         obj = bpy.data.objects.new(md["name"], me)
         bpy.context.scene.collection.objects.link(obj)
@@ -368,7 +386,8 @@ def export_textures_dds(out_dir):
     for img in bpy.data.images:
         if img.source != "FILE" or not os.path.exists(img.filepath):
             continue
-        dst = os.path.join(out_dir, os.path.basename(img.filepath).lower())
+        dst = os.path.join(out_dir, img.get(
+            "dds_name", os.path.basename(img.filepath).lower()))
         shutil.copyfile(img.filepath, dst)
         print("texture ->", dst)
 
@@ -388,16 +407,21 @@ def export_tints(path):
 def export_skills(path, hero):
     """GameCore skill id -> (Skill state slot, MS2 sound set) — 'id slot sound'
     lines SkinnedHero reads to route TriggerSkill to the right clip + sound.
-    A reserved '_attack 0 <sound>' line carries the manifest's basic-attack
-    sound override (casters shouldn't clang like a sword)."""
+    Reserved lines: '_attack 0 <sound>' = the manifest's basic-attack sound
+    override (casters shouldn't clang like a sword); '_run 0 <unitsPerSec>' =
+    the ground speed the hero's run cycle was authored for (feet/ground match;
+    default 2.5 when absent)."""
     skills = (hero or {}).get("skills")
     atk = (hero or {}).get("attack_sound")
-    if not skills and not atk:
+    run = (hero or {}).get("run_speed")
+    if not skills and not atk and not run:
         return
     txt = os.path.splitext(path)[0] + "_skills.txt"
     with open(txt, "w") as fh:
         if atk:
             fh.write("_attack 0 %s\n" % atk)
+        if run:
+            fh.write("_run 0 %g\n" % run)
         for sid, b in sorted((skills or {}).items()):
             fh.write("%s %d %s\n" % (sid, b["slot"], b["sound"]))
     print("skills ->", txt)

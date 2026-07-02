@@ -63,9 +63,13 @@ def load_fsb(path):
 
 
 def main():
-    bank = sys.argv[1]
     listing = "--list" in sys.argv
     rest = [a for a in sys.argv[2:] if a != "--list"]
+    if len(sys.argv) < 2 or (not listing and not rest):
+        print("usage: fsb_extract.py <bank.fsb> <out_dir> [filter]\n"
+              "       fsb_extract.py <bank.fsb> --list [filter]")
+        return
+    bank = sys.argv[1]
     out_dir = None if listing else rest[0]
     filt = (rest[1] if not listing and len(rest) > 1 else
             rest[0] if listing and rest else "").lower()
