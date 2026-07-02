@@ -99,8 +99,13 @@ tonight" decision engine. Slices:
    (Crown Seraph / Chaos Spawn / World Ender crowned colossus). ✅ Zone 1
    shipped 2026-07-02 (Slime / Goblin / crowned Goblin King — the classics,
    upgraded from capsules). ALL TEN zone rosters are modeled — 30 monsters.
-   REMAINING: per-zone prop-shape swaps (item 4's last loose end; palette
-   retints already ship).
+5. ✅ SHIPPED 2026-07-02 — per-zone PROP SHAPES: Scenery rebuilds the scatter
+   per ZoneDef.PropSet with its own faceted family (ruins: broken columns/
+   gravestones/rubble · desert: cacti/sandstone spires · tundra: snow pines/
+   ice shards · volcano: basalt clusters · cavern: stalagmites/glow-shrooms ·
+   coast: driftwood/beach tufts · astral: rune obelisks/void shards · summit:
+   marble columns/gold crystals), palettes baked per zone, layouts stable per
+   set. ITEM 4 IS COMPLETE.
 
 ### 5. Content & tuning pass (after 4)
 More stages/mods/monster kits; balance sim in console (backlogged); XP-curve
