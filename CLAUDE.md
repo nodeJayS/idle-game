@@ -47,7 +47,7 @@ docs/game-design.md      the durable what/why
   Play-mode can't run headlessly — visuals are verified by screenshot (Unity MCP), UI is
   hand-placed uGUI/IMGUI coords.
 
-## Current systems (405 tests passing)
+## Current systems (423 tests passing)
 
 Phase A (core loop) and most of Phase B (depth) are done. What exists today:
 
@@ -56,6 +56,10 @@ Phase A (core loop) and most of Phase B (depth) are done. What exists today:
   chain, lifesteal, thorns. Farm = downed heroes respawn; boss & Tower = do-or-die (no respawn).
 - **Farm ladder** — 100 stages, geometric difficulty, endless per-stage farming, 60s mini/major
   boss gates (major every 10), tiered rates, elite/rare **pack ranks** (tougher, better loot).
+  **10 themed ZONES** (one per 10-stage tier, `ZoneDef` + `ZoneForStage`): per-zone trash
+  roster + boss + engine-free palette/prop hints; Tower floors travel the same zones. Zone
+  monsters stay in the slime/goblin stat band — flavor axis, the stage curve owns difficulty.
+  (LOW-POLY faceted art only — MS2 pipeline is heroes-only.)
 - **Loot & power (Lever 2)** — 5 rarities (**Normal/Rare/Unique/Legendary/Mythic**=red; Unique+
   boss-only, Mythic the extreme chase) + random affixes, 9 equip slots from one shared bag,
   inventory cap + auto-salvage→`scrap` (threshold up to Unique) + one-click mass salvage

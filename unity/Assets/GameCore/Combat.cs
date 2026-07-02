@@ -39,6 +39,19 @@ namespace IdleGame.GameCore
             return 1000.0 / (aps > 0 ? aps : 1.0);
         }
 
+        /// <summary>The trash def for spawn number <paramref name="index"/> at a stage:
+        /// cycles the stage's ZONE roster (zones = the themed ~10-stage bands; Tower floors
+        /// pass the floor so the climb travels the same zones). Falls back to the legacy
+        /// slime/goblin alternation when no zone or roster entry resolves.</summary>
+        private static MonsterDef TrashDef(GameConfig cfg, int stage, long index)
+        {
+            var zone = cfg.ZoneForStage(stage);
+            if (zone != null && zone.TrashMonsters.Count > 0
+                && cfg.Monsters.TryGetValue(zone.TrashMonsters[(int)(index % zone.TrashMonsters.Count)], out var m))
+                return m;
+            return (index % 2 == 0) ? cfg.Monsters["slime"] : cfg.Monsters["goblin"];
+        }
+
         /// <summary>Build the initial battle: party (left) vs the stage's pack + boss (right).</summary>
         public static CombatState InitCombat(IReadOnlyList<HeroInstance> party, int stage, GameConfig cfg, Rng rng)
         {
@@ -51,7 +64,7 @@ namespace IdleGame.GameCore
 
             for (int j = 0; j < rt.PackCount; j++)
             {
-                var mdef = (j % 2 == 0) ? cfg.Monsters["slime"] : cfg.Monsters["goblin"];
+                var mdef = TrashDef(cfg, stage, j);
                 s.Entities.Add(MakeMonster(cfg, mdef, "E" + j, new Vec2(3, j * 1.5), scale, false, HpScale(rt, cfg)));
             }
 
@@ -165,15 +178,18 @@ namespace IdleGame.GameCore
             int pack = cfg.Balance.TowerPackBase + floor / Math.Max(1, cfg.Balance.TowerPackPerFloors);
             for (int j = 0; j < pack; j++)
             {
-                var mdef = (j % 2 == 0) ? cfg.Monsters["slime"] : cfg.Monsters["goblin"];
+                var mdef = TrashDef(cfg, floor, j); // floor as zone key — the climb travels the zones
                 var pos = new Vec2(Math.Clamp(c.X + cfg.Balance.BossSpawnDistance + j * 0.6, -w, w),
                                    Math.Clamp(c.Y + (j - pack / 2) * 1.0, -d, d));
                 s.Entities.Add(MakeMonster(cfg, mdef, "E" + j, pos, dmgScale, false, hpScale));
             }
 
-            // Guardian boss on milestone floors (the floor you bank a permanent buff on).
+            // Guardian boss on milestone floors (the floor you bank a permanent buff on):
+            // the floor's ZONE boss, falling back to the first stage's boss pre-zones.
+            string guardianId = cfg.ZoneForStage(floor)?.BossId
+                ?? (cfg.Stages.Count > 0 ? cfg.Stages[0].BossId : "");
             if (floor % Math.Max(1, cfg.Balance.TowerMilestoneEvery) == 0
-                && cfg.Stages.Count > 0 && cfg.Monsters.TryGetValue(cfg.Stages[0].BossId, out var boss))
+                && cfg.Monsters.TryGetValue(guardianId, out var boss))
             {
                 var pos = new Vec2(Math.Clamp(c.X + cfg.Balance.BossSpawnDistance, -w, w), Math.Clamp(c.Y, -d, d));
                 s.Entities.Add(MakeMonster(cfg, boss, "EBOSS", pos, dmgScale, true, hpScale * cfg.Balance.BossHpMult));
@@ -414,7 +430,7 @@ namespace IdleGame.GameCore
 
             for (int i = 0; i < count; i++)
             {
-                var mdef = (s.SpawnCount % 2 == 0) ? cfg.Monsters["slime"] : cfg.Monsters["goblin"];
+                var mdef = TrashDef(cfg, rt.Stage, s.SpawnCount);
                 var pos = new Vec2(Math.Clamp(center.X + rng.RandRange(-pr, pr), -w, w),
                                    Math.Clamp(center.Y + rng.RandRange(-pr, pr), -d, d));
                 var mob = MakeMonster(cfg, mdef, "E" + s.SpawnCount, pos, StageScale(rt, cfg), false, HpScale(rt, cfg));

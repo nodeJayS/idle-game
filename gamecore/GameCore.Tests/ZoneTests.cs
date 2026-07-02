@@ -1,0 +1,121 @@
+using System;
+using System.Linq;
+using IdleGame.GameCore;
+using Xunit;
+
+namespace IdleGame.GameCore.Tests
+{
+    // Zones (roadmap item 4): themed ~10-stage bands, each with its own trash roster,
+    // boss, and client palette hints. These pin the config contract (every referenced
+    // monster exists, bands map correctly) and the spawn plumbing (farm/encounter/tower
+    // trash comes from the stage's zone; legacy configs without zones still work).
+    public class ZoneTests
+    {
+        private static readonly GameConfig Cfg = GameConfig.Default();
+
+        private static HeroInstance[] Party() =>
+            new[] { new HeroInstance { Id = "h1", DefId = "warrior_basic", Level = 1 } };
+
+        [Fact]
+        public void ZoneForStageMapsTenStageBandsAndClamps()
+        {
+            Assert.Equal(10, Cfg.Zones.Count); // one per 10-stage tier across the 100-stage ladder
+
+            Assert.Same(Cfg.Zones[0], Cfg.ZoneForStage(1));
+            Assert.Same(Cfg.Zones[0], Cfg.ZoneForStage(10));   // band edge stays in zone 1
+            Assert.Same(Cfg.Zones[1], Cfg.ZoneForStage(11));   // next band
+            Assert.Same(Cfg.Zones[9], Cfg.ZoneForStage(100));  // last band
+            Assert.Same(Cfg.Zones[9], Cfg.ZoneForStage(250));  // past the table clamps to the last zone
+        }
+
+        [Fact]
+        public void ZoneForStageIsNullWithoutZones()
+        {
+            var cfg = GameConfig.Default();
+            cfg.Zones.Clear();
+            Assert.Null(cfg.ZoneForStage(1));
+        }
+
+        [Fact]
+        public void EveryZoneReferencesRealMonstersInTheRightBands()
+        {
+            foreach (var zone in Cfg.Zones)
+            {
+                Assert.NotEmpty(zone.TrashMonsters);
+                foreach (var id in zone.TrashMonsters)
+                {
+                    Assert.True(Cfg.Monsters.ContainsKey(id), $"{zone.Id}: unknown trash '{id}'");
+                    Assert.Equal("common", Cfg.Monsters[id].LootTableId); // trash pay band
+                }
+                Assert.True(Cfg.Monsters.ContainsKey(zone.BossId), $"{zone.Id}: unknown boss '{zone.BossId}'");
+                Assert.Equal("boss", Cfg.Monsters[zone.BossId].LootTableId); // boss bundles key off this
+            }
+        }
+
+        [Fact]
+        public void FirstZoneKeepsTheOriginalEarlyGame()
+        {
+            var z = Cfg.ZoneForStage(1)!;
+            Assert.Equal(new[] { "slime", "goblin" }, z.TrashMonsters);
+            Assert.Equal("goblin_king", z.BossId);
+        }
+
+        [Fact]
+        public void StageBossesComeFromTheirZone()
+        {
+            foreach (var rt in Cfg.Stages)
+                Assert.Equal(Cfg.ZoneForStage(rt.Stage)!.BossId, rt.BossId);
+        }
+
+        [Fact]
+        public void FarmTrashSpawnsFromTheStagesZoneRoster()
+        {
+            var zone = Cfg.ZoneForStage(15)!;
+            var s = Combat.InitFarm(Party(), 15, Cfg, new Rng(7));
+
+            var trash = s.Entities.Where(e => e.Team == Team.Enemy).ToList();
+            Assert.NotEmpty(trash);
+            foreach (var e in trash) Assert.Contains(e.RefId, zone.TrashMonsters);
+            // the roster is CYCLED, so a full batch fields every member, not just one
+            foreach (var id in zone.TrashMonsters) Assert.Contains(trash, e => e.RefId == id);
+        }
+
+        [Fact]
+        public void EncounterTrashAndBossFollowTheZone()
+        {
+            var zone = Cfg.ZoneForStage(25)!;
+            var s = Combat.InitCombat(Party(), 25, Cfg, new Rng(1));
+
+            foreach (var e in s.Entities.Where(e => e.Team == Team.Enemy && !e.IsBoss))
+                Assert.Contains(e.RefId, zone.TrashMonsters);
+            Assert.Equal(zone.BossId, s.Entities.Single(e => e.IsBoss).RefId);
+        }
+
+        [Fact]
+        public void TowerFloorsTravelTheZones()
+        {
+            var s = Combat.InitFarm(Party(), 1, Cfg, new Rng(3));
+
+            Combat.EnterTower(s, 11, Cfg, new Rng(3)); // floors 11-20 = zone 2
+            var zone = Cfg.ZoneForStage(11)!;
+            foreach (var e in s.Entities.Where(e => e.Team == Team.Enemy && !e.IsBoss))
+                Assert.Contains(e.RefId, zone.TrashMonsters);
+
+            // milestone guardian = the floor's zone boss
+            Combat.EnterTower(s, 20, Cfg, new Rng(3));
+            Assert.Equal(Cfg.ZoneForStage(20)!.BossId, s.Entities.Single(e => e.IsBoss).RefId);
+        }
+
+        [Fact]
+        public void SpawnsFallBackWithoutZones()
+        {
+            var cfg = GameConfig.Default();
+            cfg.Zones.Clear();
+
+            var s = Combat.InitFarm(Party(), 15, cfg, new Rng(7));
+            var ids = s.Entities.Where(e => e.Team == Team.Enemy).Select(e => e.RefId).Distinct()
+                       .OrderBy(x => x).ToArray();
+            Assert.Equal(new[] { "goblin", "slime" }, ids); // legacy alternation still fields both
+        }
+    }
+}

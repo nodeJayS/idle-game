@@ -235,7 +235,7 @@ namespace IdleGame.GameCore.Tests
         public void DefaultConfigHasExpectedContent()
         {
             Assert.Equal(5, Cfg.Heroes.Count); // Warrior, Magician, Thief, Ice Mage, Priest
-            Assert.Equal(3, Cfg.Monsters.Count);
+            Assert.Equal(30, Cfg.Monsters.Count); // 10 zones x (2 trash + 1 boss)
             Assert.Equal(100, Cfg.Stages.Count);
             // every unlockable hero id must resolve to a real def
             foreach (var kv in Cfg.HeroUnlocks) Assert.True(Cfg.Heroes.ContainsKey(kv.Value));

@@ -78,6 +78,28 @@ namespace IdleGame.GameCore
         public List<string> Skills = new List<string>(); // M11: skills this monster casts (e.g. boss signature)
     }
 
+    /// <summary>
+    /// A themed ZONE — the "depth feels like travel" beat (roadmap item 4). Every
+    /// ~10 stages (one <see cref="BalanceConstants.StagesPerTier"/> tier, so zones stay
+    /// in lockstep with the rate/modifier tiers) is one zone: its own trash roster,
+    /// its own boss, and engine-free palette/prop hints the client uses to reskin the
+    /// faceted world. Art rule (2026-07-02): zone monsters are LOW-POLY faceted Tunic
+    /// style via the scripted-Blender pipeline — the MS2 pipeline is for HEROES ONLY.
+    /// </summary>
+    public sealed class ZoneDef
+    {
+        public string Id = "";
+        public string Name = "";
+        public List<string> TrashMonsters = new List<string>(); // cycled by spawn index
+        public string BossId = "";
+        // Client hints only (engine-free RGB 0..1, like ModifierDef tints): the faceted
+        // ground palette and an accent for props/fog. PropSet names the prop family the
+        // client scatters ("forest", "ruins", …) — unknown sets fall back to the default look.
+        public double GroundR, GroundG, GroundB;
+        public double AccentR, AccentG, AccentB;
+        public string PropSet = "";
+    }
+
     public sealed class StageDef
     {
         public int Stage;
@@ -493,6 +515,9 @@ namespace IdleGame.GameCore
         public List<AffixDef> AffixPool = new List<AffixDef>();
         public Dictionary<string, MonsterDef> Monsters = new Dictionary<string, MonsterDef>();
         public List<StageDef> Stages = new List<StageDef>();
+        // Themed zones, one per StagesPerTier band ascending (zone[0] = stages 1..10, …).
+        // Deeper stages than the table clamp to the last zone. See ZoneForStage.
+        public List<ZoneDef> Zones = new List<ZoneDef>();
         public Dictionary<string, SkillDef> Skills = new Dictionary<string, SkillDef>();
         // Monster modifier catalog + the order they cycle across stages (each stage's boss owns
         // ModifierCycle[(stage-1) % count] — see ModifierTypeForStage). Lever 1.
@@ -504,6 +529,15 @@ namespace IdleGame.GameCore
         // Lifetime achievement ladder (Lever 4 — the permanent milestone hooks). See Achievements.cs.
         public List<AchievementDef> Achievements = new List<AchievementDef>();
         public BalanceConstants Balance = new BalanceConstants();
+
+        /// <summary>The zone a stage belongs to: one zone per StagesPerTier band (the same
+        /// tier the rate/modifier curves use), clamped to the last zone for stages past the
+        /// table. null when no zones are defined (legacy configs — spawns fall back).</summary>
+        public ZoneDef? ZoneForStage(int stage)
+        {
+            if (Zones.Count == 0) return null;
+            return Zones[Math.Clamp(Balance.Tier(stage), 0, Zones.Count - 1)];
+        }
 
         /// <summary>The modifier type a stage's boss exhibits (and grants on a kill). Cycles the
         /// curated <see cref="ModifierCycle"/> so deeper bosses re-grant types at higher strength.
@@ -544,6 +578,43 @@ namespace IdleGame.GameCore
             foreach (var (channel, per) in parts) list.Add(new RewardPart { Channel = channel, PerStrength = per });
             return list;
         }
+
+        // Zone content helpers. Trash defs use LootTableId "common" and the slime/goblin pay
+        // bands (fodder 12xp/3g, striker 20xp/6g); zone bosses clone the goblin_king band
+        // ("boss" table, 60xp/40g, rise-in, the quake signature). Base stats stay inside the
+        // slime/goblin envelope on purpose: the geometric stage curve owns DIFFICULTY, so a
+        // zone roster is a FLAVOR profile (fast/frail vs slow/tanky), not a power step.
+        private static MonsterDef Trash(string id, string name, double hp, double atk, double def,
+            double moveSpd, double atkSpd, double crit, int xp, int gold)
+            => new MonsterDef
+            {
+                Id = id, Name = name, LootTableId = "common", XpReward = xp, GoldReward = gold, Sprite = id,
+                BaseStats = SB((StatKey.Hp, hp), (StatKey.Atk, atk), (StatKey.Def, def),
+                               (StatKey.MoveSpd, moveSpd), (StatKey.AtkSpd, atkSpd),
+                               (StatKey.CritChance, crit), (StatKey.CritDmg, 1.5)),
+            };
+
+        private static MonsterDef BossMob(string id, string name, double hp, double atk, double def,
+            double moveSpd, double atkSpd)
+            => new MonsterDef
+            {
+                Id = id, Name = name, LootTableId = "boss", XpReward = 60, GoldReward = 40, Sprite = id,
+                SpawnStyle = "rise", Skills = new List<string> { "boss_quake" },
+                BaseStats = SB((StatKey.Hp, hp), (StatKey.Atk, atk), (StatKey.Def, def),
+                               (StatKey.MoveSpd, moveSpd), (StatKey.AtkSpd, atkSpd),
+                               (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.6)),
+            };
+
+        private static ZoneDef Zone(string id, string name, string propSet,
+            (double r, double g, double b) ground, (double r, double g, double b) accent,
+            string boss, params string[] trash)
+            => new ZoneDef
+            {
+                Id = id, Name = name, PropSet = propSet, BossId = boss,
+                TrashMonsters = new List<string>(trash),
+                GroundR = ground.r, GroundG = ground.g, GroundB = ground.b,
+                AccentR = accent.r, AccentG = accent.g, AccentB = accent.b,
+            };
 
         // One achievement tier (threshold + gold/scrap/XP reward), and an achievement (tiers ascending).
         private static AchievementTier AT(long threshold, long gold, long scrap, int xp)
@@ -750,6 +821,68 @@ namespace IdleGame.GameCore
                 Skills = new List<string> { "boss_quake" },
             };
 
+            // ---- Zones (roadmap item 4) — one themed band per 10-stage tier. Each brings
+            // a 2-mob trash roster + its own boss (defs via the Trash/BossMob band helpers —
+            // flavor profiles, not power steps) and palette/prop hints for the faceted world.
+            // Zone 1 keeps the original slime/goblin/goblin_king so the early game look is
+            // unchanged. Trash cadence: fodder (slime band, 12/3) then striker (goblin band, 20/6).
+            cfg.Monsters["bone_rattler"] = Trash("bone_rattler", "Bone Rattler", 30, 3.5, 0, 2.8, 0.9, 0, 12, 3);
+            cfg.Monsters["stone_sentry"] = Trash("stone_sentry", "Stone Sentry", 60, 4.5, 2, 2.4, 0.8, 0, 20, 6);
+            cfg.Monsters["grave_knight"] = BossMob("grave_knight", "Grave Knight", 170, 11, 4, 2.4, 0.85);
+
+            cfg.Monsters["bog_toad"] = Trash("bog_toad", "Bog Toad", 40, 3, 1, 2.4, 0.75, 0, 12, 3);
+            cfg.Monsters["marsh_wisp"] = Trash("marsh_wisp", "Marsh Wisp", 30, 5.5, 0, 3.2, 1.2, 0.05, 20, 6);
+            cfg.Monsters["bog_horror"] = BossMob("bog_horror", "Bog Horror", 180, 11, 2, 2.2, 0.8);
+
+            cfg.Monsters["dust_scarab"] = Trash("dust_scarab", "Dust Scarab", 36, 3.5, 2, 2.8, 1.0, 0, 12, 3);
+            cfg.Monsters["dune_stalker"] = Trash("dune_stalker", "Dune Stalker", 48, 6, 1, 3.4, 1.15, 0.06, 20, 6);
+            cfg.Monsters["dune_wurm"] = BossMob("dune_wurm", "Dune Wurm", 200, 10, 3, 2.0, 0.7);
+
+            cfg.Monsters["ice_sprite"] = Trash("ice_sprite", "Ice Sprite", 32, 4, 0, 3.0, 1.1, 0, 12, 3);
+            cfg.Monsters["frost_wolf"] = Trash("frost_wolf", "Frost Wolf", 50, 5.5, 1, 3.8, 1.2, 0.05, 20, 6);
+            cfg.Monsters["glacier_golem"] = BossMob("glacier_golem", "Glacier Golem", 220, 10, 5, 1.8, 0.6);
+
+            cfg.Monsters["magma_imp"] = Trash("magma_imp", "Magma Imp", 34, 5, 1, 3.0, 1.05, 0, 12, 3);
+            cfg.Monsters["cinder_hound"] = Trash("cinder_hound", "Cinder Hound", 48, 6, 1, 3.6, 1.25, 0.04, 20, 6);
+            cfg.Monsters["ash_tyrant"] = BossMob("ash_tyrant", "Ash Tyrant", 180, 14, 3, 2.6, 0.9);
+
+            cfg.Monsters["cave_bat"] = Trash("cave_bat", "Cave Bat", 28, 4, 0, 3.8, 1.3, 0, 12, 3);
+            cfg.Monsters["gloom_shade"] = Trash("gloom_shade", "Gloom Shade", 46, 6, 1, 3.0, 1.0, 0.10, 20, 6);
+            cfg.Monsters["nightmare_maw"] = BossMob("nightmare_maw", "Nightmare Maw", 190, 13, 3, 2.4, 0.85);
+
+            cfg.Monsters["tide_crab"] = Trash("tide_crab", "Tide Crab", 55, 4, 3, 2.2, 0.75, 0, 12, 3);
+            cfg.Monsters["storm_caller"] = Trash("storm_caller", "Storm Caller", 40, 6.5, 0, 3.0, 1.15, 0.06, 20, 6);
+            cfg.Monsters["tempest_naga"] = BossMob("tempest_naga", "Tempest Naga", 185, 13, 3, 2.8, 1.0);
+
+            cfg.Monsters["void_wisp"] = Trash("void_wisp", "Void Wisp", 34, 5.5, 0, 3.2, 1.2, 0.05, 12, 3);
+            cfg.Monsters["rune_construct"] = Trash("rune_construct", "Rune Construct", 58, 5, 3, 2.3, 0.75, 0, 20, 6);
+            cfg.Monsters["riftwalker"] = BossMob("riftwalker", "Riftwalker", 190, 13, 4, 2.7, 1.0);
+
+            cfg.Monsters["crown_seraph"] = Trash("crown_seraph", "Crown Seraph", 42, 6, 2, 3.0, 1.1, 0.06, 12, 3);
+            cfg.Monsters["chaos_spawn"] = Trash("chaos_spawn", "Chaos Spawn", 52, 6.5, 1, 3.2, 1.15, 0.08, 20, 6);
+            cfg.Monsters["world_ender"] = BossMob("world_ender", "World Ender", 210, 14, 4, 2.5, 0.85);
+
+            cfg.Zones.Add(Zone("verdant_woods", "Verdant Woods", "forest",
+                (0.45, 0.62, 0.34), (0.30, 0.48, 0.26), "goblin_king", "slime", "goblin"));
+            cfg.Zones.Add(Zone("ruined_courtyard", "Ruined Courtyard", "ruins",
+                (0.55, 0.54, 0.50), (0.42, 0.40, 0.38), "grave_knight", "bone_rattler", "stone_sentry"));
+            cfg.Zones.Add(Zone("murkwater_swamp", "Murkwater Swamp", "swamp",
+                (0.35, 0.42, 0.30), (0.24, 0.32, 0.22), "bog_horror", "bog_toad", "marsh_wisp"));
+            cfg.Zones.Add(Zone("amber_dunes", "Amber Dunes", "desert",
+                (0.80, 0.68, 0.42), (0.66, 0.52, 0.30), "dune_wurm", "dust_scarab", "dune_stalker"));
+            cfg.Zones.Add(Zone("frostpeak_tundra", "Frostpeak Tundra", "tundra",
+                (0.82, 0.87, 0.92), (0.58, 0.70, 0.82), "glacier_golem", "ice_sprite", "frost_wolf"));
+            cfg.Zones.Add(Zone("ember_caldera", "Ember Caldera", "volcano",
+                (0.35, 0.25, 0.22), (0.78, 0.30, 0.16), "ash_tyrant", "magma_imp", "cinder_hound"));
+            cfg.Zones.Add(Zone("gloom_hollow", "Gloom Hollow", "cavern",
+                (0.28, 0.26, 0.34), (0.45, 0.38, 0.58), "nightmare_maw", "cave_bat", "gloom_shade"));
+            cfg.Zones.Add(Zone("storm_coast", "Storm Coast", "coast",
+                (0.42, 0.50, 0.58), (0.30, 0.42, 0.55), "tempest_naga", "tide_crab", "storm_caller"));
+            cfg.Zones.Add(Zone("astral_ruins", "Astral Ruins", "astral",
+                (0.40, 0.34, 0.55), (0.60, 0.48, 0.85), "riftwalker", "void_wisp", "rune_construct"));
+            cfg.Zones.Add(Zone("crown_of_the_world", "Crown of the World", "summit",
+                (0.75, 0.70, 0.55), (0.90, 0.82, 0.55), "world_ender", "crown_seraph", "chaos_spawn"));
+
             for (int i = 0; i < 100; i++)
             {
                 int stage = i + 1;
@@ -757,7 +890,7 @@ namespace IdleGame.GameCore
                 cfg.Stages.Add(new StageDef
                 {
                     Stage = stage, MonsterLevel = stage, PackCount = 3 + stage / 5,
-                    BossId = "goblin_king",
+                    BossId = cfg.ZoneForStage(stage)?.BossId ?? "goblin_king", // each zone brings its own boss
                     DropRateMult = 1 + cfg.Balance.DropRatePerStage * (stage - 1) + cfg.Balance.DropRateTierBonus * tier,
                     AffixItemLevel = stage + cfg.Balance.ItemLevelTierBonus * tier,
                 });

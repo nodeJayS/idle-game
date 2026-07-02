@@ -15,7 +15,7 @@ manifest tints, per-hero animators/sounds). Roster on the **archetype backbone**
 (Warrior/Rogue/Magician stat templates; class = overrides): Knight, Fire Mage,
 Assassin, Priest (party heal-over-time) — Ice Mage shelved for a comeback.
 Future classes slot in as archetype + overrides: Brawler/Swordsman (Warrior),
-Ninja/Archer (Rogue), Summoner/Ice Mage (Magician). 405 GameCore tests green.
+Ninja/Archer (Rogue), Summoner/Ice Mage (Magician). 423 GameCore tests green.
 
 ## Priorities, in order
 
@@ -59,11 +59,19 @@ sim-testable, ~1 session.
 **Art-direction rule (user, 2026-07-02): monsters stay low-poly faceted, Tunic
 style — the MS2 pipeline is for HEROES ONLY.** The smooth-chibi-vs-faceted-world
 contrast IS the look; never port MS2 mobs. Every ~10 stages becomes a themed
-ZONE: faceted ground palette/prop swap (forest → ruins → swamp...), 2–3
-zone-specific scripted-Blender monster designs (the `art/<name>.py` low-poly
-pipeline, like the shipped world props), optional zone-flavored drop tables so
-farming has destinations ("boots drop best in the ruins"). Pairs with set
-bonuses later. This is the "where do I park my farm tonight" decision engine.
+ZONE. Pairs with set bonuses later. This is the "where do I park my farm
+tonight" decision engine. Slices:
+1. ✅ SHIPPED 2026-07-02 — GameCore zone backbone: `ZoneDef` (roster + boss +
+   engine-free palette/prop hints), one zone per 10-stage tier, 10 themed zones
+   (Verdant Woods → … → Crown of the World), 27 new monster defs in the
+   slime/goblin stat band (flavor, not power), zone-driven trash/boss spawns
+   (farm, encounter, Tower floors travel the same zones; legacy fallback kept).
+2. Client reskin: faceted ground palette/prop swap from the ZoneDef hints
+   (forest → ruins → swamp...).
+3. Monster art: 2–3 zone-specific scripted-Blender designs per zone (the
+   `art/<name>.py` low-poly pipeline), rolled out zone by zone.
+4. Optional zone-flavored drop tables so farming has destinations ("boots drop
+   best in the ruins").
 
 ### 5. Content & tuning pass (after 4)
 More stages/mods/monster kits; balance sim in console (backlogged); XP-curve
