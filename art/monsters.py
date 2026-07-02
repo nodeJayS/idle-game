@@ -42,6 +42,11 @@ COLORS = {
     "muck":   (0.22, 0.28, 0.18),
     "muckdark": (0.15, 0.20, 0.13),
     "sludge": (0.45, 0.55, 0.30),
+    # zone 4 — Amber Dunes
+    "chitin": (0.46, 0.30, 0.16),
+    "chitindark": (0.30, 0.19, 0.11),
+    "sand":   (0.82, 0.70, 0.46),
+    "sandshadow": (0.60, 0.48, 0.30),
 }
 # modest strengths: Unity's FBX import drops emission anyway (base colour carries
 # the look there); these only need to READ in the eyeball renders, not blow out.
@@ -302,6 +307,71 @@ def build_bog_horror():
     rock("drip2", 0.07, (-0.30, -0.36, 0.56), "sludge", scale=(1.0, 1.0, 1.5), seed=65, jitter=0.2)
 
 
+# --- zone 4: Amber Dunes ----------------------------------------------------------
+
+def build_dust_scarab():
+    """A faceted dune beetle: domed bronze shell with a gold seam band, stubby
+    horned head, three leg slabs per side. ~0.55u tall, scuttles low."""
+    # domed shell (longer than wide, squashed)
+    rock("shell", 0.30, (0, 0.04, 0.30), "chitin", scale=(1.05, 1.25, 0.70), seed=71, jitter=0.14, subdiv=2)
+    # dark centre seam ridge + gold band across the shell's front lip (conformal, thin)
+    box("seam", (0.04, 0.52, 0.04), (0, 0.08, 0.50), "chitindark")
+    box("band", (0.40, 0.05, 0.04), (0, -0.27, 0.32), "trim")
+    # head knob with a slim up-curved horn and amber eye dots (faces -Y)
+    rock("head", 0.13, (0, -0.36, 0.20), "chitindark", seed=72, jitter=0.12)
+    box("horn", (0.035, 0.035, 0.15), (0, -0.44, 0.30), "bone", rot=(-0.75, 0, 0))
+    rock("eyeL", 0.035, (0.07, -0.46, 0.22), "amber", seed=73, jitter=0.05)
+    rock("eyeR", 0.035, (-0.07, -0.46, 0.22), "amber", seed=74, jitter=0.05)
+    # three leg slabs per side, rooted under the shell rim, splayed gently
+    for i, (y, rz) in enumerate([(-0.14, 0.35), (0.02, 0.50), (0.18, 0.65)]):
+        box("legL%d" % i, (0.18, 0.05, 0.05), (0.22, y, 0.10), "chitindark", rot=(0, 0, rz))
+        box("legR%d" % i, (0.18, 0.05, 0.05), (-0.22, y, 0.10), "chitindark", rot=(0, 0, -rz))
+
+
+def build_dune_stalker():
+    """A hooded sand-serpent risen from a coil: stacked coil base, tapering neck,
+    flared hood flaps around an amber-eyed head with fangs. ~1.35u tall."""
+    # coiled base (two squashed loops)
+    rock("coil1", 0.34, (0, 0, 0.16), "sandshadow", scale=(1.25, 1.25, 0.50), seed=81, jitter=0.18, subdiv=2)
+    rock("coil2", 0.26, (0.04, 0.04, 0.40), "sand", scale=(1.15, 1.15, 0.50), seed=82, jitter=0.18)
+    # rising neck, pinched toward the top
+    rock("neck", 0.15, (0, 0.02, 0.88), "sand", scale=(1.0, 1.0, 2.3), seed=83, jitter=0.12, taper=0.25)
+    # hood: two flattened lobes hugging the head sides (rocks sit organically where
+    # flat prism flaps kept reading as detached boards)
+    rock("hoodL", 0.11, (0.14, 0.03, 1.26), "sandshadow", scale=(0.55, 1.15, 1.65), seed=87, jitter=0.12)
+    rock("hoodR", 0.11, (-0.14, 0.03, 1.26), "sandshadow", scale=(0.55, 1.15, 1.65), seed=88, jitter=0.12)
+    # head leaning forward with amber eyes + bone fangs (faces -Y)
+    rock("head", 0.15, (0, -0.07, 1.30), "sand", scale=(1.0, 1.25, 0.9), seed=84, jitter=0.12)
+    rock("eyeL", 0.045, (0.08, -0.22, 1.34), "amber", seed=85, jitter=0.05)
+    rock("eyeR", 0.045, (-0.08, -0.22, 1.34), "amber", seed=86, jitter=0.05)
+    box("fangL", (0.03, 0.03, 0.09), (0.06, -0.22, 1.18), "bone")
+    box("fangR", (0.03, 0.03, 0.09), (-0.06, -0.22, 1.18), "bone")
+
+
+def build_dune_wurm():
+    """BOSS — a great worm bursting from the sand: a leaning arc of fat segments
+    out of a sand mound, ending in a round maw ringed with bone teeth. ~2.4u."""
+    # burst mound at the base
+    rock("mound", 0.50, (0, 0, 0.10), "sandshadow", scale=(1.5, 1.5, 0.35), seed=91, jitter=0.25, subdiv=2)
+    # segment arc, leaning forward (-Y) as it rises
+    rock("seg1", 0.50, (0, 0.02, 0.55), "sandshadow", scale=(1.05, 1.05, 0.95), seed=92, jitter=0.16, subdiv=2)
+    rock("seg2", 0.44, (0, -0.06, 1.20), "sand", scale=(1.0, 1.0, 0.95), seed=93, jitter=0.16, subdiv=2)
+    rock("seg3", 0.38, (0, -0.20, 1.78), "sandshadow", scale=(1.0, 1.0, 0.90), seed=94, jitter=0.16)
+    # head segment with the open maw facing forward-down at the party
+    rock("head", 0.34, (0, -0.36, 2.18), "sand", scale=(1.05, 1.0, 0.9), seed=95, jitter=0.14, subdiv=2)
+    rock("maw", 0.20, (0, -0.62, 2.12), "socket", scale=(1.05, 0.55, 1.05), seed=96, jitter=0.10)
+    # ring of bone teeth around the maw rim
+    import math as _m
+    for i in range(6):
+        a = i / 6.0 * 2.0 * _m.pi
+        x, z = _m.cos(a) * 0.24, _m.sin(a) * 0.24
+        box("tooth%d" % i, (0.055, 0.10, 0.055), (x, -0.60, 2.12 + z), "bone",
+            rot=(0, a, 0))
+    # a couple of sand chunks mid-air around the burst
+    rock("chunk1", 0.10, (0.55, -0.15, 0.35), "sand", seed=97, jitter=0.3)
+    rock("chunk2", 0.08, (-0.48, 0.20, 0.28), "sand", seed=98, jitter=0.3)
+
+
 MONSTERS = {
     # zone 2 — Ruined Courtyard (trash, trash, boss)
     "bone_rattler": (build_bone_rattler, 0.55, 2.1),
@@ -311,6 +381,10 @@ MONSTERS = {
     "bog_toad": (build_bog_toad, 0.40, 2.2),
     "marsh_wisp": (build_marsh_wisp, 0.60, 2.0),
     "bog_horror": (build_bog_horror, 0.95, 3.8),
+    # zone 4 — Amber Dunes
+    "dust_scarab": (build_dust_scarab, 0.35, 2.0),
+    "dune_stalker": (build_dune_stalker, 0.70, 2.6),
+    "dune_wurm": (build_dune_wurm, 1.20, 4.2),
 }
 
 # --- render / export -------------------------------------------------------------

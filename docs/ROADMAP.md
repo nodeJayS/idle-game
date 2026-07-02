@@ -80,8 +80,10 @@ tonight" decision engine. Slices:
    primitives' flat repaint). ✅ Zone 2 shipped 2026-07-02 (Bone Rattler /
    Stone Sentry / Grave Knight, verified in Play incl. boss + facing).
    ✅ Zone 3 shipped 2026-07-02 (Bog Toad / Marsh Wisp / Bog Horror; `rock()`
-   grew a taper param for teardrop/flame silhouettes). REMAINING: zones 4–10
-   rosters, zone 1 slime/goblin models, per-zone prop-shape swaps.
+   grew a taper param for teardrop/flame silhouettes). ✅ Zone 4 shipped
+   2026-07-02 (Dust Scarab / hooded Dune Stalker / Dune Wurm burst-worm boss).
+   REMAINING: zones 5–10 rosters, zone 1 slime/goblin models, per-zone
+   prop-shape swaps.
 
 ### 5. Content & tuning pass (after 4)
 More stages/mods/monster kits; balance sim in console (backlogged); XP-curve
