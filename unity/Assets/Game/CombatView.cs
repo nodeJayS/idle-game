@@ -22,7 +22,9 @@ namespace IdleGame.Game
         private sealed class View
         {
             public GameObject Go = null!;
-            public float Height;
+            public float Height;   // head height — floating-bar anchor, muzzle points
+            public float YOffset;  // transform Y: capsule center for primitives, 0 for
+                                   // hero models (their pivot is at the FEET — grounded)
             public Color BaseColor;
             public Vector3 BaseScale;   // full size; spawn anim grows toward this
             public bool Spawning;
@@ -896,7 +898,8 @@ namespace IdleGame.Game
                 }
             }
 
-            var view = new View { Go = go, Height = height, BaseColor = color, BaseScale = baseScale,
+            var view = new View { Go = go, Height = height, YOffset = model != null ? 0f : height,
+                                  BaseColor = color, BaseScale = baseScale,
                                   PrevPos = go.transform.position, CurPos = go.transform.position, SmoothPos = go.transform.position,
                                   Anim = heroAnim };
 
@@ -1122,7 +1125,7 @@ namespace IdleGame.Game
                 if (_steppedThisFrame)
                 {
                     v.PrevPos = v.CurPos;
-                    v.CurPos = new Vector3((float)e.Pos.X, v.Height, (float)e.Pos.Y);
+                    v.CurPos = new Vector3((float)e.Pos.X, v.YOffset, (float)e.Pos.Y);
                 }
                 v.SmoothPos = Vector3.Lerp(v.PrevPos, v.CurPos, _renderAlpha);
                 v.Go.transform.position = v.SmoothPos + LungeOffset(v) + KnockOffset(v);
@@ -1132,7 +1135,14 @@ namespace IdleGame.Game
                 // SetMoving) + face where they're going, or their target when standing.
                 if (v.Anim != null)
                 {
-                    if (_steppedThisFrame) v.Moving = (v.CurPos - v.PrevPos).sqrMagnitude > 0.0004f;
+                    if (_steppedThisFrame)
+                    {
+                        v.Moving = (v.CurPos - v.PrevPos).sqrMagnitude > 0.0004f;
+                        // feed real ground speed so clip playback matches (no foot-glide)
+                        if (v.Moving)
+                            v.Anim.SetMoveSpeed((v.CurPos - v.PrevPos).magnitude /
+                                                (float)(Combat.DefaultStepMs / 1000.0));
+                    }
                     v.Anim.SetMoving(v.Moving);
 
                     Vector3 face = Vector3.zero;

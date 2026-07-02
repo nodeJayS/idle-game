@@ -11,6 +11,7 @@ namespace IdleGame.Game
     public interface IHeroAnim
     {
         void SetMoving(bool moving);
+        void SetMoveSpeed(float unitsPerSec);
         void TriggerAttack();
     }
 
@@ -88,8 +89,14 @@ namespace IdleGame.Game
         private static readonly int MovingId = Animator.StringToHash("Moving");
         private static readonly int AttackId = Animator.StringToHash("Attack");
 
+        /// <summary>Ground speed the MS2 run cycle was authored for (units/s).
+        /// The chibi sprint covers ~1.5 body heights per 0.6s cycle. Playback
+        /// scales by actual/native so feet match the ground instead of gliding.</summary>
+        private const float NativeRunSpeed = 2.5f;
+
         private Animator? _animator;
         private bool _moving;
+        private float _speedScale = 1f;
 
         private void Awake()
         {
@@ -105,6 +112,17 @@ namespace IdleGame.Game
             if (_animator == null || _moving == moving) return;
             _moving = moving;
             _animator.SetBool(MovingId, moving);
+        }
+
+        public void SetMoveSpeed(float unitsPerSec) =>
+            _speedScale = Mathf.Clamp(unitsPerSec / NativeRunSpeed, 0.4f, 2.2f);
+
+        private void Update()
+        {
+            if (_animator == null) return;
+            // scale only the run cycle — idle breathing and attacks play as authored
+            bool running = _animator.GetCurrentAnimatorStateInfo(0).IsName("Run");
+            _animator.speed = running ? _speedScale : 1f;
         }
 
         public void TriggerAttack()

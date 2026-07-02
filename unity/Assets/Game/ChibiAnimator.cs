@@ -43,6 +43,8 @@ namespace IdleGame.Game
 
         public void TriggerAttack() => _attackLeft = AttackLen;
 
+        public void SetMoveSpeed(float unitsPerSec) { } // procedural cycle stays fixed
+
         private static float Ease(float p) { p = Mathf.Clamp01(p); return p * p * (3f - 2f * p); }
 
         private void Update()
