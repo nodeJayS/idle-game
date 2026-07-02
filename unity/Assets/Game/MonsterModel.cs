@@ -38,12 +38,18 @@ namespace IdleGame.Game
             foreach (var r in go.GetComponentsInChildren<Renderer>())
                 foreach (var m in r.materials)
                 {
+                    Color baseC = m.HasProperty("_BaseColor") ? m.GetColor("_BaseColor")
+                                : m.HasProperty("_Color") ? m.color : Color.gray;
                     if (m.HasProperty("_BaseColor"))
-                        m.SetColor("_BaseColor", Color.Lerp(m.GetColor("_BaseColor"), tint, lean));
+                        m.SetColor("_BaseColor", Color.Lerp(baseC, tint, lean));
                     else if (m.HasProperty("_Color"))
-                        m.color = Color.Lerp(m.color, tint, lean);
+                        m.color = Color.Lerp(baseC, tint, lean);
+                    // scale the glow by the material's own brightness: a uniform emission
+                    // swamps dark palettes (a shadow-black wraith reads mustard under a
+                    // gold income-mod aura) while light materials can carry more of it
+                    float luma = 0.3f * baseC.r + 0.6f * baseC.g + 0.1f * baseC.b;
                     m.EnableKeyword("_EMISSION");
-                    m.SetColor("_EmissionColor", emission);
+                    m.SetColor("_EmissionColor", emission * (0.15f + 0.85f * luma));
                 }
         }
     }

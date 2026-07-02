@@ -58,11 +58,16 @@ COLORS = {
     "basaltdark": (0.14, 0.12, 0.11),
     "lava":   (1.00, 0.45, 0.12),
     "ash":    (0.45, 0.40, 0.38),
+    # zone 7 — Gloom Hollow
+    "shadow": (0.22, 0.20, 0.30),
+    "shadowdeep": (0.13, 0.12, 0.19),
+    "violet": (0.62, 0.42, 0.95),
+    "batfur": (0.34, 0.30, 0.40),
 }
 # modest strengths: Unity's FBX import drops emission anyway (base colour carries
 # the look there); these only need to READ in the eyeball renders, not blow out.
 EMISSIVE = {"amber": 6.0, "ember": 8.0, "wisp": 0.8, "wispcore": 2.5, "sludge": 1.2,
-            "icecore": 2.0, "lava": 3.0}
+            "icecore": 2.0, "lava": 3.0, "violet": 2.5}
 
 _materials = {}
 
@@ -506,6 +511,67 @@ def build_ash_tyrant():
     rock("fistR", 0.16, (-0.69, -0.02, 0.44), "lava", seed=162, jitter=0.15)
 
 
+# --- zone 7: Gloom Hollow -------------------------------------------------------------
+
+def build_cave_bat():
+    """A hovering cave bat: plump furry body, big membrane wings, tall ears,
+    violet eyes, tiny fangs. Authored hovering — bottom at ~0.35u."""
+    rock("body", 0.17, (0, 0, 0.60), "batfur", scale=(1.0, 0.95, 1.15), seed=171, jitter=0.14, subdiv=2)
+    # tall ears
+    box("earL", (0.06, 0.05, 0.16), (0.08, 0.02, 0.80), "shadowdeep", taper_top=0.2, rot=(0, 0, -0.15))
+    box("earR", (0.06, 0.05, 0.16), (-0.08, 0.02, 0.80), "shadowdeep", taper_top=0.2, rot=(0, 0, 0.15))
+    rock("eyeL", 0.04, (0.07, -0.15, 0.64), "violet", seed=172, jitter=0.05)
+    rock("eyeR", 0.04, (-0.07, -0.15, 0.64), "violet", seed=173, jitter=0.05)
+    box("fangL", (0.025, 0.025, 0.06), (0.04, -0.15, 0.50), "bone")
+    box("fangR", (0.025, 0.025, 0.06), (-0.04, -0.15, 0.50), "bone")
+    # big membrane wings: scalloped flat prisms swept up-outward
+    prism("wingL", [(0, -0.10), (0.34, -0.24), (0.52, -0.08), (0.44, 0.10), (0.20, 0.16)], 0.03,
+          (0.12, 0.04, 0.62), "shadowdeep", axis="y", rot=(0, 0, 0.35))
+    prism("wingR", [(0, -0.10), (-0.34, -0.24), (-0.52, -0.08), (-0.44, 0.10), (-0.20, 0.16)], 0.03,
+          (-0.12, 0.04, 0.62), "shadowdeep", axis="y", rot=(0, 0, -0.35))
+
+
+def build_gloom_shade():
+    """A floating wraith: a shadow-robe mass tapering to a wisp below, a deep
+    hood with two burning violet eyes, thin reaching arms. Bottom ~0.25u."""
+    # robe mass pinching upward + a lower wisp tail
+    rock("robe", 0.26, (0, 0, 0.72), "shadow", scale=(1.0, 0.9, 1.6), seed=181, jitter=0.16, subdiv=2, taper=0.35)
+    rock("wispt", 0.14, (0.02, 0.04, 0.32), "shadowdeep", scale=(0.9, 0.9, 1.6), seed=182, jitter=0.2, taper=-0.0)
+    # deep hood: dark shell + a void face + violet eyes (faces -Y)
+    rock("hood", 0.17, (0, 0.01, 1.14), "shadowdeep", scale=(1.05, 1.05, 1.1), seed=183, jitter=0.14)
+    rock("face", 0.11, (0, -0.10, 1.12), "socket", seed=184, jitter=0.08)
+    rock("eyeL", 0.04, (0.06, -0.19, 1.16), "violet", seed=185, jitter=0.05)
+    rock("eyeR", 0.04, (-0.06, -0.19, 1.16), "violet", seed=186, jitter=0.05)
+    # thin reaching arms
+    box("armL", (0.05, 0.05, 0.30), (0.24, -0.14, 0.78), "shadow", taper_top=0.4, rot=(0.5, 0, -0.5))
+    box("armR", (0.05, 0.05, 0.26), (-0.24, -0.10, 0.72), "shadow", taper_top=0.4, rot=(0.4, 0, 0.5))
+
+
+def build_nightmare_maw():
+    """BOSS — a vast floating void-head: a shadow sphere that is mostly MOUTH —
+    a gaping dark maw ringed with bone teeth, three burning violet eyes above,
+    horn fins swept back, a wisp tail below. Hovers, ~2.0u tall."""
+    rock("head", 0.55, (0, 0, 1.15), "shadowdeep", scale=(1.05, 1.0, 0.95), seed=191, jitter=0.16, subdiv=2)
+    # the maw: a huge void crater on the front (-Y)
+    rock("maw", 0.34, (0, -0.42, 1.05), "socket", scale=(1.1, 0.55, 1.0), seed=192, jitter=0.10, subdiv=2)
+    # teeth ring around the maw rim
+    import math as _m
+    for i in range(8):
+        a = i / 8.0 * 2.0 * _m.pi
+        x, z = _m.cos(a) * 0.40, _m.sin(a) * 0.34
+        box("tooth%d" % i, (0.06, 0.12, 0.06), (x, -0.46, 1.05 + z), "bone", rot=(0, a, 0))
+    # three burning eyes above the maw, uneven
+    rock("eye1", 0.07, (0.16, -0.44, 1.52), "violet", seed=193, jitter=0.05)
+    rock("eye2", 0.09, (0, -0.48, 1.60), "violet", seed=194, jitter=0.05)
+    rock("eye3", 0.06, (-0.17, -0.43, 1.50), "violet", seed=195, jitter=0.05)
+    # swept horn fins + a wisp tail below
+    prism("finL", [(0, 0), (0.20, 0.10), (0.44, 0.34), (0.14, 0.10)], 0.06,
+          (0.38, 0.24, 1.55), "shadow", axis="y")
+    prism("finR", [(0, 0), (-0.20, 0.10), (-0.44, 0.34), (-0.14, 0.10)], 0.06,
+          (-0.38, 0.24, 1.55), "shadow", axis="y")
+    rock("tail", 0.20, (0, 0.10, 0.42), "shadow", scale=(0.9, 0.9, 1.8), seed=196, jitter=0.2, taper=0.5)
+
+
 MONSTERS = {
     # zone 2 — Ruined Courtyard (trash, trash, boss)
     "bone_rattler": (build_bone_rattler, 0.55, 2.1),
@@ -527,6 +593,10 @@ MONSTERS = {
     "magma_imp": (build_magma_imp, 0.50, 2.0),
     "cinder_hound": (build_cinder_hound, 0.50, 2.4),
     "ash_tyrant": (build_ash_tyrant, 1.15, 4.0),
+    # zone 7 — Gloom Hollow
+    "cave_bat": (build_cave_bat, 0.60, 2.0),
+    "gloom_shade": (build_gloom_shade, 0.75, 2.4),
+    "nightmare_maw": (build_nightmare_maw, 1.15, 4.0),
 }
 
 # --- render / export -------------------------------------------------------------
