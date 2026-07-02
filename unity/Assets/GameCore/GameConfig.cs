@@ -862,8 +862,10 @@ namespace IdleGame.GameCore
             cfg.Monsters["chaos_spawn"] = Trash("chaos_spawn", "Chaos Spawn", 52, 6.5, 1, 3.2, 1.15, 0.08, 20, 6);
             cfg.Monsters["world_ender"] = BossMob("world_ender", "World Ender", 210, 14, 4, 2.5, 0.85);
 
+            // Zone 1's palette = the client's shipped ground/foliage colours exactly, so
+            // the early game keeps its current look (the client lerps props toward Accent).
             cfg.Zones.Add(Zone("verdant_woods", "Verdant Woods", "forest",
-                (0.45, 0.62, 0.34), (0.30, 0.48, 0.26), "goblin_king", "slime", "goblin"));
+                (0.33, 0.50, 0.35), (0.44, 0.62, 0.30), "goblin_king", "slime", "goblin"));
             cfg.Zones.Add(Zone("ruined_courtyard", "Ruined Courtyard", "ruins",
                 (0.55, 0.54, 0.50), (0.42, 0.40, 0.38), "grave_knight", "bone_rattler", "stone_sentry"));
             cfg.Zones.Add(Zone("murkwater_swamp", "Murkwater Swamp", "swamp",

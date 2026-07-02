@@ -1,3 +1,4 @@
+#nullable enable
 using System.Collections.Generic;
 using UnityEngine;
 using IdleGame.GameCore;
@@ -27,6 +28,52 @@ namespace IdleGame.Game
         private static Material[] _foliageMats = null!;
         private static Material[] _rockMats = null!;
         private static Material[] _bushMats = null!;
+
+        // Zone reskin (roadmap 4): the retintable prop materials with their shipped base
+        // colours (the restore point). Foliage/bushes lean toward the zone ACCENT; rock
+        // moss tops lean toward the zone GROUND colour (moss ~ grass) and rock sides stay
+        // universal stone. Trunks stay bark everywhere.
+        private sealed class Tintable
+        {
+            public Material Mat = null!;
+            public Color Top, Side;
+            public bool UseGround;   // target = zone ground colour instead of the accent
+            public bool TintSide;    // false = leave _SideColor at base (stone)
+            public float Weight;     // how far toward the zone target the base leans
+        }
+        private static readonly List<Tintable> _tintables = new List<Tintable>();
+
+        private static void Register(Material m, bool useGround, bool tintSide, float weight)
+        {
+            if (!m.HasProperty("_TopColor")) return; // URP/Lit fallback — skip retints
+            _tintables.Add(new Tintable
+            {
+                Mat = m, Top = m.GetColor("_TopColor"), Side = m.GetColor("_SideColor"),
+                UseGround = useGround, TintSide = tintSide, Weight = weight,
+            });
+        }
+
+        /// <summary>Retint the scattered props for a zone (null restores the shipped look).
+        /// Materials are shared by all instances, so this is a handful of SetColor calls —
+        /// no mesh or scatter rebuild.</summary>
+        public static void SetZone(ZoneDef? zone)
+        {
+            foreach (var t in _tintables)
+            {
+                if (zone == null)
+                {
+                    t.Mat.SetColor("_TopColor", t.Top);
+                    t.Mat.SetColor("_SideColor", t.Side);
+                    continue;
+                }
+                var target = t.UseGround
+                    ? new Color((float)zone.GroundR, (float)zone.GroundG, (float)zone.GroundB)
+                    : new Color((float)zone.AccentR, (float)zone.AccentG, (float)zone.AccentB);
+                t.Mat.SetColor("_TopColor", Color.Lerp(t.Top, target, t.Weight));
+                if (t.TintSide) // darker version of the target keeps the lit-top/dark-underside read
+                    t.Mat.SetColor("_SideColor", Color.Lerp(t.Side, target * 0.55f, t.Weight));
+            }
+        }
 
         public static void Build(GameConfig cfg)
         {
@@ -140,6 +187,12 @@ namespace IdleGame.Game
                 Tun(new Color(0.42f, 0.60f, 0.30f), new Color(0.18f, 0.32f, 0.18f), -0.3f, 0.5f, 0.30f, 0.05f),
                 Tun(new Color(0.38f, 0.54f, 0.28f), new Color(0.16f, 0.28f, 0.17f), -0.3f, 0.5f, 0.30f, 0.05f),
             };
+
+            // Zone retint registry (SetZone): foliage/bushes chase the accent, rock moss the
+            // ground hue. Zone 1's hints equal these bases, so stage 1-10 stays the shipped look.
+            foreach (var m in _foliageMats) Register(m, useGround: false, tintSide: true, weight: 0.65f);
+            foreach (var m in _bushMats) Register(m, useGround: false, tintSide: true, weight: 0.65f);
+            foreach (var m in _rockMats) Register(m, useGround: true, tintSide: false, weight: 0.5f);
         }
 
         /// <summary>Build a TunicSurface material (normal-driven top/side colour + inked facet

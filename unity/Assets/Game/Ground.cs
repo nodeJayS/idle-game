@@ -1,3 +1,4 @@
+#nullable enable
 using System.Collections.Generic;
 using UnityEngine;
 using IdleGame.GameCore;
@@ -19,6 +20,29 @@ namespace IdleGame.Game
         private const float Amplitude = 0.3f;  // max height deviation (keep small: units sit at y=0)
 
         private static Material _mat = null!;
+
+        // The shipped grass palette — also the restore point for zone retints (zone 1's
+        // config hints mirror these values so the early game look is unchanged).
+        private static readonly Color DefaultTop = new Color(0.33f, 0.50f, 0.35f);
+        private static readonly Color DefaultSide = new Color(0.42f, 0.31f, 0.21f);
+
+        /// <summary>Zone reskin (roadmap 4): retint the field from a zone's palette hints —
+        /// ground colour on the up-faces, dirt sides leaning toward the zone accent. null (or
+        /// the fallback material) restores the default grass. The mesh/mottle never rebuilds:
+        /// the vertex colours are brightness mottle, so they read on any hue.</summary>
+        public static void SetZone(ZoneDef? zone)
+        {
+            if (_mat == null || !_mat.HasProperty("_TopColor")) return;
+            if (zone == null)
+            {
+                _mat.SetColor("_TopColor", DefaultTop);
+                _mat.SetColor("_SideColor", DefaultSide);
+                return;
+            }
+            var accent = new Color((float)zone.AccentR, (float)zone.AccentG, (float)zone.AccentB);
+            _mat.SetColor("_TopColor", new Color((float)zone.GroundR, (float)zone.GroundG, (float)zone.GroundB));
+            _mat.SetColor("_SideColor", Color.Lerp(DefaultSide, accent, 0.35f));
+        }
 
         public static void Build(GameConfig cfg)
         {
@@ -103,8 +127,8 @@ namespace IdleGame.Game
             _mat = new Material(sh);
             // Deeper, slightly blue-green grass (matches the old texture's richer tone — the
             // brighter/yellower first pass read "cheap"). Mottle in GrassTint keeps it organic.
-            _mat.SetColor("_TopColor", new Color(0.33f, 0.50f, 0.35f));  // grass
-            _mat.SetColor("_SideColor", new Color(0.42f, 0.31f, 0.21f)); // dirt (rare on a flat field)
+            _mat.SetColor("_TopColor", DefaultTop);   // grass
+            _mat.SetColor("_SideColor", DefaultSide); // dirt (rare on a flat field)
             _mat.SetFloat("_SlopeLo", 0.45f);
             _mat.SetFloat("_SlopeHi", 0.80f);
             _mat.SetFloat("_EdgeDark", 0.12f);   // low: the ground has many facet edges, don't grid it

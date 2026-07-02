@@ -66,8 +66,10 @@ tonight" decision engine. Slices:
    (Verdant Woods → … → Crown of the World), 27 new monster defs in the
    slime/goblin stat band (flavor, not power), zone-driven trash/boss spawns
    (farm, encounter, Tower floors travel the same zones; legacy fallback kept).
-2. Client reskin: faceted ground palette/prop swap from the ZoneDef hints
-   (forest → ruins → swamp...).
+2. ✅ SHIPPED 2026-07-02 — client reskin: `ZoneDress.Sync` retints the faceted
+   ground + scattered props from the ZoneDef hints on stage/floor change (zone 1
+   = the shipped palette exactly), plus a "Now entering <Zone>" feed beat.
+   Verified in Play across woods/ruins/swamp. Prop SHAPE swaps ride slice 3.
 3. Monster art: 2–3 zone-specific scripted-Blender designs per zone (the
    `art/<name>.py` low-poly pipeline), rolled out zone by zone.
 4. Optional zone-flavored drop tables so farming has destinations ("boots drop

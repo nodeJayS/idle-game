@@ -332,6 +332,7 @@ namespace IdleGame.Game
             if (_combat == null || !Tower.CanAttempt(_save, floor, _cfg)) return;
             CommitPending();
             Combat.EnterTower(_combat, floor, _cfg, NewRng());
+            DressZone(floor); // tower floors travel the same zones (floor = zone key)
             _accMs = 0; _outcomeTimer = 0; _resolved = false;
             ReconcileViews();
         }
@@ -482,6 +483,7 @@ namespace IdleGame.Game
             _combat.Tactic = PartyTactic.Solo;        // formation travel: the leader heads for
             _combat.LeaderRefId = _save.LeaderHeroId; // the pack, the rest hold a triangle behind
                                                       // it (chosen leader, else lowest slot)
+            DressZone(_combat.Stage);                 // reskin the world for the stage's zone
             ReconcileViews();
             _accMs = 0;
             _outcomeTimer = 0;
@@ -806,6 +808,18 @@ namespace IdleGame.Game
             return sum;
         }
 
+        /// <summary>Zone reskin (roadmap 4): retint ground/props when the stage (or tower
+        /// floor) belongs to a different zone, and announce the travel beat in the feed.
+        /// ZoneDress no-ops when the zone hasn't changed, so this is safe to call on every
+        /// farm start/resume.</summary>
+        private void DressZone(int stageOrFloor)
+        {
+            var zone = ZoneDress.Sync(_cfg, stageOrFloor);
+            if (zone == null) return;
+            var accent = new Color((float)zone.AccentR, (float)zone.AccentG, (float)zone.AccentB);
+            _chat?.AddFeed($"Now entering {zone.Name}.", Color.Lerp(accent, Color.white, 0.45f));
+        }
+
         // ---- player controls (called from the IMGUI bar) ----
 
         private void GoToStage(int stage)
@@ -849,6 +863,7 @@ namespace IdleGame.Game
         private void ResumeFarmInPlace(int stage, double spawnDelayMs)
         {
             Combat.ResumeFarm(_combat, stage, _cfg, spawnDelayMs);
+            DressZone(stage); // post-win advance / tower exit can land in another zone
             // A boss clear can field a newly-unlocked hero (OnStageCleared), so sync the live
             // party to the save here too: ResumeFarm/RestoreParty only heal EXISTING entities,
             // so without this the new hero has no combat entity and reads as 0 HP on the HUD
