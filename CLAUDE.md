@@ -108,8 +108,8 @@ Phase A (core loop) and most of Phase B (depth) are done. What exists today:
   `tints`, skill/sound bindings) + 9 decoded clips in `art/motion/<defId>/` + one headless
   `art/skinned_body.py` bake → `Resources/Models/<defId>_skinned.fbx`; then Unity menu
   `Tools > Build Hero Animators` (importer clips + per-hero override controller). ALWAYS
-  eyeball `--renders` before `--export` — item transforms/dyes lie. History + phase notes:
-  `docs/archive/ms2-port-plan.md`. Fallback chain stays SkinnedHero→ModelHero→ChibiHero.
+  eyeball `--renders` before `--export` — item transforms/dyes lie. Port history/phase
+  notes live in git. Fallback chain stays SkinnedHero→ModelHero→ChibiHero.
 
 **The four loop levers** (game-design.md §7.1): 1 combat variety ✅ · 2 loot/power chase ✅ ·
 3 build depth ✅ · **4 progression hooks — in progress** (achievement ladder + daily-login premium
@@ -119,7 +119,9 @@ currency shipped; gem sink/gacha + prestige next).
 **One source of truth: [`docs/ROADMAP.md`](docs/ROADMAP.md)** — the ordered priority
 list (gacha gem sink ⭐, Tower slice 3, combat presentation debt, MS2 monsters, then
 content/tuning; parked items at the bottom). Update it in the same commit that ships
-a roadmap item. Finished plans live in `docs/archive/`; details in git history.
+a roadmap item. Finished plans live in git history — don't keep them in the tree.
+The doc set is exactly four files (README / CLAUDE.md / game-design / ROADMAP) with
+one job each; new-machine setup incl. the MS2 art toolchain is in the README.
 
 ## Conventions
 - **GameCore-first:** build + `dotnet test` a piece, then wire into Unity and verify by screenshot.

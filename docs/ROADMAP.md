@@ -3,7 +3,7 @@
 The living priority list. When something ships, update this file in the same
 commit. Durable design (loops, economy, data model, live-service arc) stays in
 [`game-design.md`](game-design.md); session orientation in [`../CLAUDE.md`](../CLAUDE.md);
-finished plans move to [`archive/`](archive/) (history lives in git, not here).
+finished plans live in git history, not in the tree.
 
 ## Where the game stands (one paragraph)
 
@@ -26,10 +26,14 @@ and the pipeline makes banner heroes cheap to produce. Slices:
    cursor (can't re-roll), duplicate → hero XP or scrap, pity counter in save.
 2. UI: a banner panel (control bar) + reveal beat (rarity flash, feed line).
 3. Content: 1–2 banner heroes. **Candidate #1: the Ice Mage comeback** as the
-   launch banner (def + kit already in config; presentation recon archived in
-   [`archive/handoff-icemage-male.md`](archive/handoff-icemage-male.md) —
-   female body this time to contrast the male Priest, or keep male; ice gear
-   via manifest tints).
+   launch banner. Def + kit already in config (actives frostbolt L1 + blizzard
+   L10). Presentation recon (verified 2026-07-02): female wizard clips cover a
+   full ice kit (`wizard_icestrike/frostnova/icebomb_01/icesphere` + the
+   standard locomotion set); staffs `15200037_snowgiantstaff` /
+   `15200208_snowqueenstaff`; hats `11300181_cpsnowbell` /
+   `11300185_cpsnowgianthat`; any robe can be dyed ice-blue via manifest
+   `tints`. Sounds: `Skill_Wizard_FrostNova_Cast`, `Skill_Wizard_IceStrike_*`,
+   `Skill_Magician_IceBreath_Cast`.
 
 ### 2. Tower slice 3 — per-floor reward bundles (small, unblocks a loop)
 The one unfinished system slice. Floors currently pay only via milestones;
