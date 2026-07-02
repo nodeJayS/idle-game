@@ -55,11 +55,15 @@ sim-testable, ~1 session.
 - Hero-float quirk backlog item: CombatView.SyncViews writes v.Height into
   hero Y for capsules (pre-existing; check it still matters).
 
-### 4. Monsters on the MS2 pipeline (big visual win, opens content)
-Mobs are still capsules/primitives. The port machinery (NIF importer, kf
-decoder, kfm sets) extends to `Npc/` models. Start with 2–3 farm mobs + one
-boss; SpawnView gets the same skinned→fallback chain heroes have. Unlocks the
-"enemy variety" content lever properly.
+### 4. Zones + LOW-POLY monster variety (the "depth feels like travel" beat)
+**Art-direction rule (user, 2026-07-02): monsters stay low-poly faceted, Tunic
+style — the MS2 pipeline is for HEROES ONLY.** The smooth-chibi-vs-faceted-world
+contrast IS the look; never port MS2 mobs. Every ~10 stages becomes a themed
+ZONE: faceted ground palette/prop swap (forest → ruins → swamp...), 2–3
+zone-specific scripted-Blender monster designs (the `art/<name>.py` low-poly
+pipeline, like the shipped world props), optional zone-flavored drop tables so
+farming has destinations ("boots drop best in the ruins"). Pairs with set
+bonuses later. This is the "where do I park my farm tonight" decision engine.
 
 ### 5. Content & tuning pass (after 4)
 More stages/mods/monster kits; balance sim in console (backlogged); XP-curve
