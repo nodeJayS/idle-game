@@ -449,7 +449,6 @@ namespace IdleGame.Game
                 if (e.Team == Team.Party)
                     heroDefs.Add(_save.Heroes.Find(h => h.Id == e.RefId)?.DefId + ":" + AttackFxFor(e.Id));
             Debug.Log($"[CombatView] {_combat.Kind} start: stage {_combat.Stage}; party = [{string.Join(", ", heroDefs)}].");
-            SoundFx.PlayBgm("BGM_Ellinia_field_01"); // no-op if already playing
         }
 
         private void Update()

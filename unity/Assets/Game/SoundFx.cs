@@ -5,15 +5,15 @@ using UnityEngine;
 namespace IdleGame.Game
 {
     /// <summary>
-    /// One-shot sound effects + BGM from the extracted MS2 banks
+    /// One-shot sound effects from the extracted MS2 banks
     /// (Resources/Sound/*.mp3, pulled by art/tools/fsb_extract.py).
     /// Play("Swing_Sword") picks a random numbered variant; per-set rate
     /// limiting keeps a mob pack from turning hits into white noise.
+    /// No BGM — MS2 soundtracks are too recognizable (user call, 2026-07-02).
     /// </summary>
     public static class SoundFx
     {
         private static AudioSource? _fx;
-        private static AudioSource? _bgm;
         private static Dictionary<string, AudioClip[]>? _sets;
         private static readonly Dictionary<string, float> _lastPlay = new();
         private const float MinRepeatSec = 0.06f;
@@ -57,17 +57,6 @@ namespace IdleGame.Game
             _lastPlay[set] = Time.unscaledTime;
             Channel(ref _fx, "SoundFx", loop: false)
                 .PlayOneShot(clips[Random.Range(0, clips.Length)], volume);
-        }
-
-        public static void PlayBgm(string clipName, float volume = 0.28f)
-        {
-            var bgm = Channel(ref _bgm, "Bgm", loop: true);
-            if (bgm.isPlaying && bgm.clip != null && bgm.clip.name == clipName) return;
-            var clip = Resources.Load<AudioClip>("Sound/" + clipName);
-            if (clip == null) return;
-            bgm.clip = clip;
-            bgm.volume = volume;
-            bgm.Play();
         }
     }
 }
