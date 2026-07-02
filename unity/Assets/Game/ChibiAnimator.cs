@@ -14,7 +14,7 @@ namespace IdleGame.Game
     /// reads loose on the neck, arm splay, and a three-phase attack — anticipation wind-up,
     /// whip-fast strike, eased follow-through — with the body twisting into the hit.
     /// </summary>
-    public sealed class ChibiAnimator : MonoBehaviour
+    public sealed class ChibiAnimator : MonoBehaviour, IHeroAnim
     {
         // Joints assigned by ChibiHero/ModelHero at build time. ArmR holds the weapon.
         public Transform? Body, Head, ArmL, ArmR, LegL, LegR;

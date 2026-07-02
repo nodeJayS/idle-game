@@ -41,7 +41,7 @@ namespace IdleGame.Game
 
             // Procedural chibi animation (set for code-built hero puppets). Idle/Walk blend by
             // Moving; the swing fires on a Hit/SkillCast. Null for capsules/enemies.
-            public ChibiAnimator? Anim;
+            public IHeroAnim? Anim;
             public bool Moving;
 
             // Attack/cast tell (M11): a quick punch toward the target (or upward for a
@@ -823,16 +823,25 @@ namespace IdleGame.Game
             float height;
             Vector3 baseScale;
             Color color = Color.white;
-            ChibiAnimator? heroAnim = null;
+            IHeroAnim? heroAnim = null;
 
             GameObject? model = null;
             if (isHero)
             {
                 var hero = _save.Heroes.Find(h => h.Id == e.RefId);
                 bool ranged = hero != null && _cfg.Heroes.TryGetValue(hero.DefId, out var hd0) && hd0.Role == "ranged";
-                // Blender model if one ships for this def, else the code-built chibi.
-                var built = hero != null ? ModelHero.Build(hero.DefId) ?? ChibiHero.Build(hero.DefId, ranged) : null;
-                if (built != null) { model = built.Value.root; heroAnim = built.Value.anim; }
+                // Skinned MS2-pipeline model first, then the rigid Blender model,
+                // else the code-built chibi.
+                if (hero != null)
+                {
+                    var skinned = SkinnedHero.Build(hero.DefId);
+                    if (skinned != null) { model = skinned.Value.root; heroAnim = skinned.Value.anim; }
+                    else
+                    {
+                        var built = ModelHero.Build(hero.DefId) ?? ChibiHero.Build(hero.DefId, ranged);
+                        if (built != null) { model = built.Value.root; heroAnim = built.Value.anim; }
+                    }
+                }
             }
             if (model != null)
             {
