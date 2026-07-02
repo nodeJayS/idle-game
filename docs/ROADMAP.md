@@ -89,8 +89,9 @@ tonight" decision engine. Slices:
    MonsterModel.Tint now scales aura emission by material luma so dark
    palettes don't wash to the mod colour). ✅ Zone 8 shipped 2026-07-02 (Tide
    Crab / Storm Caller cloud elemental / Tempest Naga with storm trident).
-   REMAINING: zones 9–10 rosters, zone 1 slime/goblin models, per-zone
-   prop-shape swaps.
+   ✅ Zone 9 shipped 2026-07-02 (Void Wisp / Rune Construct — floating block
+   golem / Riftwalker with a broken astral halo). REMAINING: zone 10 roster,
+   zone 1 slime/goblin models, per-zone prop-shape swaps.
 
 ### 5. Content & tuning pass (after 4)
 More stages/mods/monster kits; balance sim in console (backlogged); XP-curve

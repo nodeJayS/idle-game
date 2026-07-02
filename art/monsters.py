@@ -70,11 +70,16 @@ COLORS = {
     "seagrey": (0.40, 0.48, 0.55),
     "storm":  (0.45, 0.85, 1.00),
     "nagascale": (0.28, 0.52, 0.58),
+    # zone 9 — Astral Ruins
+    "astral": (0.72, 0.60, 1.00),
+    "voidp":  (0.30, 0.26, 0.46),
+    "voiddeep": (0.18, 0.15, 0.30),
+    "runestone": (0.50, 0.46, 0.62),
 }
 # modest strengths: Unity's FBX import drops emission anyway (base colour carries
 # the look there); these only need to READ in the eyeball renders, not blow out.
 EMISSIVE = {"amber": 6.0, "ember": 8.0, "wisp": 0.8, "wispcore": 2.5, "sludge": 1.2,
-            "icecore": 2.0, "lava": 3.0, "violet": 2.5, "storm": 2.5}
+            "icecore": 2.0, "lava": 3.0, "violet": 2.5, "storm": 2.5, "astral": 2.5}
 
 _materials = {}
 
@@ -646,6 +651,61 @@ def build_tempest_naga():
     box("cross", (0.24, 0.05, 0.05), (-0.38, -0.20, 1.46), "shelldark")
 
 
+# --- zone 9: Astral Ruins -------------------------------------------------------------
+
+def build_void_wisp():
+    """A void flame: a dark teardrop shell torn open over a starlit core, astral
+    eyes, trailing void wisps. Hovers — bottom ~0.3u."""
+    rock("shell", 0.28, (0, 0, 0.60), "voidp", scale=(1.0, 1.0, 1.55), seed=231, jitter=0.14,
+         subdiv=2, taper=0.85)
+    rock("core", 0.13, (0, -0.17, 0.54), "astral", seed=232, jitter=0.10)
+    rock("eyeL", 0.05, (0.10, -0.24, 0.72), "astral", seed=233, jitter=0.05)
+    rock("eyeR", 0.05, (-0.10, -0.24, 0.72), "astral", seed=234, jitter=0.05)
+    rock("tail1", 0.10, (0.17, 0.16, 0.36), "voiddeep", scale=(1.0, 1.0, 1.6), seed=235, jitter=0.2, taper=0.7)
+    rock("tail2", 0.08, (-0.15, 0.20, 0.30), "voiddeep", scale=(1.0, 1.0, 1.5), seed=236, jitter=0.2, taper=0.7)
+
+
+def build_rune_construct():
+    """An ancient floating construct: a geometric stone slab torso with a glowing
+    rune band, a SEPARATE hovering head block and fist blocks — the gaps are the
+    point (held together by old magic). Bottom ~0.35u."""
+    box("torso", (0.44, 0.30, 0.62), (0, 0, 0.72), "runestone", taper_top=0.85)
+    box("runeband", (0.34, 0.06, 0.10), (0, -0.15, 0.72), "astral")
+    box("chest", (0.30, 0.26, 0.16), (0, 0, 1.10), "voidp", taper_top=1.1)
+    # hovering head block with an eye slit (gap above the torso is intentional)
+    box("head", (0.26, 0.24, 0.20), (0, 0, 1.34), "runestone", taper_top=0.9)
+    box("eyeslit", (0.16, 0.05, 0.045), (0, -0.115, 1.34), "astral")
+    # hovering fist blocks at the flanks
+    rock("fistL", 0.13, (0.42, -0.06, 0.78), "voidp", scale=(1.0, 1.0, 1.2), seed=241, jitter=0.14)
+    rock("fistR", 0.13, (-0.42, -0.06, 0.78), "voidp", scale=(1.0, 1.0, 1.2), seed=242, jitter=0.14)
+    # a small keystone floating under the torso (its "foot")
+    rock("keystone", 0.10, (0, 0.02, 0.30), "voiddeep", seed=243, jitter=0.15)
+
+
+def build_riftwalker():
+    """BOSS — a tall astral revenant: a robed void pillar, a hooded head wearing
+    a broken halo of floating astral shards, starlit eyes, thin reaching arms,
+    hovering shoulder stones. ~2.4u tall."""
+    rock("robe", 0.34, (0, 0, 1.00), "voiddeep", scale=(1.1, 0.9, 2.2), seed=251, jitter=0.14,
+         subdiv=2, taper=0.30)
+    rock("hood", 0.22, (0, 0.01, 1.94), "voidp", scale=(1.05, 1.05, 1.05), seed=252, jitter=0.12)
+    rock("face", 0.13, (0, -0.12, 1.90), "socket", seed=253, jitter=0.08)
+    rock("eyeL", 0.05, (0.07, -0.22, 1.94), "astral", seed=254, jitter=0.05)
+    rock("eyeR", 0.05, (-0.07, -0.22, 1.94), "astral", seed=255, jitter=0.05)
+    # broken halo: floating astral shards ringing the hood
+    import math as _m
+    for i in range(5):
+        a = (i / 5.0) * 2.0 * _m.pi + 0.3
+        x, z = _m.cos(a) * 0.34, _m.sin(a) * 0.20
+        box("halo%d" % i, (0.05, 0.05, 0.14), (x, 0.02, 2.16 + z * 0.4), "astral",
+            taper_top=0.3, rot=(0, 0, a))
+    # hovering shoulder stones + thin reaching arms
+    rock("shoulderL", 0.15, (0.46, 0, 1.66), "runestone", seed=256, jitter=0.18)
+    rock("shoulderR", 0.15, (-0.46, 0, 1.66), "runestone", seed=257, jitter=0.18)
+    box("armL", (0.06, 0.06, 0.44), (0.42, -0.16, 1.28), "voidp", taper_top=0.4, rot=(0.35, 0, -0.25))
+    box("armR", (0.06, 0.06, 0.40), (-0.42, -0.12, 1.24), "voidp", taper_top=0.4, rot=(0.3, 0, 0.25))
+
+
 MONSTERS = {
     # zone 2 — Ruined Courtyard (trash, trash, boss)
     "bone_rattler": (build_bone_rattler, 0.55, 2.1),
@@ -675,6 +735,10 @@ MONSTERS = {
     "tide_crab": (build_tide_crab, 0.30, 2.2),
     "storm_caller": (build_storm_caller, 0.70, 2.2),
     "tempest_naga": (build_tempest_naga, 1.15, 4.0),
+    # zone 9 — Astral Ruins
+    "void_wisp": (build_void_wisp, 0.60, 2.0),
+    "rune_construct": (build_rune_construct, 0.80, 2.6),
+    "riftwalker": (build_riftwalker, 1.20, 4.0),
 }
 
 # --- render / export -------------------------------------------------------------
