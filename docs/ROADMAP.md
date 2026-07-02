@@ -19,6 +19,11 @@ Ninja/Archer (Rogue), Summoner/Ice Mage (Magician). 405 GameCore tests green.
 
 ## Priorities, in order
 
+### 0. ✅ SHIPPED 2026-07-02: gear enhancement + 5-slot trim + bag sort
+Enhancement (+15, 5% base/level, risk bands, scrap sink), slots cut 9→5,
+Sort button, cleaner equip doll. Next engagement beats when wanted: zones/
+MS2 monsters (item 4 below), set bonuses, a daily-attempts world boss.
+
 ### 1. ⭐ Gem sink → hero gacha MVP (Lever 4, the strategic one)
 Gems accrue from daily logins with NO spend since 2026-07-02 — the economy's
 promise is unredeemed. Everything is staged for this: heroes are config rows
