@@ -119,8 +119,10 @@ Phase A (core loop) and most of Phase B (depth) are done. What exists today:
   notes live in git. Fallback chain stays SkinnedHero→ModelHero→ChibiHero.
   **Monsters: `art/monsters.py`** (faceted flat-shaded, HEROES-ONLY rule inverse) — one
   rigid FBX per monster id → `Resources/Models/monsters/`, loaded by `MonsterModel` with
-  primitive fallback; same eyeball-renders-then-export loop. Model rank/mod tells are a
-  gentle tint + faint glow (flat repaint/strong emission buries the palette).
+  primitive fallback; same eyeball-renders-then-export loop. ALL 30 zone monsters modeled
+  (2026-07-02). Model rank/mod tells are a gentle tint + faint glow, emission scaled by
+  material luma (flat repaint/strong emission buries the palette; uniform emission turns
+  dark palettes mustard).
 
 **The four loop levers** (game-design.md §7.1): 1 combat variety ✅ · 2 loot/power chase ✅ ·
 3 build depth ✅ · **4 progression hooks — in progress** (achievement ladder + daily-login premium

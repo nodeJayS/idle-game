@@ -91,9 +91,11 @@ tonight" decision engine. Slices:
    Crab / Storm Caller cloud elemental / Tempest Naga with storm trident).
    ✅ Zone 9 shipped 2026-07-02 (Void Wisp / Rune Construct — floating block
    golem / Riftwalker with a broken astral halo). ✅ Zone 10 shipped 2026-07-02
-   (Crown Seraph / Chaos Spawn / World Ender crowned colossus) — ALL nine
-   themed-zone rosters modeled. REMAINING: zone 1 slime/goblin/goblin_king
-   models (currently primitives by design fallback), per-zone prop-shape swaps.
+   (Crown Seraph / Chaos Spawn / World Ender crowned colossus). ✅ Zone 1
+   shipped 2026-07-02 (Slime / Goblin / crowned Goblin King — the classics,
+   upgraded from capsules). ALL TEN zone rosters are modeled — 30 monsters.
+   REMAINING: per-zone prop-shape swaps (item 4's last loose end; palette
+   retints already ship).
 
 ### 5. Content & tuning pass (after 4)
 More stages/mods/monster kits; balance sim in console (backlogged); XP-curve

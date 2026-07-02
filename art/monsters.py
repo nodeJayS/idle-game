@@ -81,6 +81,13 @@ COLORS = {
     "regal":  (0.36, 0.30, 0.46),
     "chaos":  (0.46, 0.25, 0.50),
     "chaosdark": (0.26, 0.14, 0.30),
+    # zone 1 — Verdant Woods (the classics)
+    "slimeg": (0.48, 0.78, 0.42),
+    "slimedark": (0.32, 0.58, 0.30),
+    "gobskin": (0.50, 0.66, 0.34),
+    "gobdark": (0.33, 0.46, 0.24),
+    "loincloth": (0.55, 0.25, 0.18),
+    "wood":   (0.40, 0.28, 0.16),
 }
 # modest strengths: Unity's FBX import drops emission anyway (base colour carries
 # the look there); these only need to READ in the eyeball renders, not blow out.
@@ -782,6 +789,68 @@ def build_world_ender():
     rock("fistR", 0.15, (-0.53, -0.02, 0.90), "trim", seed=287, jitter=0.15)
 
 
+# --- zone 1: Verdant Woods (the classics, upgraded from primitives) ----------------------
+
+def build_slime():
+    """THE slime: a squashed jelly dome with a simple face and a wobble-blob on
+    top. Gentle jitter — slimes are smooth-ish even faceted. ~0.55u tall."""
+    rock("body", 0.30, (0, 0, 0.26), "slimeg", scale=(1.25, 1.25, 0.80), seed=291, jitter=0.08, subdiv=2)
+    rock("blob", 0.10, (0.06, 0.04, 0.52), "slimedark", scale=(1.1, 1.1, 0.8), seed=292, jitter=0.12)
+    # simple face (-Y): two dark eyes + a small mouth
+    rock("eyeL", 0.045, (0.10, -0.32, 0.30), "socket", seed=293, jitter=0.05)
+    rock("eyeR", 0.045, (-0.10, -0.32, 0.30), "socket", seed=294, jitter=0.05)
+    box("mouth", (0.08, 0.04, 0.03), (0, -0.35, 0.18), "slimedark")
+
+
+def build_goblin():
+    """The goblin: green imp with a big-eared head, amber eyes, a red loincloth,
+    stubby limbs and a little wooden club. ~0.95u tall."""
+    rock("body", 0.20, (0, 0, 0.44), "gobskin", scale=(1.0, 0.9, 1.1), seed=301, jitter=0.14, subdiv=2)
+    box("cloth", (0.30, 0.26, 0.12), (0, 0, 0.28), "loincloth")
+    rock("head", 0.17, (0, -0.02, 0.80), "gobskin", seed=302, jitter=0.12)
+    # big pointy ears
+    prism("earL", [(0, -0.05), (0.16, 0.02), (0.05, 0.06)], 0.04, (0.15, 0, 0.84), "gobdark", axis="y")
+    prism("earR", [(0, -0.05), (-0.16, 0.02), (-0.05, 0.06)], 0.04, (-0.15, 0, 0.84), "gobdark", axis="y")
+    rock("eyeL", 0.04, (0.07, -0.15, 0.84), "amber", seed=303, jitter=0.05)
+    rock("eyeR", 0.04, (-0.07, -0.15, 0.84), "amber", seed=304, jitter=0.05)
+    box("nose", (0.045, 0.07, 0.04), (0, -0.19, 0.76), "gobdark")
+    # stubby limbs + a wooden club at the right hand
+    box("armL", (0.06, 0.06, 0.24), (0.22, -0.02, 0.46), "gobdark", rot=(0.2, 0, -0.35))
+    box("armR", (0.06, 0.06, 0.24), (-0.22, -0.02, 0.46), "gobdark", rot=(0.2, 0, 0.35))
+    box("legL", (0.08, 0.09, 0.20), (0.10, 0, 0.10), "gobdark", taper_top=0.8)
+    box("legR", (0.08, 0.09, 0.20), (-0.10, 0, 0.10), "gobdark", taper_top=0.8)
+    box("clubgrip", (0.045, 0.045, 0.26), (-0.30, -0.10, 0.36), "wood", rot=(0.3, 0, 0.25))
+    rock("clubhead", 0.09, (-0.34, -0.16, 0.52), "wood", seed=305, jitter=0.2)
+
+
+def build_goblin_king():
+    """BOSS — the Goblin King: a fat crowned goblin with a gold belt and a great
+    spiked club. ~1.8u tall (rises from the ground on spawn)."""
+    rock("belly", 0.38, (0, 0, 0.72), "gobskin", scale=(1.1, 1.0, 1.05), seed=311, jitter=0.16, subdiv=2)
+    box("belt", (0.56, 0.44, 0.10), (0, 0, 0.48), "trim")
+    box("cloth", (0.48, 0.40, 0.16), (0, 0, 0.34), "loincloth")
+    rock("head", 0.24, (0, -0.04, 1.32), "gobskin", seed=312, jitter=0.12, subdiv=2)
+    prism("earL", [(0, -0.07), (0.24, 0.03), (0.07, 0.09)], 0.05, (0.21, 0, 1.38), "gobdark", axis="y")
+    prism("earR", [(0, -0.07), (-0.24, 0.03), (-0.07, 0.09)], 0.05, (-0.21, 0, 1.38), "gobdark", axis="y")
+    rock("eyeL", 0.055, (0.09, -0.21, 1.38), "amber", seed=313, jitter=0.05)
+    rock("eyeR", 0.055, (-0.09, -0.21, 1.38), "amber", seed=314, jitter=0.05)
+    box("nose", (0.06, 0.10, 0.05), (0, -0.26, 1.28), "gobdark")
+    # gold crown ring
+    import math as _m
+    for i in range(5):
+        a = (i / 5.0) * 2.0 * _m.pi
+        box("crown%d" % i, (0.05, 0.05, 0.16), (_m.cos(a) * 0.13, _m.sin(a) * 0.12, 1.56), "trim", taper_top=0.2)
+    # limbs + the great spiked club
+    box("armL", (0.10, 0.11, 0.42), (0.42, -0.04, 0.82), "gobdark", taper_top=0.8, rot=(0.15, 0, -0.3))
+    box("armR", (0.10, 0.11, 0.42), (-0.42, -0.04, 0.82), "gobdark", taper_top=0.8, rot=(0.15, 0, 0.3))
+    box("legL", (0.14, 0.16, 0.34), (0.18, 0, 0.17), "gobdark", taper_top=0.85)
+    box("legR", (0.14, 0.16, 0.34), (-0.18, 0, 0.17), "gobdark", taper_top=0.85)
+    box("clubgrip", (0.07, 0.07, 0.70), (-0.56, -0.16, 0.62), "wood", rot=(0.25, 0, 0.2))
+    rock("clubhead", 0.18, (-0.64, -0.28, 1.02), "wood", seed=315, jitter=0.2)
+    box("spike1", (0.04, 0.04, 0.12), (-0.64, -0.28, 1.20), "bone", taper_top=0.2)
+    box("spike2", (0.04, 0.04, 0.10), (-0.52, -0.34, 1.06), "bone", taper_top=0.2, rot=(0.5, 0, -0.6))
+
+
 MONSTERS = {
     # zone 2 — Ruined Courtyard (trash, trash, boss)
     "bone_rattler": (build_bone_rattler, 0.55, 2.1),
@@ -819,6 +888,10 @@ MONSTERS = {
     "crown_seraph": (build_crown_seraph, 0.65, 2.2),
     "chaos_spawn": (build_chaos_spawn, 0.50, 2.2),
     "world_ender": (build_world_ender, 1.30, 4.4),
+    # zone 1 — Verdant Woods
+    "slime": (build_slime, 0.30, 1.8),
+    "goblin": (build_goblin, 0.50, 2.0),
+    "goblin_king": (build_goblin_king, 0.90, 3.4),
 }
 
 # --- render / export -------------------------------------------------------------
