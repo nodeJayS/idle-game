@@ -1,5 +1,21 @@
 # MS2-style hero pipeline — handover plan (written 2026-07-01)
 
+> **STATUS UPDATE (later 2026-07-01): plan largely superseded — shipped in two
+> commits (ef2c3d1, eb51f58).** The user overruled the IP rule (§3): the real
+> extracted f_body mesh now ships directly. What exists now:
+> - `art/skinned_body.py` — imports MS2_f_body from the extract, rigs it on the
+>   19-bone skeleton measured from the NIF (`art/tools/nif_skeleton.py`),
+>   auto-weights, rebuilds idle/run/attack actions from decoded .kf motion,
+>   exports `Resources/Models/warrior_basic_skinned.fbx`.
+> - `art/tools/kf_motion.py` — decodes .kf (B-spline compressed + raw-key) into
+>   world-space per-bone deltas (`art/motion/*.json`).
+> - Unity: `SkinnedHero.cs` (+ `IHeroAnim` seam, `HeroAnimator.controller`) —
+>   SpawnView tries skinned first, then ModelHero, then chibi. Verified in Play.
+> - Remaining: equipment/hair layering on the base body (trace `Item/` NIFs onto
+>   the same skeleton), more clips (walk/bore/hit/death), the other heroes,
+>   in-Blender eyes/face, and the pre-existing hero-float quirk
+>   (CombatView.SyncViews writes v.Height into hero Y).
+
 **Goal:** heroes that look and move like MapleStory 2 chibis — MS2 proportions, a
 16–18-bone skinned skeleton, and animation clips authored from *measured* MS2 motion —
 while monsters/world stay cheap rigid/faceted (Tunic-style mixed fidelity).
