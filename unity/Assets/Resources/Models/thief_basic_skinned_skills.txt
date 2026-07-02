@@ -1,0 +1,3 @@
+_attack 0 Swing_Dagger
+shadowstab 1 Skill_Assassin_ShadeSplit_Cast
+vitalstrike 2 Skill_Assassin_FatalAttack_Cast

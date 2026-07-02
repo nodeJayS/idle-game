@@ -1,0 +1,21 @@
+{
+  "id": "thief_basic",
+  "gender": "female",
+  "items": [
+    "Item/0/02/00200009_f_apple_a.nif",
+    "Item/1/13/11300084_c_shadowspike_d.nif",
+    "Item/1/14/11400054_f_shadowspike.nif",
+    "Item/1/15/11500053_f_shadowspike.nif",
+    "Item/1/16/11600049_f_shadowspike.nif",
+    "Item/1/17/11700074_f_shadowspike.nif"
+  ],
+  "attach": [
+    { "nif": "Item/1/31/13100204_darksteeldagger.nif", "bone": "handR", "point": "Weapon_Hand_R_Point" },
+    { "nif": "Item/1/31/13100204_darksteeldagger.nif", "bone": "handL", "point": "Weapon_Hand_L_Point" }
+  ],
+  "attack_sound": "Swing_Dagger",
+  "skills": {
+    "shadowstab": { "slot": 1, "sound": "Skill_Assassin_ShadeSplit_Cast" },
+    "vitalstrike": { "slot": 2, "sound": "Skill_Assassin_FatalAttack_Cast" }
+  }
+}
