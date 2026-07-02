@@ -138,23 +138,27 @@ namespace IdleGame.GameCore.Tests
             Assert.True(DerivedStats.Dps(after) > DerivedStats.Dps(before)); // more Atk => more DPS
         }
 
-        // --- M10.4: full MapleStory-style slot set ---
+        // --- the 5-slot set (trimmed from 9, 2026-07-02) ---
 
         [Fact]
-        public void EveryEquipSlotHasAtLeastOneItemBase()
+        public void EveryActiveSlotHasAtLeastOneItemBaseAndLegacySlotsHaveNone()
         {
-            // loot picks bases uniformly, so each slot needs gear to ever drop/equip
-            foreach (EquipSlot slot in System.Enum.GetValues(typeof(EquipSlot)))
+            // loot picks bases uniformly, so each active slot needs gear to ever drop/equip
+            Assert.Equal(5, EquipSlots.Active.Length); // Weapon/Helm/Chest/Boots/Gloves
+            foreach (var slot in EquipSlots.Active)
                 Assert.Contains(Cfg.ItemBases.Values, b => b.Slot == slot);
+            // the retired members exist for save deserialization ONLY — nothing drops there
+            foreach (EquipSlot slot in System.Enum.GetValues(typeof(EquipSlot)))
+                if (System.Array.IndexOf(EquipSlots.Active, slot) < 0)
+                    Assert.DoesNotContain(Cfg.ItemBases.Values, b => b.Slot == slot);
         }
 
         [Theory]
-        [InlineData("wooden_shield", EquipSlot.Offhand)]
+        [InlineData("rusty_sword", EquipSlot.Weapon)]
+        [InlineData("leather_cap", EquipSlot.Helm)]
+        [InlineData("leather_vest", EquipSlot.Chest)]
         [InlineData("leather_gloves", EquipSlot.Gloves)]
-        [InlineData("linen_cape", EquipSlot.Cape)]
         [InlineData("leather_boots", EquipSlot.Boots)]
-        [InlineData("copper_ring", EquipSlot.Ring)]
-        [InlineData("bone_amulet", EquipSlot.Amulet)]
         public void NewSlotItemsEquipIntoTheirSlot(string baseId, EquipSlot slot)
         {
             var (save, heroId) = Setup(Mk("x", baseId, Rarity.Normal, 1));
@@ -167,16 +171,16 @@ namespace IdleGame.GameCore.Tests
         {
             var (save, heroId) = Setup(
                 Mk("a", "rusty_sword", Rarity.Normal, 1),
-                Mk("b", "wooden_shield", Rarity.Normal, 1),
+                Mk("b", "leather_vest", Rarity.Normal, 1),
                 Mk("c", "leather_cap", Rarity.Normal, 1),
-                Mk("d", "linen_cape", Rarity.Normal, 1),
-                Mk("e", "copper_ring", Rarity.Normal, 1));
+                Mk("d", "leather_gloves", Rarity.Normal, 1),
+                Mk("e", "leather_boots", Rarity.Normal, 1));
 
             var s = save;
             foreach (var id in new[] { "a", "b", "c", "d", "e" }) s = Inventory.EquipItem(s, heroId, id, Cfg);
 
             var eq = s.Heroes.Find(h => h.Id == heroId)!.Equipped;
-            Assert.Equal(5, eq.Count); // five different slots filled at once
+            Assert.Equal(5, eq.Count); // every slot filled at once
         }
 
         [Fact]

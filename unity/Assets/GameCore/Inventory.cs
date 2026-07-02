@@ -291,6 +291,69 @@ namespace IdleGame.GameCore
             return false;
         }
 
+        /// <summary>
+        /// Dissolve gear whose base no longer exists in the config (e.g. the 2026-07-02
+        /// slot trim deleted Ring/Amulet/Offhand/Cape and their bases) into a full scrap
+        /// refund, unequipping it from every hero. Run at load, after Migrate; idempotent
+        /// and a cheap no-op on clean saves. Pure.
+        /// </summary>
+        public static SaveState PruneUnknownGear(SaveState save, GameConfig cfg)
+        {
+            var dead = new HashSet<string>();
+            long refund = 0;
+            foreach (var it in save.Inventory)
+                if (!cfg.ItemBases.ContainsKey(it.BaseId))
+                {
+                    dead.Add(it.Id);
+                    refund += cfg.Balance.ScrapValue(it.Rarity, it.ItemLevel);
+                }
+            if (dead.Count == 0) return save;
+
+            var nextInventory = new List<Item>(save.Inventory.Count - dead.Count);
+            foreach (var it in save.Inventory)
+                if (!dead.Contains(it.Id)) nextInventory.Add(it);
+
+            var nextHeroes = new List<HeroInstance>(save.Heroes.Count);
+            foreach (var h in save.Heroes)
+            {
+                bool touched = false;
+                foreach (var id in h.Equipped.Values)
+                    if (dead.Contains(id)) { touched = true; break; }
+                if (!touched) { nextHeroes.Add(h); continue; }
+                var equipped = new Dictionary<EquipSlot, string>();
+                foreach (var kv in h.Equipped)
+                    if (!dead.Contains(kv.Value)) equipped[kv.Key] = kv.Value;
+                nextHeroes.Add(CloneHero(h, equipped));
+            }
+
+            var next = Build(save, nextInventory, AddScrap(save.Currencies, refund));
+            next.Heroes = nextHeroes;
+            return next;
+        }
+
+        /// <summary>
+        /// Order the bag for reading: rarity (best first), then item level (highest
+        /// first), then slot, then id (a stable tiebreak so repeated sorts are no-ops).
+        /// Persisted — the inventory list IS the display order. Pure.
+        /// </summary>
+        public static SaveState Sort(SaveState save, GameConfig cfg)
+        {
+            var next = new List<Item>(save.Inventory);
+            next.Sort((a, b) =>
+            {
+                int byRarity = b.Rarity.CompareTo(a.Rarity);
+                if (byRarity != 0) return byRarity;
+                int byLevel = b.ItemLevel.CompareTo(a.ItemLevel);
+                if (byLevel != 0) return byLevel;
+                var slotA = cfg.ItemBases.TryGetValue(a.BaseId, out var ba) ? ba.Slot : (EquipSlot)int.MaxValue;
+                var slotB = cfg.ItemBases.TryGetValue(b.BaseId, out var bb) ? bb.Slot : (EquipSlot)int.MaxValue;
+                int bySlot = slotA.CompareTo(slotB);
+                if (bySlot != 0) return bySlot;
+                return string.CompareOrdinal(a.Id, b.Id);
+            });
+            return WithInventory(save, next);
+        }
+
         private static HashSet<string> EquippedIds(SaveState save)
         {
             var set = new HashSet<string>();

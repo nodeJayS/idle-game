@@ -73,6 +73,9 @@ namespace IdleGame.Game
                         new Vector2(130, 30), new Vector2(-215, 274)).color = new Color(0.75f, 0.78f, 0.85f);
 
             BuildAutoEquip(panel.transform);
+            // persisted order: the inventory list IS the display order, so Sort survives reopen
+            UiKit.TextButton(panel.transform, "Sort", new Vector2(90, 46), new Vector2(105, 274),
+                             () => { _view.SortInventory(); Rebuild(); }, 15);
             UiKit.TextButton(panel.transform, "Close", new Vector2(110, 50), new Vector2(400, 274), Close, 22);
 
             // left: grid of item tiles (the shared bag)

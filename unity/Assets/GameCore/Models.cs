@@ -24,7 +24,25 @@ namespace IdleGame.GameCore
 
     // Appended (not reordered) so persisted slot values stay stable. MapleStory-style
     // gear sheet: armor pieces + a weapon/offhand pair, plus two accessory slots.
-    public enum EquipSlot { Weapon, Helm, Chest, Boots, Ring, Amulet, Offhand, Gloves, Cape }
+    // Trimmed to 5 ACTIVE slots (2026-07-02): fewer, chunkier gear decisions. The
+    // retired members (Ring/Amulet/Offhand/Cape) MUST remain declared — saves persist
+    // Equipped dictionary keys by enum NAME, so deleting them makes old saves fail to
+    // deserialize entirely (load falls back to New Game!). They are load-compat only:
+    // no item base targets them and Inventory.PruneUnknownGear dissolves their gear
+    // into scrap at load. Use EquipSlots.Active everywhere instead of Enum.GetValues.
+    public enum EquipSlot
+    {
+        Weapon = 0, Helm = 1, Chest = 2, Boots = 3, Gloves = 7,
+        Ring = 4, Amulet = 5, Offhand = 6, Cape = 8, // LEGACY — deserialization only
+    }
+
+    public static class EquipSlots
+    {
+        /// <summary>The real slot set. Iterate THIS, never Enum.GetValues (which
+        /// still contains the retired load-compat members).</summary>
+        public static readonly EquipSlot[] Active =
+            { EquipSlot.Weapon, EquipSlot.Helm, EquipSlot.Chest, EquipSlot.Boots, EquipSlot.Gloves };
+    }
 
     // Appended (not reordered) so persisted StatKey values stay stable across saves.
     // MoveSpd = movement (tiles/sec); AtkSpd = action rate (attacks, spells, heals — and

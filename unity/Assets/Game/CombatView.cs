@@ -383,6 +383,10 @@ namespace IdleGame.Game
             _chat?.AddFeed($"Reforged {nm} — its affixes re-rolled.", new Color(0.7f, 0.8f, 1f));
         }
 
+        /// <summary>InventoryView's "Sort" button: persist the bag in reading order
+        /// (rarity desc, then item level) via the pure reducer.</summary>
+        public void SortInventory() => _save = Inventory.Sort(_save, _cfg);
+
         /// <summary>Mass-salvage (InventoryView's "Salvage all" button): scrap every loose item at or
         /// below the cap via the pure reducer + report the haul in the feed. Equipped gear survives.</summary>
         public void SalvageAll(Rarity cap)

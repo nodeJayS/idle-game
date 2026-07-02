@@ -53,6 +53,7 @@ namespace IdleGame.Game
             var (save, report) = Idle.Claim(loaded, cfg, NowMs()); // real offline gap
             save = Modifiers.SyncToStage(save, cfg); // align owned modifiers to farm depth (covers pre-stage-model saves)
             save = Progression.SyncHeroUnlocks(save, cfg); // retro-grant unlocks ≤ HighestStage; drop shelved heroes
+            save = Inventory.PruneUnknownGear(save, cfg);  // dissolve gear from deleted slots/bases into scrap
             StartSession(cfg, save, report);
         }
 

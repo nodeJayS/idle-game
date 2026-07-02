@@ -241,9 +241,8 @@ namespace IdleGame.Game
         /// <summary>Short tile label for an equip slot (placeholder until real item icons).</summary>
         public static string SlotAbbrev(EquipSlot s) => s switch
         {
-            EquipSlot.Weapon => "Wpn", EquipSlot.Offhand => "Off", EquipSlot.Helm => "Helm",
-            EquipSlot.Chest => "Body", EquipSlot.Gloves => "Glov", EquipSlot.Boots => "Boot",
-            EquipSlot.Cape => "Cape", EquipSlot.Ring => "Ring", EquipSlot.Amulet => "Amul", _ => "?",
+            EquipSlot.Weapon => "Wpn", EquipSlot.Helm => "Helm", EquipSlot.Chest => "Body",
+            EquipSlot.Gloves => "Glov", EquipSlot.Boots => "Boot", _ => "?",
         };
 
         private static Sprite? _circle;

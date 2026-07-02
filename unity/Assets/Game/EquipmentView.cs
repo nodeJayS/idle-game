@@ -19,13 +19,13 @@ namespace IdleGame.Game
     /// </summary>
     public sealed class EquipmentView : MonoBehaviour
     {
-        // Doll laid out like the body (MapleStory/PoE-ish): helm top-centre, chest centre,
-        // boots at the feet, weapon/offhand at the hands, amulet/cape up top, gloves/ring low.
+        // Doll laid out like the body — 5 slots in a cross (2026-07-02 trim): helm on the
+        // head, chest at the core, weapon/gloves at the hands, boots at the feet.
         private static readonly (EquipSlot slot, int col, int row)[] Cells =
         {
-            (EquipSlot.Amulet, 0, 0), (EquipSlot.Helm,  1, 0), (EquipSlot.Cape,   2, 0),
-            (EquipSlot.Weapon, 0, 1), (EquipSlot.Chest, 1, 1), (EquipSlot.Offhand, 2, 1),
-            (EquipSlot.Gloves, 0, 2), (EquipSlot.Boots, 1, 2), (EquipSlot.Ring,   2, 2),
+                                      (EquipSlot.Helm,  1, 0),
+            (EquipSlot.Weapon, 0, 1), (EquipSlot.Chest, 1, 1), (EquipSlot.Gloves, 2, 1),
+                                      (EquipSlot.Boots, 1, 2),
         };
 
         private CombatView _view = null!;
