@@ -38,7 +38,7 @@ namespace IdleGame.Game
 
         private void Flush()
         {
-            if (_view == null) return;
+            if (_view == null || _view.CurrentSave == null) return;
             SaveStore.Save(Save.Touch(_view.CurrentSave, NowMs()));
         }
     }
