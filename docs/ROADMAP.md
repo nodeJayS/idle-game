@@ -74,9 +74,13 @@ tonight" decision engine. Slices:
    one equip slot ×3 in the drop base pick (`ZoneDef.FavoredSlot` →
    `LootContext`; boots DO drop best in the ruins). Every slot has a favoring
    zone in both halves of the ladder. UI surfacing (stage picker hint) pending.
-4. Monster art: 2–3 zone-specific scripted-Blender designs per zone (the
-   `art/<name>.py` low-poly pipeline), rolled out zone by zone. THE remaining
-   chunk (prop-shape swaps per zone ride along).
+4. Monster art (`art/monsters.py`, one FBX per monster →
+   `Resources/Models/monsters/`, `MonsterModel` + SpawnView wiring with
+   primitive fallback; rank/mod tells = gentle tint + faint glow, NOT the
+   primitives' flat repaint). ✅ Zone 2 shipped 2026-07-02 (Bone Rattler /
+   Stone Sentry / Grave Knight, verified in Play incl. boss + facing).
+   REMAINING: zones 3–10 rosters, zone 1 slime/goblin models, per-zone
+   prop-shape swaps.
 
 ### 5. Content & tuning pass (after 4)
 More stages/mods/monster kits; balance sim in console (backlogged); XP-curve

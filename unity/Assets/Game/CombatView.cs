@@ -899,6 +899,7 @@ namespace IdleGame.Game
             IHeroAnim? heroAnim = null;
 
             GameObject? model = null;
+            float modelHeight = ChibiHeight;
             if (isHero)
             {
                 var hero = _save.Heroes.Find(h => h.Id == e.RefId);
@@ -916,14 +917,45 @@ namespace IdleGame.Game
                     }
                 }
             }
+            else
+            {
+                // Scripted-Blender LOW-POLY monster model (faceted Tunic style — the MS2
+                // pipeline is heroes-only). Null → the painted primitive below.
+                var mm = MonsterModel.Build(e.RefId);
+                if (mm != null) { model = mm.Value.root; modelHeight = mm.Value.height; }
+            }
             if (model != null)
             {
                 go = model;
                 go.name = e.Id;
-                baseScale = Vector3.one;
+                float mScale = 1f;
+                if (!isHero && !e.IsBoss) // rank tell: chunkier body, like the primitives
+                    mScale = e.Rank == MonsterRank.Rare ? 1.7f : e.Rank == MonsterRank.Elite ? 1.35f : 1f;
+                baseScale = Vector3.one * mScale;
                 go.transform.localScale = baseScale;
-                height = ChibiHeight;
+                height = modelHeight * mScale;
                 go.transform.position = new Vector3((float)e.Pos.X, 0f, (float)e.Pos.Y); // feet at the ground
+
+                if (!isHero)
+                {
+                    // Rank + modifier tells on authored-palette models: a gentle lean +
+                    // faint glow (the primitives' flat repaint would erase the palette —
+                    // verified 2026-07-02: 0.4 lean washed everything to the mod colour).
+                    if (!e.IsBoss && e.Rank != MonsterRank.Normal)
+                    {
+                        var rc = e.Rank == MonsterRank.Rare ? new Color(0.96f, 0.76f, 0.22f)
+                                                            : new Color(0.35f, 0.70f, 0.96f);
+                        MonsterModel.Tint(go, rc, 0.25f, rc * (e.Rank == MonsterRank.Rare ? 0.55f : 0.35f));
+                    }
+                    if (e.ModTypes.Count > 0 && _cfg.Modifiers.TryGetValue(e.ModTypes[0], out var mmd))
+                    {
+                        // glow-only, and FAINT: albedo lean or strong emission yellows the
+                        // whole field when an income mod is active (every farm mob carries
+                        // it) and buries the authored palette (verified by screenshot)
+                        var mt = new Color((float)mmd.TintR, (float)mmd.TintG, (float)mmd.TintB);
+                        MonsterModel.Tint(go, mt, 0f, mt * 0.12f);
+                    }
+                }
             }
             else
             {
