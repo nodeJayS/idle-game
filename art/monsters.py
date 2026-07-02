@@ -75,11 +75,18 @@ COLORS = {
     "voidp":  (0.30, 0.26, 0.46),
     "voiddeep": (0.18, 0.15, 0.30),
     "runestone": (0.50, 0.46, 0.62),
+    # zone 10 — Crown of the World
+    "radiant": (1.00, 0.92, 0.60),
+    "seraph": (0.92, 0.88, 0.75),
+    "regal":  (0.36, 0.30, 0.46),
+    "chaos":  (0.46, 0.25, 0.50),
+    "chaosdark": (0.26, 0.14, 0.30),
 }
 # modest strengths: Unity's FBX import drops emission anyway (base colour carries
 # the look there); these only need to READ in the eyeball renders, not blow out.
 EMISSIVE = {"amber": 6.0, "ember": 8.0, "wisp": 0.8, "wispcore": 2.5, "sludge": 1.2,
-            "icecore": 2.0, "lava": 3.0, "violet": 2.5, "storm": 2.5, "astral": 2.5}
+            "icecore": 2.0, "lava": 3.0, "violet": 2.5, "storm": 2.5, "astral": 2.5,
+            "radiant": 2.5}
 
 _materials = {}
 
@@ -706,6 +713,75 @@ def build_riftwalker():
     box("armR", (0.06, 0.06, 0.40), (-0.42, -0.12, 1.24), "voidp", taper_top=0.4, rot=(0.3, 0, 0.25))
 
 
+# --- zone 10: Crown of the World --------------------------------------------------------
+
+def build_crown_seraph():
+    """A small radiant sentinel: pale hovering teardrop body, two swept wing
+    blades, a floating halo ring, radiant eyes. Bottom ~0.3u."""
+    rock("body", 0.24, (0, 0, 0.62), "seraph", scale=(1.0, 0.9, 1.5), seed=261, jitter=0.12,
+         subdiv=2, taper=0.5)
+    rock("eyeL", 0.045, (0.08, -0.20, 0.72), "radiant", seed=262, jitter=0.05)
+    rock("eyeR", 0.045, (-0.08, -0.20, 0.72), "radiant", seed=263, jitter=0.05)
+    # swept wing blades
+    prism("wingL", [(0, -0.08), (0.30, -0.02), (0.44, 0.22), (0.16, 0.10)], 0.035,
+          (0.14, 0.08, 0.70), "seraph", axis="y")
+    prism("wingR", [(0, -0.08), (-0.30, -0.02), (-0.44, 0.22), (-0.16, 0.10)], 0.035,
+          (-0.14, 0.08, 0.70), "seraph", axis="y")
+    # halo ring of radiant chips
+    import math as _m
+    for i in range(6):
+        a = i / 6.0 * 2.0 * _m.pi
+        box("halo%d" % i, (0.045, 0.045, 0.05), (_m.cos(a) * 0.16, _m.sin(a) * 0.16, 1.06), "radiant")
+
+
+def build_chaos_spawn():
+    """A writhing chaos mass: asymmetric iridescent lumps, MISMATCHED eyes
+    scattered across the front, one reaching tentacle. Deliberately lopsided.
+    ~0.9u tall."""
+    rock("mass1", 0.26, (0.04, 0, 0.36), "chaos", scale=(1.15, 1.0, 1.0), seed=271, jitter=0.30, subdiv=2)
+    rock("mass2", 0.18, (-0.14, 0.06, 0.62), "chaosdark", scale=(1.1, 0.95, 1.0), seed=272, jitter=0.32)
+    rock("mass3", 0.14, (0.16, -0.04, 0.70), "chaos", scale=(1.0, 1.0, 1.1), seed=273, jitter=0.34)
+    # mismatched eyes (sizes + colours differ — chaos)
+    rock("eye1", 0.06, (0.14, -0.20, 0.72), "radiant", seed=274, jitter=0.05)
+    rock("eye2", 0.045, (-0.10, -0.18, 0.64), "violet", seed=275, jitter=0.05)
+    rock("eye3", 0.035, (0.02, -0.24, 0.46), "radiant", seed=276, jitter=0.05)
+    rock("eye4", 0.028, (-0.16, -0.16, 0.40), "violet", seed=277, jitter=0.05)
+    # one reaching tentacle
+    rock("tentacle", 0.09, (0.28, -0.10, 0.78), "chaosdark", scale=(0.8, 0.8, 1.9), seed=278,
+         jitter=0.2, taper=0.5)
+    # stubby foot lumps
+    rock("footL", 0.10, (0.14, -0.02, 0.10), "chaosdark", scale=(1.1, 1.1, 0.7), seed=279, jitter=0.25)
+    rock("footR", 0.09, (-0.12, 0.04, 0.09), "chaosdark", scale=(1.1, 1.1, 0.7), seed=280, jitter=0.25)
+
+
+def build_world_ender():
+    """BOSS — the ladder's final colossus: a crowned regal titan, radiant chest
+    sigil, gold pauldrons and fists, a ring of crown spikes. ~2.6u tall."""
+    box("legL", (0.24, 0.28, 1.00), (0.27, 0, 0.50), "regal", taper_top=0.8)
+    box("legR", (0.24, 0.28, 1.00), (-0.27, 0, 0.50), "regal", taper_top=0.8)
+    box("torso", (0.50, 0.34, 0.80), (0, 0, 1.38), "regal", taper_top=1.4)
+    # radiant chest sigil burning through the plate (front -Y)
+    rock("sigil", 0.15, (0, -0.42, 1.48), "radiant", scale=(1.2, 0.5, 1.5), seed=281, jitter=0.12)
+    box("belt", (0.44, 0.32, 0.10), (0, 0, 1.00), "trim")
+    # gold pauldron chunks
+    rock("pauldL", 0.26, (0.46, 0, 1.76), "trim", scale=(1.0, 0.9, 0.8), seed=282, jitter=0.18)
+    rock("pauldR", 0.26, (-0.46, 0, 1.76), "trim", scale=(1.0, 0.9, 0.8), seed=283, jitter=0.18)
+    # head with radiant eyes and a five-spike crown
+    box("head", (0.34, 0.32, 0.42), (0, 0, 2.06), "regal", taper_top=0.8)
+    rock("eyeL", 0.055, (0.09, -0.17, 2.10), "radiant", seed=284, jitter=0.05)
+    rock("eyeR", 0.055, (-0.09, -0.17, 2.10), "radiant", seed=285, jitter=0.05)
+    import math as _m
+    for i in range(5):
+        a = (i / 5.0) * 2.0 * _m.pi
+        x, y = _m.cos(a) * 0.15, _m.sin(a) * 0.14
+        box("crown%d" % i, (0.06, 0.06, 0.22), (x, y, 2.34), "trim", taper_top=0.15)
+    # heavy arms with gold fists
+    box("armL", (0.16, 0.18, 0.74), (0.52, 0, 1.36), "regal", taper_top=0.85)
+    box("armR", (0.16, 0.18, 0.74), (-0.52, 0, 1.36), "regal", taper_top=0.85)
+    rock("fistL", 0.15, (0.53, -0.02, 0.90), "trim", seed=286, jitter=0.15)
+    rock("fistR", 0.15, (-0.53, -0.02, 0.90), "trim", seed=287, jitter=0.15)
+
+
 MONSTERS = {
     # zone 2 — Ruined Courtyard (trash, trash, boss)
     "bone_rattler": (build_bone_rattler, 0.55, 2.1),
@@ -739,6 +815,10 @@ MONSTERS = {
     "void_wisp": (build_void_wisp, 0.60, 2.0),
     "rune_construct": (build_rune_construct, 0.80, 2.6),
     "riftwalker": (build_riftwalker, 1.20, 4.0),
+    # zone 10 — Crown of the World
+    "crown_seraph": (build_crown_seraph, 0.65, 2.2),
+    "chaos_spawn": (build_chaos_spawn, 0.50, 2.2),
+    "world_ender": (build_world_ender, 1.30, 4.4),
 }
 
 # --- render / export -------------------------------------------------------------
