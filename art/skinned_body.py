@@ -34,15 +34,15 @@ GENDERS = {
 
 
 def clip_roles():
-    """Every decoded clip in the gender's motion dir becomes an FBX take,
+    """Every decoded clip in the hero's motion dir becomes an FBX take,
     named by its role (idle/run/attack/attack2/bore/hit/death/...)."""
     import glob
     return sorted(os.path.splitext(os.path.basename(p))[0]
                   for p in glob.glob(os.path.join(MOTION_DIR, "*.json")))
 
-# module state set by main() from --gender
+# module state set by main() from --hero / --gender
 NIF = GENDERS["female"]
-MOTION_DIR = os.path.join(ART_DIR, "motion", "female")
+MOTION_DIR = os.path.join(ART_DIR, "motion", "warrior_basic")
 J = {}
 
 
@@ -492,7 +492,9 @@ def main():
     else:
         gender = argv[argv.index("--gender") + 1] if "--gender" in argv else "female"
     NIF = GENDERS[gender]
-    MOTION_DIR = os.path.join(ART_DIR, "motion", gender)
+    # clips are PER HERO (three heroes = three clip sets); bare --gender test
+    # builds fall back to the gender dir (male smoke clips live there)
+    MOTION_DIR = os.path.join(ART_DIR, "motion", hero["id"] if hero else gender)
     J = joints_from_nif(NIF)
     print("gender=%s nif=%s hero=%s" % (gender, os.path.basename(NIF),
                                         hero["id"] if hero else "-"))
