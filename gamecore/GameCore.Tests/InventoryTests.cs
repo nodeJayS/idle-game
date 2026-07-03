@@ -249,7 +249,7 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
-        public void SalvageAllUpToScrapsLooseItemsAtOrBelowCap()
+        public void SalvageAllScrapsEveryLooseUnlockedItemRegardlessOfRarity()
         {
             var save = Save.NewGame(1, Cfg, 0);
             save = Inventory.AddItems(save, new[]
@@ -259,49 +259,173 @@ namespace IdleGame.GameCore.Tests
                 It("u", Rarity.Unique, "rusty_sword", 4),
                 It("L", Rarity.Legendary, "rusty_sword", 5),
             });
-            long expect = Cfg.Balance.ScrapValue(Rarity.Normal, 2) + Cfg.Balance.ScrapValue(Rarity.Rare, 3);
+            long expect = Cfg.Balance.ScrapValue(Rarity.Normal, 2) + Cfg.Balance.ScrapValue(Rarity.Rare, 3)
+                        + Cfg.Balance.ScrapValue(Rarity.Unique, 4) + Cfg.Balance.ScrapValue(Rarity.Legendary, 5);
 
-            var (next, count, scrap) = Inventory.SalvageAllUpTo(save, Rarity.Rare, Cfg);
+            var (next, count, scrap) = Inventory.SalvageAll(save, Cfg);
 
-            Assert.Equal(2, count);
+            Assert.Equal(4, count); // uncapped: even the Legendary goes
             Assert.Equal(expect, scrap);
             Assert.Equal(expect, next.Currencies["scrap"]);
-            Assert.DoesNotContain(next.Inventory, i => i.Id == "n");
-            Assert.DoesNotContain(next.Inventory, i => i.Id == "r");
-            Assert.Contains(next.Inventory, i => i.Id == "u"); // above the cap, kept
-            Assert.Contains(next.Inventory, i => i.Id == "L");
+            Assert.Empty(next.Inventory);
             Assert.Equal(4, save.Inventory.Count); // input untouched (pure)
         }
 
         [Fact]
-        public void SalvageAllUpToNeverTouchesEquippedGear()
+        public void SalvageAllNeverTouchesEquippedGear()
         {
             var save = Save.NewGame(1, Cfg, 0);
             save = Inventory.AddItems(save, new[]
             {
                 It("worn", Rarity.Normal, "rusty_sword"),
-                It("loose", Rarity.Normal, "leather_cap"),
+                It("loose", Rarity.Legendary, "leather_cap"),
             });
             save = Inventory.EquipItem(save, "h1", "worn", Cfg);
 
-            var (next, count, _) = Inventory.SalvageAllUpTo(save, Rarity.Mythic, Cfg);
+            var (next, count, _) = Inventory.SalvageAll(save, Cfg);
 
             Assert.Equal(1, count);
-            Assert.Contains(next.Inventory, i => i.Id == "worn");      // equipped survives even at max cap
+            Assert.Contains(next.Inventory, i => i.Id == "worn");      // equipped survives
             Assert.DoesNotContain(next.Inventory, i => i.Id == "loose");
         }
 
         [Fact]
-        public void SalvageAllUpToWithNoMatchesIsANoOp()
+        public void SalvageAllSkipsLockedItemButScrapsUnlockedTwin()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            save = Inventory.AddItems(save, new[]
+            {
+                It("keep", Rarity.Legendary, "rusty_sword", 5),
+                It("dies", Rarity.Legendary, "rusty_sword", 5),
+            });
+            save = Inventory.ToggleLock(save, "keep"); // lock one of the identical twins
+            long expect = Cfg.Balance.ScrapValue(Rarity.Legendary, 5); // only the unlocked one
+
+            var (next, count, scrap) = Inventory.SalvageAll(save, Cfg);
+
+            Assert.Equal(1, count);
+            Assert.Equal(expect, scrap);
+            Assert.Contains(next.Inventory, i => i.Id == "keep");      // locked survives
+            Assert.DoesNotContain(next.Inventory, i => i.Id == "dies"); // unlocked twin dies
+        }
+
+        [Fact]
+        public void SalvageAllWithNoMatchesIsANoOp()
         {
             var save = Save.NewGame(1, Cfg, 0);
             save = Inventory.AddItems(save, new[] { It("u", Rarity.Unique) });
+            save = Inventory.ToggleLock(save, "u"); // only item is locked => nothing to salvage
 
-            var (next, count, scrap) = Inventory.SalvageAllUpTo(save, Rarity.Rare, Cfg);
+            var (next, count, scrap) = Inventory.SalvageAll(save, Cfg);
 
             Assert.Equal(0, count);
             Assert.Equal(0, scrap);
             Assert.Same(save, next); // unchanged input handed back
+        }
+
+        // --- lock (per-item salvage protection) ---
+
+        [Fact]
+        public void ToggleLockFlipsAndIsPure()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            save = Inventory.AddItems(save, new[] { It("a") });
+
+            var locked = Inventory.ToggleLock(save, "a");
+            Assert.True(locked.Inventory.Find(i => i.Id == "a")!.Locked);
+            Assert.False(save.Inventory.Find(i => i.Id == "a")!.Locked); // input untouched
+            Assert.NotSame(save.Inventory, locked.Inventory);
+
+            var unlocked = Inventory.ToggleLock(locked, "a"); // round-trip back to false
+            Assert.False(unlocked.Inventory.Find(i => i.Id == "a")!.Locked);
+        }
+
+        [Fact]
+        public void ToggleLockUnknownIdIsNoOp()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            save = Inventory.AddItems(save, new[] { It("a") });
+            var next = Inventory.ToggleLock(save, "nope");
+            Assert.Same(save, next);
+        }
+
+        [Fact]
+        public void ToggleLockWorksOnEquippedGearAndSurvivesUnequip()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            save = Inventory.AddItems(save, new[] { It("w", Rarity.Rare, "rusty_sword") });
+            save = Inventory.EquipItem(save, "h1", "w", Cfg);
+
+            save = Inventory.ToggleLock(save, "w"); // lock it while equipped
+            Assert.True(save.Inventory.Find(i => i.Id == "w")!.Locked);
+
+            save = Inventory.UnequipItem(save, "h1", EquipSlot.Weapon); // back to the bag
+            Assert.True(save.Inventory.Find(i => i.Id == "w")!.Locked); // still locked
+        }
+
+        [Fact]
+        public void ToggleLockPersistsThroughSaveLoadJson()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            save = Inventory.AddItems(save, new[] { It("a") });
+            save = Inventory.ToggleLock(save, "a");
+
+            var json = Persistence.Serialize(save);
+            var round = Persistence.Deserialize(json);
+
+            Assert.True(round.Inventory.Find(i => i.Id == "a")!.Locked);
+        }
+
+        [Fact]
+        public void OldSaveWithoutLockedFieldDeserializesUnlocked()
+        {
+            // An item JSON that predates the Locked field must default to false (no SaveVersion bump).
+            var save = Save.NewGame(1, Cfg, 0);
+            save = Inventory.AddItems(save, new[] { It("a") });
+            var json = Persistence.Serialize(save).Replace(",\"Locked\":false", ""); // strip the new field
+            var round = Persistence.Deserialize(json);
+            Assert.False(round.Inventory.Find(i => i.Id == "a")!.Locked);
+        }
+
+        [Fact]
+        public void SalvageItemRefusesLockedItem()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            save = Inventory.AddItems(save, new[] { It("a") });
+            save = Inventory.ToggleLock(save, "a");
+            Assert.Throws<System.InvalidOperationException>(() => Inventory.SalvageItem(save, "a", Cfg));
+        }
+
+        [Fact]
+        public void AutoSalvageThresholdSkipsLockedDrop()
+        {
+            // The auto-salvage-on-drop path (AddLoot) must not scrap a locked item, even below threshold.
+            var save = Save.NewGame(1, Cfg, 0);
+            var locked = It("drop", Rarity.Normal, "rusty_sword", 1);
+            locked.Locked = true;
+            var loot = Inventory.AddLoot(save, new[] { locked }, Cfg, Rarity.Rare); // threshold would scrap a Normal
+
+            Assert.Empty(loot.Salvaged);                          // locked => not auto-salvaged
+            Assert.Contains(loot.Stored, i => i.Id == "drop");    // stored in the bag instead
+            Assert.Contains(loot.Save.Inventory, i => i.Id == "drop");
+        }
+
+        [Fact]
+        public void DisplacedLockedItemReturnsToBagStillLocked()
+        {
+            // Auto-equip displaces the item in the target slot back to the pool; a locked one stays locked.
+            var save = Save.NewGame(1, Cfg, 0);
+            save = Inventory.AddItems(save, new[]
+            {
+                It("old", Rarity.Rare, "rusty_sword"),
+                It("new", Rarity.Rare, "rusty_sword"),
+            });
+            save = Inventory.EquipItem(save, "h1", "old", Cfg);
+            save = Inventory.ToggleLock(save, "old"); // lock the equipped item
+
+            save = Inventory.EquipItem(save, "h1", "new", Cfg); // displaces "old" back to the pool
+
+            Assert.True(save.Inventory.Find(i => i.Id == "old")!.Locked); // still locked in the bag
         }
     }
 }

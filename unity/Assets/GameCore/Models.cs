@@ -100,6 +100,11 @@ namespace IdleGame.GameCore
         // Balance.EnhanceBasePctPerLevel) — affix rolls stay as rolled (rolls are
         // Reforge's domain, the base is Enhance's). Absent in old saves => 0.
         public int Enhance;
+        // Player lock: a locked item can NEVER be salvaged — single-item, mass "Salvage all",
+        // and the auto-salvage threshold path all skip it. Toggle via Inventory.ToggleLock;
+        // works on bag AND equipped gear (an equipped item stays locked when unequipped).
+        // Absent in old saves => false (System.Text.Json defaults it), so no SaveVersion bump.
+        public bool Locked;
     }
 
     public sealed class ProgressState

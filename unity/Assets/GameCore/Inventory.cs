@@ -68,7 +68,7 @@ namespace IdleGame.GameCore
 
             foreach (var item in items)
             {
-                if (autoSalvageMax != null && item.Rarity <= autoSalvageMax.Value)
+                if (autoSalvageMax != null && item.Rarity <= autoSalvageMax.Value && !item.Locked)
                 {
                     scrap += cfg.Balance.ScrapValue(item.Rarity, item.ItemLevel);
                     result.Salvaged.Add(item);
@@ -133,7 +133,7 @@ namespace IdleGame.GameCore
                 newAffixes.Add(new Affix { Stat = a.Stat, Value = Math.Min(max, Math.Max(min, rolled)) });
             }
 
-            var newItem = new Item { Id = item.Id, BaseId = item.BaseId, Rarity = item.Rarity, ItemLevel = item.ItemLevel, Affixes = newAffixes, Enhance = item.Enhance };
+            var newItem = new Item { Id = item.Id, BaseId = item.BaseId, Rarity = item.Rarity, ItemLevel = item.ItemLevel, Affixes = newAffixes, Enhance = item.Enhance, Locked = item.Locked };
             var nextInventory = new List<Item>(save.Inventory);
             nextInventory[nextInventory.FindIndex(i => i.Id == itemId)] = newItem;
 
@@ -202,7 +202,7 @@ namespace IdleGame.GameCore
             var newItem = new Item
             {
                 Id = item.Id, BaseId = item.BaseId, Rarity = item.Rarity,
-                ItemLevel = item.ItemLevel, Affixes = item.Affixes, Enhance = level,
+                ItemLevel = item.ItemLevel, Affixes = item.Affixes, Enhance = level, Locked = item.Locked,
             };
             var nextInventory = new List<Item>(save.Inventory);
             nextInventory[nextInventory.FindIndex(i => i.Id == itemId)] = newItem;
@@ -225,6 +225,8 @@ namespace IdleGame.GameCore
                 ?? throw new InvalidOperationException($"SalvageItem: item \"{itemId}\" not in inventory");
             if (IsEquippedAnywhere(save, itemId))
                 throw new InvalidOperationException($"SalvageItem: item \"{itemId}\" is equipped");
+            if (item.Locked)
+                throw new InvalidOperationException($"SalvageItem: item \"{itemId}\" is locked");
 
             var nextInventory = new List<Item>(save.Inventory);
             nextInventory.RemoveAll(i => i.Id == itemId);
@@ -233,13 +235,14 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>
-        /// Mass-salvage: convert EVERY loose (unequipped) item with Rarity &lt;= <paramref name="cap"/>
-        /// to scrap in one action. Equipped gear is never touched (the same guard as
-        /// <see cref="SalvageItem"/>, applied per item instead of thrown). Returns the new save
-        /// plus how many items were scrapped and the scrap gained; a no-match call returns the
-        /// input save unchanged. Pure.
+        /// Mass-salvage: convert EVERY loose item that is (1) not equipped and (2) not locked to scrap
+        /// in one action — regardless of rarity (the "Salvage all" verb; the client arms a confirm step
+        /// because this now destroys rares/uniques/legendaries too). Equipped gear and locked items are
+        /// never touched (per-item guards, same as <see cref="SalvageItem"/>). Returns the new save plus
+        /// how many items were scrapped and the scrap gained; a no-match call returns the input save
+        /// unchanged. Pure.
         /// </summary>
-        public static (SaveState Save, int Count, long Scrap) SalvageAllUpTo(SaveState save, Rarity cap, GameConfig cfg)
+        public static (SaveState Save, int Count, long Scrap) SalvageAll(SaveState save, GameConfig cfg)
         {
             var equipped = EquippedIds(save);
             var nextInventory = new List<Item>(save.Inventory.Count);
@@ -247,7 +250,7 @@ namespace IdleGame.GameCore
             long scrap = 0;
             foreach (var it in save.Inventory)
             {
-                if (it.Rarity <= cap && !equipped.Contains(it.Id))
+                if (!it.Locked && !equipped.Contains(it.Id))
                 {
                     count++;
                     scrap += cfg.Balance.ScrapValue(it.Rarity, it.ItemLevel);
@@ -259,6 +262,26 @@ namespace IdleGame.GameCore
             }
             if (count == 0) return (save, 0, 0);
             return (Build(save, nextInventory, AddScrap(save.Currencies, scrap)), count, scrap);
+        }
+
+        /// <summary>
+        /// Toggle an item's salvage <see cref="Item.Locked"/> flag (a locked item can never be salvaged).
+        /// Works on BAG and EQUIPPED items alike — locking worn gear is meaningful (it stays locked when
+        /// unequipped). No-op (returns the input save) on an unknown id. Pure: returns a new save with a
+        /// fresh item copy in place. </summary>
+        public static SaveState ToggleLock(SaveState save, string itemId)
+        {
+            int idx = save.Inventory.FindIndex(i => i.Id == itemId);
+            if (idx < 0) return save;
+            var item = save.Inventory[idx];
+            var flipped = new Item
+            {
+                Id = item.Id, BaseId = item.BaseId, Rarity = item.Rarity, ItemLevel = item.ItemLevel,
+                Affixes = item.Affixes, Enhance = item.Enhance, Locked = !item.Locked,
+            };
+            var nextInventory = new List<Item>(save.Inventory);
+            nextInventory[idx] = flipped;
+            return WithInventory(save, nextInventory);
         }
 
         /// <summary>

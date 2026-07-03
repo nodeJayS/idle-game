@@ -23,6 +23,8 @@ namespace IdleGame.Game
         private RectTransform? _detail;    // fixed detail pane, updated on hover/click
         private string? _confirmSalvageId; // two-step confirm guard for Unique+ salvage
         private bool _autoSalvageOpen;     // auto-salvage dropdown expanded? (kept across Rebuild)
+        private bool _confirmMassSalvage;  // "Salvage all" armed? (first click arms, second executes)
+        private Coroutine? _massSalvageTimer; // disarms the confirm after a few seconds
 
         /// <summary>True while the inventory panel is open (the HUD reads this).</summary>
         public bool IsOpen => _panel != null;
@@ -37,20 +39,26 @@ namespace IdleGame.Game
         public void Toggle()
         {
             if (_panel != null) { Close(); return; }
-            _autoSalvageOpen = false; // fresh open starts collapsed
+            _autoSalvageOpen = false;    // fresh open starts collapsed
+            _confirmMassSalvage = false; // fresh open starts disarmed
             Open();
         }
 
         private void Close()
         {
+            if (_massSalvageTimer != null) { StopCoroutine(_massSalvageTimer); _massSalvageTimer = null; }
             if (_panel != null) Destroy(_panel);
             _panel = null;
             _detail = null;
             _confirmSalvageId = null;
         }
 
-        /// <summary>Reopen on the current save (after a salvage mutates it).</summary>
-        private void Rebuild() { Close(); Open(); }
+        /// <summary>Reopen on the current save (after a salvage mutates it). Disarms the mass-salvage
+        /// confirm — any bag mutation (single salvage, lock, sort) cancels a pending "Salvage all".</summary>
+        private void Rebuild() { _confirmMassSalvage = false; RebuildKeepConfirm(); }
+
+        /// <summary>Redraw without disarming the mass-salvage confirm (used by the arm click itself).</summary>
+        private void RebuildKeepConfirm() { Close(); Open(); }
 
         private void Open()
         {
@@ -95,6 +103,9 @@ namespace IdleGame.Game
                 }
                 // Imprinted gear (mechanical-mod stamp) gets a violet ✦ — exclusive, farm-only loot.
                 if (Loot.IsImprinted(it, _cfg)) UpgradeTell.ImprintBadgeTile(tile);
+                // Locked items get a padlock in the bottom-left corner (never salvaged). Bottom-left so it
+                // never collides with the top-right ▲ upgrade badge or the top-left ✦ imprint badge.
+                if (it.Locked) LockBadgeTile(tile);
                 var btn = tile.AddComponent<Button>();
                 btn.onClick.AddListener(() => ShowDetail(save, it));
                 UiKit.Hover(tile, () => ShowDetail(save, it));
@@ -146,7 +157,9 @@ namespace IdleGame.Game
             }
 
             float y = 210f;
-            var nameLbl = UiKit.Label(_detail, StatDisplay.ItemName(item, _cfg), 18, TextAnchor.MiddleLeft,
+            // Locked items lead with a gold [L] tag (mirrors the tile badge) so the protection reads at a glance.
+            string nameText = (item.Locked ? "[L] " : "") + StatDisplay.ItemName(item, _cfg);
+            var nameLbl = UiKit.Label(_detail, nameText, 18, TextAnchor.MiddleLeft,
                         new Vector2(280, 26), new Vector2(0, y));
             nameLbl.color = Palette.Rarity(item.Rarity);
             // Titled imprints ("Volatile … of Leeching") can run long — auto-shrink to fit one line.
@@ -213,6 +226,10 @@ namespace IdleGame.Game
                 if (rfImg != null) rfImg.color = canRf ? new Color(0.34f, 0.30f, 0.46f) : new Color(0.24f, 0.24f, 0.28f);
             }
 
+            // Lock toggle (works on BAG and EQUIPPED gear alike): a locked item can never be salvaged.
+            // Sits at the bottom of the pane above the salvage row; equipped gear gets it too.
+            BuildLockToggle(save, item);
+
             var owner = EquippedByWhom(save, item.Id);
             if (owner != null)
             {
@@ -233,6 +250,19 @@ namespace IdleGame.Game
                 UiKit.Label(_detail, "No upgrade for any hero", 13, TextAnchor.MiddleLeft,
                             new Vector2(270, 22), new Vector2(0, y)).color = UpgradeTell.Side;
             y -= 26f;
+
+            // Locked loose items can't be salvaged — show a disabled placeholder instead of the salvage button.
+            if (item.Locked)
+            {
+                var protd = UiKit.TextButton(_detail, "Locked — unlock to salvage", new Vector2(260, 46),
+                                             new Vector2(0, -196), () => { }, 15);
+                protd.interactable = false;
+                var pimg = protd.GetComponent<Image>();
+                if (pimg != null) pimg.color = new Color(0.24f, 0.24f, 0.28f);
+                var plbl = protd.GetComponentInChildren<Text>();
+                if (plbl != null) plbl.color = LockColor;
+                return;
+            }
 
             // Loose item -> manual salvage. Unique and above take a second click to confirm.
             long worth = _cfg.Balance.ScrapValue(item.Rarity, item.ItemLevel);
@@ -260,6 +290,25 @@ namespace IdleGame.Game
             _confirmSalvageId = null;
             _view.ReplaceSave(Inventory.SalvageItem(save, item.Id, _cfg));
             Rebuild();
+        }
+
+        /// <summary>The per-item padlock button (top-right of the detail pane): flips Item.Locked via the
+        /// pure reducer. Works on bag AND equipped gear. Toggling refreshes the whole panel so the tile
+        /// badge + salvage button track the new state. </summary>
+        private void BuildLockToggle(SaveState save, Item item)
+        {
+            if (_detail == null) return;
+            var btn = UiKit.TextButton(_detail, item.Locked ? "Locked" : "Lock", new Vector2(96, 30),
+                new Vector2(92, 210), () =>
+                {
+                    _view.ToggleItemLock(item.Id);
+                    Rebuild(); // re-open the panel so tiles/badges refresh, then re-show this item
+                    ShowDetail(_view.CurrentSave, _view.CurrentSave.Inventory.Find(i => i.Id == item.Id));
+                }, 14);
+            var img = btn.GetComponent<Image>();
+            if (img != null) img.color = item.Locked ? new Color(0.46f, 0.38f, 0.16f) : new Color(0.26f, 0.26f, 0.30f);
+            var lbl = btn.GetComponentInChildren<Text>();
+            if (lbl != null) lbl.color = item.Locked ? LockColor : new Color(0.85f, 0.86f, 0.9f);
         }
 
         // ---- auto-salvage threshold control ----
@@ -326,21 +375,61 @@ namespace IdleGame.Game
 
         // ---- mass salvage ----
 
-        /// <summary>One-click bag cleanup: scrap every loose item at or below the auto-salvage
-        /// threshold (the panel's rarity selector doubles as the cap). Disabled while the
-        /// threshold is Off so the cap is always an explicit player choice.</summary>
+        private const float MassSalvageConfirmSeconds = 3f;
+
+        /// <summary>How many loose, unlocked items "Salvage all" would scrap (matches the reducer's filter).</summary>
+        private int SalvageableCount(SaveState save)
+        {
+            int n = 0;
+            foreach (var it in save.Inventory)
+                if (!it.Locked && EquippedByWhom(save, it.Id) == null) n++;
+            return n;
+        }
+
+        /// <summary>One-click bag cleanup: scrap EVERY loose, unlocked item regardless of rarity. Because
+        /// this now destroys rares/uniques/legendaries, the first click ARMS a confirm ("Confirm salvage
+        /// all (N)") for a few seconds; the second click executes. Locked items are always spared.</summary>
         private void BuildMassSalvage(Transform parent)
         {
-            var cap = Settings.AutoSalvageMax;
-            bool enabled = cap != null;
-            var btn = UiKit.TextButton(parent, enabled ? $"Salvage all ≤ {StatDisplay.RarityName(cap!.Value)}" : "Salvage all: set threshold",
-                new Vector2(250, 40), new Vector2(320, -300),
-                enabled ? () => { _view.SalvageAll(cap.Value); Rebuild(); } : (System.Action)(() => { }), 15);
+            var save = _view.CurrentSave;
+            int n = SalvageableCount(save);
+            bool enabled = n > 0;
+
+            string label = !enabled ? "Salvage all"
+                         : _confirmMassSalvage ? $"Confirm salvage all ({n})"
+                         : "Salvage all";
+            var btn = UiKit.TextButton(parent, label, new Vector2(250, 40), new Vector2(320, -300),
+                enabled ? OnMassSalvageClick : (System.Action)(() => { }), 15);
             btn.interactable = enabled;
             var img = btn.GetComponent<Image>();
-            if (img != null) img.color = enabled ? new Color(0.42f, 0.26f, 0.26f) : new Color(0.24f, 0.24f, 0.28f);
-            var lbl = btn.GetComponentInChildren<Text>();
-            if (lbl != null && enabled) lbl.color = AutoSalvageColor(cap);
+            if (img != null)
+                img.color = !enabled ? new Color(0.24f, 0.24f, 0.28f)
+                          : _confirmMassSalvage ? new Color(0.62f, 0.22f, 0.22f) // armed = hot red
+                          : new Color(0.42f, 0.26f, 0.26f);
+        }
+
+        private void OnMassSalvageClick()
+        {
+            if (!_confirmMassSalvage)
+            {
+                // First click arms; auto-disarm after a few seconds so a stray click can't destroy the bag.
+                _confirmMassSalvage = true;
+                if (_massSalvageTimer != null) StopCoroutine(_massSalvageTimer);
+                if (gameObject.activeInHierarchy) _massSalvageTimer = StartCoroutine(DisarmMassSalvageAfter());
+                RebuildKeepConfirm();
+                return;
+            }
+            // Second click within the window: execute.
+            _confirmMassSalvage = false;
+            _view.SalvageAll();
+            Rebuild();
+        }
+
+        private System.Collections.IEnumerator DisarmMassSalvageAfter()
+        {
+            yield return new WaitForSecondsRealtime(MassSalvageConfirmSeconds);
+            _massSalvageTimer = null;
+            if (_panel != null && _confirmMassSalvage) { _confirmMassSalvage = false; RebuildKeepConfirm(); }
         }
 
         // ---- auto-equip-if-better toggle ----
@@ -358,6 +447,21 @@ namespace IdleGame.Game
         }
 
         // ---- helpers ----
+
+        private static readonly Color LockColor = new Color(1f, 0.82f, 0.35f); // warm gold padlock
+
+        /// <summary>Pin a small "[L]" lock tag to a bag tile's bottom-left corner when the item is locked
+        /// (protected from all salvage). Bottom-left keeps it clear of the ▲ / ✦ corner badges. Uses the
+        /// [L] tag rather than an emoji so it renders in Unity's default font.</summary>
+        private static void LockBadgeTile(GameObject tile)
+        {
+            var lbl = UiKit.Label(tile.transform, "[L]", 12, TextAnchor.LowerLeft, new Vector2(24, 14), Vector2.zero);
+            var rt = (RectTransform)lbl.transform;
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0f, 0f);
+            rt.anchoredPosition = new Vector2(2f, 2f);
+            lbl.color = LockColor;
+            lbl.raycastTarget = false;
+        }
 
         private EquipSlot SlotOf(Item item) => _cfg.ItemBases[item.BaseId].Slot;
 

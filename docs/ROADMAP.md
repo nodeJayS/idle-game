@@ -47,10 +47,12 @@ Slices, in order (GameCore-first where the sim is touched):
    damage), restricted to genuine Verdict.Upgrade holders so the ▲ badge and
    auto-equip read the same call and can't diverge. PowerScore blended value
    unchanged (badges identical).
-4. **"Salvage all" + gear lock** (one slice — lock must ship with the wider
-   salvage): rename/re-scope "Salvage all ≤ Rare" to salvage everything
-   unequipped and unlocked; add a per-item lock toggle that salvage
-   (manual, mass, and auto) always respects.
+4. ✅ SHIPPED 2026-07-03 — **"Salvage all" + gear lock**: `Item.Locked` +
+   pure `Inventory.ToggleLock` (bag AND equipped; survives displacement,
+   save/load, Reforge/Enhance clones); `SalvageAll` uncapped over loose
+   unlocked items with a two-click arm/confirm ("Confirm salvage all (N)",
+   ~3s disarm); every salvage path (single/mass/auto-threshold) refuses
+   locked. [L] tile badges + Locked toggle in the bag UI.
 5. **Sound settings** — master/SFX volume sliders in Settings, persisted.
 6. **Bigger characters** — ~1.5× larger on screen (ortho framing factor).
 

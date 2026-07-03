@@ -437,21 +437,25 @@ namespace IdleGame.Game
                 _chat?.AddFeed($"⚒ Enhance failed (+{r.Level} kept)", new Color(0.85f, 0.75f, 0.5f));
         }
 
-        /// <summary>Mass-salvage (InventoryView's "Salvage all" button): scrap every loose item at or
-        /// below the cap via the pure reducer + report the haul in the feed. Equipped gear survives.</summary>
-        public void SalvageAll(Rarity cap)
+        /// <summary>Mass-salvage (InventoryView's "Salvage all" button): scrap EVERY loose, unlocked item
+        /// regardless of rarity via the pure reducer + report the haul in the feed. Equipped gear and
+        /// locked items survive. The client arms a two-click confirm because this now destroys rares+.</summary>
+        public void SalvageAll()
         {
-            var (next, count, scrap) = Inventory.SalvageAllUpTo(_save, cap, _cfg);
+            var (next, count, scrap) = Inventory.SalvageAll(_save, _cfg);
             if (count == 0)
             {
-                _chat?.AddFeed($"No loose {StatDisplay.RarityName(cap)}-and-below items to salvage.",
-                               new Color(0.72f, 0.76f, 0.82f));
+                _chat?.AddFeed("No loose, unlocked items to salvage.", new Color(0.72f, 0.76f, 0.82f));
                 return;
             }
             _save = next;
-            _chat?.AddFeed($"Salvaged {count} items ≤ {StatDisplay.RarityName(cap)}  (+{Num.CompactFloor(scrap)} scrap)",
+            _chat?.AddFeed($"Salvaged {count} items  (+{Num.CompactFloor(scrap)} scrap)",
                            new Color(0.7f, 0.8f, 1f));
         }
+
+        /// <summary>InventoryView's per-item Lock toggle: flip whether an item can ever be salvaged,
+        /// via the pure reducer. Works on bag AND equipped gear.</summary>
+        public void ToggleItemLock(string itemId) => _save = Inventory.ToggleLock(_save, itemId);
 
         private bool AnyPanelOpen => _launchModals > 0
                                   || (_inventory != null && _inventory.IsOpen)

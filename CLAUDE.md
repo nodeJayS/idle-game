@@ -47,7 +47,7 @@ docs/game-design.md      the durable what/why
   Play-mode can't run headlessly — visuals are verified by screenshot (Unity MCP), UI is
   hand-placed uGUI/IMGUI coords.
 
-## Current systems (425 tests passing)
+## Current systems (434 tests passing)
 
 Phase A (core loop) and most of Phase B (depth) are done. What exists today:
 
@@ -63,8 +63,10 @@ Phase A (core loop) and most of Phase B (depth) are done. What exists today:
   (LOW-POLY faceted art only — MS2 pipeline is heroes-only.)
 - **Loot & power (Lever 2)** — 5 rarities (**Normal/Rare/Unique/Legendary/Mythic**=red; Unique+
   boss-only, Mythic the extreme chase) + random affixes, 9 equip slots from one shared bag,
-  inventory cap + auto-salvage→`scrap` (threshold up to Unique) + one-click mass salvage
-  (`Inventory.SalvageAllUpTo`). Every drop reads as one `Upgrades.PowerScore` verdict →
+  inventory cap + auto-salvage→`scrap` (threshold up to Unique) + armed/confirm mass
+  salvage (`Inventory.SalvageAll`, uncapped) + per-item **lock** (`Item.Locked`,
+  `Inventory.ToggleLock` — every salvage path refuses locked gear). Every drop reads
+  as one `Upgrades.PowerScore` verdict →
   ▲ badges, loot-feed tags, opt-in auto-equip.
 - **Heroes & build depth (Lever 3)** — **archetype → class backbone**: three families
   (`ArchetypeDef` Warrior/Rogue/Magician = stat template + shared passive pool) and a
