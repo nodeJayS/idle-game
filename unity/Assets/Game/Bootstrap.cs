@@ -146,12 +146,16 @@ namespace IdleGame.Game
                 cam = camGo.AddComponent<Camera>();
             }
             cam.transform.position = new Vector3(18f, 30f, -22f);
-            cam.transform.rotation = Quaternion.Euler(42f, -45f, 0f);
-            // Diorama compression (Tunic-ish): a narrow FOV flattens perspective so the
-            // low-poly world reads like a hand-built model. The CameraRig pushes the camera
-            // ~2x further back to keep the same framing — see its Min/MaxDistance. Lower this
-            // for more compression; raise toward 60 for the wide PoE/Diablo overview.
+            cam.transform.rotation = Quaternion.Euler(45f, -45f, 0f); // 45° iso pitch (42° read too top-down under ortho)
+            // Diorama compression (Tunic re-pass): go fully ORTHOGRAPHIC so the low-poly world
+            // reads like a hand-built model with zero perspective convergence — parallel edges
+            // stay parallel, exactly Tunic's flat diorama look. The old FOV 34° is kept only as
+            // the frustum half-angle that CameraRig converts to orthographicSize per zoom level
+            // (size = distance * tan(FOV/2)), so the framing matches the pre-ortho pass and zoom
+            // still works. Field-of-view is inert while orthographic but left for that math.
+            cam.orthographic = true;
             cam.fieldOfView = 34f;
+            cam.orthographicSize = 40f * 0.225f; // MaxDistance framing (size 9 — CameraRig owns this per zoom)
             // A soft flat sky (no procedural skybox) — cozy, Tunic-ish, and the fog below
             // fades the ground plane's far edge into it so the world reads as endless.
             cam.clearFlags = CameraClearFlags.SolidColor;
@@ -172,13 +176,15 @@ namespace IdleGame.Game
                 light = lightGo.AddComponent<Light>();
                 light.type = LightType.Directional;
             }
-            light.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
-            light.intensity = 1.35f;                    // brighter, clean Tunic key (was 1.1)
+            // Lower sun elevation (38° pitch, same yaw) throws LONGER shadows for the dramatic
+            // late-afternoon diorama rake; brighter warm key balances the split-toned cool shade.
+            light.transform.rotation = Quaternion.Euler(38f, -30f, 0f);
+            light.intensity = 2.6f;                     // strong warm key (variant-matrix winner) — lit areas clearly beat the cool shade
             light.color = new Color(1f, 0.97f, 0.90f);  // warm sun, less yellow than before
             // Crisp grounded shadows read as Tunic, not the old soft murky haze. Still < 1 so
             // shaded sides stay readable (the TunicSurface shader also caps shadow impact).
             light.shadows = LightShadows.Soft;
-            light.shadowStrength = 0.8f;                 // firmer contact (was 0.55)
+            light.shadowStrength = 0.9f;                 // firmer contact (was 0.8)
 
             // Dappled "sun through canopy" light cookie (reimplemented in code from the Tunic
             // dappled-lighting reference — procedural, no shipped textures). Drifts via
@@ -202,8 +208,8 @@ namespace IdleGame.Game
             // faces pick up light colour instead of the old murky green (trilight = sky/eq/ground).
             RenderSettings.ambientMode = AmbientMode.Trilight;
             RenderSettings.ambientSkyColor = new Color(0.62f, 0.70f, 0.82f);     // clean cool sky
-            RenderSettings.ambientEquatorColor = new Color(0.62f, 0.60f, 0.56f); // near-neutral
-            RenderSettings.ambientGroundColor = new Color(0.42f, 0.38f, 0.32f);  // warm earth bounce
+            RenderSettings.ambientEquatorColor = new Color(0.62f, 0.60f, 0.56f); // near-neutral (a full-cool fill murked the lit areas)
+            RenderSettings.ambientGroundColor = new Color(0.42f, 0.40f, 0.52f);  // only the ground bounce stays cool violet
 
             // Distance fog only veils the far horizon now — pushed well past the action so the
             // play area stays crisp and bright (the old 65u start was the main source of haze).
@@ -259,6 +265,14 @@ namespace IdleGame.Game
 
             var wb = profile.Add<UnityEngine.Rendering.Universal.WhiteBalance>();
             wb.temperature.Override(4f);                          // gentle warmth (was a heavy +8)
+
+            // Split-toning: warm highlights / cool purple-blue shadows — the core of the Tunic
+            // late-afternoon diorama mood. Balance leans slightly toward highlights so the cool
+            // tone stays in true shade and never tints the sunlit areas murky.
+            var split = profile.Add<UnityEngine.Rendering.Universal.SplitToning>();
+            split.shadows.Override(new Color(0.55f, 0.52f, 0.82f));    // cool purple-blue shade
+            split.highlights.Override(new Color(1.0f, 0.96f, 0.82f));  // warm sunlit
+            split.balance.Override(5f);
 
             var bloom = profile.Add<UnityEngine.Rendering.Universal.Bloom>();
             bloom.intensity.Override(0.5f);

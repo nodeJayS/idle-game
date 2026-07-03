@@ -25,6 +25,14 @@ namespace IdleGame.Game
         // Lower = tighter/more direct; higher = floatier.
         public float FollowSmoothTime = 0.12f;
 
+        // Orthographic framing: the camera is ortho now (Tunic diorama), so zoom drives
+        // orthographicSize instead of pushing the camera in/out for a perspective change.
+        // Distance still moves the camera (keeps shadow/clip framing sane), but the visible
+        // extent is orthographicSize = distance * this factor. 0.225 => size 9 at the
+        // MaxDistance-40 framing: a 1.6u hero spans ~96px at 1080p, Tunic's fox-to-screen ratio
+        // (the earlier tan(17°) ≈ 0.306 framing left heroes reading as dots).
+        private const float SizePerDistance = 0.225f;
+
         private Camera _cam = null!;
         private Vector3 _dir;   // normalized view direction, from the iso rotation
         private float _distance;
@@ -37,8 +45,10 @@ namespace IdleGame.Game
         public void Init(Camera cam)
         {
             _cam = cam;
+            _cam.orthographic = true;                       // Tunic diorama — zoom drives orthographicSize
             _dir = cam.transform.forward.normalized;
             _distance = MaxDistance;                       // start zoomed out (the familiar framing)
+            _cam.orthographicSize = _distance * SizePerDistance;
             _focus = _targetFocus = cam.transform.position + _dir * _distance;
         }
 
@@ -64,6 +74,10 @@ namespace IdleGame.Game
                 if (Mathf.Abs(scroll) > 0.01f)
                     _distance = Mathf.Clamp(_distance - scroll * ZoomSensitivity, MinDistance, MaxDistance);
             }
+
+            // Ortho zoom: the visible extent is orthographicSize, tied to _distance so the zoom
+            // range (Min/MaxDistance) maps to the same framing as the old perspective push-in.
+            _cam.orthographicSize = _distance * SizePerDistance;
 
             // Critically-damped ease toward the party every frame — smooth and chop-free
             // regardless of how the focus target was fed (no Lerp-vs-deadzone start/stop).

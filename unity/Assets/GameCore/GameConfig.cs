@@ -877,7 +877,7 @@ namespace IdleGame.GameCore
             // tonight"): zone 1 stays uniform (the intro), the rest cycle the 5 slots so
             // every slot has a best-in-class zone in both halves of the ladder.
             cfg.Zones.Add(Zone("verdant_woods", "Verdant Woods", "forest",
-                (0.33, 0.50, 0.35), (0.44, 0.62, 0.30), "goblin_king", null, "slime", "goblin"));
+                (0.40, 0.57, 0.33), (0.44, 0.62, 0.30), "goblin_king", null, "slime", "goblin"));
             cfg.Zones.Add(Zone("ruined_courtyard", "Ruined Courtyard", "ruins",
                 (0.55, 0.54, 0.50), (0.42, 0.40, 0.38), "grave_knight", EquipSlot.Boots, "bone_rattler", "stone_sentry"));
             cfg.Zones.Add(Zone("murkwater_swamp", "Murkwater Swamp", "swamp",

@@ -38,7 +38,7 @@ namespace IdleGame.Game
             Style.Ripples => (14f, 0.60f),
             Style.Speckle => (10f, 0.55f),
             Style.Cracks => (12f, 0.65f),
-            _ => (12f, 0.70f),             // grass strokes
+            _ => (12f, 0.35f),             // grass strokes — a whisper, floor reads as clean color
         };
 
         public static Texture2D Get(Style style)

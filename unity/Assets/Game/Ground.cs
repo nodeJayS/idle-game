@@ -23,7 +23,7 @@ namespace IdleGame.Game
 
         // The shipped grass palette — also the restore point for zone retints (zone 1's
         // config hints mirror these values so the early game look is unchanged).
-        private static readonly Color DefaultTop = new Color(0.33f, 0.50f, 0.35f);
+        private static readonly Color DefaultTop = new Color(0.40f, 0.57f, 0.33f);
         private static readonly Color DefaultSide = new Color(0.42f, 0.31f, 0.21f);
 
         /// <summary>Zone reskin (roadmap 4): retint the field from a zone's palette hints —
@@ -119,7 +119,7 @@ namespace IdleGame.Game
         {
             float p = Mathf.PerlinNoise(x * 0.05f + 30f, z * 0.05f + 30f);  // broad patches
             float q = Mathf.PerlinNoise(x * 0.17f + 70f, z * 0.17f + 70f);  // fine break-up
-            float br = Mathf.Lerp(0.84f, 1.04f, p * 0.7f + q * 0.3f);       // tighter, no over-bright
+            float br = Mathf.Lerp(0.93f, 1.03f, p * 0.7f + q * 0.3f);       // tight mottle — floor reads as clean color
             float hue = Mathf.PerlinNoise(x * 0.03f + 90f, z * 0.03f + 90f);
             // Lean the hue toward green (cooler), never yellow, so it stays rich not "cheap".
             return new Color(br * Mathf.Lerp(0.92f, 1.0f, hue), br, br * Mathf.Lerp(1.04f, 0.96f, hue));

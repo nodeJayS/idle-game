@@ -109,7 +109,9 @@ Phase A (core loop) and most of Phase B (depth) are done. What exists today:
   with a milestone bonus every 7th day. A launch `DailyLoginModal` (Collect → `CombatView.ClaimDailyLogin`)
   is the beat; gems show in the HUD. Still open: manual achievement-claim UX, the gem SINK (gacha/shop),
   real-money purchase, prestige/rebirth.
-- **Art** — *Tunic* height-blend shader + faceted vertex-coloured world + dappled light.
+- **Art** — *Tunic* height-blend shader + faceted vertex-coloured world + dappled light,
+  seen through an **orthographic diorama camera** (45° iso pitch, zoom drives
+  `orthographicSize`) with a split-toned grade (warm sun / purple-blue shadows).
   **Heroes: the MS2 skinned pipeline is SHIPPED and standard** (all 4 roster heroes on it):
   a hero = `art/heroes/<defId>.json` manifest (gender, gear NIFs, weapon attaches, dye
   `tints`, skill/sound bindings) + 9 decoded clips in `art/motion/<defId>/` + one headless

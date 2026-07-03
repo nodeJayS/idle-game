@@ -107,11 +107,37 @@ tonight" decision engine. Slices:
    marble columns/gold crystals), palettes baked per zone, layouts stable per
    set. ITEM 4 IS COMPLETE.
 
-### 5. Content & tuning pass (after 4)
+### 5. Terraced terrain + water (the big remaining Tunic-look gap — sim-gated)
+Diagnosis from the side-by-side with real Tunic (2026-07-02): the largest
+remaining discrepancy isn't palette or texture, it's STRUCTURE — Tunic arenas
+are terraced (raised platforms, cliff walls with exposed dirt strata, stairs,
+water at the low edge) while ours is an infinite flat plane. This is sim-gated:
+GameCore movement/targeting assumes open flat ground, so terrain needs an
+engine-free representation first. Slices when picked up:
+1. GameCore: per-stage arena layout (walkable region + height tiers as data;
+   movement clamps to the walkable region — no pathfinding needed if arenas
+   stay convex-ish per tier).
+2. Client: Ground builds terraces from the layout (cliff sides use the
+   TunicSurface side colour = free dirt strata), water plane + shore ink at
+   the low edge, stair ramps between tiers.
+3. Zone flavor: per-PropSet water tint / lava in the caldera / void gaps in
+   the astral zone. Camera composition pass once arenas have edges.
+
+✅ SHIPPED 2026-07-02 (pre-slice, needed no sim): the Tunic **diorama camera +
+grade** — orthographic projection (45° iso pitch, zoom drives
+`orthographicSize`, size 9 at full zoom-out), cleaner flat floor (vertex
+mottle tightened, grass detail strength 0.35), split-toned light (sun 2.6 at
+38° pitch, warm highlights / purple-blue shadows, balance +5; grade picked
+from a live 2×2 sun×balance variant matrix). For the record, the failed
+direction: random pale "worn patches" painted on the flat plain read as
+artifacts, not paths — ground wear only works attached to structure, i.e.
+this item's terraces.
+
+### 6. Content & tuning pass (after 4)
 More stages/mods/monster kits; balance sim in console (backlogged); XP-curve
 check at the new roster size.
 
-### 6. Later / parked
+### 7. Later / parked
 - Prestige/rebirth + manual achievement-claim UX (Lever 4 leftovers).
 - Real-money gem purchase (needs the gacha proven fun first).
 - Server authority arc (design §9) — GameCore stays pure for exactly this.
