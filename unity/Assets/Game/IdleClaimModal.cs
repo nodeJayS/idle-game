@@ -35,14 +35,14 @@ namespace IdleGame.Game
             UiKit.FullScreen(canvas.transform, new Color(0f, 0f, 0f, 0.6f));
 
             var panel = UiKit.Panel(canvas.transform, new Vector2(420, 300), new Color(0.10f, 0.10f, 0.14f, 1f));
-            UiKit.Label(panel.transform, "While you were away", 24, TextAnchor.MiddleCenter,
+            UiKit.Label(panel.transform, "Idle Rewards", 24, TextAnchor.MiddleCenter,
                         new Vector2(380, 36), new Vector2(0, 110));
 
             var ts = System.TimeSpan.FromMilliseconds(report.ElapsedMs);
             string away = ts.TotalHours >= 1 ? $"{(int)ts.TotalHours}h {ts.Minutes}m" : $"{ts.Minutes}m {ts.Seconds}s";
             string capped = report.Capped ? "  (capped)" : "";
 
-            Line(panel.transform, $"Away for: {away}{capped}", 50);
+            Line(panel.transform, $"Time: {away}{capped}", 50);
             _goldText = Line(panel.transform, "", 14);
             _xpText = Line(panel.transform, "", -22);
             _itemsText = Line(panel.transform, "", -58);
