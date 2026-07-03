@@ -1,192 +1,82 @@
-# Roadmap — the ONE "what's next" doc (updated 2026-07-02)
+# Roadmap — the ONE "what's next" doc (updated 2026-07-03)
 
-The living priority list. When something ships, update this file in the same
-commit. Durable design (loops, economy, data model, live-service arc) stays in
-[`game-design.md`](game-design.md); session orientation in [`../CLAUDE.md`](../CLAUDE.md);
-finished plans live in git history, not in the tree.
+Living priority list; update in the same commit that ships an item. Durable
+design → [`game-design.md`](game-design.md); session orientation →
+[`../CLAUDE.md`](../CLAUDE.md). Shipped details live in git history — entries
+here get ONE receipt line when done, then get pruned next pass.
 
-## Where the game stands (one paragraph)
+## Where the game stands
 
-Core loop ✅ (farm ladder, loot/affixes/imprints, modifiers, Tower, quests,
-achievements, daily login/gems). Build depth ✅ (2+2 kits, per-hero levels,
-gamble economy). **MS2 asset pipeline ✅ and proven end-to-end**: a new hero =
-one manifest + 9 decoded clips + one bake (both genders, dyeable gear via
-manifest tints, per-hero animators/sounds). Roster on the **archetype backbone**
-(Warrior/Rogue/Magician stat templates; class = overrides): Knight, Fire Mage,
-Assassin, Priest (party heal-over-time) — Ice Mage shelved for a comeback.
-Future classes slot in as archetype + overrides: Brawler/Swordsman (Warrior),
-Ninja/Archer (Rogue), Summoner/Ice Mage (Magician). 426 GameCore tests green.
+Core loop, build depth, zones (10 themed, 30 faceted monsters), Tower,
+achievements, daily gems: all ✅. MS2 hero pipeline proven (manifest + 9 clips
++ 1 bake per hero). Roster: Knight / Fire Mage / Assassin / Priest on the
+archetype backbone (Warrior/Rogue/Magician templates; class = overrides); Ice
+Mage shelved for the gacha banner. Diorama look shipped (ortho 45°, split-tone
+grade). 434 GameCore tests green. No mana — skills are cooldown-only.
 
 ## Priorities, in order
 
-### 0. ✅ SHIPPED 2026-07-02: gear enhancement + 5-slot trim + bag sort
-Enhancement (+15, 5% base/level, risk bands, scrap sink), slots cut 9→5,
-Sort button, cleaner equip doll. Next engagement beats when wanted: zones/
-MS2 monsters (item 4 below), set bonuses, a daily-attempts world boss.
+### 1. Combat-feel + QoL batch (user 2026-07-03) — 5/6 shipped
+Receipts: mana removed (StatKey pinned ints, SaveVersion 2) · hit sync
+(swing↔number 2ms, splash sounds deduped/quieter) · auto-equip damage-first
+across all fielded heroes (badge and auto-equip share one call) · Salvage all
++ Item.Locked (arm/confirm button; all salvage paths refuse locked) · sound
+sliders (PlayerPrefs volMaster/volSfx).
+REMAINING: **bigger characters** — ortho factor 0.18 + dead-zone camera
+(2.5u, capped glide, look-ahead to action point) is CODED, in tree,
+compiles; awaiting the user's play-feel verdict before commit/tune.
 
-### 1. ⭐ NOW — combat-feel + QoL batch (user, 2026-07-03)
-Slices, in order (GameCore-first where the sim is touched):
-1. ✅ SHIPPED 2026-07-03 — **mana removed**, skills gate on cooldown only.
-   StatKey got explicit enum values (numeric persistence — deleting members
-   would have shifted saved affix ids); SaveVersion 1→2 strips retired-stat
-   affixes (none existed in the wild — pool never rolled mana); three
-   mana-granting passives retargeted (attunement→Atk, benediction→HpRegen,
-   frostflow→AtkSpd). Observed: no cast-spam increase — CooldownMs was the
-   real limiter all along; pacing lever if ever needed is per-skill CooldownMs.
-2. ✅ SHIPPED 2026-07-03 — **hit/animation sync**: swing↔number offset cut
-   ~500ms → 2ms avg. Root causes: splash emitted one full-volume clang +
-   re-triggered swing PER splashed enemy; numbers spawned at swing START and
-   the two Knight attack takes differ 0.467s vs 1.167s unscaled. Fix
-   (presentation-only): per-source-per-step primary/secondary dedup
-   (secondaries 0.5× volume, no swing re-trigger), every swing time-scaled to
-   a fixed 0.22s contact (`IHeroAnim.AttackContactSec`), melee number+clang
-   delayed to contact via coroutine.
-3. ✅ SHIPPED 2026-07-03 — **auto-equip fixed**: ranking by the blended
-   power-% funneled everything to the slot-0 knight; now DAMAGE-first across
-   all fielded heroes (largest DPS gain wins; EHP gain only when nobody gains
-   damage), restricted to genuine Verdict.Upgrade holders so the ▲ badge and
-   auto-equip read the same call and can't diverge. PowerScore blended value
-   unchanged (badges identical).
-4. ✅ SHIPPED 2026-07-03 — **"Salvage all" + gear lock**: `Item.Locked` +
-   pure `Inventory.ToggleLock` (bag AND equipped; survives displacement,
-   save/load, Reforge/Enhance clones); `SalvageAll` uncapped over loose
-   unlocked items with a two-click arm/confirm ("Confirm salvage all (N)",
-   ~3s disarm); every salvage path (single/mass/auto-threshold) refuses
-   locked. [L] tile badges + Locked toggle in the bag UI.
-5. ✅ SHIPPED 2026-07-03 — **sound settings**: Master + SFX sliders in the
-   Settings modal (live-apply, PlayerPrefs `volMaster`/`volSfx`; master =
-   AudioListener.volume at boot + on drag, SFX multiplies SoundFx.Play).
-6. **Bigger characters** — ~1.5× larger on screen (ortho framing factor).
+### 2. Monster procedural animation
+Rigid faceted monsters animate by CODE, no rigs (heroes keep MS2 clips):
+per-family gait (slime hop / wolf stride / wisp float / heavy stomp), attack
+telegraph + lunge on the sim attack event, hit flash + squash, death topple
+or shrink-poof. One client-only MonsterAnimator reading sim state; zero
+GameCore changes.
 
-### 2. Monster procedural animation (right after 1)
-The rigid faceted monsters animate by CODE, no rigs (heroes keep their real
-MS2 clips): per-family gait (slime hop / wolf stride / wisp float-bob /
-heavy stomp), attack telegraph + lunge timed to the sim attack event, hit
-flash + squash, death topple or shrink-poof. One client-only
-MonsterAnimator reading sim state; zero GameCore changes.
+### 3. ⭐ Gem sink → hero gacha MVP (the strategic lever)
+Gems accrue with NO spend — the economy's promise is unredeemed; don't let
+anything else jump this again. Slices:
+1. GameCore `Gacha.Roll`: gem cost, persisted-cursor RNG (no re-roll),
+   dupe → hero XP/scrap, pity counter in save.
+2. UI: banner panel + reveal beat (rarity flash, feed line).
+3. Content: Ice Mage comeback banner. Def+kit already in config (frostbolt
+   L1 / blizzard L10). Assets verified 2026-07-02: female wizard ice clips
+   (`wizard_icestrike/frostnova/icebomb_01/icesphere`), staffs
+   `15200037_snowgiantstaff`/`15200208_snowqueenstaff`, hats
+   `11300181_cpsnowbell`/`11300185_cpsnowgianthat`, robes dyeable via
+   manifest tints; sounds `Skill_Wizard_FrostNova_Cast`,
+   `Skill_Wizard_IceStrike_*`, `Skill_Magician_IceBreath_Cast`.
 
-### 3. ⭐ Gem sink → hero gacha MVP (Lever 4, the strategic one)
-Gems accrue from daily logins with NO spend since 2026-07-02 — the economy's
-promise is unredeemed. Everything is staged for this: heroes are config rows
-(2+2 template), `Party.AcquireHero` is the documented acquisition plug point,
-and the pipeline makes banner heroes cheap to produce. Slices:
-1. GameCore: `Gacha.Roll` reducer — gem cost, seeded RNG via the persisted
-   cursor (can't re-roll), duplicate → hero XP or scrap, pity counter in save.
-2. UI: a banner panel (control bar) + reveal beat (rarity flash, feed line).
-3. Content: 1–2 banner heroes. **Candidate #1: the Ice Mage comeback** as the
-   launch banner. Def + kit already in config (actives frostbolt L1 + blizzard
-   L10). Presentation recon (verified 2026-07-02): female wizard clips cover a
-   full ice kit (`wizard_icestrike/frostnova/icebomb_01/icesphere` + the
-   standard locomotion set); staffs `15200037_snowgiantstaff` /
-   `15200208_snowqueenstaff`; hats `11300181_cpsnowbell` /
-   `11300185_cpsnowgianthat`; any robe can be dyed ice-blue via manifest
-   `tints`. Sounds: `Skill_Wizard_FrostNova_Cast`, `Skill_Wizard_IceStrike_*`,
-   `Skill_Magician_IceBreath_Cast`.
+### 4. Tower slice 3 — per-floor reward bundles
+The one unfinished system slice; floors pay only via milestones today.
+GameCore-first, sim-testable, ~1 session.
 
-### 4. Tower slice 3 — per-floor reward bundles (small, unblocks a loop)
-The one unfinished system slice. Floors currently pay only via milestones;
-per-floor bundles make pushing feel rewarded run-to-run. GameCore-first,
-sim-testable, ~1 session.
+### 5. Combat presentation debt
+- Per-hero impact sounds (`PlayImpact` hardcodes `Hit_SwordDefault`; same
+  pattern as the shipped per-hero attack sounds).
+- Sanctify heal visual + Holy Smite cast flourish (`_skillFx` add-on points).
+- Check hero-float quirk (SyncViews writes v.Height into hero Y for capsules).
 
-### 5. Combat presentation debt (polish the new roster)
-- Per-hero impact sounds: `PlayImpact` hardcodes `Hit_SwordDefault` for every
-  hit in the game (same fix pattern as the shipped per-hero attack sounds).
-- Sanctify needs a heal visual (golden ground ring / sparkle on buffed heroes)
-  and Holy Smite a cast flourish — both are `_skillFx` ADD-ON POINT entries.
-- Hero-float quirk backlog item: CombatView.SyncViews writes v.Height into
-  hero Y for capsules (pre-existing; check it still matters).
+### 6. Terraced terrain + water (the big remaining Tunic-look gap — sim-gated)
+Tunic reads as PLACES: terraces, cliff strata, stairs, water — ours is an
+infinite plane, and painted ground-wear fails without structure (tried
+2026-07-02, reverted). Slices: (1) GameCore per-stage arena layout (walkable
+region + height tiers as data, movement clamps); (2) client terraces/cliffs
+(TunicSurface side colour = free strata), water + shore ink, stairs;
+(3) per-zone water/lava/void flavor + camera composition pass.
 
-### 6. Zones + LOW-POLY monster variety (the "depth feels like travel" beat)
-**Art-direction rule (user, 2026-07-02): monsters stay low-poly faceted, Tunic
-style — the MS2 pipeline is for HEROES ONLY.** The smooth-chibi-vs-faceted-world
-contrast IS the look; never port MS2 mobs. Every ~10 stages becomes a themed
-ZONE. Pairs with set bonuses later. This is the "where do I park my farm
-tonight" decision engine. Slices:
-1. ✅ SHIPPED 2026-07-02 — GameCore zone backbone: `ZoneDef` (roster + boss +
-   engine-free palette/prop hints), one zone per 10-stage tier, 10 themed zones
-   (Verdant Woods → … → Crown of the World), 27 new monster defs in the
-   slime/goblin stat band (flavor, not power), zone-driven trash/boss spawns
-   (farm, encounter, Tower floors travel the same zones; legacy fallback kept).
-2. ✅ SHIPPED 2026-07-02 — client reskin: `ZoneDress.Sync` retints the faceted
-   ground + scattered props from the ZoneDef hints on stage/floor change (zone 1
-   = the shipped palette exactly), plus a "Now entering <Zone>" feed beat.
-   Verified in Play across woods/ruins/swamp. Prop SHAPE swaps ride slice 3.
-   ✅ PLUS (same day): hand-drawn ground detail — `GroundDetail` paints tileable
-   brightness maps in code (grass strokes / chunky stone pavers / sand ripples /
-   snow speckle / cooled cracks per PropSet), world-XZ projected by TunicSurface's
-   new `_DetailTex` on up-faces only. CHUNKY marks on purpose: fine ones mip away
-   at gameplay distance.
-3. ✅ SHIPPED 2026-07-02 — zone drop tables: each zone (except the intro) favors
-   one equip slot ×3 in the drop base pick (`ZoneDef.FavoredSlot` →
-   `LootContext`; boots DO drop best in the ruins). Every slot has a favoring
-   zone in both halves of the ladder. UI surfacing (stage picker hint) pending.
-4. Monster art (`art/monsters.py`, one FBX per monster →
-   `Resources/Models/monsters/`, `MonsterModel` + SpawnView wiring with
-   primitive fallback; rank/mod tells = gentle tint + faint glow, NOT the
-   primitives' flat repaint). ✅ Zone 2 shipped 2026-07-02 (Bone Rattler /
-   Stone Sentry / Grave Knight, verified in Play incl. boss + facing).
-   ✅ Zone 3 shipped 2026-07-02 (Bog Toad / Marsh Wisp / Bog Horror; `rock()`
-   grew a taper param for teardrop/flame silhouettes). ✅ Zone 4 shipped
-   2026-07-02 (Dust Scarab / hooded Dune Stalker / Dune Wurm burst-worm boss).
-   ✅ Zone 5 shipped 2026-07-02 (Ice Sprite / Frost Wolf — first quadruped /
-   Glacier Golem cyclops). ✅ Zone 6 shipped 2026-07-02 (Magma Imp / Cinder
-   Hound — lava-mane wolf chassis / Ash Tyrant demon-lord). ✅ Zone 7 shipped
-   2026-07-02 (Cave Bat / Gloom Shade wraith / Nightmare Maw void-head;
-   MonsterModel.Tint now scales aura emission by material luma so dark
-   palettes don't wash to the mod colour). ✅ Zone 8 shipped 2026-07-02 (Tide
-   Crab / Storm Caller cloud elemental / Tempest Naga with storm trident).
-   ✅ Zone 9 shipped 2026-07-02 (Void Wisp / Rune Construct — floating block
-   golem / Riftwalker with a broken astral halo). ✅ Zone 10 shipped 2026-07-02
-   (Crown Seraph / Chaos Spawn / World Ender crowned colossus). ✅ Zone 1
-   shipped 2026-07-02 (Slime / Goblin / crowned Goblin King — the classics,
-   upgraded from capsules). ALL TEN zone rosters are modeled — 30 monsters.
-5. ✅ SHIPPED 2026-07-02 — per-zone PROP SHAPES: Scenery rebuilds the scatter
-   per ZoneDef.PropSet with its own faceted family (ruins: broken columns/
-   gravestones/rubble · desert: cacti/sandstone spires · tundra: snow pines/
-   ice shards · volcano: basalt clusters · cavern: stalagmites/glow-shrooms ·
-   coast: driftwood/beach tufts · astral: rune obelisks/void shards · summit:
-   marble columns/gold crystals), palettes baked per zone, layouts stable per
-   set. ITEM 4 IS COMPLETE.
+### 7. Content & tuning pass
+More stages/mods/kits; balance sim in console; XP curve at roster size.
+Caster pacing lever if ever needed: per-skill CooldownMs (mana removal
+changed nothing observable).
 
-### 7. Terraced terrain + water (the big remaining Tunic-look gap — sim-gated)
-Diagnosis from the side-by-side with real Tunic (2026-07-02): the largest
-remaining discrepancy isn't palette or texture, it's STRUCTURE — Tunic arenas
-are terraced (raised platforms, cliff walls with exposed dirt strata, stairs,
-water at the low edge) while ours is an infinite flat plane. This is sim-gated:
-GameCore movement/targeting assumes open flat ground, so terrain needs an
-engine-free representation first. Slices when picked up:
-1. GameCore: per-stage arena layout (walkable region + height tiers as data;
-   movement clamps to the walkable region — no pathfinding needed if arenas
-   stay convex-ish per tier).
-2. Client: Ground builds terraces from the layout (cliff sides use the
-   TunicSurface side colour = free dirt strata), water plane + shore ink at
-   the low edge, stair ramps between tiers.
-3. Zone flavor: per-PropSet water tint / lava in the caldera / void gaps in
-   the astral zone. Camera composition pass once arenas have edges.
+### 8. Later / parked
+Prestige/rebirth · manual achievement-claim UX · real-money gems (after
+gacha proves fun) · server authority (design §9) · Xml.m2d item-table
+extraction (when wardrobe grows) · zone drop-table hint in stage picker.
 
-✅ SHIPPED 2026-07-02 (pre-slice, needed no sim): the Tunic **diorama camera +
-grade** — orthographic projection (45° iso pitch, zoom drives
-`orthographicSize`, size 9 at full zoom-out), cleaner flat floor (vertex
-mottle tightened, grass detail strength 0.35), split-toned light (sun 2.6 at
-38° pitch, warm highlights / purple-blue shadows, balance +5; grade picked
-from a live 2×2 sun×balance variant matrix). For the record, the failed
-direction: random pale "worn patches" painted on the flat plain read as
-artifacts, not paths — ground wear only works attached to structure, i.e.
-this item's terraces.
-
-### 8. Content & tuning pass (after the zones/batch work)
-More stages/mods/monster kits; balance sim in console (backlogged); XP-curve
-check at the new roster size.
-
-### 9. Later / parked
-- Prestige/rebirth + manual achievement-claim UX (Lever 4 leftovers).
-- Real-money gem purchase (needs the gacha proven fun first).
-- Server authority arc (design §9) — GameCore stays pure for exactly this.
-- Xml.m2d item-table extraction (manifests by item id; likely explains the
-  odd hat socket conventions) — do when the roster/wardrobe grows.
-- Ice Mage full kit pass if not used as gacha banner (#1).
-
-## Standing rules (short version — CLAUDE.md has the full set)
-GameCore-first, one verified slice per commit. No MS2 music (SFX only). No MS2
-skill names/numbers (2+2 template is ours). Raw extracts stay outside the repo.
-Back up save.json around Play verification.
+## Standing rules (short — CLAUDE.md has the full set)
+GameCore-first, one verified slice per commit. Monsters faceted only (MS2 =
+heroes only). No MS2 music (SFX only); skill names/numbers ours. Raw extracts
+outside the repo. Back up save.json around Play verification. Agents don't
+touch the Unity editor without a user-approved window.
