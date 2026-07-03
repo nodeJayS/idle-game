@@ -30,7 +30,11 @@ anything else jump this again. Slices:
 1. ✅ GameCore `Gacha.Roll` (2026-07-03): banner-def config, gem cost,
    persisted-cursor RNG (no re-roll), dupe → hero XP/scrap, per-banner pity;
    SyncHeroUnlocks keeps banner-pool heroes obtainable. 451 tests.
-2. UI: banner panel + reveal beat (rarity flash, feed line).
+2. ✅ UI (2026-07-03): GachaPanel (banner rows, pity progress, greyed Roll)
+   + panel-scoped reveal beat (accent flash gold/blue, NEW!/dupe/pity lines,
+   click-to-clear); Summon button hides until a banner with a pool exists,
+   so nothing is player-visible until slice 3. Roll flushes the save
+   (premium-currency rule). Play-verified via injected test banner.
 3. Content: Ice Mage comeback banner. Def+kit already in config (frostbolt
    L1 / blizzard L10). Assets verified 2026-07-02: female wizard ice clips
    (`wizard_icestrike/frostnova/icebomb_01/icesphere`), staffs

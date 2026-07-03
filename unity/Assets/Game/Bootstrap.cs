@@ -86,6 +86,10 @@ namespace IdleGame.Game
             tower.Bind(view, cfg);
             view.BindTower(tower);
 
+            var gacha = director.AddComponent<GachaPanel>();
+            gacha.Bind(view, cfg);
+            view.BindGacha(gacha);
+
             var achievements = director.AddComponent<AchievementsPanel>();
             achievements.Bind(view, cfg);
             view.BindAchievements(achievements);

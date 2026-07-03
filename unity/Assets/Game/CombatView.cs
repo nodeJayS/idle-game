@@ -296,6 +296,7 @@ namespace IdleGame.Game
         private QuestPanel? _questPanel;
         private ModifierPanel? _modifierPanel;
         private TowerView? _towerView;
+        private GachaPanel? _gachaPanel;
         private AchievementsPanel? _achievements;
         private readonly Dictionary<string, View> _views = new Dictionary<string, View>();
 
@@ -358,7 +359,24 @@ namespace IdleGame.Game
         public void BindChat(ChatPanel chat) => _chat = chat;
         public void BindModifiers(ModifierPanel panel) => _modifierPanel = panel;
         public void BindTower(TowerView panel) => _towerView = panel;
+        public void BindGacha(GachaPanel panel) => _gachaPanel = panel;
         public void BindAchievements(AchievementsPanel panel) => _achievements = panel;
+
+        /// <summary>The player's premium-currency (gem) balance — read-only surface the GachaPanel reads to
+        /// show affordability. The gems SINK (a roll) still routes through <see cref="RollGacha"/>.</summary>
+        public long Gems => _save.Currencies.TryGetValue(_cfg.Balance.PremiumCurrency, out var g) ? g : 0;
+
+        /// <summary>The configured gacha banners (read-only), so the GachaPanel can enumerate them and the
+        /// control bar can decide whether to show the Summon button. Empty until slice 3 seeds a banner.</summary>
+        public IReadOnlyDictionary<string, GachaBannerDef> Banners => _cfg.Banners;
+
+        /// <summary>Current pity count on a banner (rolls made without drawing its featured hero) — the
+        /// GachaPanel reads it to draw the "X / PityCount" progress. Delegates to the GameCore rule.</summary>
+        public int GachaPityOf(string bannerId) => Gacha.PityOf(_save, bannerId);
+
+        /// <summary>True if the player can afford one roll of a banner (with a non-empty pool) — the
+        /// GachaPanel greys the Roll button off this. Delegates to the GameCore gate.</summary>
+        public bool CanRollGacha(string bannerId) => Gacha.CanRoll(_save, _cfg, bannerId);
 
         /// <summary>Enter a Tower-of-Ascension floor from the TowerView: convert the live encounter
         /// into the bounded tower fight IN PLACE (no scene reset), mirroring the boss challenge. The
@@ -373,6 +391,47 @@ namespace IdleGame.Game
             _accMs = 0; _outcomeTimer = 0; _resolved = false;
             ReconcileViews();
         }
+
+        /// <summary>Hero gacha (roadmap 3): spend gems on one roll of a banner from the GachaPanel. Persists
+        /// the returned save + reports the outcome in the feed (roll result with the hero name + NEW/dupe; a
+        /// pity trigger and a new-hero join get their own prominent lines, matching the OnStageCleared voice).
+        /// Refreshes live party stats when the roll granted XP (a dupe can level a fielded hero) or minted a
+        /// new hero — mirrors how EnhanceItem/ApplyPartyEdit reconcile _save. Returns the result so the panel
+        /// can play its reveal beat; a no-op result (can't afford / unknown banner) plays nothing.</summary>
+        public Gacha.RollResult RollGacha(string bannerId)
+        {
+            var r = Gacha.Roll(_save, _cfg, bannerId);
+            if (!r.Rolled) return r; // no-op (unaffordable / unknown banner) — the panel skips its reveal
+            _save = r.Save;
+
+            string name = HeroDefDisplayName(r.HeroDefId);
+            if (r.IsNew)
+            {
+                // A fresh hero joining the roster is a headline beat — same prominent voice as a stage unlock.
+                _chat?.AddFeed($"{name} joins the roster!", new Color(1f, 0.82f, 0.32f));
+            }
+            else
+            {
+                string bonus = r.DupeScrap != 0 ? $"  (+{Num.CompactFloor(r.DupeXp)} XP, +{Num.CompactFloor(r.DupeScrap)} scrap)"
+                                                : $"  (+{Num.CompactFloor(r.DupeXp)} XP)";
+                _chat?.AddFeed($"Summon: {name} (dupe){bonus}", new Color(0.72f, 0.80f, 0.95f));
+            }
+            if (r.PityTriggered)
+                _chat?.AddFeed($"Pity! {name} is guaranteed.", new Color(1f, 0.85f, 0.4f));
+
+            // A new hero (AcquireHero) or a dupe's XP (can level a FIELDED hero) both change live party stats.
+            if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg);
+
+            // Premium currency was spent (and possibly a hero minted) — flush now so a quit before the
+            // 30s autosave can't refund the roll (the same rule as ClaimDailyLogin's gem credit).
+            SaveStore.Save(Save.Touch(_save, System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()));
+            return r;
+        }
+
+        /// <summary>Display name for a hero DEF (not an owned instance) — the GachaPanel/feed need it for the
+        /// featured hero and a just-rolled result before it may exist in the roster. Falls back to the def id.</summary>
+        public string HeroDefDisplayName(string defId) =>
+            _cfg.Heroes.TryGetValue(defId, out var def) && !string.IsNullOrEmpty(def.Name) ? def.Name : defId;
 
         /// <summary>Toggle a monster modifier on/off (Lever 1) from the ModifierPanel: persist via
         /// the GameCore reducer and re-resolve the live farm's active set so the next spawned packs
@@ -467,6 +526,7 @@ namespace IdleGame.Game
                                   || (_equipment != null && _equipment.IsOpen)
                                   || (_modifierPanel != null && _modifierPanel.IsOpen)
                                   || (_towerView != null && _towerView.IsOpen)
+                                  || (_gachaPanel != null && _gachaPanel.IsOpen)
                                   || (_achievements != null && _achievements.IsOpen);
 
         // Launch modals (idle claim / daily login) are transient GameObjects, not bound panels, so
@@ -1865,10 +1925,29 @@ namespace IdleGame.Game
             if (Button(x, y, 190, h, $"Tower (F{Tower.HighestFloor(_save)})")) _towerView?.Toggle();
             x += 190 + gap;
 
+            // Hero gacha (roadmap 3): only surfaces once a banner with a real pool exists. cfg.Banners is
+            // empty until slice 3 seeds the Ice Mage banner, so this button HIDES itself until then.
+            if (AnyLiveBanner)
+            {
+                if (Button(x, y, 190, h, "Summon")) _gachaPanel?.Toggle();
+                x += 190 + gap;
+            }
+
             // Achievements (Lever 4): the permanent milestone ladder.
             if (Button(x, y, 240, h, "Achievements")) _achievements?.Toggle();
             // (The party always moves as a group now; stage nav + Challenge live in the
             // top-centre HUD — see DrawTopControls.)
+        }
+
+        /// <summary>True when at least one configured banner has a non-empty pool — the ONLY condition
+        /// under which the control-bar Summon button appears (cfg.Banners is empty until slice 3).</summary>
+        private bool AnyLiveBanner
+        {
+            get
+            {
+                foreach (var kv in _cfg.Banners) if (kv.Value.Pool.Count > 0) return true;
+                return false;
+            }
         }
 
         private GUIStyle? _btnStyle;
