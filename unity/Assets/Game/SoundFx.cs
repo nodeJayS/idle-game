@@ -55,8 +55,9 @@ namespace IdleGame.Game
             if (!Sets().TryGetValue(set, out var clips) || clips.Length == 0) return;
             if (_lastPlay.TryGetValue(set, out var t) && Time.unscaledTime - t < MinRepeatSec) return;
             _lastPlay[set] = Time.unscaledTime;
+            // SFX slider composes on top of the master (AudioListener) attenuation.
             Channel(ref _fx, "SoundFx", loop: false)
-                .PlayOneShot(clips[Random.Range(0, clips.Length)], volume);
+                .PlayOneShot(clips[Random.Range(0, clips.Length)], volume * Settings.SfxVolume);
         }
     }
 }

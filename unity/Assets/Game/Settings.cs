@@ -19,6 +19,23 @@ namespace IdleGame.Game
             set { PlayerPrefs.SetInt("tacticGroup", value ? 1 : 0); PlayerPrefs.Save(); }
         }
 
+        /// <summary>Master output volume (0..1, default 1). Drives <see cref="UnityEngine.AudioListener.volume"/>
+        /// — a single global attenuation over every channel. Set at boot and live on slider drag.</summary>
+        public static float MasterVolume
+        {
+            get => Mathf.Clamp01(PlayerPrefs.GetFloat("volMaster", 1f));
+            set => SetF("volMaster", Mathf.Clamp01(value));
+        }
+
+        /// <summary>SFX volume (0..1, default 1). Multiplied into every one-shot in <see cref="SoundFx.Play"/>;
+        /// composes on top of <see cref="MasterVolume"/> (which is the AudioListener global). All audio is SFX
+        /// today (no BGM), but the two sliders stay independent so a future music channel slots in cleanly.</summary>
+        public static float SfxVolume
+        {
+            get => Mathf.Clamp01(PlayerPrefs.GetFloat("volSfx", 1f));
+            set => SetF("volSfx", Mathf.Clamp01(value));
+        }
+
         public static bool DamageNumbers   { get => Get("fxDamage");      set => Set("fxDamage", value); }
         public static bool ScreenShake     { get => Get("fxShake");       set => Set("fxShake", value); }
         public static bool LootFeed        { get => Get("fxToasts");      set => Set("fxToasts", value); }

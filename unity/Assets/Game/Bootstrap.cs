@@ -26,6 +26,7 @@ namespace IdleGame.Game
         public static void Boot()
         {
             var cfg = GameConfig.Default();
+            AudioListener.volume = Settings.MasterVolume; // apply persisted master volume at boot
             BuildEnvironment(cfg);
             ShowMenu(cfg);
         }

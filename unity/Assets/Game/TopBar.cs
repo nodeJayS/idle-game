@@ -63,7 +63,13 @@ namespace IdleGame.Game
             UiKit.TextInput(panel.transform, Account.Name, new Vector2(280, 56), new Vector2(70, 248),
                 s => { Account.Name = s; _nameLabel.text = Account.Display; });
 
-            float y = 180f;
+            float y = 184f;
+            SliderRow(panel.transform, "Master Volume", () => Settings.MasterVolume,
+                v => { Settings.MasterVolume = v; AudioListener.volume = v; }, ref y);
+            SliderRow(panel.transform, "SFX Volume", () => Settings.SfxVolume,
+                v => Settings.SfxVolume = v, ref y);
+
+            y -= 8f; // small gap before the effect toggles
             ToggleRow(panel.transform, "Damage Numbers", () => Settings.DamageNumbers, v => Settings.DamageNumbers = v, ref y);
             ToggleRow(panel.transform, "Screen Shake", () => Settings.ScreenShake, v => Settings.ScreenShake = v, ref y);
             ToggleRow(panel.transform, "Loot Feed", () => Settings.LootFeed, v => Settings.LootFeed = v, ref y);
@@ -83,6 +89,89 @@ namespace IdleGame.Game
             var btn = UiKit.TextButton(parent, get() ? "On" : "Off", new Vector2(120, 44), new Vector2(180, y),
                 () => { set(!get()); if (t != null) t.text = get() ? "On" : "Off"; });
             t = btn.GetComponentInChildren<Text>();
+            y -= 52f;
+        }
+
+        /// <summary>A labelled 0..1 volume slider row, laid out like <see cref="ToggleRow"/>: label
+        /// on the left, the control (here a slider + live % readout) on the right. Applies live via
+        /// <paramref name="set"/> on every drag and persists through the Settings property.</summary>
+        private void SliderRow(Transform parent, string label, Func<float> get, Action<float> set, ref float y)
+        {
+            UiKit.Label(parent, label, 22, TextAnchor.MiddleLeft, new Vector2(320, 44), new Vector2(-90, y));
+
+            float start = Mathf.Clamp01(get());
+            Text? pct = null;
+
+            // Track (background)
+            var trackGo = new GameObject("Slider", typeof(RectTransform));
+            trackGo.transform.SetParent(parent, false);
+            var trackImg = trackGo.AddComponent<Image>();
+            trackImg.color = new Color(0.18f, 0.20f, 0.26f);
+            var trackRt = (RectTransform)trackGo.transform;
+            trackRt.anchorMin = trackRt.anchorMax = new Vector2(0.5f, 0.5f);
+            trackRt.sizeDelta = new Vector2(160, 16);
+            trackRt.anchoredPosition = new Vector2(150, y);
+
+            var slider = trackGo.AddComponent<Slider>();
+            slider.transition = Selectable.Transition.None;
+
+            // Half the handle width — the Fill Area and Handle Slide Area inset by this so the
+            // round handle stays inside the track ends and the fill doesn't overshoot (mirrors
+            // Unity's default slider prefab layout; without it stray fill/handle slivers render).
+            const float pad = 13f;
+
+            // Fill
+            var fillArea = new GameObject("Fill Area", typeof(RectTransform));
+            fillArea.transform.SetParent(trackGo.transform, false);
+            var fillAreaRt = (RectTransform)fillArea.transform;
+            fillAreaRt.anchorMin = new Vector2(0f, 0f);
+            fillAreaRt.anchorMax = new Vector2(1f, 1f);
+            fillAreaRt.offsetMin = new Vector2(pad, 0f);
+            fillAreaRt.offsetMax = new Vector2(-pad, 0f);
+            var fillGo = new GameObject("Fill", typeof(RectTransform));
+            fillGo.transform.SetParent(fillArea.transform, false);
+            var fillImg = fillGo.AddComponent<Image>();
+            fillImg.color = new Color(0.35f, 0.55f, 0.85f);
+            var fillRt = (RectTransform)fillGo.transform;
+            fillRt.anchorMin = new Vector2(0f, 0f);
+            fillRt.anchorMax = new Vector2(0f, 1f);
+            fillRt.offsetMin = Vector2.zero;
+            fillRt.offsetMax = Vector2.zero;
+            fillRt.sizeDelta = new Vector2(0f, 0f);
+
+            // Handle
+            var handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
+            handleArea.transform.SetParent(trackGo.transform, false);
+            var handleAreaRt = (RectTransform)handleArea.transform;
+            handleAreaRt.anchorMin = new Vector2(0f, 0f);
+            handleAreaRt.anchorMax = new Vector2(1f, 1f);
+            handleAreaRt.offsetMin = new Vector2(pad, 0f);
+            handleAreaRt.offsetMax = new Vector2(-pad, 0f);
+            var handleGo = new GameObject("Handle", typeof(RectTransform));
+            handleGo.transform.SetParent(handleArea.transform, false);
+            var handleImg = handleGo.AddComponent<Image>();
+            handleImg.sprite = UiKit.CircleSprite();
+            handleImg.color = new Color(0.85f, 0.88f, 0.95f);
+            var handleRt = (RectTransform)handleGo.transform;
+            handleRt.sizeDelta = new Vector2(26, 26);
+
+            slider.fillRect = fillRt;
+            slider.handleRect = handleRt;
+            slider.targetGraphic = handleImg;
+            slider.direction = Slider.Direction.LeftToRight;
+            slider.minValue = 0f;
+            slider.maxValue = 1f;
+            slider.value = start;
+
+            pct = UiKit.Label(parent, Mathf.RoundToInt(start * 100f) + "%", 20,
+                TextAnchor.MiddleLeft, new Vector2(70, 44), new Vector2(244, y));
+
+            slider.onValueChanged.AddListener(v =>
+            {
+                set(v);
+                if (pct != null) pct.text = Mathf.RoundToInt(v * 100f) + "%";
+            });
+
             y -= 52f;
         }
 

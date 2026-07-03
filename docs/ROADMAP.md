@@ -53,7 +53,9 @@ Slices, in order (GameCore-first where the sim is touched):
    unlocked items with a two-click arm/confirm ("Confirm salvage all (N)",
    ~3s disarm); every salvage path (single/mass/auto-threshold) refuses
    locked. [L] tile badges + Locked toggle in the bag UI.
-5. **Sound settings** — master/SFX volume sliders in Settings, persisted.
+5. ✅ SHIPPED 2026-07-03 — **sound settings**: Master + SFX sliders in the
+   Settings modal (live-apply, PlayerPrefs `volMaster`/`volSfx`; master =
+   AudioListener.volume at boot + on drag, SFX multiplies SoundFx.Play).
 6. **Bigger characters** — ~1.5× larger on screen (ortho framing factor).
 
 ### 2. Monster procedural animation (right after 1)
