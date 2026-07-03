@@ -1567,15 +1567,16 @@ namespace IdleGame.Game
         }
 
         /// <summary>
-        /// Party status panel, bottom-right: an HP + mana bar per party hero, read live
-        /// from the combat entities. Each chip is clickable and opens that hero's
-        /// equipment doll (the only way in, per design). Hidden while a panel is open.
+        /// Party status panel, bottom-right: an HP bar per party hero, read live from the
+        /// combat entities (mana was removed — skills are cooldown-only). Each chip is
+        /// clickable and opens that hero's equipment doll (the only way in, per design).
+        /// Hidden while a panel is open.
         /// </summary>
         private void DrawPartyHud(float s)
         {
             if (AnyPanelOpen) return;
 
-            const float w = 340f, rowH = 92f, gap = 10f, pad = 18f;
+            const float w = 340f, rowH = 72f, gap = 10f, pad = 18f;
             const float ipad = 16f;       // inner horizontal padding
             float sw = Screen.width / s, sh = Screen.height / s;
 
@@ -1600,7 +1601,6 @@ namespace IdleGame.Game
 
                 var e = FindHeroEntity(heroId);
                 double hp = e?.Hp ?? 0, maxHp = e?.MaxHp ?? 1;
-                double mana = e?.Mana ?? 0, maxMana = e?.MaxMana ?? 0;
 
                 var hero = _save.Heroes.Find(h => h.Id == heroId);
                 string chipLabel = hero != null ? $"{HeroDisplayName(heroId)}  Lv {hero.Level}" : HeroDisplayName(heroId);
@@ -1621,9 +1621,6 @@ namespace IdleGame.Game
                         new Color(0.16f, 0.04f, 0.04f, 0.95f), new Color(0.85f, 0.24f, 0.20f));
                 DrawShadowedLabel(new Rect(bx, y + 45, bw, 18),
                         $"{Mathf.CeilToInt((float)hp)}/{Mathf.CeilToInt((float)maxHp)}", PartyBarTextStyle);
-                // Mana bar (deeper blue, distinct from the old cyan HP fill)
-                DrawBar(bx, y + 68, bw, 13, maxMana > 0 ? Mathf.Clamp01((float)(mana / maxMana)) : 0f,
-                        new Color(0.04f, 0.05f, 0.12f, 0.95f), new Color(0.25f, 0.40f, 0.95f));
 
                 if (e != null && e.Downed)
                     GUI.Label(new Rect(bx, y + 10, bw, 26),
@@ -1654,15 +1651,16 @@ namespace IdleGame.Game
         private CombatEntity? FindHeroEntity(string heroId) =>
             _combat.Entities.Find(e => e.RefKind == "hero" && e.RefId == heroId);
 
-        /// <summary>True if any of the entity's skills is off-cooldown and affordable —
-        /// drives the Party HUD ready cue. Read-only over the live combat entity.</summary>
+        /// <summary>True if any of the entity's non-passive skills is off-cooldown —
+        /// drives the Party HUD ready cue. Skills are cooldown-only now (mana removed).
+        /// Read-only over the live combat entity.</summary>
         private bool AnySkillReady(CombatEntity e)
         {
             foreach (var id in e.Skills)
             {
                 if (!_cfg.Skills.TryGetValue(id, out var sk)) continue;
+                if (sk.Passive) continue;
                 if (e.SkillCdMs.TryGetValue(id, out var cd) && cd > 0) continue;
-                if (e.Mana < sk.ManaCost) continue;
                 return true;
             }
             return false;

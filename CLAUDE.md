@@ -47,12 +47,13 @@ docs/game-design.md      the durable what/why
   Play-mode can't run headlessly — visuals are verified by screenshot (Unity MCP), UI is
   hand-placed uGUI/IMGUI coords.
 
-## Current systems (426 tests passing)
+## Current systems (421 tests passing)
 
 Phase A (core loop) and most of Phase B (depth) are done. What exists today:
 
-- **Combat** — deterministic auto-battle; melee/range, crit, mana skills (damage/AoE/heal/
-  buff incl. party-wide heal-over-time via `HpRegenPct` buffs) on `AtkSpd` cooldowns, splash,
+- **Combat** — deterministic auto-battle; melee/range, crit, cooldown-gated skills
+  (damage/AoE/heal/buff incl. party-wide heal-over-time via `HpRegenPct` buffs; **no
+  mana — removed 2026-07-03**, cooldowns are the only skill gate), splash,
   chain, lifesteal, thorns. Farm = downed heroes respawn; boss & Tower = do-or-die (no respawn).
 - **Farm ladder** — 100 stages, geometric difficulty, endless per-stage farming, 60s mini/major
   boss gates (major every 10), tiered rates, elite/rare **pack ranks** (tougher, better loot).

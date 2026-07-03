@@ -238,7 +238,6 @@ namespace IdleGame.GameCore
             {
                 if (e.Team != Team.Party) continue;
                 e.Hp = e.MaxHp;
-                e.Mana = e.MaxMana;
                 e.RespawnMs = 0;
                 e.AttackCdMs = 0;
                 e.Buffs.Clear();
@@ -265,8 +264,6 @@ namespace IdleGame.GameCore
                 stats = Tower.ApplyAccountBuffs(stats, save, cfg); // permanent Tower milestone buffs (account-wide)
                 double oldMax = e.MaxHp;
                 double newMax = stats.Get(StatKey.Hp);
-                double oldMaxMana = e.MaxMana;
-                double newMaxMana = stats.Get(StatKey.MaxMana);
 
                 e.Stats = stats;
                 e.Skills = Skills.ActiveKit(hero, cfg); // newly-revealed kit actives apply live
@@ -274,11 +271,6 @@ namespace IdleGame.GameCore
                 e.MaxHp = newMax;
                 e.AttackIntervalMs = AttackInterval(stats);
                 if (e.Hp > 0) e.Hp = Math.Min(newMax, e.Hp + Math.Max(0.0, newMax - oldMax));
-
-                // Grow current mana by the max gain too, so a level-up/gear swap doesn't
-                // shrink the pool; clamp to the new max.
-                e.MaxMana = newMaxMana;
-                e.Mana = Math.Min(newMaxMana, e.Mana + Math.Max(0.0, newMaxMana - oldMaxMana));
             }
         }
 
@@ -314,7 +306,6 @@ namespace IdleGame.GameCore
 
                 var stats = Stats.ComputeHeroStats(hero, cfg, Stats.ResolveEquipped(save, hero));
                 double hp = stats.Get(StatKey.Hp);
-                double mana = stats.Get(StatKey.MaxMana);
                 int idx = kv.Value;
                 s.Entities.Add(new CombatEntity
                 {
@@ -324,8 +315,6 @@ namespace IdleGame.GameCore
                     Stats = stats,
                     Hp = hp,
                     MaxHp = hp,
-                    Mana = mana,
-                    MaxMana = mana,
                     AttackIntervalMs = AttackInterval(stats),
                     RefKind = "hero",
                     RefId = hero.Id,
@@ -388,7 +377,6 @@ namespace IdleGame.GameCore
             {
                 var stats = Stats.ComputeHeroStats(hero, cfg);
                 double hp = stats.Get(StatKey.Hp);
-                double mana = stats.Get(StatKey.MaxMana);
                 s.Entities.Add(new CombatEntity
                 {
                     Id = "P" + idx + "_" + hero.Id,
@@ -397,8 +385,6 @@ namespace IdleGame.GameCore
                     Stats = stats,
                     Hp = hp,
                     MaxHp = hp,
-                    Mana = mana,
-                    MaxMana = mana,
                     AttackIntervalMs = AttackInterval(stats),
                     RefKind = "hero",
                     RefId = hero.Id,
@@ -595,7 +581,6 @@ namespace IdleGame.GameCore
                 {
                     e.RespawnMs = 0;
                     e.Hp = e.MaxHp;
-                    e.Mana = e.MaxMana; // come back ready to cast
                     e.AttackCdMs = 0;
                     events.Add(new CombatEvent { Type = CombatEventType.Respawn, EntityId = e.Id });
                 }
@@ -630,10 +615,6 @@ namespace IdleGame.GameCore
                 // EffectiveStat because the stat only ever comes from ActiveBuffs.
                 double hotPct = e.EffectiveStat(StatKey.HpRegenPct);
                 if (hotPct > 0) e.Hp = Math.Min(e.MaxHp, e.Hp + e.MaxHp * hotPct * dtMs / 1000.0);
-
-                // Mana regen (M10): fills toward MaxMana.
-                double mregen = e.Stats.Get(StatKey.ManaRegen);
-                if (mregen > 0 && e.MaxMana > 0) e.Mana = Math.Min(e.MaxMana, e.Mana + mregen * dtMs / 1000.0);
 
                 // Skill cooldowns + buff durations tick down (M11).
                 for (int i = 0; i < e.Skills.Count; i++)
@@ -896,10 +877,10 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>
-        /// Try to cast the first ready skill in the entity's loadout (off cooldown, mana
-        /// available, valid target). On success: spend mana, set cooldown, apply the
-        /// effect, emit a SkillCast event, and return true (the caller then skips this
-        /// step's basic attack). Deterministic — rng is only used inside ApplyHit.
+        /// Try to cast the first ready skill in the entity's loadout (off cooldown, valid
+        /// target). On success: set cooldown, apply the effect, emit a SkillCast event, and
+        /// return true (the caller then skips this step's basic attack). Skills are gated on
+        /// cooldown only — mana was removed. Deterministic — rng is only used inside ApplyHit.
         /// </summary>
         private static bool TryCastSkill(CombatState s, CombatEntity e, GameConfig cfg, Rng rng, List<CombatEvent> events)
         {
@@ -907,7 +888,6 @@ namespace IdleGame.GameCore
             {
                 if (!cfg.Skills.TryGetValue(id, out var sk)) continue;            // unknown id
                 if (e.SkillCdMs.TryGetValue(id, out var cd) && cd > 0) continue;  // on cooldown
-                if (e.Mana < sk.ManaCost) continue;                              // not enough mana
 
                 // Invested rank scales the skill's primary magnitude; at MaxRank the skill masters
                 // and counts as rank + MasteryBonusRanks (§7.2). Rank 0 => 1.0 (= base).
@@ -984,7 +964,6 @@ namespace IdleGame.GameCore
 
         private static void CastStart(CombatEntity e, SkillDef sk, string? targetId, List<CombatEvent> events)
         {
-            e.Mana = Math.Max(0, e.Mana - sk.ManaCost);
             // Attack speed also quickens casts: higher AtkSpd => shorter effective cooldown.
             double atkSpd = e.EffectiveStat(StatKey.AtkSpd);
             e.SkillCdMs[sk.Id] = sk.CooldownMs / (atkSpd > 0 ? atkSpd : 1.0);

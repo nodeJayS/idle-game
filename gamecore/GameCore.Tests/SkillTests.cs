@@ -9,8 +9,9 @@ namespace IdleGame.GameCore.Tests
     {
         private static readonly GameConfig Cfg = GameConfig.Default();
 
-        // A controllable entity: Atk 10, no crit (deterministic damage), full mana, given loadout.
-        private static CombatEntity Mk(string id, Team team, double x, double hp = 1000, double mana = 100,
+        // A controllable entity: Atk 10, no crit (deterministic damage), given loadout.
+        // Skills are cooldown-only now (mana removed).
+        private static CombatEntity Mk(string id, Team team, double x, double hp = 1000,
                                        params string[] skills)
         {
             var st = new StatBlock
@@ -21,7 +22,7 @@ namespace IdleGame.GameCore.Tests
             return new CombatEntity
             {
                 Id = id, Team = team, Pos = new Vec2(x, 0), Stats = st,
-                Hp = hp, MaxHp = hp, Mana = mana, MaxMana = 100, AttackIntervalMs = 1000,
+                Hp = hp, MaxHp = hp, AttackIntervalMs = 1000,
                 RefKind = "test", RefId = id, Skills = new List<string>(skills),
             };
         }
@@ -39,18 +40,17 @@ namespace IdleGame.GameCore.Tests
         private static CombatEntity E(CombatState s, string id) => s.Entities.First(x => x.Id == id);
 
         [Fact]
-        public void HeroCastsDamageSkillSpendingManaAndSettingCooldown()
+        public void HeroCastsDamageSkillWhenOffCooldownAndSetsCooldown()
         {
-            var caster = Mk("A", Team.Party, 0, skills: "firebolt"); // range 6, mana 20, x1.8
+            var caster = Mk("A", Team.Party, 0, skills: "firebolt"); // range 6, x1.8
             var enemy = Mk("B", Team.Enemy, 0.5);
             var s = St(caster, enemy);
 
             var ev = Step(s);
 
             Assert.Contains(ev, e => e.Type == CombatEventType.SkillCast && e.SkillId == "firebolt" && e.SourceId == "A");
-            Assert.Equal(80, E(s, "A").Mana);              // 100 - 20
             Assert.Equal(1000 - 18, E(s, "B").Hp);          // 10 atk * 1.8 mult, no crit
-            Assert.True(E(s, "A").SkillCdMs["firebolt"] > 0); // on cooldown now
+            Assert.True(E(s, "A").SkillCdMs["firebolt"] > 0); // on cooldown now — the only gate
         }
 
         [Fact]
@@ -61,26 +61,31 @@ namespace IdleGame.GameCore.Tests
             var s = St(caster, enemy);
 
             Step(s);                 // casts firebolt
-            double manaAfterCast = E(s, "A").Mana;
             var ev2 = Step(s);       // firebolt now on cooldown
 
             Assert.DoesNotContain(ev2, e => e.Type == CombatEventType.SkillCast);
             Assert.Contains(ev2, e => e.Type == CombatEventType.Hit && e.SourceId == "A"); // basic attack instead
-            Assert.Equal(manaAfterCast, E(s, "A").Mana); // basic attacks are free
         }
 
         [Fact]
-        public void NoManaMeansNoCast()
+        public void SkillFiresAgainOnceCooldownElapses()
         {
-            var caster = Mk("A", Team.Party, 0, mana: 5, skills: "firebolt"); // 5 < cost 20
+            var caster = Mk("A", Team.Party, 0, skills: "firebolt"); // 3500ms cooldown
             var enemy = Mk("B", Team.Enemy, 0.5);
             var s = St(caster, enemy);
 
-            var ev = Step(s);
+            var ev1 = Step(s); // first cast
+            Assert.Contains(ev1, e => e.Type == CombatEventType.SkillCast && e.SkillId == "firebolt");
 
-            Assert.DoesNotContain(ev, e => e.Type == CombatEventType.SkillCast);
-            Assert.Contains(ev, e => e.Type == CombatEventType.Hit && e.SourceId == "A"); // basic attack
-            Assert.Equal(5, E(s, "A").Mana);
+            // Cooldown-only gating: with no mana pool, the skill re-fires purely once its
+            // cooldown drains. Step past 3500ms and it casts again.
+            bool castAgain = false;
+            for (int i = 0; i < 200 && !castAgain; i++)
+            {
+                var ev = Step(s);
+                if (ev.Any(e => e.Type == CombatEventType.SkillCast && e.SkillId == "firebolt")) castAgain = true;
+            }
+            Assert.True(castAgain, "firebolt should re-fire once its cooldown elapses");
         }
 
         [Fact]
@@ -158,7 +163,6 @@ namespace IdleGame.GameCore.Tests
             Assert.Contains(ev, e => e.Type == CombatEventType.SkillCast && e.SkillId == "mend");
             Assert.Contains(ev, e => e.Type == CombatEventType.Heal && e.TargetId == "ALLY");
             Assert.Equal(30, E(s, "ALLY").Hp); // 10 + 10 atk * 2.0
-            Assert.Equal(70, E(s, "A").Mana);  // 100 - 30
         }
 
         [Fact]
@@ -178,10 +182,9 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
-        public void BossCastsItsSkillForFree()
+        public void BossCastsItsSkill()
         {
-            var boss = Mk("E", Team.Enemy, 0, skills: "boss_quake"); // aoe, range 3, radius 3, cost 0
-            boss.Mana = 0; boss.MaxMana = 0;
+            var boss = Mk("E", Team.Enemy, 0, skills: "boss_quake"); // aoe, range 3, radius 3
             var p1 = Mk("P1", Team.Party, 1);
             var p2 = Mk("P2", Team.Party, 2);
             var s = St(boss, p1, p2);

@@ -70,11 +70,6 @@ namespace IdleGame.GameCore
         public StatBlock Stats = new StatBlock();
         public double Hp;
         public double MaxHp;
-        // Skill resource (M10). Heroes start full and regenerate via ManaRegen; basic
-        // attacks are free, so today mana only fills — skills spend it once they fire.
-        // Monsters leave MaxMana at 0 (they don't cast).
-        public double Mana;
-        public double MaxMana;
 
         // Skills (M11): the entity's loadout (skill ids), per-skill cooldown remaining,
         // and active timed buffs. Heroes get these from their revealed kit actives (Skills.ActiveKit); bosses from

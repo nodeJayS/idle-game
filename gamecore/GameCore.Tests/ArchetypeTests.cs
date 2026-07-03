@@ -41,13 +41,13 @@ namespace IdleGame.GameCore.Tests
             var priest = Cfg.Heroes["priest_basic"];
             Assert.Equal("magician", priest.Archetype);
             Assert.Equal(90, priest.BaseStats.Get(StatKey.Hp));         // overridden
-            Assert.Equal(140, priest.BaseStats.Get(StatKey.MaxMana));   // overridden
+            Assert.Equal(12, priest.BaseStats.Get(StatKey.Atk));        // overridden (low on purpose)
             Assert.Equal(6.0, priest.BaseStats.Get(StatKey.AttackRange)); // inherited from the family
             Assert.Equal(3.0, priest.BaseStats.Get(StatKey.MoveSpd));     // inherited
             Assert.Equal(1.5, priest.BaseStats.Get(StatKey.CritDmg));     // inherited
 
             var ice = Cfg.Heroes["icemage_basic"];
-            Assert.Equal(130, ice.BaseStats.Get(StatKey.MaxMana));      // overridden
+            Assert.Equal(82, ice.BaseStats.Get(StatKey.Hp));            // overridden
             Assert.Equal(6.0, ice.BaseStats.Get(StatKey.AttackRange));  // inherited
         }
 

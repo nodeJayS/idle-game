@@ -11,7 +11,7 @@ namespace IdleGame.GameCore.Tests
     {
         private static readonly GameConfig Cfg = GameConfig.Default();
 
-        private static CombatEntity Mk(string id, Team team, double x, double hp = 1000, double mana = 100,
+        private static CombatEntity Mk(string id, Team team, double x, double hp = 1000,
                                        params string[] skills)
         {
             var st = new StatBlock
@@ -22,7 +22,7 @@ namespace IdleGame.GameCore.Tests
             return new CombatEntity
             {
                 Id = id, Team = team, Pos = new Vec2(x, 0), Stats = st,
-                Hp = hp, MaxHp = hp, Mana = mana, MaxMana = 200, AttackIntervalMs = 1000,
+                Hp = hp, MaxHp = hp, AttackIntervalMs = 1000,
                 RefKind = "test", RefId = id, Skills = new List<string>(skills),
             };
         }

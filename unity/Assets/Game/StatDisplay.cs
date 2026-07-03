@@ -11,7 +11,8 @@ namespace IdleGame.Game
     /// </summary>
     public static class StatDisplay
     {
-        // Grouped by role: survivability, then offense, then resource, then mobility.
+        // Grouped by role: survivability, then offense, then mobility. (Mana was removed —
+        // skills are cooldown-only, so there's no resource group.)
         // NOTE: AttackRange + SplashRadius are deliberately OMITTED — they're under-the-hood combat
         // mechanics (the player sees their effect in the fight, not a number), so they stay off the
         // hero stat sheet + equip-compare to cut clutter. Label/Value still handle them for the few
@@ -20,7 +21,6 @@ namespace IdleGame.Game
         {
             StatKey.Hp, StatKey.Def, StatKey.HpRegen,
             StatKey.Atk, StatKey.AtkSpd, StatKey.CritChance, StatKey.CritDmg,
-            StatKey.MaxMana, StatKey.ManaRegen,
             StatKey.MoveSpd,
         };
 
@@ -42,8 +42,6 @@ namespace IdleGame.Game
             StatKey.CritDmg => "Crit Damage",
             StatKey.AttackRange => "Range",
             StatKey.SplashRadius => "Splash",
-            StatKey.MaxMana => "Mana",
-            StatKey.ManaRegen => "Mana Regen",
             StatKey.MoveSpd => "Move Speed",
             _ => k.ToString(),
         };
@@ -54,12 +52,11 @@ namespace IdleGame.Game
             StatKey.CritChance => Mathf.RoundToInt((float)(v * 100)) + "%",
             StatKey.CritDmg => "x" + v.ToString("0.##"),
             StatKey.HpRegen => v.ToString("0.#") + "/s",
-            StatKey.ManaRegen => v.ToString("0.#") + "/s",
             StatKey.AttackRange => v.ToString("0.#"),
             StatKey.SplashRadius => v.ToString("0.#"),
             StatKey.AtkSpd => v.ToString("0.##"),
             StatKey.MoveSpd => v.ToString("0.##"),
-            _ => Mathf.RoundToInt((float)v).ToString(), // Hp, Def, Atk, Mana
+            _ => Mathf.RoundToInt((float)v).ToString(), // Hp, Def, Atk
         };
 
         /// <summary>Prettified base name, e.g. "rusty_sword" → "Rusty Sword".</summary>

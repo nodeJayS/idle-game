@@ -131,7 +131,7 @@ namespace IdleGame.GameCore.Tests
             var e = new CombatEntity
             {
                 Id = "A", Team = Team.Party, Pos = new Vec2(0, 0), Stats = st,
-                Hp = 1000, MaxHp = 1000, Mana = 100, MaxMana = 100, AttackIntervalMs = 1000,
+                Hp = 1000, MaxHp = 1000, AttackIntervalMs = 1000,
                 RefKind = "test", RefId = "A", Skills = new List<string> { "firebolt" },
             };
             if (rank > 0) e.SkillRanks["firebolt"] = rank;

@@ -452,7 +452,7 @@ namespace IdleGame.Game
                 if (!_cfg.Skills.TryGetValue(id, out var sk)) continue;
                 int rank = Skills.RankOf(hero, id);
                 string cd = $"{sk.CooldownMs / 1000.0:0.#}s cd";
-                string meta = sk.ManaCost > 0 ? $"{sk.Effect} · {sk.ManaCost} mana · {cd}" : $"{sk.Effect} · {cd}";
+                string meta = $"{sk.Effect} · {cd}";
 
                 // Reveal gate: a locked kit skill neither casts nor accepts points — show when it opens.
                 bool unlocked = Skills.IsUnlocked(hero, id, _cfg);

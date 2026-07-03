@@ -7,7 +7,10 @@ namespace IdleGame.GameCore
     /// <summary>New-game creation + save schema migration.</summary>
     public static class Save
     {
-        public const int SaveVersion = 1;
+        // v2 (2026-07-03): mana removed. StatKey values 9/10 (MaxMana/ManaRegen) retired;
+        // v1 saved items can't carry them as affixes (the affix pool never rolled mana), but
+        // Migrate defensively strips any affix whose StatKey no longer exists.
+        public const int SaveVersion = 2;
         public const int PartySize = 3; // fielded party slots; the bag holds the rest
         public const string StarterHeroDef = "warrior_basic";
         public const string StarterMageDef = "magician_basic";
@@ -91,12 +94,25 @@ namespace IdleGame.GameCore
             if (save == null) throw new ArgumentException("Migrate: null save");
             if (save.Version > SaveVersion)
                 throw new InvalidOperationException($"Migrate: save version {save.Version} is newer than supported {SaveVersion}");
-            if (save.Version != SaveVersion)
-                throw new InvalidOperationException($"Migrate: unsupported version {save.Version} (expected {SaveVersion})");
+            if (save.Version < 1)
+                throw new InvalidOperationException($"Migrate: unsupported version {save.Version} (expected 1..{SaveVersion})");
 
             // Defensive defaults: deserializers may leave collections null on partial input.
             save.Heroes ??= new List<HeroInstance>();
             save.Inventory ??= new List<Item>();
+
+            // v1 -> v2 (mana removal): strip any affix whose StatKey no longer exists in the
+            // enum. StatKey serializes numerically, and the retired MaxMana/ManaRegen values
+            // (9/10) are left as an explicit gap so every other stat keeps its persisted int —
+            // but if an old save somehow carried a 9/10 affix, drop it rather than let a
+            // dangling (StatKey)9/10 leak into stat math. Covers bag AND equipped (equipped
+            // items live in Inventory, referenced by id). Idempotent.
+            if (save.Version < 2)
+            {
+                foreach (var item in save.Inventory)
+                    item.Affixes?.RemoveAll(a => !Enum.IsDefined(typeof(StatKey), a.Stat));
+                save.Version = 2;
+            }
             save.Currencies ??= new Dictionary<string, long>();
             save.Progress ??= new ProgressState();
             save.Progress.Tower ??= new TowerState(); // older saves predate the Tower mode

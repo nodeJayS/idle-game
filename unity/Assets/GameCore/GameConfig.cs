@@ -127,7 +127,6 @@ namespace IdleGame.GameCore
         public double Range;
         public string Targeting = "nearest"; // nearest | lowestHp | self | aoe
         public SkillEffectKind Effect = SkillEffectKind.Damage;
-        public double ManaCost;               // basic attacks are free; skills cost mana
         public double DamageMult = 1.0;       // x caster Atk, for Damage and Heal scaling
         public double AoeRadius;              // Damage: also hit enemies within this of the primary target
         public StatKey BuffStat;              // Buff: which stat to raise (self)
@@ -669,9 +668,8 @@ namespace IdleGame.GameCore
                                (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.5),
                                (StatKey.HpRegen, 1.5),
                                (StatKey.AttackRange, 1.2),
-                               (StatKey.SplashRadius, 1.0),            // wide cleave (melee perk)
-                               (StatKey.MaxMana, 50), (StatKey.ManaRegen, 3)),
-                GrowthPerLevel = SB((StatKey.Hp, 18), (StatKey.Atk, 3), (StatKey.Def, 1.5), (StatKey.MaxMana, 2)),
+                               (StatKey.SplashRadius, 1.0)),           // wide cleave (melee perk)
+                GrowthPerLevel = SB((StatKey.Hp, 18), (StatKey.Atk, 3), (StatKey.Def, 1.5)),
                 PassivePool = new List<string> { "toughness", "vitality" },
             };
             var rogue = cfg.Archetypes["rogue"] = new ArchetypeDef
@@ -682,22 +680,20 @@ namespace IdleGame.GameCore
                                (StatKey.CritChance, 0.22), (StatKey.CritDmg, 1.9), // crit IS the identity
                                (StatKey.HpRegen, 1.0),
                                (StatKey.AttackRange, 1.2),
-                               (StatKey.SplashRadius, 0.5),            // duelists, not cleavers
-                               (StatKey.MaxMana, 70), (StatKey.ManaRegen, 5)),
-                GrowthPerLevel = SB((StatKey.Hp, 10), (StatKey.Atk, 4), (StatKey.Def, 1), (StatKey.MaxMana, 3)),
+                               (StatKey.SplashRadius, 0.5)),           // duelists, not cleavers
+                GrowthPerLevel = SB((StatKey.Hp, 10), (StatKey.Atk, 4), (StatKey.Def, 1)),
                 PassivePool = new List<string> { "precision", "killerinstinct" },
             };
             var magician = cfg.Archetypes["magician"] = new ArchetypeDef
             {
-                Id = "magician", Name = "Magician", // fragile ranged casters on a deep mana pool
+                Id = "magician", Name = "Magician", // fragile ranged casters, hardest-hitting spells
                 BaseStats = SB((StatKey.Hp, 72), (StatKey.Atk, 17), (StatKey.Def, 4),
                                (StatKey.MoveSpd, 3.0), (StatKey.AtkSpd, 1.15),
                                (StatKey.CritChance, 0.07), (StatKey.CritDmg, 1.5),
                                (StatKey.HpRegen, 1.0),
                                (StatKey.AttackRange, 6.0),             // max reach; still fine point-blank
-                               (StatKey.SplashRadius, 0.75),
-                               (StatKey.MaxMana, 120), (StatKey.ManaRegen, 6)),
-                GrowthPerLevel = SB((StatKey.Hp, 11), (StatKey.Atk, 4), (StatKey.Def, 1), (StatKey.MaxMana, 5)),
+                               (StatKey.SplashRadius, 0.75)),
+                GrowthPerLevel = SB((StatKey.Hp, 11), (StatKey.Atk, 4), (StatKey.Def, 1)),
                 PassivePool = new List<string> { "pyromancy", "attunement", "permafrost", "frostflow", "devotion", "benediction" },
             };
 
@@ -715,7 +711,7 @@ namespace IdleGame.GameCore
             cfg.Heroes["magician_basic"] = FromArchetype(magician, new HeroDef
             {
                 DefId = "magician_basic", Name = "Fire Mage", Role = "ranged",
-                // 2+2 kit (§7.2): fire nuke + AoE fireball; spell-power + mana passives.
+                // 2+2 kit (§7.2): fire nuke + AoE fireball; spell-power + focus passives.
                 Skills = new List<string> { "firebolt", "pyromancy", "fireball", "attunement" }, Sprite = "magician", AttackFx = "fireball",
             });
 
@@ -738,10 +734,9 @@ namespace IdleGame.GameCore
                 DefId = "icemage_basic", Name = "Ice Mage", Role = "ranged",
                 BaseStats = SB((StatKey.Hp, 82), (StatKey.Atk, 15), (StatKey.Def, 6),
                                (StatKey.AtkSpd, 1.0), (StatKey.CritChance, 0.05),
-                               (StatKey.HpRegen, 1.2), (StatKey.SplashRadius, 0.8),
-                               (StatKey.MaxMana, 130), (StatKey.ManaRegen, 7)),
-                GrowthPerLevel = SB((StatKey.Hp, 13), (StatKey.Atk, 3.5), (StatKey.Def, 1.3), (StatKey.MaxMana, 6)),
-                // 2+2 kit (§7.2): frost nuke + AoE blizzard; armor + mana-flow passives.
+                               (StatKey.HpRegen, 1.2), (StatKey.SplashRadius, 0.8)),
+                GrowthPerLevel = SB((StatKey.Hp, 13), (StatKey.Atk, 3.5), (StatKey.Def, 1.3)),
+                // 2+2 kit (§7.2): frost nuke + AoE blizzard; armor + cadence passives.
                 Skills = new List<string> { "frostbolt", "permafrost", "blizzard", "frostflow" }, Sprite = "icemage",
             });
 
@@ -753,10 +748,9 @@ namespace IdleGame.GameCore
                 DefId = "priest_basic", Name = "Priest", Role = "ranged",
                 BaseStats = SB((StatKey.Hp, 90), (StatKey.Atk, 12), (StatKey.Def, 5),
                                (StatKey.AtkSpd, 0.95), (StatKey.CritChance, 0.04),
-                               (StatKey.HpRegen, 1.2), (StatKey.SplashRadius, 0.7),
-                               (StatKey.MaxMana, 140), (StatKey.ManaRegen, 7)),
-                GrowthPerLevel = SB((StatKey.Hp, 12), (StatKey.Atk, 3), (StatKey.Def, 1.2), (StatKey.MaxMana, 6)),
-                // 2+2 kit (§7.2): party HoT + AoE smite; sustain + mana-flow passives.
+                               (StatKey.HpRegen, 1.2), (StatKey.SplashRadius, 0.7)),
+                GrowthPerLevel = SB((StatKey.Hp, 12), (StatKey.Atk, 3), (StatKey.Def, 1.2)),
+                // 2+2 kit (§7.2): party HoT + AoE smite; sustain + grace passives.
                 Skills = new List<string> { "sanctify", "devotion", "holysmite", "benediction" },
                 Sprite = "priest", AttackFx = "holybolt",
             });
@@ -915,35 +909,34 @@ namespace IdleGame.GameCore
             cfg.Skills["cycloneslash"] = new SkillDef
             {
                 Id = "cycloneslash", Name = "Cyclone Slash", Effect = SkillEffectKind.Damage, Targeting = "aoe",
-                CooldownMs = 5000, Range = 1.8, AoeRadius = 2.2, DamageMult = 1.5, ManaCost = 18, Sprite = "cleave",
+                CooldownMs = 5000, Range = 1.8, AoeRadius = 2.2, DamageMult = 1.5, Sprite = "cleave",
             };
             cfg.Skills["shieldcharge"] = new SkillDef
             {
                 Id = "shieldcharge", Name = "Shield Charge", Effect = SkillEffectKind.Dash, Targeting = "nearest",
-                CooldownMs = 8000, Range = 6.0, DamageMult = 2.0, ManaCost = 20, Sprite = "charge",
+                CooldownMs = 8000, Range = 6.0, DamageMult = 2.0, Sprite = "charge",
                 UnlockLevel = 10,
             };
             // Library rows (no kit uses these today — §7.2 keeps the archetype shelf stocked).
             cfg.Skills["cleave"] = new SkillDef
             {
                 Id = "cleave", Name = "Cleave", Effect = SkillEffectKind.Damage, Targeting = "aoe",
-                CooldownMs = 4000, Range = 1.8, AoeRadius = 1.6, DamageMult = 1.6, ManaCost = 15, Sprite = "cleave",
+                CooldownMs = 4000, Range = 1.8, AoeRadius = 1.6, DamageMult = 1.6, Sprite = "cleave",
             };
             cfg.Skills["warcry"] = new SkillDef
             {
                 Id = "warcry", Name = "War Cry", Effect = SkillEffectKind.Buff, Targeting = "self",
-                CooldownMs = 9000, Range = 0, BuffStat = StatKey.Atk, BuffAmount = 10, BuffDurationMs = 6000,
-                ManaCost = 20, Sprite = "warcry", UnlockLevel = 10,
+                CooldownMs = 9000, Range = 0, BuffStat = StatKey.Atk, BuffAmount = 10, BuffDurationMs = 6000, Sprite = "warcry", UnlockLevel = 10,
             };
             cfg.Skills["firebolt"] = new SkillDef
             {
                 Id = "firebolt", Name = "Firebolt", Effect = SkillEffectKind.Damage, Targeting = "nearest",
-                CooldownMs = 3500, Range = 6.0, DamageMult = 1.8, ManaCost = 20, Sprite = "firebolt",
+                CooldownMs = 3500, Range = 6.0, DamageMult = 1.8, Sprite = "firebolt",
             };
             cfg.Skills["mend"] = new SkillDef
             {
                 Id = "mend", Name = "Mend", Effect = SkillEffectKind.Heal, Targeting = "lowestHp",
-                CooldownMs = 7000, Range = 8.0, DamageMult = 2.0, ManaCost = 30, Sprite = "mend",
+                CooldownMs = 7000, Range = 8.0, DamageMult = 2.0, Sprite = "mend",
             };
 
             // Lever 3 expanded kits (6 known per hero, pick 4). Sprites reuse existing FX for now;
@@ -952,50 +945,47 @@ namespace IdleGame.GameCore
             cfg.Skills["bash"] = new SkillDef
             {
                 Id = "bash", Name = "Bash", Effect = SkillEffectKind.Damage, Targeting = "nearest",
-                CooldownMs = 3000, Range = 1.4, DamageMult = 2.4, ManaCost = 15, Sprite = "cleave",
+                CooldownMs = 3000, Range = 1.4, DamageMult = 2.4, Sprite = "cleave",
             };
             cfg.Skills["whirlwind"] = new SkillDef
             {
                 Id = "whirlwind", Name = "Whirlwind", Effect = SkillEffectKind.Damage, Targeting = "aoe",
-                CooldownMs = 6000, Range = 1.8, AoeRadius = 2.6, DamageMult = 1.4, ManaCost = 28, Sprite = "cleave",
+                CooldownMs = 6000, Range = 1.8, AoeRadius = 2.6, DamageMult = 1.4, Sprite = "cleave",
                 UnlockLevel = 8,
             };
             cfg.Skills["bulwark"] = new SkillDef
             {
                 Id = "bulwark", Name = "Bulwark", Effect = SkillEffectKind.Buff, Targeting = "self",
-                CooldownMs = 12000, Range = 0, BuffStat = StatKey.Def, BuffAmount = 15, BuffDurationMs = 6000,
-                ManaCost = 20, Sprite = "warcry", UnlockLevel = 14,
+                CooldownMs = 12000, Range = 0, BuffStat = StatKey.Def, BuffAmount = 15, BuffDurationMs = 6000, Sprite = "warcry", UnlockLevel = 14,
             };
             cfg.Skills["frenzy"] = new SkillDef
             {
                 Id = "frenzy", Name = "Frenzy", Effect = SkillEffectKind.Buff, Targeting = "self",
-                CooldownMs = 10000, Range = 0, BuffStat = StatKey.AtkSpd, BuffAmount = 0.5, BuffDurationMs = 6000,
-                ManaCost = 25, Sprite = "warcry", UnlockLevel = 18,
+                CooldownMs = 10000, Range = 0, BuffStat = StatKey.AtkSpd, BuffAmount = 0.5, BuffDurationMs = 6000, Sprite = "warcry", UnlockLevel = 18,
             };
             // Fire Wizard — AoE fireball, a heavy single nuke, a big AoE ultimate, an attack-speed buff.
             cfg.Skills["fireball"] = new SkillDef
             {
                 Id = "fireball", Name = "Fireball", Effect = SkillEffectKind.Damage, Targeting = "aoe",
-                CooldownMs = 5000, Range = 6.0, AoeRadius = 2.2, DamageMult = 1.6, ManaCost = 30, Sprite = "firebolt",
+                CooldownMs = 5000, Range = 6.0, AoeRadius = 2.2, DamageMult = 1.6, Sprite = "firebolt",
                 UnlockLevel = 10,
             };
             cfg.Skills["scorch"] = new SkillDef
             {
                 Id = "scorch", Name = "Scorch", Effect = SkillEffectKind.Damage, Targeting = "nearest",
-                CooldownMs = 4500, Range = 6.0, DamageMult = 2.6, ManaCost = 28, Sprite = "firebolt",
+                CooldownMs = 4500, Range = 6.0, DamageMult = 2.6, Sprite = "firebolt",
                 UnlockLevel = 8,
             };
             cfg.Skills["inferno"] = new SkillDef
             {
                 Id = "inferno", Name = "Inferno", Effect = SkillEffectKind.Damage, Targeting = "aoe",
-                CooldownMs = 12000, Range = 6.0, AoeRadius = 3.2, DamageMult = 2.2, ManaCost = 50, Sprite = "quake",
+                CooldownMs = 12000, Range = 6.0, AoeRadius = 3.2, DamageMult = 2.2, Sprite = "quake",
                 UnlockLevel = 16,
             };
             cfg.Skills["haste"] = new SkillDef
             {
                 Id = "haste", Name = "Haste", Effect = SkillEffectKind.Buff, Targeting = "self",
-                CooldownMs = 10000, Range = 0, BuffStat = StatKey.AtkSpd, BuffAmount = 0.6, BuffDurationMs = 6000,
-                ManaCost = 25, Sprite = "warcry", UnlockLevel = 12,
+                CooldownMs = 10000, Range = 0, BuffStat = StatKey.AtkSpd, BuffAmount = 0.6, BuffDurationMs = 6000, Sprite = "warcry", UnlockLevel = 12,
             };
 
             // Thief — single-target assassin: a fast cheap stab, a heavy nuke, a tight AoE, and
@@ -1004,37 +994,34 @@ namespace IdleGame.GameCore
             cfg.Skills["shadowstab"] = new SkillDef
             {
                 Id = "shadowstab", Name = "Shadowstab", Effect = SkillEffectKind.Damage, Targeting = "nearest",
-                CooldownMs = 2200, Range = 1.4, DamageMult = 2.6, ManaCost = 12, Sprite = "cleave",
+                CooldownMs = 2200, Range = 1.4, DamageMult = 2.6, Sprite = "cleave",
             };
             cfg.Skills["vitalstrike"] = new SkillDef
             {
                 Id = "vitalstrike", Name = "Vital Strike", Effect = SkillEffectKind.Damage, Targeting = "nearest",
-                CooldownMs = 5000, Range = 1.4, DamageMult = 3.8, ManaCost = 30, Sprite = "cleave",
+                CooldownMs = 5000, Range = 1.4, DamageMult = 3.8, Sprite = "cleave",
                 UnlockLevel = 10,
             };
             cfg.Skills["bladewhirl"] = new SkillDef
             {
                 Id = "bladewhirl", Name = "Bladewhirl", Effect = SkillEffectKind.Damage, Targeting = "aoe",
-                CooldownMs = 5500, Range = 2.0, AoeRadius = 2.2, DamageMult = 1.4, ManaCost = 26, Sprite = "cleave",
+                CooldownMs = 5500, Range = 2.0, AoeRadius = 2.2, DamageMult = 1.4, Sprite = "cleave",
                 UnlockLevel = 8,
             };
             cfg.Skills["pinpoint"] = new SkillDef
             {
                 Id = "pinpoint", Name = "Pinpoint", Effect = SkillEffectKind.Buff, Targeting = "self",
-                CooldownMs = 10000, Range = 0, BuffStat = StatKey.CritChance, BuffAmount = 0.25, BuffDurationMs = 6000,
-                ManaCost = 20, Sprite = "warcry",
+                CooldownMs = 10000, Range = 0, BuffStat = StatKey.CritChance, BuffAmount = 0.25, BuffDurationMs = 6000, Sprite = "warcry",
             };
             cfg.Skills["quickstep"] = new SkillDef
             {
                 Id = "quickstep", Name = "Quickstep", Effect = SkillEffectKind.Buff, Targeting = "self",
-                CooldownMs = 10000, Range = 0, BuffStat = StatKey.AtkSpd, BuffAmount = 0.6, BuffDurationMs = 6000,
-                ManaCost = 25, Sprite = "warcry", UnlockLevel = 10,
+                CooldownMs = 10000, Range = 0, BuffStat = StatKey.AtkSpd, BuffAmount = 0.6, BuffDurationMs = 6000, Sprite = "warcry", UnlockLevel = 10,
             };
             cfg.Skills["lethality"] = new SkillDef
             {
                 Id = "lethality", Name = "Lethality", Effect = SkillEffectKind.Buff, Targeting = "self",
-                CooldownMs = 12000, Range = 0, BuffStat = StatKey.CritDmg, BuffAmount = 0.6, BuffDurationMs = 6000,
-                ManaCost = 25, Sprite = "warcry", UnlockLevel = 16,
+                CooldownMs = 12000, Range = 0, BuffStat = StatKey.CritDmg, BuffAmount = 0.6, BuffDurationMs = 6000, Sprite = "warcry", UnlockLevel = 16,
             };
 
             // Passive nodes (Lever 3 slice 2): always-on, never cast — invest points to rank them and
@@ -1057,10 +1044,10 @@ namespace IdleGame.GameCore
                 Id = "pyromancy", Name = "Pyromancy", Passive = true, UnlockLevel = 5,
                 PassiveStat = StatKey.Atk, StatPerRank = 2.0, Sprite = "fireball",
             };
-            cfg.Skills["attunement"] = new SkillDef   // Magician: bigger mana pool
+            cfg.Skills["attunement"] = new SkillDef   // Magician: sharpened focus (mana removed)
             {
                 Id = "attunement", Name = "Attunement", Passive = true, UnlockLevel = 15,
-                PassiveStat = StatKey.MaxMana, StatPerRank = 10.0, Sprite = "fireball",
+                PassiveStat = StatKey.Atk, StatPerRank = 2.5, Sprite = "fireball",
             };
             cfg.Skills["precision"] = new SkillDef     // Thief: more crits
             {
@@ -1079,7 +1066,7 @@ namespace IdleGame.GameCore
             cfg.Skills["frostbolt"] = new SkillDef
             {
                 Id = "frostbolt", Name = "Frostbolt", Effect = SkillEffectKind.Damage, Targeting = "nearest",
-                CooldownMs = 4200, Range = 6.0, DamageMult = 2.2, ManaCost = 24, Sprite = "firebolt",
+                CooldownMs = 4200, Range = 6.0, DamageMult = 2.2, Sprite = "firebolt",
             };
             cfg.Skills["permafrost"] = new SkillDef  // Ice Mage: rimed armor
             {
@@ -1089,13 +1076,13 @@ namespace IdleGame.GameCore
             cfg.Skills["blizzard"] = new SkillDef
             {
                 Id = "blizzard", Name = "Blizzard", Effect = SkillEffectKind.Damage, Targeting = "aoe",
-                CooldownMs = 6500, Range = 6.0, AoeRadius = 2.6, DamageMult = 1.5, ManaCost = 34, Sprite = "quake",
+                CooldownMs = 6500, Range = 6.0, AoeRadius = 2.6, DamageMult = 1.5, Sprite = "quake",
                 UnlockLevel = 10,
             };
-            cfg.Skills["frostflow"] = new SkillDef   // Ice Mage: glacial mana current
+            cfg.Skills["frostflow"] = new SkillDef   // Ice Mage: glacial cadence (mana removed)
             {
                 Id = "frostflow", Name = "Frostflow", Passive = true, UnlockLevel = 15,
-                PassiveStat = StatKey.ManaRegen, StatPerRank = 0.8, Sprite = "fireball",
+                PassiveStat = StatKey.AtkSpd, StatPerRank = 0.03, Sprite = "fireball",
             };
 
             // Priest kit (§7.2 cadence 1/5/10/15) — the party HoT is the identity: every
@@ -1105,7 +1092,7 @@ namespace IdleGame.GameCore
             {
                 Id = "sanctify", Name = "Sanctify", Effect = SkillEffectKind.Buff, Targeting = "party",
                 CooldownMs = 15000, Range = 0, BuffStat = StatKey.HpRegenPct, BuffAmount = 0.20,
-                BuffDurationMs = 10000, ManaCost = 45, Sprite = "warcry",
+                BuffDurationMs = 10000, Sprite = "warcry",
             };
             cfg.Skills["devotion"] = new SkillDef    // Priest: enduring body
             {
@@ -1115,20 +1102,20 @@ namespace IdleGame.GameCore
             cfg.Skills["holysmite"] = new SkillDef
             {
                 Id = "holysmite", Name = "Holy Smite", Effect = SkillEffectKind.Damage, Targeting = "aoe",
-                CooldownMs = 6000, Range = 6.0, AoeRadius = 2.4, DamageMult = 1.6, ManaCost = 32, Sprite = "quake",
+                CooldownMs = 6000, Range = 6.0, AoeRadius = 2.4, DamageMult = 1.6, Sprite = "quake",
                 UnlockLevel = 10,
             };
-            cfg.Skills["benediction"] = new SkillDef // Priest: flowing grace
+            cfg.Skills["benediction"] = new SkillDef // Priest: flowing grace (mana removed)
             {
                 Id = "benediction", Name = "Benediction", Passive = true, UnlockLevel = 15,
-                PassiveStat = StatKey.ManaRegen, StatPerRank = 0.8, Sprite = "fireball",
+                PassiveStat = StatKey.HpRegen, StatPerRank = 0.6, Sprite = "fireball",
             };
 
             // Boss signature: a wide quake (free — bosses have no mana pool).
             cfg.Skills["boss_quake"] = new SkillDef
             {
                 Id = "boss_quake", Name = "Quake", Effect = SkillEffectKind.Damage, Targeting = "aoe",
-                CooldownMs = 8000, Range = 3.0, AoeRadius = 3.0, DamageMult = 1.4, ManaCost = 0, Sprite = "quake",
+                CooldownMs = 8000, Range = 3.0, AoeRadius = 3.0, DamageMult = 1.4, Sprite = "quake",
             };
 
             // Monster modifiers (Lever 1) — the player-controlled risk/reward knob. Each stage's

@@ -24,7 +24,35 @@ Enhancement (+15, 5% base/level, risk bands, scrap sink), slots cut 9→5,
 Sort button, cleaner equip doll. Next engagement beats when wanted: zones/
 MS2 monsters (item 4 below), set bonuses, a daily-attempts world boss.
 
-### 1. ⭐ Gem sink → hero gacha MVP (Lever 4, the strategic one)
+### 1. ⭐ NOW — combat-feel + QoL batch (user, 2026-07-03)
+Slices, in order (GameCore-first where the sim is touched):
+1. ✅ SHIPPED 2026-07-03 — **mana removed**, skills gate on cooldown only.
+   StatKey got explicit enum values (numeric persistence — deleting members
+   would have shifted saved affix ids); SaveVersion 1→2 strips retired-stat
+   affixes (none existed in the wild — pool never rolled mana); three
+   mana-granting passives retargeted (attunement→Atk, benediction→HpRegen,
+   frostflow→AtkSpd). Observed: no cast-spam increase — CooldownMs was the
+   real limiter all along; pacing lever if ever needed is per-skill CooldownMs.
+2. **Hit/animation sync** — one impact sound + one damage number per actual
+   sim hit; the warrior swing must line up with its number line.
+3. **Auto-equip fix** — currently only the first hero (Knight) ever receives
+   gear; consider all fielded heroes, and rank upgrades by DAMAGE gain over
+   effective-life gain.
+4. **"Salvage all" + gear lock** (one slice — lock must ship with the wider
+   salvage): rename/re-scope "Salvage all ≤ Rare" to salvage everything
+   unequipped and unlocked; add a per-item lock toggle that salvage
+   (manual, mass, and auto) always respects.
+5. **Sound settings** — master/SFX volume sliders in Settings, persisted.
+6. **Bigger characters** — ~1.5× larger on screen (ortho framing factor).
+
+### 2. Monster procedural animation (right after 1)
+The rigid faceted monsters animate by CODE, no rigs (heroes keep their real
+MS2 clips): per-family gait (slime hop / wolf stride / wisp float-bob /
+heavy stomp), attack telegraph + lunge timed to the sim attack event, hit
+flash + squash, death topple or shrink-poof. One client-only
+MonsterAnimator reading sim state; zero GameCore changes.
+
+### 3. ⭐ Gem sink → hero gacha MVP (Lever 4, the strategic one)
 Gems accrue from daily logins with NO spend since 2026-07-02 — the economy's
 promise is unredeemed. Everything is staged for this: heroes are config rows
 (2+2 template), `Party.AcquireHero` is the documented acquisition plug point,
@@ -42,12 +70,12 @@ and the pipeline makes banner heroes cheap to produce. Slices:
    `tints`. Sounds: `Skill_Wizard_FrostNova_Cast`, `Skill_Wizard_IceStrike_*`,
    `Skill_Magician_IceBreath_Cast`.
 
-### 2. Tower slice 3 — per-floor reward bundles (small, unblocks a loop)
+### 4. Tower slice 3 — per-floor reward bundles (small, unblocks a loop)
 The one unfinished system slice. Floors currently pay only via milestones;
 per-floor bundles make pushing feel rewarded run-to-run. GameCore-first,
 sim-testable, ~1 session.
 
-### 3. Combat presentation debt (polish the new roster)
+### 5. Combat presentation debt (polish the new roster)
 - Per-hero impact sounds: `PlayImpact` hardcodes `Hit_SwordDefault` for every
   hit in the game (same fix pattern as the shipped per-hero attack sounds).
 - Sanctify needs a heal visual (golden ground ring / sparkle on buffed heroes)
@@ -55,7 +83,7 @@ sim-testable, ~1 session.
 - Hero-float quirk backlog item: CombatView.SyncViews writes v.Height into
   hero Y for capsules (pre-existing; check it still matters).
 
-### 4. Zones + LOW-POLY monster variety (the "depth feels like travel" beat)
+### 6. Zones + LOW-POLY monster variety (the "depth feels like travel" beat)
 **Art-direction rule (user, 2026-07-02): monsters stay low-poly faceted, Tunic
 style — the MS2 pipeline is for HEROES ONLY.** The smooth-chibi-vs-faceted-world
 contrast IS the look; never port MS2 mobs. Every ~10 stages becomes a themed
@@ -107,7 +135,7 @@ tonight" decision engine. Slices:
    marble columns/gold crystals), palettes baked per zone, layouts stable per
    set. ITEM 4 IS COMPLETE.
 
-### 5. Terraced terrain + water (the big remaining Tunic-look gap — sim-gated)
+### 7. Terraced terrain + water (the big remaining Tunic-look gap — sim-gated)
 Diagnosis from the side-by-side with real Tunic (2026-07-02): the largest
 remaining discrepancy isn't palette or texture, it's STRUCTURE — Tunic arenas
 are terraced (raised platforms, cliff walls with exposed dirt strata, stairs,
@@ -133,11 +161,11 @@ direction: random pale "worn patches" painted on the flat plain read as
 artifacts, not paths — ground wear only works attached to structure, i.e.
 this item's terraces.
 
-### 6. Content & tuning pass (after 4)
+### 8. Content & tuning pass (after the zones/batch work)
 More stages/mods/monster kits; balance sim in console (backlogged); XP-curve
 check at the new roster size.
 
-### 7. Later / parked
+### 9. Later / parked
 - Prestige/rebirth + manual achievement-claim UX (Lever 4 leftovers).
 - Real-money gem purchase (needs the gacha proven fun first).
 - Server authority arc (design §9) — GameCore stays pure for exactly this.

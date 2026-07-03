@@ -46,14 +46,17 @@ namespace IdleGame.GameCore
 
     // Appended (not reordered) so persisted StatKey values stay stable across saves.
     // MoveSpd = movement (tiles/sec); AtkSpd = action rate (attacks, spells, heals — and
-    // client animation speed). MaxMana/ManaRegen back the skill resource.
+    // client animation speed).
+    // Values 9 and 10 are RETIRED (formerly MaxMana / ManaRegen — mana was removed; skills
+    // are cooldown-only now). They stay reserved as an explicit gap so every later member keeps
+    // its persisted integer value; Save.Migrate strips any old affix that still carries 9/10.
     // Lifesteal/ThornsReflect appended last (stable persisted values). They are EXCLUSIVE imprint
     // stats — in no item base's AllowedAffixes, so they only ever reach gear via Loot.ImprintDrop
     // (the rare suffix mods of Leeching / of Thorns). Read in Combat.ApplyHit alongside the same-named
     // monster-behavior fields, so a hero with the stat leeches/reflects exactly like a modded monster.
     // HpRegenPct = fraction of MaxHp healed per second — only ever granted by heal-over-time
     // BUFFS (priest Sanctify), never rolled on gear; flat HpRegen stays the hp/sec stat.
-    public enum StatKey { Hp, Atk, Def, MoveSpd, CritChance, CritDmg, HpRegen, AttackRange, SplashRadius, MaxMana, ManaRegen, AtkSpd, Lifesteal, ThornsReflect, ChainCount, HpRegenPct }
+    public enum StatKey { Hp = 0, Atk = 1, Def = 2, MoveSpd = 3, CritChance = 4, CritDmg = 5, HpRegen = 6, AttackRange = 7, SplashRadius = 8, AtkSpd = 11, Lifesteal = 12, ThornsReflect = 13, ChainCount = 14, HpRegenPct = 15 }
 
     /// <summary>A bag of stat values. Partial blocks simply omit keys.</summary>
     public sealed class StatBlock : Dictionary<StatKey, double>

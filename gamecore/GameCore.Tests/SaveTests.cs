@@ -178,6 +178,39 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void MigrateUpgradesV1SaveToCurrentVersion()
+        {
+            // A legacy v1 save (pre-mana-removal) loads and is stamped to the current version.
+            var json = "{\"Version\":1,\"Party\":[\"h1\"]}";
+            var save = Persistence.Deserialize(json);
+            Assert.Equal(Save.SaveVersion, save.Version);
+        }
+
+        [Fact]
+        public void MigrateStripsRetiredManaAffixesFromV1Items()
+        {
+            // A v1 item that (hypothetically) carried a MaxMana affix: StatKey serialized
+            // numerically, and the retired MaxMana/ManaRegen values were 9/10. Migration must
+            // drop the dangling affix but keep the still-valid AtkSpd (11) affix intact —
+            // covers both bag and equipped (equipped items live in Inventory).
+            var json =
+                "{\"Version\":1,\"Inventory\":[{\"Id\":\"i1\",\"BaseId\":\"weapon\",\"Affixes\":[" +
+                "{\"Stat\":9,\"Value\":50}," +   // retired MaxMana
+                "{\"Stat\":10,\"Value\":3}," +   // retired ManaRegen
+                "{\"Stat\":11,\"Value\":0.05}," + // AtkSpd — still valid
+                "{\"Stat\":1,\"Value\":4.5}]}]}"; // Atk — still valid
+
+            var save = Persistence.Deserialize(json); // must not throw on old-shape JSON
+
+            var item = save.Inventory.Single(i => i.Id == "i1");
+            Assert.Equal(2, item.Affixes.Count);
+            Assert.All(item.Affixes, a => Assert.True(System.Enum.IsDefined(typeof(StatKey), a.Stat)));
+            Assert.Contains(item.Affixes, a => a.Stat == StatKey.AtkSpd);
+            Assert.Contains(item.Affixes, a => a.Stat == StatKey.Atk);
+            Assert.Equal(Save.SaveVersion, save.Version);
+        }
+
+        [Fact]
         public void MigrateBackfillsNullCollections()
         {
             // A partial payload with explicit nulls must not NRE the rest of the game.
