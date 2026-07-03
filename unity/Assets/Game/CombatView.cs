@@ -587,8 +587,10 @@ namespace IdleGame.Game
             ReconcileViews();
             SyncViews();
 
-            // camera follows the party's centre (the group stays cohesive)
-            if (_rig != null && TryPartyCentroid(out var focus)) _rig.SetFocus(focus);
+            // camera follows the party's centre, leaning toward the action (their targets /
+            // the next pack) so the approach phase isn't blind at the tighter 1.5x framing;
+            // the rig clamps and smooths the lean so heroes always stay well in frame
+            if (_rig != null && TryPartyCentroid(out var focus)) _rig.SetFocus(focus, ActionPoint(focus));
         }
 
         /// <summary>World-space centre of the living party (camera focus); false if all down.
@@ -607,6 +609,48 @@ namespace IdleGame.Game
             centroid = sum / n;
             centroid.y = 0f;
             return true;
+        }
+
+        /// <summary>Where the fight is, for the camera look-ahead: the centroid of the party's
+        /// current attack targets when engaged; otherwise the nearest alive enemy pack's centroid
+        /// (alive enemies within 8u of the nearest one); the party centroid itself when nothing
+        /// is alive (no lean). Read-only over sim state — display logic, not rules.</summary>
+        private Vector3 ActionPoint(Vector3 partyCentroid)
+        {
+            // Engaged: average the on-screen (smoothed) positions of the party's targets.
+            Vector3 sum = Vector3.zero; int n = 0;
+            foreach (var e in _combat.Entities)
+            {
+                if (e.Team != Team.Party || !e.Alive || e.TargetId == null) continue;
+                if (_views.TryGetValue(e.TargetId, out var tv) && tv.Go != null && tv.Go.activeSelf)
+                {
+                    sum += tv.SmoothPos; n++;
+                }
+            }
+            if (n > 0) { var c = sum / n; c.y = 0f; return c; }
+
+            // Roaming: nearest alive enemy, then its pack's centroid.
+            Vector3 nearest = default; float best = float.MaxValue; bool found = false;
+            foreach (var e in _combat.Entities)
+            {
+                if (e.Team != Team.Enemy || !e.Alive) continue;
+                var p = new Vector3((float)e.Pos.X, 0f, (float)e.Pos.Y);
+                float d = (p - partyCentroid).sqrMagnitude;
+                if (d < best) { best = d; nearest = p; found = true; }
+            }
+            if (!found) return partyCentroid;
+
+            const float packRadiusSq = 8f * 8f;
+            sum = Vector3.zero; n = 0;
+            foreach (var e in _combat.Entities)
+            {
+                if (e.Team != Team.Enemy || !e.Alive) continue;
+                var p = new Vector3((float)e.Pos.X, 0f, (float)e.Pos.Y);
+                if ((p - nearest).sqrMagnitude <= packRadiusSq) { sum += p; n++; }
+            }
+            var pack = n > 0 ? sum / n : nearest;
+            pack.y = 0f;
+            return pack;
         }
 
         /// <summary>Record progress toward the goal board and surface any completions. Goals can

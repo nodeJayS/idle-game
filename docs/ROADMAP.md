@@ -16,15 +16,14 @@ grade). 434 GameCore tests green. No mana — skills are cooldown-only.
 
 ## Priorities, in order
 
-### 1. Combat-feel + QoL batch (user 2026-07-03) — 5/6 shipped
+### 1. Combat-feel + QoL batch (user 2026-07-03) — ✅ 6/6 shipped
 Receipts: mana removed (StatKey pinned ints, SaveVersion 2) · hit sync
 (swing↔number 2ms, splash sounds deduped/quieter) · auto-equip damage-first
 across all fielded heroes (badge and auto-equip share one call) · Salvage all
 + Item.Locked (arm/confirm button; all salvage paths refuse locked) · sound
-sliders (PlayerPrefs volMaster/volSfx).
-REMAINING: **bigger characters** — ortho factor 0.18 + dead-zone camera
-(2.5u, capped glide, look-ahead to action point) is CODED, in tree,
-compiles; awaiting the user's play-feel verdict before commit/tune.
+sliders (PlayerPrefs volMaster/volSfx) · bigger characters (ortho factor
+0.18 + dead-zone camera: 2.5u radius, capped glide, look-ahead; play-tested
+by user).
 
 ### 2. Monster procedural animation
 Rigid faceted monsters animate by CODE, no rigs (heroes keep MS2 clips):
