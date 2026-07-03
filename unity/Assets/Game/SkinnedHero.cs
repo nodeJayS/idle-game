@@ -21,6 +21,12 @@ namespace IdleGame.Game
         /// skinned heroes override it from their manifest (a ranged caster
         /// shouldn't clang like a sword).</summary>
         string AttackSound => "Swing_Sword";
+
+        /// <summary>Seconds from the last <see cref="TriggerAttack"/> until the swing's
+        /// contact moment (the sword lands / the shot is loosed). CombatView delays the
+        /// damage number + impact sound by this so they land ON the visible hit rather
+        /// than the instant the swing starts. Default fits the procedural chibi swing.</summary>
+        float AttackContactSec => 0.2f;
     }
 
     /// <summary>
@@ -134,6 +140,15 @@ namespace IdleGame.Game
             SkillBindings != null && SkillBindings.TryGetValue("_attack", out var b)
                 ? b.sound : "Swing_Sword";
 
+        // Contact tuning: the swing should LAND about this long after TriggerAttack, and the
+        // clip is time-scaled so the contact moment sits at ~this fraction of its length. Both
+        // attack takes (they differ in length) get normalised to the same felt timing, so the
+        // number/sound delay CombatView applies is a single stable value across swings/heroes.
+        private const float TargetContactSec = 0.22f;
+        private const float ContactFraction = 0.45f; // sword lands slightly before the clip's midpoint
+        private float _attackClipLen = 0.5f;         // length of the take last triggered
+        public float AttackContactSec => TargetContactSec;
+
         /// <summary>Ground speed the hero's MS2 run cycle was authored for
         /// (units/s). Playback scales by actual/native so feet match the ground
         /// instead of gliding. 2.5 fits the warrior's 0.6s cycle; a manifest
@@ -144,8 +159,13 @@ namespace IdleGame.Game
         private bool _moving;
         private bool _downed;
         private float _speedScale = 1f;
+        private float _attackSpeed = 1f;   // playback scale for the CURRENT attack take (contact-normalise)
         private float _idleT;
         private float _nextBore = 8f;
+
+        // Clip lengths (seconds) of the two basic-attack takes, read from the override
+        // controller at Init so TriggerAttack can time-scale each to the same contact moment.
+        private float _attackLen = 0.467f, _attack2Len = 0.467f;
 
         private void Awake()
         {
@@ -173,6 +193,18 @@ namespace IdleGame.Game
                 "Models/" + defId + "Animator");
             if (ctrl != null && _animator != null)
                 _animator.runtimeAnimatorController = ctrl;
+
+            // Cache the two attack takes' lengths (names end "…attack" / "…attack2") so each
+            // swing can be time-scaled to a common contact moment.
+            var src = ctrl ?? _animator?.runtimeAnimatorController;
+            if (src != null)
+                foreach (var c in src.animationClips)
+                {
+                    if (c == null || c.length <= 0f) continue;
+                    var n = c.name.ToLowerInvariant();
+                    if (n.EndsWith("attack2")) _attack2Len = c.length;
+                    else if (n.EndsWith("attack")) _attackLen = c.length;
+                }
         }
 
         public void SetMoving(bool moving)
@@ -188,9 +220,13 @@ namespace IdleGame.Game
         private void Update()
         {
             if (_animator == null) return;
-            // scale only the run cycle — everything else plays as authored
-            bool running = _animator.GetCurrentAnimatorStateInfo(0).IsName("Run");
-            _animator.speed = running ? _speedScale : 1f;
+            // Run cycle scales to ground speed; the basic-attack takes scale so their contact
+            // moment lands at the same felt time regardless of clip length (contact-normalise);
+            // everything else plays as authored.
+            var st = _animator.GetCurrentAnimatorStateInfo(0);
+            if (st.IsName("Run")) _animator.speed = _speedScale;
+            else if (st.IsName("Attack") || st.IsName("Attack2")) _animator.speed = _attackSpeed;
+            else _animator.speed = 1f;
 
             // long idle -> a bored fidget now and then (MS2's bore clip)
             if (!_moving && !_downed)
@@ -209,7 +245,15 @@ namespace IdleGame.Game
         public void TriggerAttack()
         {
             if (_animator == null || _moving || _downed) return; // never swing mid-slide
-            _animator.SetTrigger(Random.value < 0.5f ? AttackId : Attack2Id);
+            bool two = Random.value < 0.5f;
+            float len = two ? _attack2Len : _attackLen;
+            _attackClipLen = len;
+            // Time-scale the take so its contact frame (ContactFraction of the clip) lands at
+            // TargetContactSec — both takes then feel identical and match the number/sound delay.
+            float wantContact = len * ContactFraction;
+            _attackSpeed = wantContact > 0.001f
+                ? Mathf.Clamp(wantContact / TargetContactSec, 0.5f, 3f) : 1f;
+            _animator.SetTrigger(two ? Attack2Id : AttackId);
         }
 
         public void TriggerSkill(string skillId)

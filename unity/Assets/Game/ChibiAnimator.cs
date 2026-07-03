@@ -43,6 +43,9 @@ namespace IdleGame.Game
 
         public void TriggerAttack() => _attackLeft = AttackLen;
 
+        // The strike phase peaks ~0.4 through the 0.5s swing — that's when the blade lands.
+        public float AttackContactSec => AttackLen * 0.4f;
+
         public void SetMoveSpeed(float unitsPerSec) { }          // procedural cycle stays fixed
         public void TriggerSkill(string skillId) => TriggerAttack(); // skills read as swings
         public void TriggerHit() { }                             // recoil offset covers it

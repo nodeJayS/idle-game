@@ -33,8 +33,14 @@ Slices, in order (GameCore-first where the sim is touched):
    mana-granting passives retargeted (attunement→Atk, benediction→HpRegen,
    frostflow→AtkSpd). Observed: no cast-spam increase — CooldownMs was the
    real limiter all along; pacing lever if ever needed is per-skill CooldownMs.
-2. **Hit/animation sync** — one impact sound + one damage number per actual
-   sim hit; the warrior swing must line up with its number line.
+2. ✅ SHIPPED 2026-07-03 — **hit/animation sync**: swing↔number offset cut
+   ~500ms → 2ms avg. Root causes: splash emitted one full-volume clang +
+   re-triggered swing PER splashed enemy; numbers spawned at swing START and
+   the two Knight attack takes differ 0.467s vs 1.167s unscaled. Fix
+   (presentation-only): per-source-per-step primary/secondary dedup
+   (secondaries 0.5× volume, no swing re-trigger), every swing time-scaled to
+   a fixed 0.22s contact (`IHeroAnim.AttackContactSec`), melee number+clang
+   delayed to contact via coroutine.
 3. **Auto-equip fix** — currently only the first hero (Knight) ever receives
    gear; consider all fielded heroes, and rank upgrades by DAMAGE gain over
    effective-life gain.

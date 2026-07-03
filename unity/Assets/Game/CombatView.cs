@@ -221,13 +221,45 @@ namespace IdleGame.Game
             go.AddComponent<TransientFx>().Configure(0.3f, Vector3.one * (size * 0.4f), Vector3.one * (size * 1.6f));
         }
 
-        /// <summary>Impact feedback (damage number + crit shake/flash), each per its toggle.</summary>
-        private void PlayImpact(Vector3 at, double amount, bool crit)
+        /// <summary>Impact feedback (damage number + crit shake/flash + one impact clang), each
+        /// per its toggle. <paramref name="secondary"/> = a splash/chain/thorns hit riding the
+        /// same swing: the number still pops, but the clang is quieter (~0.5×) so a swing into a
+        /// pack reads as one hit with echoes, not a wall of full-volume clangs.</summary>
+        private void PlayImpact(Vector3 at, double amount, bool crit, bool secondary = false)
         {
             if (_juice == null) return;
             if (Settings.DamageNumbers) _juice.DamageNumber(at, amount, crit);
-            if (crit && Settings.ScreenShake) _rig?.Shake(0.15f);
-            SoundFx.Play("Hit_SwordDefault", crit ? 0.6f : 0.45f);
+            if (crit && Settings.ScreenShake && !secondary) _rig?.Shake(0.15f);
+            float vol = crit ? 0.6f : 0.45f;
+            if (secondary) vol *= 0.5f;
+            SoundFx.Play("Hit_SwordDefault", vol);
+        }
+
+        /// <summary>Present a melee hit's number + impact sound after <paramref name="delaySec"/>
+        /// so they land on the VISIBLE sword contact (mid-swing), not the instant the swing starts.
+        /// Presentation-only — the sim already applied the damage. Caches the world point at
+        /// schedule time (the victim may die/move before contact). Falls through to an immediate
+        /// pop when there's no meaningful delay (0 = projectile/skill paths already time it).</summary>
+        private void ScheduleImpact(Vector3 at, double amount, bool crit, float delaySec, bool secondary)
+        {
+            if (delaySec <= 0.001f) { PlayImpact(at, amount, crit, secondary); return; }
+            StartCoroutine(ImpactAfter(at, amount, crit, delaySec, secondary));
+        }
+
+        private System.Collections.IEnumerator ImpactAfter(Vector3 at, double amount, bool crit, float delaySec, bool secondary)
+        {
+            yield return new WaitForSeconds(delaySec);
+            PlayImpact(at, amount, crit, secondary);
+        }
+
+        /// <summary>Time-to-contact of the source hero's current swing (0 for non-hero/ranged
+        /// sources, whose numbers ride a projectile impact instead). Used to delay the melee
+        /// number/sound onto the visible hit. Generic across heroes via IHeroAnim.</summary>
+        private float ContactDelayFor(string? sourceId)
+        {
+            if (sourceId != null && _views.TryGetValue(sourceId, out var sv) && sv.Anim != null)
+                return sv.Anim.AttackContactSec;
+            return 0f;
         }
 
         /// <summary>Resolve an attacker's basic-attack visual hint (hero or monster def).</summary>
@@ -1061,6 +1093,10 @@ namespace IdleGame.Game
             // Where each enemy died this step, so a keeper's loot pop appears at the drop site
             // (the corpse's view is detached on Death, before the LootDrop event is handled).
             Dictionary<string, Vector3>? deathPos = null;
+            // Sources that have already landed their PRIMARY basic-attack hit this step: the one
+            // swing is triggered once, and its splash/chain siblings pop quieter (secondary). A
+            // pack-clearing swing then reads as one hit + echoes, not N full-volume clangs/swings.
+            HashSet<string>? swung = null;
             int enemyKills = 0; // batched into the goal board after the loop
 
             foreach (var ev in events)
@@ -1088,15 +1124,24 @@ namespace IdleGame.Game
                             }
                             else
                             {
-                                PlayImpact(head, ev.Amount, ev.Crit);
+                                // An AoE skill's per-victim ticks: first at full volume, the rest
+                                // quieter so a big cast reads as one boom + echoes, not N clangs.
+                                bool skPrimary = (swung ??= new HashSet<string>()).Add("sk:" + ev.SourceId);
+                                PlayImpact(head, ev.Amount, ev.Crit, secondary: !skPrimary);
                             }
                             break;
                         }
 
-                        TriggerLunge(ev.SourceId, ev.TargetId, towardTarget: true);
+                        // One swing per source per step: the primary hit triggers the animation
+                        // + swing sound; splash/chain siblings ride that same swing (secondary),
+                        // so they never re-trigger the clip or stack a full-volume swing sound.
+                        bool primary = ev.SourceId == null || (swung ??= new HashSet<string>()).Add(ev.SourceId);
+                        if (primary) TriggerLunge(ev.SourceId, ev.TargetId, towardTarget: true);
 
                         // Ranged attackers launch a projectile (impact pops the number);
-                        // melee/projectiles-off pops it instantly.
+                        // melee/projectiles-off pops it. For melee, delay the number + clang to the
+                        // swing's contact moment (mid-clip) so it lands ON the visible hit, not the
+                        // instant the swing starts. Secondary hits pop quieter.
                         string fx = AttackFxFor(ev.SourceId);
                         bool hasFx = _projectileFx.TryGetValue(fx, out var launch);
                         if (Settings.Projectiles && hasFx && ev.SourceId != null &&
@@ -1107,7 +1152,7 @@ namespace IdleGame.Game
                         }
                         else
                         {
-                            PlayImpact(head, ev.Amount, ev.Crit);
+                            ScheduleImpact(head, ev.Amount, ev.Crit, ContactDelayFor(ev.SourceId), secondary: !primary);
                         }
                         break;
                     }
