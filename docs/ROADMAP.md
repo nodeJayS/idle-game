@@ -41,9 +41,12 @@ Slices, in order (GameCore-first where the sim is touched):
    (secondaries 0.5× volume, no swing re-trigger), every swing time-scaled to
    a fixed 0.22s contact (`IHeroAnim.AttackContactSec`), melee number+clang
    delayed to contact via coroutine.
-3. **Auto-equip fix** — currently only the first hero (Knight) ever receives
-   gear; consider all fielded heroes, and rank upgrades by DAMAGE gain over
-   effective-life gain.
+3. ✅ SHIPPED 2026-07-03 — **auto-equip fixed**: ranking by the blended
+   power-% funneled everything to the slot-0 knight; now DAMAGE-first across
+   all fielded heroes (largest DPS gain wins; EHP gain only when nobody gains
+   damage), restricted to genuine Verdict.Upgrade holders so the ▲ badge and
+   auto-equip read the same call and can't diverge. PowerScore blended value
+   unchanged (badges identical).
 4. **"Salvage all" + gear lock** (one slice — lock must ship with the wider
    salvage): rename/re-scope "Salvage all ≤ Rare" to salvage everything
    unequipped and unlocked; add a per-item lock toggle that salvage

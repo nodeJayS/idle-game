@@ -47,7 +47,7 @@ docs/game-design.md      the durable what/why
   Play-mode can't run headlessly — visuals are verified by screenshot (Unity MCP), UI is
   hand-placed uGUI/IMGUI coords.
 
-## Current systems (421 tests passing)
+## Current systems (425 tests passing)
 
 Phase A (core loop) and most of Phase B (depth) are done. What exists today:
 
