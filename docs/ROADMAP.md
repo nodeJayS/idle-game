@@ -16,21 +16,13 @@ grade). 434 GameCore tests green. No mana — skills are cooldown-only.
 
 ## Priorities, in order
 
-### 1. Combat-feel + QoL batch (user 2026-07-03) — ✅ 6/6 shipped
-Receipts: mana removed (StatKey pinned ints, SaveVersion 2) · hit sync
-(swing↔number 2ms, splash sounds deduped/quieter) · auto-equip damage-first
-across all fielded heroes (badge and auto-equip share one call) · Salvage all
-+ Item.Locked (arm/confirm button; all salvage paths refuse locked) · sound
-sliders (PlayerPrefs volMaster/volSfx) · bigger characters (ortho factor
-0.18 + dead-zone camera: 2.5u radius, capped glide, look-ahead; play-tested
-by user).
+### 1. ✅ Combat-feel + QoL batch — shipped 2026-07-03 (6 slices, see git)
 
-### 2. Monster procedural animation
-Rigid faceted monsters animate by CODE, no rigs (heroes keep MS2 clips):
-per-family gait (slime hop / wolf stride / wisp float / heavy stomp), attack
-telegraph + lunge on the sim attack event, hit flash + squash, death topple
-or shrink-poof. One client-only MonsterAnimator reading sim state; zero
-GameCore changes.
+### 2. ✅ Monster procedural animation — shipped 2026-07-03
+Receipt: client-only MonsterAnimator (body-pivot trick — CombatView owns the
+root), 4 gait families over all 28 monster ids, telegraph/hit-flash/death
+topple-or-poof, monsters now face movement/target; verified in Play across
+3 zones.
 
 ### 3. ⭐ Gem sink → hero gacha MVP (the strategic lever)
 Gems accrue with NO spend — the economy's promise is unredeemed; don't let

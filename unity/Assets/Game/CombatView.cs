@@ -46,6 +46,11 @@ namespace IdleGame.Game
             public IHeroAnim? Anim;
             public bool Moving;
 
+            // Procedural monster life (set for faceted MODEL enemies only; null for the primitive
+            // capsule/cube fallback and for heroes). Gait/telegraph/hit/death on a body pivot;
+            // the root stays owned by SyncViews. See MonsterAnimator.
+            public MonsterAnimator? MonsterAnim;
+
             // Attack/cast tell (M11): a quick punch toward the target (or upward for a
             // cast) on each action. Duration scales inversely with AtkSpd, so faster
             // actors snap; LungeDir is a world vector, LungeMag its reach.
@@ -1081,10 +1086,21 @@ namespace IdleGame.Game
                 }
             }
 
+            // Procedural life for faceted monster MODELS (not the primitive fallback, not heroes):
+            // a body-pivot animator that gaits/telegraphs/flinches/dies per family. Seed its phase
+            // off the entity id so a pack of the same monster doesn't bob in unison. Must run AFTER
+            // the tint above so its material cache sees the rank/mod emission it has to restore.
+            MonsterAnimator? monsterAnim = null;
+            if (!isHero && model != null)
+            {
+                monsterAnim = go.AddComponent<MonsterAnimator>();
+                monsterAnim.Init(e.RefId, e.Id.GetHashCode());
+            }
+
             var view = new View { Go = go, Height = height, YOffset = model != null ? 0f : height,
                                   BaseColor = color, BaseScale = baseScale,
                                   PrevPos = go.transform.position, CurPos = go.transform.position, SmoothPos = go.transform.position,
-                                  Anim = heroAnim };
+                                  Anim = heroAnim, MonsterAnim = monsterAnim };
 
             // Enemies (trash + boss) animate in per their monster's SpawnStyle (if the
             // toggle is on); heroes are placed instantly at run start.
@@ -1259,8 +1275,15 @@ namespace IdleGame.Game
                                 _views.Remove(ev.EntityId);
                                 enemyKills++;
                                 SoundFx.Play("BadWood_Dead", 0.4f);
-                                v.Go.AddComponent<DeathFx>()
-                                    .Configure(0.45f, v.Go.transform.localScale, v.LastHitDir * 0.6f, sink: 0.4f);
+                                // Faceted monster models die per-family (topple / poof) on their body
+                                // animator, which now owns the whole detached object and self-destructs.
+                                // The primitive fallback keeps the generic DeathFx crumple. Either way
+                                // the corpse lingers ~0.5s so an in-flight projectile can still land.
+                                if (v.MonsterAnim != null)
+                                    v.MonsterAnim.Die(v.LastHitDir);
+                                else
+                                    v.Go.AddComponent<DeathFx>()
+                                        .Configure(0.45f, v.Go.transform.localScale, v.LastHitDir * 0.6f, sink: 0.4f);
                             }
                         }
                         break;
@@ -1330,20 +1353,32 @@ namespace IdleGame.Game
                 v.Go.transform.position = v.SmoothPos + LungeOffset(v) + KnockOffset(v);
                 if (v.Spawning) AnimateSpawn(v);
 
-                // Skeletal heroes: drive idle/walk (movement cancels a swing/cast inside
-                // SetMoving) + face where they're going, or their target when standing.
-                if (v.Anim != null)
+                // Movement drives both the skeletal hero clips and the monster body gaits, off the
+                // same math and the SAME feed shape: Moving every frame, ground speed (units/sec)
+                // only on sim steps while moving — so the speed stays sticky on the 60fps render
+                // frames between 30Hz steps (feeding 0 there whipsaws hop/stride cadence).
+                if (v.Anim != null || v.MonsterAnim != null)
                 {
                     if (_steppedThisFrame)
                     {
                         v.Moving = (v.CurPos - v.PrevPos).sqrMagnitude > 0.0004f;
-                        // feed real ground speed so clip playback matches (no foot-glide)
                         if (v.Moving)
-                            v.Anim.SetMoveSpeed((v.CurPos - v.PrevPos).magnitude /
-                                                (float)(Combat.DefaultStepMs / 1000.0));
+                        {
+                            float groundSpeed = (v.CurPos - v.PrevPos).magnitude /
+                                                (float)(Combat.DefaultStepMs / 1000.0);
+                            v.Anim?.SetMoveSpeed(groundSpeed);        // clip playback matches (no foot-glide)
+                            v.MonsterAnim?.SetMoveSpeed(groundSpeed); // gait cadence tracks real pace
+                        }
                     }
-                    v.Anim.SetMoving(v.Moving);
+                    v.Anim?.SetMoving(v.Moving);
+                    v.MonsterAnim?.SetMoving(v.Moving);
+                }
 
+                // Facing: heroes AND monsters turn toward their movement (or their target when
+                // standing). Root rotation is safe here — only root position/scale are owned
+                // elsewhere. Skip the primitive fallback (no Anim, no MonsterAnim).
+                if (v.Anim != null || v.MonsterAnim != null)
+                {
                     Vector3 face = Vector3.zero;
                     if (v.Moving) face = v.CurPos - v.PrevPos;
                     else if (e.TargetId != null && _views.TryGetValue(e.TargetId, out var tv) && tv.Go != null)
@@ -1395,6 +1430,7 @@ namespace IdleGame.Game
             hv.KnockDur = 0.14f;
             hv.KnockT = hv.KnockDur;
             hv.Anim?.TriggerHit(); // skeletal heroes flinch with the MS2 knock-back clip
+            hv.MonsterAnim?.TriggerHit(); // faceted monsters flash + squash on the body pivot
         }
 
         /// <summary>Kick off a lunge on the source view toward the target (or upward for a
@@ -1435,6 +1471,11 @@ namespace IdleGame.Game
             sv.LungeT = sv.LungeDur;
             sv.LungeDir = dir;
             sv.LungeMag = mag;
+
+            // Faceted monsters take this same positional lunge (Anim == null), but ALSO play a
+            // body-pivot telegraph synced to it: anticipation crouch, then a punch-out stretch.
+            // Body language only — no second positional offset.
+            sv.MonsterAnim?.TriggerAttack(sv.LungeDur);
         }
 
         /// <summary>Grow a freshly-spawned view from zero to full size with a little pop.</summary>
