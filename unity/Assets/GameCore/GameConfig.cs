@@ -219,6 +219,37 @@ namespace IdleGame.GameCore
         public List<AchievementTier> Tiers = new List<AchievementTier>();
     }
 
+    /// <summary>
+    /// A gacha banner — the gem SINK (roadmap 3). One roll spends <see cref="CostGems"/> of the
+    /// premium currency and weighted-picks a hero from <see cref="Pool"/> (heroDefId → weight). A
+    /// pity counter (in the save, keyed by <see cref="Id"/>) increments on every roll that does NOT
+    /// yield <see cref="FeaturedHeroDefId"/>; hitting <see cref="PityCount"/> forces the featured hero
+    /// and resets, and naturally drawing the featured hero resets it too. A NEW hero joins the roster
+    /// (<see cref="Party.AcquireHero"/>); a DUPE converts to <see cref="DupeXp"/> hero XP +
+    /// <see cref="DupeScrap"/> account scrap. Dupe rewards live on the banner (like <see cref="CostGems"/>)
+    /// so a banner is a fully self-contained economy knob. No live banner ships in slice 1 —
+    /// <see cref="GameConfig.Banners"/> is empty in Default(); tests build fixtures; the Ice Mage
+    /// comeback banner arrives in slice 3.
+    /// </summary>
+    public sealed class GachaBannerDef
+    {
+        public string Id = "";
+        public string Name = "";
+        public long CostGems;                 // premium currency spent per roll
+        public string FeaturedHeroDefId = ""; // the pity target + the "is featured" flag on a result
+        public List<GachaPoolEntry> Pool = new List<GachaPoolEntry>(); // weighted hero pool
+        public int PityCount;                 // rolls-without-featured that FORCE the featured hero (0 = no pity)
+        public long DupeXp;                    // XP granted to the rolled hero when it's a dupe
+        public long DupeScrap;                 // account scrap granted when the roll is a dupe
+    }
+
+    /// <summary>One weighted entry in a banner's pool: a hero def and its pick weight (&gt; 0).</summary>
+    public sealed class GachaPoolEntry
+    {
+        public string HeroDefId = "";
+        public double Weight;
+    }
+
     /// <summary>All tunable numbers. The file you edit constantly to balance.</summary>
     public sealed class BalanceConstants
     {
@@ -536,6 +567,9 @@ namespace IdleGame.GameCore
         public List<string> ModifierUnlockOrder = new List<string>();
         // Lifetime achievement ladder (Lever 4 — the permanent milestone hooks). See Achievements.cs.
         public List<AchievementDef> Achievements = new List<AchievementDef>();
+        // Gacha banners (roadmap 3 — the gem SINK), keyed by banner id. Empty in Default() for slice 1
+        // (no live content); the Ice Mage comeback banner arrives in slice 3. See Gacha.cs.
+        public Dictionary<string, GachaBannerDef> Banners = new Dictionary<string, GachaBannerDef>();
         public BalanceConstants Balance = new BalanceConstants();
 
         /// <summary>The zone a stage belongs to: one zone per StagesPerTier band (the same

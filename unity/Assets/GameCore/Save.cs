@@ -80,6 +80,7 @@ namespace IdleGame.GameCore
                 Progress = save.Progress,
                 Quests = save.Quests,
                 Modifiers = save.Modifiers,
+                GachaPity = save.GachaPity,
                 LastClaimAt = stamped,
             };
         }
@@ -123,6 +124,7 @@ namespace IdleGame.GameCore
             save.Quests ??= new QuestBoard(); // EnsureBoard (client, needs cfg) backfills the goals
             save.Modifiers ??= new MonsterModifiers(); // none owned on older saves until a boss grants one
             save.Modifiers.Tuning ??= new Dictionary<string, double>(); // modifier-shop tuning (new field)
+            save.GachaPity ??= new Dictionary<string, int>(); // gacha pity counters (new field; no version bump)
 
             // Per-hero back-fills for older saves (Lever 3): no skill ranks invested yet.
             foreach (var h in save.Heroes)

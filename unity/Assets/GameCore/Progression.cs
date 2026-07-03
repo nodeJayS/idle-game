@@ -54,6 +54,7 @@ namespace IdleGame.GameCore
                 Progress = save.Progress,
                 Quests = save.Quests,
                 Modifiers = save.Modifiers,
+                GachaPity = save.GachaPity,
                 LastClaimAt = save.LastClaimAt,
             };
         }
@@ -79,6 +80,7 @@ namespace IdleGame.GameCore
                 Progress = save.Progress,
                 Quests = save.Quests,
                 Modifiers = save.Modifiers,
+                GachaPity = save.GachaPity,
                 LastClaimAt = save.LastClaimAt,
             };
         }
@@ -105,6 +107,7 @@ namespace IdleGame.GameCore
                 Progress = save.Progress,
                 Quests = save.Quests,
                 Modifiers = save.Modifiers,
+                GachaPity = save.GachaPity,
                 LastClaimAt = save.LastClaimAt,
             };
         }
@@ -161,8 +164,16 @@ namespace IdleGame.GameCore
                 if (empty >= 0) next = Party.FieldHero(next, empty, heroId);      // join the party
             }
 
-            // Disabled content: obtainable = starter + the unlock table.
+            // Disabled content: obtainable = starter + the unlock table + every hero on a live gacha
+            // banner's pool. A gacha-granted hero has NO stage unlock (roadmap 3), so without the banner
+            // pools here the next SyncHeroUnlocks would SHELVE it (the same removal path that shelves the
+            // Ice Mage). Keying off the banner pool — not a per-hero "granted" flag — keeps the hero
+            // obtainable exactly as long as its banner exists, needs no save-schema change, and is
+            // idempotent. Slice 1 ships no live banner, so this set is unchanged for existing content.
             var obtainable = new HashSet<string>(cfg.HeroUnlocks.Values) { Save.StarterHeroDef };
+            foreach (var banner in cfg.Banners.Values)
+                foreach (var entry in banner.Pool)
+                    obtainable.Add(entry.HeroDefId);
             if (next.Heroes.Exists(h => !obtainable.Contains(h.DefId)))
             {
                 var gone = new HashSet<string>();
@@ -187,6 +198,7 @@ namespace IdleGame.GameCore
                     Progress = next.Progress,
                     Quests = next.Quests,
                     Modifiers = next.Modifiers,
+                    GachaPity = next.GachaPity,
                     LastClaimAt = next.LastClaimAt,
                 };
                 if (Array.TrueForAll(next.Party, s => s == null) && next.Heroes.Count > 0)
@@ -232,6 +244,7 @@ namespace IdleGame.GameCore
             Progress = progress,
             Quests = save.Quests,
             Modifiers = save.Modifiers,
+            GachaPity = save.GachaPity,
             LastClaimAt = save.LastClaimAt,
         };
 

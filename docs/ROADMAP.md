@@ -27,8 +27,9 @@ topple-or-poof, monsters now face movement/target; verified in Play across
 ### 3. ⭐ Gem sink → hero gacha MVP (the strategic lever)
 Gems accrue with NO spend — the economy's promise is unredeemed; don't let
 anything else jump this again. Slices:
-1. GameCore `Gacha.Roll`: gem cost, persisted-cursor RNG (no re-roll),
-   dupe → hero XP/scrap, pity counter in save.
+1. ✅ GameCore `Gacha.Roll` (2026-07-03): banner-def config, gem cost,
+   persisted-cursor RNG (no re-roll), dupe → hero XP/scrap, per-banner pity;
+   SyncHeroUnlocks keeps banner-pool heroes obtainable. 451 tests.
 2. UI: banner panel + reveal beat (rarity flash, feed line).
 3. Content: Ice Mage comeback banner. Def+kit already in config (frostbolt
    L1 / blizzard L10). Assets verified 2026-07-02: female wizard ice clips

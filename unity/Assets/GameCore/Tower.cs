@@ -108,6 +108,7 @@ namespace IdleGame.GameCore
                 Progress = progress,
                 Quests = save.Quests,
                 Modifiers = save.Modifiers,
+                GachaPity = save.GachaPity,
                 LastClaimAt = save.LastClaimAt,
             };
         }

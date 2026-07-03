@@ -218,6 +218,7 @@ namespace IdleGame.GameCore
                 Progress = save.Progress,
                 Quests = save.Quests,
                 Modifiers = new MonsterModifiers { Owned = save.Modifiers.Owned, Active = save.Modifiers.Active, Tuning = tuning },
+                GachaPity = save.GachaPity,
                 LastClaimAt = save.LastClaimAt,
             };
         }
@@ -237,6 +238,7 @@ namespace IdleGame.GameCore
             Progress = save.Progress,
             Quests = save.Quests,
             Modifiers = modifiers,
+            GachaPity = save.GachaPity,
             LastClaimAt = save.LastClaimAt,
         };
     }

@@ -249,6 +249,11 @@ namespace IdleGame.GameCore
         public ProgressState Progress = new ProgressState();
         public QuestBoard Quests = new QuestBoard();
         public MonsterModifiers Modifiers = new MonsterModifiers();
+        // Gacha pity counters (roadmap 3): bannerId -> rolls made on that banner WITHOUT drawing its
+        // featured hero. Hitting GachaBannerDef.PityCount forces the featured hero and resets to 0;
+        // drawing the featured hero naturally resets it too. Additive field — absent/null on older
+        // saves, backfilled by Save.Migrate (no SaveVersion bump), same as Item.Locked / Modifiers.Tuning.
+        public Dictionary<string, int> GachaPity = new Dictionary<string, int>();
         public long LastClaimAt; // epoch ms (server-validated later)
     }
 }
