@@ -341,6 +341,13 @@ namespace IdleGame.Game
         private AchievementsPanel? _achievements;
         private readonly Dictionary<string, View> _views = new Dictionary<string, View>();
 
+        // Persistent in-world leader marker (party-feel batch): a thin flat gold disc that sits on
+        // the ground under whoever Party.EffectiveLeader resolves to, following that hero's view
+        // each frame. Created lazily; re-targeted when the effective leader (or its entity) changes;
+        // hidden while the leader's view is missing (dead/respawning) and re-shown when it's back.
+        private GameObject? _leaderMarker;
+        private string? _leaderMarkerEntityId; // the entity id the marker currently follows
+
         private double _accMs;
         private bool _steppedThisFrame; // did the sim advance this frame? (rolls render snapshots)
         private float _renderAlpha;     // 0..1 fraction into the current fixed step, for interpolation
@@ -1492,6 +1499,61 @@ namespace IdleGame.Game
                     }
                 }
             }
+
+            SyncLeaderMarker();
+        }
+
+        // Ground-marker geometry: a flat disc parked just above the ground (the GroundRing FX use
+        // y ≈ 0.02..0.06; match that so it reads as painted on, never floating).
+        private const float LeaderMarkerY = 0.05f;
+
+        /// <summary>Keep the persistent leader ground marker under the effective leader. Re-targets
+        /// when Party.EffectiveLeader (or its combat entity) changes, follows the leader's view root
+        /// each frame, and hides while that view is missing (dead/respawning) — re-showing when it
+        /// returns. Read-only over sim state; purely a display tell.</summary>
+        private void SyncLeaderMarker()
+        {
+            // Who leads (UI intent view) -> that hero's combat entity -> the entity id keying _views.
+            string? leaderHeroId = Party.EffectiveLeader(_save, _cfg);
+            var leaderEntity = leaderHeroId != null ? FindHeroEntity(leaderHeroId) : null;
+            string? entityId = leaderEntity?.Id;
+
+            // No leader on the field at all: drop the marker.
+            if (entityId == null || !_views.TryGetValue(entityId, out var lv) || lv.Go == null || !lv.Go.activeSelf)
+            {
+                if (_leaderMarker != null) _leaderMarker.SetActive(false);
+                return;
+            }
+
+            if (_leaderMarker == null) _leaderMarker = BuildLeaderMarker();
+            if (_leaderMarkerEntityId != entityId) _leaderMarkerEntityId = entityId; // note the re-target
+            _leaderMarker.SetActive(true);
+            // Glue it to the leader's feet each frame (view roots sit at the ground; SmoothPos is the
+            // interpolated on-screen position the health bars/camera already read).
+            var p = lv.SmoothPos; p.y = LeaderMarkerY;
+            _leaderMarker.transform.position = p;
+        }
+
+        /// <summary>Build the leader disc: a flattened cylinder (scale y ≈ 0.02) at ground level —
+        /// warm gold, LOW intensity. The diorama bloom washes bright emission to white, so the tint
+        /// stays gentle and the glow faint (mirrors the rank/mod tell rule). No collider (never
+        /// raycasts, like the projectile FX) and no shadow casting (like the ground plane).</summary>
+        private GameObject BuildLeaderMarker()
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            var col = go.GetComponent<Collider>(); if (col != null) Destroy(col); // must not raycast/collide
+            go.name = "LeaderMarker";
+            go.transform.SetParent(transform, false);
+            // Unity's cylinder is 2u tall / 1u wide at scale 1; flatten to a thin ground disc.
+            go.transform.localScale = new Vector3(1.4f, 0.02f, 1.4f);
+
+            var warmGold = new Color(0.95f, 0.78f, 0.35f);
+            Paint(go, warmGold);
+            Glow(go, warmGold * 0.35f); // faint — bloom blows anything brighter out to white
+
+            var r = go.GetComponent<Renderer>();
+            if (r != null) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; // a flat tell, not a caster
+            return go;
         }
 
         /// <summary>Advance a view's attack/cast lunge and return its current offset (a

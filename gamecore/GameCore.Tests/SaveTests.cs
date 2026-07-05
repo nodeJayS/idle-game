@@ -218,6 +218,60 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void EffectiveLeaderHonorsExplicitFieldedPick()
+        {
+            var save = Party.SetLeader(TwoHeroSave(), "h2"); // h2 (magician/ranged) explicitly leads
+            Assert.Equal("h2", Party.EffectiveLeader(save, Cfg)); // explicit pick wins, even ranged
+        }
+
+        [Fact]
+        public void EffectiveLeaderFallsThroughWhenPickBenched()
+        {
+            // h1 (warrior/melee) slot 0, h2 (magician/ranged) slot 1; pick h2, then bench it.
+            var save = Party.SetLeader(TwoHeroSave(), "h2");
+            save = Party.SetPartySlot(save, 1, null); // h2 no longer fielded (leader stays set)
+            Assert.Equal("h2", save.LeaderHeroId);     // still the stored pick...
+            Assert.Equal("h1", Party.EffectiveLeader(save, Cfg)); // ...but display falls to melee-first
+        }
+
+        [Fact]
+        public void EffectiveLeaderAutoPicksFirstMeleeOverEarlierRanged()
+        {
+            // Ranged hero in an EARLIER slot than a melee hero; with no explicit pick the melee
+            // hero should lead (mirrors the sim's !RangedRole default), not the lower slot.
+            var save = Save.NewGame(1, Cfg, 0);            // h1 (warrior/melee) in slot 0
+            save = Party.AcquireHero(save, "magician_basic", Cfg, "hm"); // ranged
+            save = Party.AcquireHero(save, "thief_basic", Cfg, "ht");    // melee
+            save = Party.FieldHero(save, 0, "hm");         // ranged in slot 0 (earlier)
+            save = Party.FieldHero(save, 1, "ht");         // melee in slot 1 (later)
+            Assert.Null(save.LeaderHeroId);
+            Assert.Equal("ht", Party.EffectiveLeader(save, Cfg)); // melee wins over earlier ranged
+        }
+
+        [Fact]
+        public void EffectiveLeaderAllRangedPicksFirstFielded()
+        {
+            // All-ranged party, no explicit pick: falls back to the first fielded hero.
+            var save = Save.NewGame(1, Cfg, 0);
+            save = Party.AcquireHero(save, "magician_basic", Cfg, "hm");
+            save = Party.AcquireHero(save, "priest_basic", Cfg, "hp");
+            save = Party.FieldHero(save, 0, "hm"); // ranged slot 0
+            save = Party.FieldHero(save, 1, "hp"); // ranged slot 1
+            Assert.Null(save.LeaderHeroId);
+            Assert.Equal("hm", Party.EffectiveLeader(save, Cfg)); // first fielded hero leads
+        }
+
+        [Fact]
+        public void EffectiveLeaderIsNullOnEmptyParty()
+        {
+            // The last-hero guard refuses to strand the party via the reducer, so clear the
+            // slots by hand to exercise the empty-party branch directly.
+            var save = Save.NewGame(1, Cfg, 0);
+            for (int i = 0; i < save.Party.Length; i++) save.Party[i] = null;
+            Assert.Null(Party.EffectiveLeader(save, Cfg));
+        }
+
+        [Fact]
         public void TouchStampsLastClaimAtAndIsPure()
         {
             var save = Save.NewGame(1, Cfg, 1000);

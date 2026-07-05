@@ -141,6 +141,34 @@ namespace IdleGame.GameCore
             return WithParty(save, nextParty, nextLeader);
         }
 
+        /// <summary>
+        /// The hero id that will lead the formation, for UI display. Mirrors the sim's soft
+        /// melee-leader default (Combat.StepCombat's Solo branch): the chosen
+        /// <see cref="SaveState.LeaderHeroId"/> when it's still fielded; else the first fielded
+        /// hero whose <see cref="HeroDef.Role"/> is not "ranged"; else the first fielded hero;
+        /// null only when the party is empty. The sim additionally filters to ALIVE entities —
+        /// that divergence is deliberate: this is the UI's INTENT view of who leads, not the
+        /// live per-step pick. Pure and read-only.
+        /// </summary>
+        public static string? EffectiveLeader(SaveState save, GameConfig cfg)
+        {
+            // Explicit pick wins whenever it's still fielded (a ranged pick is honored too).
+            if (save.LeaderHeroId != null && Array.IndexOf(save.Party, save.LeaderHeroId) >= 0)
+                return save.LeaderHeroId;
+
+            // Auto: first fielded MELEE hero in party order, else the first fielded hero at all.
+            string? first = null;
+            foreach (var id in save.Party)
+            {
+                if (id == null) continue;
+                if (first == null) first = id;
+                var hero = save.Heroes.Find(h => h.Id == id);
+                if (hero != null && cfg.Heroes.TryGetValue(hero.DefId, out var def) && def.Role != "ranged")
+                    return id; // first non-ranged fielded hero leads by default
+            }
+            return first; // all-ranged (or empty) party: first fielded hero, or null
+        }
+
         /// <summary>Count of occupied (non-null) party slots.</summary>
         private static int CountFielded(string?[] party)
         {

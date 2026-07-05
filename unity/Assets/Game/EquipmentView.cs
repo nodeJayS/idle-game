@@ -104,7 +104,7 @@ namespace IdleGame.Game
         {
             const float xL = -462f;
             int fielded = PartyFieldedCount(save);
-            string? leaderId = EffectiveLeaderId(save); // ★ marks who leads the formation
+            string? leaderId = Party.EffectiveLeader(save, _cfg); // ★ marks who leads the formation
 
             UiKit.Label(parent, $"Party  ·  {fielded}/{save.Party.Length}", 14, TextAnchor.MiddleLeft,
                         new Vector2(196, 20), new Vector2(xL, 272)).color = new Color(0.7f, 0.74f, 0.8f);
@@ -165,23 +165,66 @@ namespace IdleGame.Game
                         13, TextAnchor.MiddleLeft, new Vector2(340, 18), new Vector2(-160, 258))
                 .color = new Color(0.7f, 0.74f, 0.8f);
 
+            // Leader badge (§2): who actually leads, and whether it was chosen or auto-derived.
+            // Bright gold for the explicit pick, a muted gold when it's the computed default.
+            string? effectiveLeader = Party.EffectiveLeader(save, _cfg);
+            if (_heroId == effectiveLeader)
+            {
+                bool explicitPick = save.LeaderHeroId == _heroId;
+                UiKit.Label(parent, explicitPick ? "★ Leader" : "★ Leader (auto)", 13, TextAnchor.MiddleLeft,
+                            new Vector2(340, 18), new Vector2(-160, 238))
+                    .color = explicitPick ? new Color(1f, 0.85f, 0.4f) : new Color(0.75f, 0.68f, 0.42f);
+            }
+
             // Stacked UNDER Close (top-right) with a gap, not overlapping it.
             if (fielded)
             {
-                ActionButton(parent, "Bench", new Vector2(140, 44), new Vector2(495, 248), canEdit && fieldedCount > 1,
+                // Last-hero guard (§4): benching the only fielded hero is a no-op (the reducer
+                // refuses to strand the party). Surface that — grey the button + relabel it —
+                // exactly like the greyed-out idiom below (interactable off, muted Image).
+                bool onlyHero = fieldedCount == 1;
+                ActionButton(parent, onlyHero ? "Last hero" : "Bench", new Vector2(140, 44), new Vector2(495, 248),
+                    canEdit && !onlyHero,
                     () => { _view.ApplyPartyEdit(Party.SetPartySlot(save, slot, null)); Rebuild(); });
 
                 // Leader toggle: the chosen hero leads the formation; the rest fall in behind.
                 // Safe to change any time (it only re-points who's followed), so not farm-gated.
-                bool isLeader = _heroId == EffectiveLeaderId(save);
+                bool isLeader = _heroId == effectiveLeader;
                 ActionButton(parent, isLeader ? "★ Leader" : "Make Leader", new Vector2(140, 40), new Vector2(495, 198), !isLeader,
                     () => { _view.SetLeader(_heroId); Rebuild(); });
             }
             else
             {
                 int firstEmpty = Array.IndexOf(save.Party, (string?)null);
-                ActionButton(parent, "Field", new Vector2(140, 44), new Vector2(495, 248), canEdit && firstEmpty >= 0,
-                    () => { _view.ApplyPartyEdit(Party.FieldHero(save, firstEmpty, _heroId!)); Rebuild(); });
+                if (firstEmpty >= 0)
+                {
+                    // An empty slot exists: the plain one-click Field into it.
+                    ActionButton(parent, "Field", new Vector2(140, 44), new Vector2(495, 248), canEdit,
+                        () => { _view.ApplyPartyEdit(Party.FieldHero(save, firstEmpty, _heroId!)); Rebuild(); });
+                }
+                else
+                {
+                    // Party FULL (§3): the swap stack lives in the LEFT rail under the roster
+                    // list (the stat card — a later sibling — draws over the right column below
+                    // its second row, so three rows can't fit there). One "↔ <Name>" row per
+                    // fielded hero, styled like the roster rows; this benched hero takes that
+                    // hero's exact slot. The right column keeps a muted hint pointing at it.
+                    UiKit.Label(parent, "Party full", 13, TextAnchor.MiddleCenter,
+                                new Vector2(140, 20), new Vector2(495, 248)).color = new Color(0.55f, 0.58f, 0.65f);
+
+                    const float xL = -462f; // the left rail's column (BuildSelector)
+                    UiKit.Label(parent, "Swap in for:", 14, TextAnchor.MiddleLeft,
+                                new Vector2(196, 20), new Vector2(xL, -104)).color = new Color(0.7f, 0.74f, 0.8f);
+                    float sy = -132f;
+                    foreach (var fid in save.Party)
+                    {
+                        if (fid == null) continue;
+                        string outgoing = fid;
+                        ActionButton(parent, $"↔  {HeroName(save, outgoing)}", new Vector2(196, 30), new Vector2(xL, sy), canEdit,
+                            () => { _view.ApplyPartyEdit(Party.SwapHero(save, _heroId!, outgoing)); Rebuild(); }, 14);
+                        sy -= 34f;
+                    }
+                }
             }
         }
 
@@ -559,13 +602,6 @@ namespace IdleGame.Game
             foreach (var id in save.Party) if (id != null) return id;
             return null;
         }
-
-        /// <summary>Who actually leads the formation: the chosen leader if it's still fielded,
-        /// otherwise the auto fallback (lowest-slot fielded hero) — mirrors the sim's rule.</summary>
-        private static string? EffectiveLeaderId(SaveState save)
-            => (save.LeaderHeroId != null && Array.IndexOf(save.Party, save.LeaderHeroId) >= 0)
-               ? save.LeaderHeroId
-               : FirstPartyHeroId(save);
 
         private static HashSet<string> EquippedIds(SaveState save)
         {
