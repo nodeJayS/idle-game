@@ -41,6 +41,23 @@ outrun an ungeared follower between packs (the fresh gacha Ice Mage exposed
 it). Sim-only, 459 tests. Play eyeball (+ possible run-clip foot-slide at
 1.4×) rides the next editor window; ranged fire-in-transit idea parked.
 
+### ⭐ Party & movement feel batch (IN PROGRESS — user-approved jump ahead of Tower rewards, 2026-07-04)
+Jank list from play: casters face-tank, nobody reacts to a caster being
+aggro'd, leader feels arbitrary/undiscoverable, melee gets stuck/orbits,
+party edit UX (last-hero foot-gun, two-step swaps). Slices:
+1. ✅ Party reducers (2026-07-04): last-fielded-hero guard + one-move
+   Party.SwapHero (exact slot, leader reverts to auto when benched).
+2. ✅ Movement core (2026-07-04): role-aware formation (melee flank at
+   FormationMeleeBack 0.6, ranged park at FormationRangedBack 4.6),
+   soft melee-leader default (explicit pick always honored),
+   ranged fire-in-transit (shoot in-reach, never chase), panic
+   micro-kite (PanicRadius 1.8, fires while backpedaling). 473 tests.
+3. Sim: tank aggro bias (monsters count melee ~2 tiles closer) + melee
+   surround ring (per-hero contact angles — the stuck/orbit fix).
+4. Client UI: leader crown + in-world ring, one-click swap flow,
+   last-hero warning; Play-verify the whole batch + regroup hustle +
+   knob feel (4.6 / 1.8 / bias 2.0) in ONE editor window.
+
 ### 4. Tower slice 3 — per-floor reward bundles
 The one unfinished system slice; floors pay only via milestones today.
 GameCore-first, sim-testable, ~1 session.

@@ -132,7 +132,10 @@ namespace IdleGame.GameCore.Tests
             // Both wings collapse from far away into the triangle behind the (idle) leader,
             // rather than each wandering off on its own.
             Assert.True(Vec2.Distance(f2.Pos, lead.Pos) < before2 && Vec2.Distance(f3.Pos, lead.Pos) < before3);
-            double span = cfg.Balance.FormationBack + cfg.Balance.FormationSide + 1.0; // triangle + margin
+            // f2 is the Fire Mage (ranged) so it parks at FormationRangedBack — the deepest slot,
+            // which bounds the worst-case span for either wing.
+            double span = System.Math.Sqrt(cfg.Balance.FormationRangedBack * cfg.Balance.FormationRangedBack
+                                            + cfg.Balance.FormationSide * cfg.Balance.FormationSide) + 1.0;
             Assert.True(Vec2.Distance(f2.Pos, lead.Pos) <= span, $"f2 still scattered: {Vec2.Distance(f2.Pos, lead.Pos):0.0}");
             Assert.True(Vec2.Distance(f3.Pos, lead.Pos) <= span, $"f3 still scattered: {Vec2.Distance(f3.Pos, lead.Pos):0.0}");
             // And the wings sit BEHIND the leader (negative along the default heading +Y).
@@ -168,7 +171,10 @@ namespace IdleGame.GameCore.Tests
 
             // The two non-leaders fall in behind the CHOSEN leader (h3), which itself idles.
             Assert.True(Vec2.Distance(h1.Pos, leader.Pos) < b1 && Vec2.Distance(h2.Pos, leader.Pos) < b2);
-            double span = cfg.Balance.FormationBack + cfg.Balance.FormationSide + 1.0;
+            // h2 is the Fire Mage (ranged) so it parks at FormationRangedBack — the deepest slot,
+            // which bounds the worst-case span for either follower.
+            double span = System.Math.Sqrt(cfg.Balance.FormationRangedBack * cfg.Balance.FormationRangedBack
+                                            + cfg.Balance.FormationSide * cfg.Balance.FormationSide) + 1.0;
             Assert.True(Vec2.Distance(h1.Pos, leader.Pos) <= span && Vec2.Distance(h2.Pos, leader.Pos) <= span);
             // Leader has no pack to chase, so it holds near its start (only small collision
             // nudges from the wings settling in behind it — it never marches off).
@@ -206,11 +212,12 @@ namespace IdleGame.GameCore.Tests
         // --- Regroup hustle: a follower stranded far behind sprints at max(own, leader) speed so a
         // geared leader can't outrun an ungeared follower between packs. ---
 
-        // Leader idles at the origin (no enemies), so heading = +Y and the rank-0 slot sits at a
-        // fixed point behind it. FormationHome(leader@0,0, heading=+Y, rank 0).
+        // Leader idles at the origin (no enemies), so heading = +Y and the melee rank-0 slot sits
+        // at a fixed point behind it. FormationHome(leader@0,0, heading=+Y, melee, roleRank 0) —
+        // melee followers now flank at FormationMeleeBack, not FormationBack.
         private static Vec2 Rank0Home(CombatEntity leader, GameConfig cfg) =>
             new Vec2(leader.Pos.X - cfg.Balance.FormationSide,
-                     leader.Pos.Y - cfg.Balance.FormationBack);
+                     leader.Pos.Y - cfg.Balance.FormationMeleeBack);
 
         // A leader + one follower in Solo, no enemies (so the leader idles and the slot is fixed),
         // spawns frozen. Follower placed straight below its home so its move is a clean +Y step.
@@ -315,6 +322,265 @@ namespace IdleGame.GameCore.Tests
             Assert.True(follower.Pos.Y > before.Y, "follower should advance toward the enemy above it");
             Assert.True(System.Math.Abs(moved - expected) < 1e-6, $"moved {moved:0.0000}, expected {expected:0.0000}");
             Assert.Equal("E", follower.TargetId);
+        }
+
+        // --- Role-aware formation + ranged fire-in-transit + panic kite ---------------------
+
+        [Fact]
+        public void MeleeFollowerHomesToShoulderSlot()
+        {
+            var cfg = GameConfig.Default();
+            // Leader idles at origin (no enemies) => heading +Y; melee rank-0 slot is
+            // (-FormationSide, -FormationMeleeBack). Follower placed far below walks +Y toward it.
+            var leader = Ent("P0", Team.Party, hp: 200, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0;
+            var follower = Ent("P1", Team.Party, hp: 200, atk: 0, def: 0,
+                               x: -cfg.Balance.FormationSide, y: -cfg.Balance.FormationMeleeBack - 10.0);
+            follower.Slot = 1; // RangedRole stays false (melee)
+            var s = State(leader, follower);
+            s.Tactic = PartyTactic.Solo;
+            s.Kind = EncounterKind.Farm; // no enemies -> Farm so an empty field doesn't auto-win
+            s.SpawnTimerMs = double.MaxValue; // freeze trash spawns so we isolate formation travel
+            var before = follower.Pos;
+
+            for (int i = 0; i < 120; i++) Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            var home = new Vec2(-cfg.Balance.FormationSide, -cfg.Balance.FormationMeleeBack);
+            Assert.True(follower.Pos.Y > before.Y, "melee follower should walk up toward its slot");
+            Assert.True(Vec2.Distance(follower.Pos, home) < cfg.Balance.FormationDeadzone + 0.5,
+                $"melee follower didn't settle at shoulder slot: ({follower.Pos.X:0.00},{follower.Pos.Y:0.00})");
+        }
+
+        [Fact]
+        public void RangedFollowerHomesToCastingDistanceSlot()
+        {
+            var cfg = GameConfig.Default();
+            // Same as above but RangedRole => the slot uses FormationRangedBack, farther back.
+            var leader = Ent("P0", Team.Party, hp: 200, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0;
+            var follower = Ent("P1", Team.Party, hp: 200, atk: 0, def: 0,
+                               x: -cfg.Balance.FormationSide, y: -cfg.Balance.FormationRangedBack - 10.0);
+            follower.Slot = 1;
+            follower.RangedRole = true;
+            var s = State(leader, follower);
+            s.Tactic = PartyTactic.Solo;
+            s.Kind = EncounterKind.Farm;
+            s.SpawnTimerMs = double.MaxValue;
+
+            for (int i = 0; i < 120; i++) Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            var home = new Vec2(-cfg.Balance.FormationSide, -cfg.Balance.FormationRangedBack);
+            Assert.True(Vec2.Distance(follower.Pos, home) < cfg.Balance.FormationDeadzone + 0.5,
+                $"ranged follower didn't park at casting distance: ({follower.Pos.X:0.00},{follower.Pos.Y:0.00})");
+        }
+
+        [Fact]
+        public void MixedPartyRanksFollowersWithinTheirRole()
+        {
+            var cfg = GameConfig.Default();
+            // Leader (melee) + one melee + two ranged. Melee is roleRank 0 (side +). The two ranged
+            // are roleRank 0 and 1 (sides + and -, same back row). Each starts far below its own slot
+            // so its FIRST step direction reveals which slot it homes to (leader idles => heading +Y).
+            var leader = Ent("P0", Team.Party, hp: 200, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0;
+            var mel = Ent("P1", Team.Party, hp: 200, atk: 0, def: 0, x: -3, y: -15); // melee roleRank 0
+            mel.Slot = 1;
+            var r0 = Ent("P2", Team.Party, hp: 200, atk: 0, def: 0, x: 0, y: -15);  // ranged roleRank 0
+            r0.Slot = 2; r0.RangedRole = true;
+            var r1 = Ent("P3", Team.Party, hp: 200, atk: 0, def: 0, x: 3, y: -15);  // ranged roleRank 1
+            r1.Slot = 3; r1.RangedRole = true;
+            var s = State(leader, mel, r0, r1);
+            s.Tactic = PartyTactic.Solo;
+            s.Kind = EncounterKind.Farm;
+            s.SpawnTimerMs = double.MaxValue;
+
+            // Expected homes: melee roleRank0 -> (-side, -meleeBack); ranged roleRank0 -> (-side,
+            // -rangedBack); ranged roleRank1 -> (+side, -rangedBack). (perp = (-1,0), sideSign +/-.)
+            double side = cfg.Balance.FormationSide;
+            var homeMel = new Vec2(-side, -cfg.Balance.FormationMeleeBack);
+            var homeR0 = new Vec2(-side, -cfg.Balance.FormationRangedBack);
+            var homeR1 = new Vec2(+side, -cfg.Balance.FormationRangedBack);
+
+            for (int i = 0; i < 300; i++) Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.True(Vec2.Distance(mel.Pos, homeMel) < 0.8, $"melee slot wrong: ({mel.Pos.X:0.0},{mel.Pos.Y:0.0})");
+            Assert.True(Vec2.Distance(r0.Pos, homeR0) < 0.8, $"ranged rank0 slot wrong: ({r0.Pos.X:0.0},{r0.Pos.Y:0.0})");
+            Assert.True(Vec2.Distance(r1.Pos, homeR1) < 0.8, $"ranged rank1 slot wrong: ({r1.Pos.X:0.0},{r1.Pos.Y:0.0})");
+            // rank0 and rank1 ranged share the same back row (same Y), opposite sides.
+            Assert.True(System.Math.Abs(r0.Pos.Y - r1.Pos.Y) < 0.6 && r0.Pos.X < 0 && r1.Pos.X > 0);
+        }
+
+        [Fact]
+        public void SoftLeaderDefaultsToFirstMeleeAndHonorsExplicitRanged()
+        {
+            var cfg = GameConfig.Default();
+            // line = [ranged(slot0), melee(slot1), ranged(slot2)]. No LeaderRefId => the MELEE
+            // entity leads: it advances on a distant pack while the two ranged hold formation.
+            var r0 = Ent("P0", Team.Party, hp: 200, atk: 0, def: 0, x: 0, y: 0);
+            r0.Slot = 0; r0.RangedRole = true;
+            var mel = Ent("P1", Team.Party, hp: 200, atk: 5, def: 0, x: 0.2, y: 0);
+            mel.Slot = 1; // melee leader-to-be
+            var r2 = Ent("P2", Team.Party, hp: 200, atk: 0, def: 0, x: -0.2, y: 0);
+            r2.Slot = 2; r2.RangedRole = true;
+            // A distant, harmless pack far up +Y for the leader to march toward (out of everyone's reach).
+            var pack = Ent("Z", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 25);
+            var s = State(r0, mel, r2, pack);
+            s.Tactic = PartyTactic.Solo;
+            double melBefore = mel.Pos.Y;
+
+            for (int i = 0; i < 5; i++) Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            // The melee entity is the leader: it advanced toward the distant pack (+Y).
+            Assert.True(mel.Pos.Y > melBefore + 0.1, $"melee didn't lead toward pack: y={mel.Pos.Y:0.00}");
+            // The two ranged hold formation slots computed off the melee leader: both are BEHIND it.
+            Assert.True(r0.Pos.Y < mel.Pos.Y && r2.Pos.Y < mel.Pos.Y, "ranged should trail the melee leader");
+
+            // Explicit pick honors a ranged hero even though a melee exists.
+            var s2 = State(
+                Ent("P0", Team.Party, hp: 200, atk: 0, def: 0, x: 0, y: 0),
+                Ent("P1", Team.Party, hp: 200, atk: 0, def: 0, x: 0.2, y: 0),
+                Ent("P2", Team.Party, hp: 200, atk: 0, def: 0, x: -0.2, y: 0),
+                Ent("Z", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 25));
+            s2.Entities[0].Slot = 0; s2.Entities[0].RangedRole = true;
+            s2.Entities[1].Slot = 1; // melee
+            s2.Entities[2].Slot = 2; s2.Entities[2].RangedRole = true;
+            s2.Tactic = PartyTactic.Solo;
+            s2.LeaderRefId = "P0"; // the ranged one, explicitly
+            double rLeaderBefore = s2.Entities[0].Pos.Y;
+            for (int i = 0; i < 5; i++) Combat.StepCombat(s2, Combat.DefaultStepMs, cfg, new Rng(1));
+            // The chosen ranged leader marches on the pack; the melee now trails it.
+            Assert.True(s2.Entities[0].Pos.Y > rLeaderBefore + 0.1, "explicit ranged leader should lead");
+            Assert.True(s2.Entities[1].Pos.Y < s2.Entities[0].Pos.Y, "melee should trail the chosen ranged leader");
+        }
+
+        [Fact]
+        public void RangedFollowerFiresInTransitWithoutChasing()
+        {
+            var cfg = GameConfig.Default();
+            var leader = Ent("P0", Team.Party, hp: 200, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0;
+            // Ranged follower stranded far from its slot (regrouping), reach 2.0. An aggro'd enemy
+            // sits 1.5 tiles away (within reach 2.0 + bodyRadius 0.45) but ~12 tiles from the slot.
+            var follower = Ent("P1", Team.Party, hp: 200, atk: 10, def: 0, x: 0, y: -12);
+            follower.Slot = 1; follower.RangedRole = true;
+            follower.Stats[StatKey.AttackRange] = 2.0;
+            var enemy = Ent("E", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: -13.5); // 1.5 below follower
+            enemy.Aggro = true;
+            var s = State(leader, follower, enemy);
+            s.Tactic = PartyTactic.Solo;
+            double hpBefore = enemy.Hp;
+            double fyBefore = follower.Pos.Y;
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.True(enemy.Hp < hpBefore, "ranged follower should fire at the in-reach enemy");
+            // It did NOT move toward the enemy (which is BELOW it at -13.5); it does not chase.
+            Assert.True(follower.Pos.Y >= fyBefore - 1e-6, $"ranged follower chased down toward enemy: y={follower.Pos.Y:0.000}");
+
+            // Same setup, melee follower => no attack; it just heads home (up, +Y), ignoring the enemy.
+            var s2 = State(
+                Ent("P0", Team.Party, hp: 200, atk: 0, def: 0, x: 0, y: 0),
+                Ent("P1", Team.Party, hp: 200, atk: 10, def: 0, x: 0, y: -12),
+                Ent("E", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: -13.5));
+            s2.Entities[0].Slot = 0;
+            s2.Entities[1].Slot = 1; // melee (RangedRole false)
+            s2.Entities[1].Stats[StatKey.AttackRange] = 2.0;
+            s2.Entities[2].Aggro = true;
+            s2.Tactic = PartyTactic.Solo;
+            double hp2 = s2.Entities[2].Hp;
+            double y2 = s2.Entities[1].Pos.Y;
+            Combat.StepCombat(s2, Combat.DefaultStepMs, cfg, new Rng(1));
+            Assert.Equal(hp2, s2.Entities[2].Hp); // melee never fires in transit
+            Assert.True(s2.Entities[1].Pos.Y > y2, "melee follower should move toward home (up), not attack");
+        }
+
+        [Fact]
+        public void RangedFollowerDoesNotChaseEnemyBeyondReach()
+        {
+            var cfg = GameConfig.Default();
+            var leader = Ent("P0", Team.Party, hp: 200, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0;
+            // Ranged follower regrouping, reach 2.0. Enemy is 3.45 below => 1 tile BEYOND reach
+            // (2.0 + bodyRadius 0.45 = 2.45). It must NOT fire and must NOT chase — just home-move.
+            var follower = Ent("P1", Team.Party, hp: 200, atk: 10, def: 0, x: 0, y: -12);
+            follower.Slot = 1; follower.RangedRole = true;
+            follower.Stats[StatKey.AttackRange] = 2.0;
+            var enemy = Ent("E", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: -15.45); // 3.45 below
+            enemy.Aggro = true;
+            var s = State(leader, follower, enemy);
+            s.Tactic = PartyTactic.Solo;
+            double hpBefore = enemy.Hp;
+            double yBefore = follower.Pos.Y;
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.Equal(hpBefore, enemy.Hp); // out of reach => no shot
+            Assert.True(follower.Pos.Y > yBefore, "follower should move home (up), not chase the out-of-reach enemy");
+            // Past the break radius (12 > 6) => it hustles home; confirm it moved MORE than own speed.
+            double moved = Vec2.Distance(follower.Pos, new Vec2(0, yBefore));
+            double ownStep = follower.Stats.Get(StatKey.MoveSpd) * Combat.DefaultStepMs / 1000.0;
+            Assert.True(moved > ownStep + 1e-9, $"hustle should still apply: moved {moved:0.000}, own {ownStep:0.000}");
+        }
+
+        [Fact]
+        public void RangedFollowerPanicKitesAwayWhileFiring()
+        {
+            var cfg = GameConfig.Default();
+            // Leader parked far off so it neither collides with the follower nor engages the enemy
+            // (enemy is >EngageRadius away from it) — isolates the follower's kite to a clean step.
+            var leader = Ent("P0", Team.Party, hp: 200, atk: 0, def: 0, x: 30, y: 0);
+            leader.Slot = 0;
+            // Ranged follower at its own spot with a valid in-reach target 1.0 below it (< PanicRadius
+            // 1.8). It should fire AND backpedal directly away (up, +Y) at own MoveSpd * dt.
+            var follower = Ent("P1", Team.Party, hp: 200, atk: 10, def: 0, x: 0, y: 0);
+            follower.Slot = 1; follower.RangedRole = true;
+            follower.Stats[StatKey.AttackRange] = 2.0;
+            var enemy = Ent("E", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: -1.0);
+            enemy.Aggro = true;
+            var s = State(leader, follower, enemy);
+            s.Tactic = PartyTactic.Solo;
+            double hpBefore = enemy.Hp;
+            var before = follower.Pos;
+            double distBefore = Vec2.Distance(follower.Pos, enemy.Pos);
+
+            double dt = Combat.DefaultStepMs;
+            Combat.StepCombat(s, dt, cfg, new Rng(1));
+
+            Assert.True(enemy.Hp < hpBefore, "kiting must not cost DPS — the shot still lands");
+            Assert.True(Vec2.Distance(follower.Pos, enemy.Pos) > distBefore, "follower should back away from the threat");
+            // Backpedal is straight away (up) at own MoveSpd * dt.
+            double expected = follower.Stats.Get(StatKey.MoveSpd) * dt / 1000.0;
+            double moved = Vec2.Distance(follower.Pos, before);
+            Assert.True(System.Math.Abs(moved - expected) < 1e-6, $"kite moved {moved:0.0000}, expected {expected:0.0000}");
+            Assert.True(follower.Pos.Y > before.Y, "kite direction should be away from the enemy below");
+        }
+
+        [Fact]
+        public void MeleeFollowerNeverPanicKites()
+        {
+            var cfg = GameConfig.Default();
+            var leader = Ent("P0", Team.Party, hp: 200, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0;
+            // Like the kite test but the follower is MELEE: with an in-reach, aggro'd enemy right by
+            // it, it stands and attacks — it must NOT back away. Follower sits AT its melee slot with
+            // the enemy 1.0 below (inside PanicRadius and the slot's break radius) so it acquires and
+            // attacks normally; a ranged hero would kite here, a melee must not.
+            var home = new Vec2(-cfg.Balance.FormationSide, -cfg.Balance.FormationMeleeBack);
+            var follower = Ent("P1", Team.Party, hp: 200, atk: 10, def: 0, x: home.X, y: home.Y);
+            follower.Slot = 1; // melee
+            follower.Stats[StatKey.AttackRange] = 2.0;
+            var enemy = Ent("E", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: home.X, y: home.Y - 1.0);
+            enemy.Aggro = true;
+            var s = State(leader, follower, enemy);
+            s.Tactic = PartyTactic.Solo;
+            double hpBefore = enemy.Hp;
+            var before = follower.Pos;
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.True(enemy.Hp < hpBefore, "melee follower should attack the adjacent enemy");
+            // No backpedal: the melee follower did not move away (+Y) from the enemy below it.
+            Assert.True(follower.Pos.Y <= before.Y + 1e-6, $"melee should not kite: y={follower.Pos.Y:0.0000}");
         }
 
         [Fact]

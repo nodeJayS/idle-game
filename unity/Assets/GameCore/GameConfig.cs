@@ -364,6 +364,9 @@ namespace IdleGame.GameCore
         // FormationBreakRadius = a follower only abandons formation for an enemy this close.
         public double FormationBack = 1.8;
         public double FormationSide = 1.6;
+        public double FormationMeleeBack = 0.6;   // melee followers flank at the leader's shoulder
+        public double FormationRangedBack = 4.6;  // ranged followers park at casting distance
+        public double PanicRadius = 1.8;          // a ranged follower with an enemy this close backpedals while it keeps firing
         public double FormationDeadzone = 0.6;
         public double FormationBreakRadius = 6.0;
         // A follower farther than FormationBreakRadius from its slot regroups at

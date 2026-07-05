@@ -107,6 +107,12 @@ namespace IdleGame.GameCore
         // the rest follow in a triangle behind it. Non-heroes leave this at int.MaxValue.
         public int Slot = int.MaxValue;
 
+        // Role axis (formation): a ranged hero (HeroDef.Role == "ranged") parks at casting
+        // distance, fires at what's already in reach mid-regroup, and backpedals from anything
+        // that closes on it. Set in AddParty from the hero's def; every other entity leaves it
+        // false (melee flanks the leader's shoulder; the leader defaults to the first melee hero).
+        public bool RangedRole;
+
         // Aggro (M-combat): a non-aggro enemy ambles randomly (WanderTarget) and ignores the
         // party until something hits it (then it fights back). Defaults TRUE so heroes, bosses,
         // and synthetic test entities behave normally; farm trash is spawned non-aggro.

@@ -319,6 +319,7 @@ namespace IdleGame.GameCore
                     RefKind = "hero",
                     RefId = hero.Id,
                     Slot = idx,
+                    RangedRole = IsRangedHero(hero, cfg),
                     BodyRadius = cfg.Balance.UnitRadius,
                     Skills = Skills.ActiveKit(hero, cfg),
                     SkillRanks = new Dictionary<string, int>(hero.SkillRanks),
@@ -355,20 +356,28 @@ namespace IdleGame.GameCore
             return new Vec2((col - 0.5) * s, (row - 0.5) * s);
         }
 
-        /// <summary>A follower's home in the leader's triangle: <paramref name="rank"/> 0 sits
-        /// back-left, 1 back-right, then each further pair steps another row back. <paramref
+        /// <summary>A follower's home behind the leader, role-aware: melee flank at the leader's
+        /// shoulder (FormationMeleeBack), ranged park at casting distance (FormationRangedBack).
+        /// Within a role, <paramref name="roleRank"/> 0 sits back-left, 1 back-right, then each
+        /// further pair steps another <see cref="Balance.FormationBack"/> row back. <paramref
         /// name="heading"/> is the unit vector the leader faces (toward the pack), so the wing
         /// always trails behind it.</summary>
-        private static Vec2 FormationHome(CombatEntity leader, Vec2 heading, int rank, GameConfig cfg)
+        private static Vec2 FormationHome(CombatEntity leader, Vec2 heading, bool ranged, int roleRank, GameConfig cfg)
         {
-            var perp = new Vec2(-heading.Y, heading.X);     // 90° to the heading = the wing axis
-            double sideSign = (rank % 2 == 0) ? 1.0 : -1.0; // alternate left / right
-            double back = cfg.Balance.FormationBack * (1 + rank / 2);
+            var perp = new Vec2(-heading.Y, heading.X);         // 90° to the heading = the wing axis
+            double sideSign = (roleRank % 2 == 0) ? 1.0 : -1.0; // alternate left / right within the role
+            double baseBack = ranged ? cfg.Balance.FormationRangedBack : cfg.Balance.FormationMeleeBack;
+            double back = baseBack + cfg.Balance.FormationBack * (roleRank / 2);
             double side = cfg.Balance.FormationSide;
             return new Vec2(
                 leader.Pos.X - heading.X * back + perp.X * side * sideSign,
                 leader.Pos.Y - heading.Y * back + perp.Y * side * sideSign);
         }
+
+        /// <summary>True when the hero's def marks it as a ranged role — drives formation
+        /// slotting (casting distance), fire-in-transit, and panic kiting. Unknown defs = melee.</summary>
+        private static bool IsRangedHero(HeroInstance hero, GameConfig cfg)
+            => cfg.Heroes.TryGetValue(hero.DefId, out var def) && def.Role == "ranged";
 
         private static void AddParty(CombatState s, IReadOnlyList<HeroInstance> party, GameConfig cfg)
         {
@@ -389,6 +398,7 @@ namespace IdleGame.GameCore
                     RefKind = "hero",
                     RefId = hero.Id,
                     Slot = idx,
+                    RangedRole = IsRangedHero(hero, cfg),
                     BodyRadius = cfg.Balance.UnitRadius,
                     Skills = Skills.ActiveKit(hero, cfg),
                     SkillRanks = new Dictionary<string, int>(hero.SkillRanks),
@@ -643,7 +653,8 @@ namespace IdleGame.GameCore
             CombatEntity? leader = null;
             CombatEntity? leaderPack = null;
             Vec2 heading = new Vec2(0, 1);
-            Dictionary<string, int>? followerRank = null;
+            // Per-follower formation slot: role (ranged?) + rank WITHIN that role, in party order.
+            Dictionary<string, (bool ranged, int roleRank)>? followerRank = null;
             if (s.Tactic == PartyTactic.Solo)
             {
                 var line = s.Entities.Where(e => e.Team == Team.Party && e.Alive)
@@ -651,8 +662,11 @@ namespace IdleGame.GameCore
                                      .ToList();
                 if (line.Count > 0)
                 {
-                    // The player-chosen leader if it's alive on the field, else the lowest slot.
-                    leader = (s.LeaderRefId != null ? line.Find(e => e.RefId == s.LeaderRefId) : null) ?? line[0];
+                    // An explicit pick is ALWAYS honored (even a ranged hero). With no pick — or a
+                    // pick that isn't on the field (dead/benched) — the default leader is the first
+                    // MELEE hero, falling back to the lowest slot when the party is all-ranged.
+                    leader = (s.LeaderRefId != null ? line.Find(e => e.RefId == s.LeaderRefId) : null)
+                             ?? line.Find(e => !e.RangedRole) ?? line[0];
                     leaderPack = FindNearestEnemy(s, leader);
                     if (leaderPack != null)
                     {
@@ -660,10 +674,14 @@ namespace IdleGame.GameCore
                         double hl = Math.Sqrt(hx * hx + hy * hy);
                         if (hl > 1e-6) heading = new Vec2(hx / hl, hy / hl);
                     }
-                    followerRank = new Dictionary<string, int>();
-                    int rank = 0;
+                    // Rank followers within their own role group, preserving party order.
+                    followerRank = new Dictionary<string, (bool, int)>();
+                    int meleeRank = 0, rangedRank = 0;
                     foreach (var f in line)
-                        if (!ReferenceEquals(f, leader)) followerRank[f.Id] = rank++;
+                    {
+                        if (ReferenceEquals(f, leader)) continue;
+                        followerRank[f.Id] = f.RangedRole ? (true, rangedRank++) : (false, meleeRank++);
+                    }
                 }
             }
 
@@ -681,6 +699,10 @@ namespace IdleGame.GameCore
                 if (TryCastSkill(s, e, cfg, rng, events)) continue;
 
                 CombatEntity? target;
+                // Panic micro-kite: a ranged follower with an aggro'd enemy inside PanicRadius
+                // backpedals this step (recomputed statelessly below). Set only in the follower
+                // branch; drives the move section to replace its move with a retreat.
+                CombatEntity? panicThreat = null;
                 if (e.Team == Team.Party && s.Tactic == PartyTactic.Solo)
                 {
                     bool isLeader = leader == null || ReferenceEquals(e, leader);
@@ -704,9 +726,21 @@ namespace IdleGame.GameCore
                         // A follower is leashed to its triangle SLOT, not its own position: it
                         // only fights enemies near that slot and otherwise slides back to it. This
                         // stops fast melee (e.g. the Thief) from chain-chasing packs across the map.
-                        int rank = followerRank != null && followerRank.TryGetValue(e.Id, out var r) ? r : 0;
-                        Vec2 home = FormationHome(leader!, heading, rank, cfg);
+                        bool ranged = e.RangedRole;
+                        int roleRank = 0;
+                        if (followerRank != null && followerRank.TryGetValue(e.Id, out var fr))
+                        { ranged = fr.ranged; roleRank = fr.roleRank; }
+                        Vec2 home = FormationHome(leader!, heading, ranged, roleRank, cfg);
                         target = FindNearestEnemyNear(s, home, cfg.Balance.FormationBreakRadius);
+                        // Fire-in-transit (ranged followers only): if the slot found nothing, a
+                        // ranged follower still shoots the nearest enemy already within its OWN
+                        // attack reach of its CURRENT spot — but it never MOVES toward it. If that
+                        // enemy isn't actually in reach, treat as no target (fall through to home).
+                        if (target == null && e.RangedRole)
+                        {
+                            var inReach = NearestEnemyInReach(s, e);
+                            if (inReach != null) target = inReach; // in reach => normal attack path fires in place
+                        }
                         if (target == null)
                         {
                             e.TargetId = null;
@@ -728,6 +762,11 @@ namespace IdleGame.GameCore
                             }
                             continue;
                         }
+                        // Ranged follower HAS a target: if an aggro'd enemy is right on top of it,
+                        // it backpedals this step (kites) instead of holding — attacks aren't gated
+                        // on standing still, so it keeps firing at no DPS cost. Never for melee.
+                        if (e.RangedRole)
+                            panicThreat = NearestAggroEnemyWithin(s, e, cfg.Balance.PanicRadius);
                     }
                 }
                 else
@@ -784,13 +823,26 @@ namespace IdleGame.GameCore
                         }
                     }
                 }
-                else
-                {
+                else if (panicThreat == null)
                 {
                     double moveSpd = e.EffectiveStat(StatKey.MoveSpd);
                     if (moveSpd <= 0) moveSpd = MoveSpeedTilesPerSec; // fallback for entities w/o the stat
                     MoveToward(e, target.Pos, moveSpd * dtMs / 1000.0);
                 }
+
+                // Panic micro-kite: replaces this step's movement entirely (attacked or not) —
+                // the ranged follower steps directly away from the threat at its own MoveSpd.
+                if (panicThreat != null)
+                {
+                    double kiteSpd = e.EffectiveStat(StatKey.MoveSpd);
+                    if (kiteSpd <= 0) kiteSpd = MoveSpeedTilesPerSec;
+                    double ax = e.Pos.X - panicThreat.Pos.X, ay = e.Pos.Y - panicThreat.Pos.Y;
+                    double al = Math.Sqrt(ax * ax + ay * ay);
+                    if (al > 1e-6)
+                    {
+                        double step = kiteSpd * dtMs / 1000.0;
+                        e.Pos = new Vec2(e.Pos.X + ax / al * step, e.Pos.Y + ay / al * step);
+                    }
                 }
             }
 
@@ -1187,6 +1239,51 @@ namespace IdleGame.GameCore
             {
                 if (!o.Alive || o.Team != Team.Enemy) continue;
                 double d = Vec2.Distance(point, o.Pos);
+                if (d > radius) continue;
+                if (d < bestDist || (d == bestDist && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
+                {
+                    bestDist = d;
+                    best = o;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>Nearest living enemy already within <paramref name="self"/>'s OWN attack reach
+        /// (AttackRange stat + target BodyRadius, the same reach the in-range check uses). Used for
+        /// ranged fire-in-transit: shoot what's on top of you mid-regroup without chasing it. Mirrors
+        /// the acquisition helpers — no aggro filter (idle trash is a valid target once in reach).</summary>
+        private static CombatEntity? NearestEnemyInReach(CombatState s, CombatEntity self)
+        {
+            double baseRange = self.Stats.Get(StatKey.AttackRange);
+            if (baseRange <= 0) baseRange = MeleeRange;
+            CombatEntity? best = null;
+            double bestDist = double.MaxValue;
+            foreach (var o in s.Entities)
+            {
+                if (!o.Alive || o.Team == self.Team) continue;
+                double d = Vec2.Distance(self.Pos, o.Pos);
+                if (d > baseRange + o.BodyRadius) continue; // must be genuinely in reach
+                if (d < bestDist || (d == bestDist && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
+                {
+                    bestDist = d;
+                    best = o;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>Nearest living AGGRO'D enemy within <paramref name="radius"/> of <paramref
+        /// name="self"/>'s position, or null. Drives the panic micro-kite: idle (non-aggro) trash
+        /// standing nearby is no threat, so it doesn't trigger a backpedal.</summary>
+        private static CombatEntity? NearestAggroEnemyWithin(CombatState s, CombatEntity self, double radius)
+        {
+            CombatEntity? best = null;
+            double bestDist = double.MaxValue;
+            foreach (var o in s.Entities)
+            {
+                if (!o.Alive || o.Team == self.Team || !o.Aggro) continue;
+                double d = Vec2.Distance(self.Pos, o.Pos);
                 if (d > radius) continue;
                 if (d < bestDist || (d == bestDist && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
                 {
