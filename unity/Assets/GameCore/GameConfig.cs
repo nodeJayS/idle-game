@@ -373,6 +373,7 @@ namespace IdleGame.GameCore
         // max(own, leader) MoveSpd × this, so an ungeared follower can never be
         // outrun by a geared leader between packs.
         public double RegroupHustleMult = 1.4;
+        public double TankAggroBias = 2.0;  // monsters count MELEE heroes this much closer when picking a target — tanks soak attention
 
         // Wander (idle trash): a non-aggro mob ambles between random points within
         // WanderRadius of itself, repicking every WanderMin..MaxMs, at WanderSpeedMult of

@@ -1700,5 +1700,186 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(e1.Count(e => e.Type == CombatEventType.Respawn),
                          e2.Count(e => e.Type == CombatEventType.Respawn));
         }
+
+        // ---- Tank aggro bias + melee surround ring ----------------------------------------
+
+        // A melee hero flagged as a tank soaks a monster's aggro even when a ranged hero is
+        // slightly closer — the monster reads the melee hero TankAggroBias tiles nearer.
+        [Fact]
+        public void MonsterPrefersMeleeHeroWithinBiasMargin()
+        {
+            var cfg = GameConfig.Default();
+            double bias = cfg.Balance.TankAggroBias; // 2.0
+            // Ranged hero is 0.5 tiles CLOSER than the melee hero — but that's inside the bias
+            // margin, so the biased distance (melee − bias) still wins. Monster at origin.
+            var melee = Ent("HMELEE", Team.Party, hp: 500, atk: 0, def: 0, x: -6.0, y: 0);
+            melee.RangedRole = false;
+            var ranged = Ent("HRANGED", Team.Party, hp: 500, atk: 0, def: 0, x: 5.5, y: 0);
+            ranged.RangedRole = true;
+            var mob = Ent("EMOB", Team.Enemy, hp: 500, atk: 0, def: 0, x: 0, y: 0);
+            mob.Aggro = true;
+            var s = State(melee, ranged, mob);
+            s.Kind = EncounterKind.Farm;      // no auto-win with enemies alive
+            s.SpawnTimerMs = double.MaxValue; // freeze spawns
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.Equal("HMELEE", mob.TargetId);
+        }
+
+        // Beyond the bias margin (ranged much closer) the monster still picks the ranged hero —
+        // the bias is a nudge, not an override.
+        [Fact]
+        public void MonsterPicksRangedHeroBeyondBiasMargin()
+        {
+            var cfg = GameConfig.Default();
+            var melee = Ent("HMELEE", Team.Party, hp: 500, atk: 0, def: 0, x: -6.0, y: 0);
+            melee.RangedRole = false;
+            // Ranged hero is 5 tiles closer than the melee — well past the 2.0 bias margin.
+            var ranged = Ent("HRANGED", Team.Party, hp: 500, atk: 0, def: 0, x: 1.0, y: 0);
+            ranged.RangedRole = true;
+            var mob = Ent("EMOB", Team.Enemy, hp: 500, atk: 0, def: 0, x: 0, y: 0);
+            mob.Aggro = true;
+            var s = State(melee, ranged, mob);
+            s.Kind = EncounterKind.Farm;
+            s.SpawnTimerMs = double.MaxValue;
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.Equal("HRANGED", mob.TargetId);
+        }
+
+        // The bias must NEVER leak to hero-side acquisition: a hero picks purely by distance.
+        // Setup would FLIP if the bias applied — the farther enemy is the melee-flagged one, so a
+        // leaked "melee reads closer" bias would wrongly select it. The hero targets the nearer.
+        [Fact]
+        public void HeroTargetingIsPureNearestNoBiasLeak()
+        {
+            var cfg = GameConfig.Default();
+            var hero = Ent("P0", Team.Party, hp: 500, atk: 0, def: 0, x: 0, y: 0);
+            hero.Slot = 0;
+            // near enemy is RangedRole (would keep raw distance), far enemy is melee-flagged
+            // (would get −bias if the bias leaked). Both within the leader EngageRadius.
+            var near = Ent("ENEAR", Team.Enemy, hp: 500, atk: 0, def: 0, x: 3.0, y: 0);
+            near.RangedRole = true;
+            var far = Ent("EFAR", Team.Enemy, hp: 500, atk: 0, def: 0, x: -4.0, y: 0);
+            far.RangedRole = false;
+            var s = State(hero, near, far);
+            s.Tactic = PartyTactic.Solo; // lone hero => leader, uses EngageRadius acquisition
+            s.Kind = EncounterKind.Farm;
+            s.SpawnTimerMs = double.MaxValue;
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.Equal("ENEAR", hero.TargetId); // nearest, bias absent hero-side
+        }
+
+        // Two melee attackers on the same target, both starting from the SAME spot, fan out to
+        // DISTINCT rim contact points instead of stacking on the target's centre.
+        [Fact]
+        public void MeleeAttackersSurroundToDistinctPoints()
+        {
+            var cfg = GameConfig.Default();
+            var target = Ent("ETGT", Team.Enemy, hp: 100000, atk: 0, def: 0, x: 0, y: 0);
+            // Two monster attackers (so acquisition is the plain FindNearestEnemy path), both
+            // melee (no AttackRange stat => MeleeRange), starting 5 tiles out at nearly the same
+            // spot. Aggro so they seek immediately.
+            var a = Ent("EA", Team.Enemy, hp: 500, atk: 0, def: 0, x: -5.0, y: 0.0);
+            var b = Ent("EB", Team.Enemy, hp: 500, atk: 0, def: 0, x: -5.0, y: 0.01);
+            var hero = Ent("PHERO", Team.Party, hp: 100000, atk: 0, def: 0, x: 0, y: 0);
+            hero.RangedRole = false;
+            // Retarget the monsters onto the party hero at origin; give the "target" dummy a huge
+            // hp and no team conflict — actually both monsters target the hero. Use hero as centre.
+            var s = State(hero, a, b);
+            s.Kind = EncounterKind.Farm;
+            s.SpawnTimerMs = double.MaxValue;
+            a.Aggro = true; b.Aggro = true;
+
+            // Walk until both are within reach of the hero at origin.
+            for (int i = 0; i < 400; i++) Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            // Distinct approach directions => their rim points differ; assert real separation.
+            double sep = Vec2.Distance(a.Pos, b.Pos);
+            Assert.True(sep > 0.3, $"melee attackers stacked on centre (sep={sep:0.000})");
+        }
+
+        // Same surround scenario twice from identical states => byte-identical positions.
+        [Fact]
+        public void SurroundIsDeterministic()
+        {
+            CombatState Build()
+            {
+                var cfg = GameConfig.Default();
+                var hero = Ent("PHERO", Team.Party, hp: 100000, atk: 0, def: 0, x: 0, y: 0);
+                var a = Ent("EA", Team.Enemy, hp: 500, atk: 0, def: 0, x: -5.0, y: 0.0);
+                var b = Ent("EB", Team.Enemy, hp: 500, atk: 0, def: 0, x: -5.0, y: 0.01);
+                a.Aggro = true; b.Aggro = true;
+                var s = State(hero, a, b);
+                s.Kind = EncounterKind.Farm;
+                s.SpawnTimerMs = double.MaxValue;
+                return s;
+            }
+            var cfg = GameConfig.Default();
+            var s1 = Build();
+            var s2 = Build();
+            for (int i = 0; i < 200; i++)
+            {
+                Combat.StepCombat(s1, Combat.DefaultStepMs, cfg, new Rng(1));
+                Combat.StepCombat(s2, Combat.DefaultStepMs, cfg, new Rng(1));
+            }
+            for (int i = 0; i < s1.Entities.Count; i++)
+            {
+                Assert.Equal(s1.Entities[i].Pos.X, s2.Entities[i].Pos.X);
+                Assert.Equal(s1.Entities[i].Pos.Y, s2.Entities[i].Pos.Y);
+            }
+        }
+
+        // Contact-point seeking still closes: a lone melee attacker 5 tiles out reaches reach and
+        // lands a hit within a generous step bound.
+        [Fact]
+        public void MeleeAttackerClosesAndHits()
+        {
+            var cfg = GameConfig.Default();
+            var hero = Ent("PHERO", Team.Party, hp: 100000, atk: 0, def: 0, x: 0, y: 0);
+            var mob = Ent("EMOB", Team.Enemy, hp: 500, atk: 20, def: 0, x: 5.0, y: 0);
+            mob.Aggro = true;
+            var s = State(hero, mob);
+            s.Kind = EncounterKind.Farm;
+            s.SpawnTimerMs = double.MaxValue;
+
+            bool hit = false;
+            for (int i = 0; i < 300 && !hit; i++)
+            {
+                var evs = Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+                if (evs.Any(e => e.Type == CombatEventType.Hit && e.SourceId == "EMOB")) hit = true;
+            }
+            Assert.True(hit, "melee attacker never closed to attack via the contact point");
+        }
+
+        // Ranged attackers keep CENTRE-seeking: a ranged mover beyond its range heads straight at
+        // the target's centre line, not a rim point (its heading points AT the target).
+        [Fact]
+        public void RangedAttackerSeeksCenterLine()
+        {
+            var cfg = GameConfig.Default();
+            // Ranged attacker: AttackRange stat = 6 (> 2.0 melee cutoff). Start 10 tiles out on the
+            // +X axis of the target so a centre-seek move keeps it exactly on the axis (y stays 0),
+            // whereas a rim-offset would knock y off-axis.
+            var target = Ent("ETGT", Team.Party, hp: 100000, atk: 0, def: 0, x: 0, y: 0);
+            var shooter = Ent("ESHOOT", Team.Enemy, hp: 500, atk: 0, def: 0, x: 10.0, y: 0);
+            shooter.Stats[StatKey.AttackRange] = 6.0;
+            shooter.Aggro = true;
+            var s = State(target, shooter);
+            s.Kind = EncounterKind.Farm;
+            s.SpawnTimerMs = double.MaxValue;
+            double y0 = shooter.Pos.Y;
+
+            // One step of movement: it must move toward the target (x decreases) and stay on the
+            // centre line (y unchanged) — proving it seeks the centre, not an off-axis rim point.
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.True(shooter.Pos.X < 10.0, "ranged attacker didn't advance toward target");
+            Assert.Equal(y0, shooter.Pos.Y, 6); // stayed on the target's centre line
+        }
     }
 }

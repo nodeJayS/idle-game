@@ -52,8 +52,10 @@ party edit UX (last-hero foot-gun, two-step swaps). Slices:
    soft melee-leader default (explicit pick always honored),
    ranged fire-in-transit (shoot in-reach, never chase), panic
    micro-kite (PanicRadius 1.8, fires while backpedaling). 473 tests.
-3. Sim: tank aggro bias (monsters count melee ~2 tiles closer) + melee
-   surround ring (per-hero contact angles — the stuck/orbit fix).
+3. ✅ Sim (2026-07-04): tank aggro bias (TankAggroBias 2.0 — monsters
+   count melee heroes closer, gated monster-side so it can't leak) +
+   melee surround ring (stable FNV-1a contact angles on the target rim,
+   both teams — the stuck/orbit fix). 480 tests.
 4. Client UI: leader crown + in-world ring, one-click swap flow,
    last-hero warning; Play-verify the whole batch + regroup hustle +
    knob feel (4.6 / 1.8 / bias 2.0) in ONE editor window.

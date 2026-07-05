@@ -667,7 +667,7 @@ namespace IdleGame.GameCore
                     // MELEE hero, falling back to the lowest slot when the party is all-ranged.
                     leader = (s.LeaderRefId != null ? line.Find(e => e.RefId == s.LeaderRefId) : null)
                              ?? line.Find(e => !e.RangedRole) ?? line[0];
-                    leaderPack = FindNearestEnemy(s, leader);
+                    leaderPack = FindNearestEnemy(s, leader, cfg);
                     if (leaderPack != null)
                     {
                         double hx = leaderPack.Pos.X - leader.Pos.X, hy = leaderPack.Pos.Y - leader.Pos.Y;
@@ -773,17 +773,18 @@ namespace IdleGame.GameCore
                 {
                     target = (e.Team == Team.Party && groupTarget != null && groupTarget.Alive)
                         ? groupTarget
-                        : FindNearestEnemy(s, e);
+                        : FindNearestEnemy(s, e, cfg);
                 }
                 e.TargetId = target?.Id;
                 if (target == null) continue;
 
                 double dist = Vec2.Distance(e.Pos, target.Pos);
-                double range = e.Stats.Get(StatKey.AttackRange);
-                if (range <= 0) range = MeleeRange;
+                double baseRange = e.Stats.Get(StatKey.AttackRange);
+                if (baseRange <= 0) baseRange = MeleeRange;
+                bool isMelee = baseRange <= 2.0; // resolved base range this short => a melee attacker
                 // Reach a target's body, not its centre — so a chunky boss the separation
                 // pass holds at arm's length is still meleeable.
-                range += target.BodyRadius;
+                double range = baseRange + target.BodyRadius;
 
                 if (dist <= range)
                 {
@@ -827,7 +828,13 @@ namespace IdleGame.GameCore
                 {
                     double moveSpd = e.EffectiveStat(StatKey.MoveSpd);
                     if (moveSpd <= 0) moveSpd = MoveSpeedTilesPerSec; // fallback for entities w/o the stat
-                    MoveToward(e, target.Pos, moveSpd * dtMs / 1000.0);
+                    // Surround ring (the stuck/orbit fix): a MELEE attacker approaches a personal
+                    // CONTACT POINT on the target's rim instead of beelining to its centre, so a
+                    // crowd fans out around the body rather than shoving/orbiting the same point.
+                    // Ranged attackers keep centre-seeking (they stop at range anyway). Stateless —
+                    // the angle folds the attacker's Id into a deterministic hash each step.
+                    Vec2 dest = isMelee ? MeleeContactPoint(e, target) : target.Pos;
+                    MoveToward(e, dest, moveSpd * dtMs / 1000.0);
                 }
 
                 // Panic micro-kite: replaces this step's movement entirely (attacked or not) —
@@ -1294,14 +1301,23 @@ namespace IdleGame.GameCore
             return best;
         }
 
-        private static CombatEntity? FindNearestEnemy(CombatState s, CombatEntity self)
+        private static CombatEntity? FindNearestEnemy(CombatState s, CombatEntity self, GameConfig cfg)
         {
+            // Tank aggro bias applies ONLY on the monster acquisition path: a monster counts a
+            // MELEE hero (RangedRole == false) as TankAggroBias tiles closer than it really is, so
+            // tanks soak attention. Party heroes picking enemies use raw distance — the bias cannot
+            // leak hero-side because it's gated on self being an enemy. Nearest-by-effective-distance
+            // wins; Id tie-break for determinism (matches the newer acquisition helpers).
+            bool monster = self.Team == Team.Enemy;
+            double bias = monster ? cfg.Balance.TankAggroBias : 0.0;
+
             CombatEntity? best = null;
             double bestDist = double.MaxValue;
             foreach (var other in s.Entities)
             {
                 if (!other.Alive || other.Team == self.Team) continue;
                 double d = Vec2.Distance(self.Pos, other.Pos);
+                if (monster && !other.RangedRole) d -= bias; // melee heroes read closer
                 if (d < bestDist || (d == bestDist && best != null &&
                                      string.CompareOrdinal(other.Id, best.Id) < 0))
                 {
@@ -1358,6 +1374,38 @@ namespace IdleGame.GameCore
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// A melee attacker's personal contact point on the target's rim — the spot it walks to
+        /// instead of the target's centre, so a crowd fans into a ring rather than piling on one
+        /// point. Angle is STABLE per attacker (its Id hashed into one of 16 slots) and identical
+        /// across runs/platforms (explicit FNV-1a, never GetHashCode). The offset radius
+        /// (target.BodyRadius + own.BodyRadius*0.5) lands the attacker comfortably inside its reach
+        /// (reach = range + target.BodyRadius, range ≥ MeleeRange = 1.0): e.g. two 0.45-radius
+        /// bodies give offset 0.675 vs reach ≥ 1.45, so arrival is always within striking range.
+        /// </summary>
+        private static Vec2 MeleeContactPoint(CombatEntity e, CombatEntity target)
+        {
+            int slot = (int)(Fnv1a(e.Id) % 16);
+            double theta = slot * (2.0 * Math.PI / 16.0);
+            double r = target.BodyRadius + e.BodyRadius * 0.5;
+            return new Vec2(target.Pos.X + Math.Cos(theta) * r,
+                            target.Pos.Y + Math.Sin(theta) * r);
+        }
+
+        /// <summary>Explicit FNV-1a hash of a string's chars — deterministic across runtimes/
+        /// platforms (unlike string.GetHashCode, which is randomized). Used to pick a stable
+        /// surround-ring slot per attacker.</summary>
+        private static uint Fnv1a(string sId)
+        {
+            uint hash = 2166136261u;
+            for (int i = 0; i < sId.Length; i++)
+            {
+                hash ^= sId[i];
+                hash *= 16777619u;
+            }
+            return hash;
         }
 
         private static void MoveToward(CombatEntity e, Vec2 dest, double maxStep)
