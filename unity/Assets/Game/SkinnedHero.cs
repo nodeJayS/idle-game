@@ -27,6 +27,16 @@ namespace IdleGame.Game
         /// damage number + impact sound by this so they land ON the visible hit rather
         /// than the instant the swing starts. Default fits the procedural chibi swing.</summary>
         float AttackContactSec => 0.2f;
+
+        /// <summary>Seconds from the last <see cref="TriggerAttack"/> until the swing/cast
+        /// anim COMPLETES; 0 when the trigger was refused (fire-in-transit: TriggerAttack
+        /// refuses while moving). CombatView delays a ranged projectile's LAUNCH by this so
+        /// the shot emerges as the cast finishes rather than mid-anim.</summary>
+        float AttackFinishSec => 0.45f;
+
+        /// <summary>Same as <see cref="AttackFinishSec"/> for the skill cast last passed to
+        /// <see cref="TriggerSkill"/>; 0 when refused.</summary>
+        float SkillFinishSec => 0.45f;
     }
 
     /// <summary>
@@ -149,6 +159,12 @@ namespace IdleGame.Game
         private float _attackClipLen = 0.5f;         // length of the take last triggered
         public float AttackContactSec => TargetContactSec;
 
+        // Finish times CombatView delays a ranged projectile's launch by: the real playback
+        // length of the swing/cast last triggered, 0 when the trigger was refused.
+        private float _attackFinish, _skillFinish;
+        public float AttackFinishSec => _attackFinish;
+        public float SkillFinishSec => _skillFinish;
+
         /// <summary>Ground speed the hero's MS2 run cycle was authored for
         /// (units/s). Playback scales by actual/native so feet match the ground
         /// instead of gliding. 2.5 fits the warrior's 0.6s cycle; a manifest
@@ -166,6 +182,10 @@ namespace IdleGame.Game
         // Clip lengths (seconds) of the two basic-attack takes, read from the override
         // controller at Init so TriggerAttack can time-scale each to the same contact moment.
         private float _attackLen = 0.467f, _attack2Len = 0.467f;
+
+        // Skill-cast take lengths (seconds); skill states play at authored speed (Update only
+        // rescales Run/Attack), so these ARE their playback lengths — the launch-delay values.
+        private float _skill1Len = 0.6f, _skill2Len = 0.6f;
 
         private void Awake()
         {
@@ -204,6 +224,8 @@ namespace IdleGame.Game
                     var n = c.name.ToLowerInvariant();
                     if (n.EndsWith("attack2")) _attack2Len = c.length;
                     else if (n.EndsWith("attack")) _attackLen = c.length;
+                    else if (n.EndsWith("skill1")) _skill1Len = c.length;
+                    else if (n.EndsWith("skill2")) _skill2Len = c.length;
                 }
         }
 
@@ -244,7 +266,7 @@ namespace IdleGame.Game
 
         public void TriggerAttack()
         {
-            if (_animator == null || _moving || _downed) return; // never swing mid-slide
+            if (_animator == null || _moving || _downed) { _attackFinish = 0f; return; } // never swing mid-slide
             bool two = Random.value < 0.5f;
             float len = two ? _attack2Len : _attackLen;
             _attackClipLen = len;
@@ -254,17 +276,21 @@ namespace IdleGame.Game
             _attackSpeed = wantContact > 0.001f
                 ? Mathf.Clamp(wantContact / TargetContactSec, 0.5f, 3f) : 1f;
             _animator.SetTrigger(two ? Attack2Id : AttackId);
+            _attackFinish = _attackClipLen / _attackSpeed; // real playback length of THIS take
         }
 
         public void TriggerSkill(string skillId)
         {
-            if (_animator == null || _downed) return;
+            if (_animator == null || _downed) { _skillFinish = 0f; return; }
             if (SkillBindings != null && SkillBindings.TryGetValue(skillId, out var b))
             {
                 _animator.SetTrigger(b.slot == 2 ? Skill2Id : Skill1Id);
                 SoundFx.Play(b.sound, 0.5f);
+                // Skill states play at authored speed (Update rescales only Run/Attack), so the
+                // take length IS the launch delay.
+                _skillFinish = b.slot == 2 ? _skill2Len : _skill1Len;
             }
-            else TriggerAttack(); // unbound skill: fall back to a basic swing
+            else { TriggerAttack(); _skillFinish = _attackFinish; } // unbound skill: fall back to a basic swing
         }
 
         public void TriggerHit()

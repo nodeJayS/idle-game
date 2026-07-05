@@ -121,23 +121,22 @@ hover gear-preview card), Skill2→Run Moving exit in HeroAnimator (the
 "assassin walks in idle pose" bug), Bootstrap sweep of editor test-tool
 objects leaking into Play. 505 tests green.
 
-### 6. Ranged-hero feel: base speed + projectile/anim/damage sync (user, 2026-07-05)
-Two parts, one feel goal (ranged heroes read as intentional, not laggy):
-1. Ranged (Magician-family) base MoveSpd slightly ABOVE Warriors' so
-   casters stop trailing the melee dash on every pack move. Sim change —
-   retest against the shipped formation/standoff/panic-retreat feel.
-2. Presentation chain for ranged attacks: projectile spawns ONLY when
-   the cast animation finishes; damage number (+ hit flash) appears
-   ONLY when the projectile lands. NOTE the architecture truth: the sim
-   applies damage the moment the attack steps — this chain is a
-   client-side presentation delay (the firebolt meteor already pops its
-   number on impact, and melee already delays by AttackContactSec ~0.22s;
-   this unifies + extends that to all ranged basics/skills). Decide how
-   deep the illusion goes: number/flash/death-anim can wait for impact;
-   health bars (and loot/XP feeds) update at sim time unless explicitly
-   routed through the same delay. Handle the cancel case (movement
-   cancels the cast anim mid-swing — the projectile must still launch
-   or real damage becomes invisible) and AtkSpd time-scaling.
+### ✅ 6. Ranged-hero feel: base speed + projectile/anim/damage sync — shipped 2026-07-05
+Receipt: magician-family base MoveSpd 3.15 (above Warrior 3.0, Rogue 3.4
+stays fastest; ordering test pins the intent) + client launch-delay chain:
+`IHeroAnim.AttackFinishSec`/`SkillFinishSec` (real playback length of the
+take last triggered; 0 on a refused trigger, so fire-in-transit keeps its
+instant launch) and `CombatView.ScheduleLaunch` defer ranged projectile
+LAUNCH until the cast anim finishes; number/flash stay on impact. Scope
+call: health bars/loot/XP feeds stay sim-time (bars poll sim HP directly —
+routing them through the delay is a separate presentation-queue slice if
+the mismatch ever reads badly). Play-probed frame-by-frame: impact==number
+same frame, launch = hit + clip finish (~0.49s), FrostOrb rides the Skill2
+clip; at high cadence anims queue behind hits (Animator trigger latching)
+— reads as continuous casting, not broken. Live-save note: gear MoveSpd
+(Knight +1.13 vs mage +0.30) still out-dashes the base bump on pack moves;
+regroup hustle reattaches in ~1.5s — knob/deeper lever (follow-speed
+floor) = user feel call after normal play. 506 tests.
 
 ### 7. Combat presentation debt
 - Per-hero impact sounds (`PlayImpact` hardcodes `Hit_SwordDefault`; same

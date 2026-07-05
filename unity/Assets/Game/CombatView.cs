@@ -299,6 +299,41 @@ namespace IdleGame.Game
             PlayImpact(at, amount, crit, secondary);
         }
 
+        /// <summary>Launch a ranged projectile only once the source's cast/swing anim finishes
+        /// (<paramref name="delaySec"/>), so the shot emerges as the cast completes instead of
+        /// mid-anim; the number still pops on its impact. Presentation-only — the sim already
+        /// applied the damage, so a cast whose movement got CANCELLED (the controller exits
+        /// Attack-&gt;Run on Moving without exit time) must still launch on schedule: real damage
+        /// can never become an invisible number. Re-samples both ends after the wait (source/
+        /// target may have moved or died), falling back to <paramref name="headAtSchedule"/>.</summary>
+        private void ScheduleLaunch(string sourceId, string targetId, Vector3 headAtSchedule,
+            System.Action<Vector3, Vector3, float, bool> launch, float amount, bool crit, float delaySec)
+        {
+            if (delaySec <= 0.001f)
+            {
+                var from0 = _views.TryGetValue(sourceId, out var s0) && s0.Go != null
+                    ? s0.Go.transform.position + Vector3.up * (s0.Height + 0.4f) : headAtSchedule;
+                launch(from0, headAtSchedule, amount, crit);
+                return;
+            }
+            StartCoroutine(LaunchAfter(sourceId, targetId, headAtSchedule, launch, amount, crit, delaySec));
+        }
+
+        private System.Collections.IEnumerator LaunchAfter(string sourceId, string targetId, Vector3 headAtSchedule,
+            System.Action<Vector3, Vector3, float, bool> launch, float amount, bool crit, float delaySec)
+        {
+            yield return new WaitForSeconds(delaySec);
+            // Fresh muzzle if the shooter's still around; else fire from the target point (a
+            // zero-length flight still pops the number ~0.18s later — Projectile floors flight).
+            var from = _views.TryGetValue(sourceId, out var sv) && sv.Go != null
+                ? sv.Go.transform.position + Vector3.up * (sv.Height + 0.4f) : headAtSchedule;
+            // Fresh head if the victim's still standing; else the cached point where it stood
+            // (its view was detached at Death, so the corpse can't be re-sampled).
+            var to = _views.TryGetValue(targetId, out var tv) && tv.Go != null && tv.Go.activeSelf
+                ? tv.Go.transform.position + Vector3.up * (tv.Height + 0.6f) : headAtSchedule;
+            launch(from, to, amount, crit);
+        }
+
         /// <summary>Time-to-contact of the source hero's current swing (0 for non-hero/ranged
         /// sources, whose numbers ride a projectile impact instead). Used to delay the melee
         /// number/sound onto the visible hit. Generic across heroes via IHeroAnim.</summary>
@@ -1356,8 +1391,10 @@ namespace IdleGame.Game
                             if (skKey != null && Settings.Projectiles && _projectileFx.TryGetValue(skKey, out var skLaunch)
                                 && _views.TryGetValue(ev.SourceId, out var ssv) && ssv.Go != null)
                             {
-                                var muzzle = ssv.Go.transform.position + Vector3.up * (ssv.Height + 0.4f);
-                                skLaunch(muzzle, head, (float)ev.Amount, ev.Crit);
+                                // Wait for the cast anim to finish before the shot emerges (SkillCast
+                                // precedes its Hits this step, so SkillFinishSec is fresh).
+                                ScheduleLaunch(ev.SourceId, ev.TargetId, head, skLaunch, (float)ev.Amount,
+                                    ev.Crit, ssv.Anim?.SkillFinishSec ?? 0f);
                             }
                             else
                             {
@@ -1384,8 +1421,12 @@ namespace IdleGame.Game
                         if (Settings.Projectiles && hasFx && ev.SourceId != null &&
                             _views.TryGetValue(ev.SourceId, out var sv) && sv.Go != null)
                         {
-                            var muzzle = sv.Go.transform.position + Vector3.up * (sv.Height + 0.4f);
-                            launch!(muzzle, head, (float)ev.Amount, ev.Crit);
+                            // Wait for the swing to finish before the shot emerges. TriggerLunge ran
+                            // above, so AttackFinishSec reflects THIS swing; splash/chain siblings
+                            // (non-primary) reuse it — they ride the same swing. Monsters and anim-less
+                            // capsules have Anim == null -> delay 0 -> today's timing (heroes-only scope).
+                            ScheduleLaunch(ev.SourceId, ev.TargetId, head, launch!, (float)ev.Amount,
+                                ev.Crit, sv.Anim?.AttackFinishSec ?? 0f);
                         }
                         else
                         {
