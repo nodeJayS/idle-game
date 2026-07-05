@@ -64,6 +64,14 @@ Shader "IdleGame/SdfBlendShell"
             // storage), so an int uniform here can read garbage on some platforms. Cast at use.
             float  _PrimCount;
 
+            // Per-renderer rank/mod TELL, pushed by the same MaterialPropertyBlock (SdfBlobRig
+            // SetTint/SetEmission — ROADMAP 4 slice 3). OUTSIDE UnityPerMaterial for the same reason
+            // as the prim arrays: the MPB overrides individual uniforms addressed by name at this
+            // scope. HARMLESS BY DEFAULT: an MPB that never sets these reads float4(0,0,0,0), so
+            // _BlobTint.w (lean) = 0 makes the albedo lerp a no-op and _BlobEmit.rgb = 0 adds nothing.
+            float4 _BlobTint; // rgb = tint colour toward, w = lean amount 0..1
+            float4 _BlobEmit; // rgb = additive emission (gentle glow), w unused
+
             struct Attributes
             {
                 float4 positionOS : POSITION;
@@ -174,6 +182,10 @@ Shader "IdleGame/SdfBlendShell"
 
                 half3 albedo = IN.color.rgb;
 
+                // Rank/mod tint: lean the SDF-derived albedo toward _BlobTint BEFORE lighting so the
+                // tell reads as a coloured body, not a flat overlay. w = 0 (unset MPB) => no-op.
+                albedo = lerp(albedo, _BlobTint.rgb, _BlobTint.w);
+
                 // Inked facet edges: fwidth of the derived normal spikes at facet creases (same
                 // trick as TunicSurface — flat inside a facet, discontinuous at its border).
                 half facet = saturate(length(fwidth(N)) * _EdgeSharp);
@@ -189,6 +201,11 @@ Shader "IdleGame/SdfBlendShell"
                 half3 lit = albedo * (ambient + mainLight.color * (ndl * shadow));
 
                 lit = MixFog(lit, IN.fogFactor);
+
+                // Gentle additive glow (rank/mod tell + the animator's hit-flash). Added AFTER fog
+                // so a flash still punches through distance haze. Kept ADDITIVE and gentle on purpose
+                // — the diorama bloom washes bright emission to white (CLAUDE.md). rgb = 0 => no-op.
+                lit += _BlobEmit.rgb;
                 return half4(lit, 1.0);
             }
             ENDHLSL

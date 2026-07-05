@@ -86,10 +86,22 @@ Client-only (zero GameCore impact). Slices:
    boundsPadding (frustum-pop), chubby-limb authoring (smin swallow).
    User-verified in editor: hips stay fused through the swing, hopper
    fused through landing squash, no frustum-pop. Jiggle-rope tail parked.
-3. Content: one bounded family where seamless reads as material truth —
-   slime/ooze/spirit zone family (JSON-ish defs, rank tint/glow +
-   hit-flash per instance through the merged draw). NOT a roster re-skin;
-   the 30 faceted monsters stay.
+3. ✅ Content (2026-07-05) — swamp blob trio JOINS Murkwater Swamp's
+   roster (originals stay): mire_slime (tanky Hop, rises from the bog),
+   bog_shambler (Walk), fen_spirit (fast fragile RANGED Float, icebolt;
+   first ranged trash — authored inline, Trash() can't set AttackRange;
+   test pins it). SdfBlobDefs registry (per-instance prim clones — the
+   shared-def node-stomp bug), IMonsterAnim (both animator kinds feed
+   through CombatView's five sites unchanged), rank/mod tells + hit-
+   flash per instance via _BlobTint/_BlobEmit through the MPB, Float/
+   TriggerAttack/TriggerHit/Die(poof) on SdfBlobAnimator. 492 tests.
+   Play-verified at stage 25: mixed roster spawns, blobs fused in
+   motion, elite tint+size tell, mod glow, flash + poof exercised.
+   Two Play-caught fixes: defs ground at y=0 (body at y=0 buried the
+   lower half — read as pale crescents) and .linear colour push (raw
+   sRGB floats through the MPB render ~2x bright in linear space).
+
+⭐ Item 4 DONE — the blend-shell is proven tech + shipped content.
 
 ### 5. Tower slice 3 — per-floor reward bundles
 The one unfinished system slice; floors pay only via milestones today.

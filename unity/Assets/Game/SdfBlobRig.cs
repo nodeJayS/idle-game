@@ -33,6 +33,16 @@ namespace IdleGame.Game
             public float blendK = 0.25f;                 // smooth-min radius: how melty this prim is
 
             [System.NonSerialized] public Transform? node; // live child transform (set by BuildMesh)
+
+            /// <summary>A fresh copy carrying no live <see cref="node"/>. Load-bearing when authored
+            /// defs are SHARED across instances (e.g. SdfBlobDefs' static registry): BuildMesh writes
+            /// pd.node, so two blobs built from the SAME def object would stomp each other's node and
+            /// push the wrong world pose. Clone per instance so each blob owns its own def objects.</summary>
+            public PrimitiveDef Clone() => new PrimitiveDef
+            {
+                name = name, localPosition = localPosition, localEuler = localEuler,
+                radius = radius, halfLength = halfLength, color = color, blendK = blendK,
+            };
         }
 
         [Tooltip("Authored primitives. Overlap them and they blend into one seamless body.")]
@@ -52,6 +62,35 @@ namespace IdleGame.Game
         private static readonly int IdAxisLen = Shader.PropertyToID("_PrimAxisLen");
         private static readonly int IdColor   = Shader.PropertyToID("_PrimColor");
         private static readonly int IdCount   = Shader.PropertyToID("_PrimCount");
+        private static readonly int IdTint    = Shader.PropertyToID("_BlobTint");
+        private static readonly int IdEmit    = Shader.PropertyToID("_BlobEmit");
+
+        // ---- per-renderer rank/mod tell (ROADMAP 4 slice 3), pushed via the SAME MPB as the prim
+        // arrays. CombatView sets both once at spawn (rank/mod); the animator's hit-flash drives
+        // SetEmission each frame and restores this field's prior value (via Emission) so a flash
+        // never wipes a rank tell — same _emCache guard MonsterAnimator uses. Defaults are the
+        // shader's no-op values (lean 0, emission black), so an un-tinted blob looks unchanged.
+        private Color _tintColor = Color.white;
+        private float _tintLean;              // 0 => no albedo lean (harmless default)
+        private Color _emitColor = Color.black; // black => no additive glow (harmless default)
+
+        /// <summary>Rank/mod albedo tell: lean the whole blob toward <paramref name="rgb"/> by
+        /// <paramref name="lean"/> (0..1). Persistent until changed; written into the MPB every
+        /// PushPrimitives so it survives a rebuild's MPB churn.</summary>
+        public void SetTint(Color rgb, float lean)
+        {
+            _tintColor = rgb;
+            _tintLean = Mathf.Clamp01(lean);
+        }
+
+        /// <summary>Additive glow tell (rank/mod aura, and the animator's transient hit-flash).
+        /// Persistent until changed — the animator caches <see cref="Emission"/> before a flash and
+        /// restores it after, so a rank/mod glow is never clobbered.</summary>
+        public void SetEmission(Color rgb) => _emitColor = rgb;
+
+        /// <summary>The current persistent emission (rank/mod glow). The animator snapshots this
+        /// before a hit-flash so the restore lands EXACTLY on the prior tell, never black.</summary>
+        public Color Emission => _emitColor;
 
         private MeshFilter _mf = null!;
         private MeshRenderer _mr = null!;
@@ -149,7 +188,12 @@ namespace IdleGame.Game
 
                 _posRad[i]  = new Vector4(wpos.x, wpos.y, wpos.z, pd.radius * s);
                 _axisLen[i] = new Vector4(axis.x, axis.y, axis.z, pd.halfLength * s);
-                _colors[i]  = new Vector4(pd.color.r, pd.color.g, pd.color.b, pd.blendK * s);
+                // .linear: the project renders in LINEAR space and MPB floats get no colour-space
+                // conversion, so raw sRGB-authored values render ~2x too bright (Play-verified
+                // 2026-07-05: mid sea-green read as pale sage). Convert here so authored Colors
+                // behave like inspector colours.
+                var lc = pd.color.linear;
+                _colors[i]  = new Vector4(lc.r, lc.g, lc.b, pd.blendK * s);
             }
             // Zero out unused slots so a shrunk list can't leave a stale primitive lit.
             for (int i = n; i < MaxPrims; i++)
@@ -161,6 +205,12 @@ namespace IdleGame.Game
             _mpb.SetVectorArray(IdAxisLen, _axisLen);
             _mpb.SetVectorArray(IdColor, _colors);
             _mpb.SetFloat(IdCount, n); // shader-side _PrimCount is a float (MPB.SetInt IS SetFloat)
+            // Rank/mod tell: rgb tint + lean amount in w, plus additive emission. Defaults
+            // (lean 0 / emission black) are the shader's no-ops, so an un-tinted blob is unchanged.
+            // Same .linear conversion as the prim colours (see above).
+            var lt = _tintColor.linear; var le = _emitColor.linear;
+            _mpb.SetVector(IdTint, new Vector4(lt.r, lt.g, lt.b, _tintLean));
+            _mpb.SetVector(IdEmit, new Vector4(le.r, le.g, le.b, 0f));
             _mr.SetPropertyBlock(_mpb);
         }
 

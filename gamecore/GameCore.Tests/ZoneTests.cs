@@ -146,6 +146,36 @@ namespace IdleGame.GameCore.Tests
                 $"ruins boots {favored} not clearly above woods boots {uniform}");
         }
 
+        // --- SDF blob-shell family (ROADMAP 4, slice 3): the slime/shambler/spirit trio JOINS
+        // the swamp roster. Pins the three new ids exist, are in the swamp roster (alongside the
+        // originals), pay the trash band, and that fen_spirit is genuinely RANGED (AttackRange
+        // above Combat's melee cutoff — that's what makes the client fire a bolt, not a swing).
+        [Fact]
+        public void SwampBlobFamilyJoinsTheRoster()
+        {
+            var swamp = Cfg.Zones.Single(z => z.Id == "murkwater_swamp");
+
+            // originals stay — the family JOINS, it doesn't replace
+            Assert.Contains("bog_toad", swamp.TrashMonsters);
+            Assert.Contains("marsh_wisp", swamp.TrashMonsters);
+
+            foreach (var id in new[] { "mire_slime", "bog_shambler", "fen_spirit" })
+            {
+                Assert.True(Cfg.Monsters.ContainsKey(id), $"missing monster def '{id}'");
+                Assert.Equal("common", Cfg.Monsters[id].LootTableId); // trash pay band
+                Assert.Contains(id, swamp.TrashMonsters);
+            }
+
+            // fen_spirit is ranged: AttackRange above Combat.MeleeRange-cutoff (> 2.0). The Trash
+            // helper can't set this, so a regression that reverted it to a plain Trash() would
+            // silently make it melee — this guards exactly that.
+            Assert.True(Cfg.Monsters["fen_spirit"].BaseStats.Get(StatKey.AttackRange) > 2.0,
+                "fen_spirit must be ranged (AttackRange > 2.0)");
+            // and its neighbours are NOT ranged (they melee)
+            Assert.True(Cfg.Monsters["mire_slime"].BaseStats.Get(StatKey.AttackRange) <= 2.0);
+            Assert.True(Cfg.Monsters["bog_shambler"].BaseStats.Get(StatKey.AttackRange) <= 2.0);
+        }
+
         [Fact]
         public void SpawnsFallBackWithoutZones()
         {

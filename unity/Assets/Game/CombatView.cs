@@ -46,10 +46,11 @@ namespace IdleGame.Game
             public IHeroAnim? Anim;
             public bool Moving;
 
-            // Procedural monster life (set for faceted MODEL enemies only; null for the primitive
-            // capsule/cube fallback and for heroes). Gait/telegraph/hit/death on a body pivot;
-            // the root stays owned by SyncViews. See MonsterAnimator.
-            public MonsterAnimator? MonsterAnim;
+            // Procedural monster life (set for faceted MODEL enemies AND for SDF-blob enemies; null
+            // for the primitive capsule/cube fallback and for heroes). Gait/telegraph/hit/death; the
+            // root stays owned by SyncViews. Typed as the shared IMonsterAnim so both the rigid
+            // MonsterAnimator (body pivot) and the SdfBlobAnimator (prim nodes) feed through one shape.
+            public IMonsterAnim? MonsterAnim;
 
             // Attack/cast tell (M11): a quick punch toward the target (or upward for a
             // cast) on each action. Duration scales inversely with AtkSpd, so faster
@@ -1093,6 +1094,11 @@ namespace IdleGame.Game
 
             GameObject? model = null;
             float modelHeight = ChibiHeight;
+            // SDF blob-shell critters (ROADMAP 4 slice 3): built here so they slot into the model
+            // path (feet-at-ground, rank scale, spawn FX) exactly like a faceted FBX. The blob's own
+            // animator replaces the MonsterAnimator below; the rig carries the rank/mod tell.
+            SdfBlobRig? blobRig = null;
+            SdfBlobAnimator? blobAnim = null;
             if (isHero)
             {
                 var hero = _save.Heroes.Find(h => h.Id == e.RefId);
@@ -1109,6 +1115,31 @@ namespace IdleGame.Game
                         if (built != null) { model = built.Value.root; heroAnim = built.Value.anim; }
                     }
                 }
+            }
+            else if (SdfBlobDefs.Has(e.RefId))
+            {
+                // SDF blend-shell blob (slime/shambler/spirit family): a GameObject with a rig +
+                // animator, mirroring SdfGaitTest.ApplyMaterial's setup (fresh material off the SDF
+                // shader, made matte; the MPB carries the per-renderer prim arrays + rank/mod tell).
+                var def = SdfBlobDefs.TryGet(e.RefId)!;
+                var blob = new GameObject(e.Id);
+                blobRig = blob.AddComponent<SdfBlobRig>();
+                blobRig.subdivisions = 9;
+                blobRig.boundsPadding = def.BoundsPadding;
+                blobRig.prims = def.ClonePrims(); // per-instance copy — shared defs would stomp pd.node
+                blobRig.BuildMesh();
+                var shader = Shader.Find("IdleGame/SdfBlendShell");
+                if (shader != null)
+                {
+                    var mat = new Material(shader);
+                    Bootstrap.MakeMatte(mat);
+                    blob.GetComponent<MeshRenderer>().sharedMaterial = mat;
+                }
+                blobRig.SetPrimitivesDirty();
+                blobAnim = blob.AddComponent<SdfBlobAnimator>();
+                blobAnim.Init(def.Family, e.Id.GetHashCode());
+                model = blob;
+                modelHeight = def.Height;
             }
             else
             {
@@ -1138,7 +1169,15 @@ namespace IdleGame.Game
                     {
                         var rc = e.Rank == MonsterRank.Rare ? new Color(0.96f, 0.76f, 0.22f)
                                                             : new Color(0.35f, 0.70f, 0.96f);
-                        MonsterModel.Tint(go, rc, 0.25f, rc * (e.Rank == MonsterRank.Rare ? 0.55f : 0.35f));
+                        // Blobs carry the tell on the rig (albedo lean + gentle emission through the
+                        // MPB); faceted models lean every material. Same lean (0.25) + gentle glow.
+                        if (blobRig != null)
+                        {
+                            blobRig.SetTint(rc, 0.25f);
+                            blobRig.SetEmission(rc * (e.Rank == MonsterRank.Rare ? 0.55f : 0.35f));
+                        }
+                        else
+                            MonsterModel.Tint(go, rc, 0.25f, rc * (e.Rank == MonsterRank.Rare ? 0.55f : 0.35f));
                     }
                     if (e.ModTypes.Count > 0 && _cfg.Modifiers.TryGetValue(e.ModTypes[0], out var mmd))
                     {
@@ -1146,7 +1185,10 @@ namespace IdleGame.Game
                         // whole field when an income mod is active (every farm mob carries
                         // it) and buries the authored palette (verified by screenshot)
                         var mt = new Color((float)mmd.TintR, (float)mmd.TintG, (float)mmd.TintB);
-                        MonsterModel.Tint(go, mt, 0f, mt * 0.12f);
+                        if (blobRig != null)
+                            blobRig.SetEmission(mt * 0.12f); // glow-only (no albedo lean), same faintness
+                        else
+                            MonsterModel.Tint(go, mt, 0f, mt * 0.12f);
                     }
                 }
             }
@@ -1198,11 +1240,18 @@ namespace IdleGame.Game
             // a body-pivot animator that gaits/telegraphs/flinches/dies per family. Seed its phase
             // off the entity id so a pack of the same monster doesn't bob in unison. Must run AFTER
             // the tint above so its material cache sees the rank/mod emission it has to restore.
-            MonsterAnimator? monsterAnim = null;
-            if (!isHero && model != null)
+            IMonsterAnim? monsterAnim = null;
+            if (blobAnim != null)
             {
-                monsterAnim = go.AddComponent<MonsterAnimator>();
-                monsterAnim.Init(e.RefId, e.Id.GetHashCode());
+                // SDF blob: its own animator (built above) already ran Init; feed it through the
+                // shared IMonsterAnim so the five SyncViews/Trigger/Die sites drive it unchanged.
+                monsterAnim = blobAnim;
+            }
+            else if (!isHero && model != null)
+            {
+                var ma = go.AddComponent<MonsterAnimator>();
+                ma.Init(e.RefId, e.Id.GetHashCode());
+                monsterAnim = ma;
             }
 
             var view = new View { Go = go, Height = height, YOffset = model != null ? 0f : height,

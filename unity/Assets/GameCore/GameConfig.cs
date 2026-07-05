@@ -884,6 +884,31 @@ namespace IdleGame.GameCore
             cfg.Monsters["marsh_wisp"] = Trash("marsh_wisp", "Marsh Wisp", 30, 5.5, 0, 3.2, 1.2, 0.05, 20, 6);
             cfg.Monsters["bog_horror"] = BossMob("bog_horror", "Bog Horror", 180, 11, 2, 2.2, 0.8);
 
+            // ---- SDF blob-shell family (ROADMAP 4, slice 3): a slime/shambler/spirit trio that
+            // JOINS the swamp roster (bog_toad + marsh_wisp stay). Same zone-3 flavor envelope
+            // (bog_toad 40hp/3dmg tanky-fodder, marsh_wisp 30hp/5.5dmg glassy) — flavor, not a
+            // power step (the geometric stage curve owns difficulty). SpawnStyle "rise" reuses the
+            // boss/goblin_king rise-from-ground tell (a slime welling up out of the bog reads best).
+            // Mire Slime: the tank of the trio — most HP, least damage, crawls (slowest MoveSpd).
+            cfg.Monsters["mire_slime"] = Trash("mire_slime", "Mire Slime", 58, 2.5, 1, 1.8, 0.7, 0, 14, 4);
+            cfg.Monsters["mire_slime"].SpawnStyle = "rise";
+            // Bog Shambler: the middling melee walker — stats sit between bog_toad and stone_sentry,
+            // kept zone-3 appropriate (not a boss). A plodding legged gait (Walk family, client-side).
+            cfg.Monsters["bog_shambler"] = Trash("bog_shambler", "Bog Shambler", 50, 4, 2, 2.5, 0.85, 0.02, 18, 5);
+            // Fen Spirit: fast, fragile, and genuinely RANGED. The Trash helper only makes melee
+            // mobs (no AttackRange => Combat.MeleeRange 1.0), so this one is authored inline to set
+            // AttackRange > 2.0 (Combat's melee/ranged cutoff) and an AttackFx projectile hint so the
+            // client fires a bolt instead of a swing. Fewest HP, quickest MoveSpd of the trio.
+            cfg.Monsters["fen_spirit"] = new MonsterDef
+            {
+                Id = "fen_spirit", Name = "Fen Spirit", LootTableId = "common", XpReward = 20, GoldReward = 6, Sprite = "fen_spirit",
+                AttackFx = "icebolt", // reuse the shipped pale-ice bolt (reads as a spectral mote); no new FX asset
+                BaseStats = SB((StatKey.Hp, 26), (StatKey.Atk, 6), (StatKey.Def, 0),
+                               (StatKey.MoveSpd, 3.6), (StatKey.AtkSpd, 1.25),
+                               (StatKey.CritChance, 0.06), (StatKey.CritDmg, 1.5),
+                               (StatKey.AttackRange, 3.2)), // > 2.0 => Combat treats it as ranged
+            };
+
             cfg.Monsters["dust_scarab"] = Trash("dust_scarab", "Dust Scarab", 36, 3.5, 2, 2.8, 1.0, 0, 12, 3);
             cfg.Monsters["dune_stalker"] = Trash("dune_stalker", "Dune Stalker", 48, 6, 1, 3.4, 1.15, 0.06, 20, 6);
             cfg.Monsters["dune_wurm"] = BossMob("dune_wurm", "Dune Wurm", 200, 10, 3, 2.0, 0.7);
@@ -922,7 +947,8 @@ namespace IdleGame.GameCore
             cfg.Zones.Add(Zone("ruined_courtyard", "Ruined Courtyard", "ruins",
                 (0.55, 0.54, 0.50), (0.42, 0.40, 0.38), "grave_knight", EquipSlot.Boots, "bone_rattler", "stone_sentry"));
             cfg.Zones.Add(Zone("murkwater_swamp", "Murkwater Swamp", "swamp",
-                (0.35, 0.42, 0.30), (0.24, 0.32, 0.22), "bog_horror", EquipSlot.Helm, "bog_toad", "marsh_wisp"));
+                (0.35, 0.42, 0.30), (0.24, 0.32, 0.22), "bog_horror", EquipSlot.Helm,
+                "bog_toad", "marsh_wisp", "mire_slime", "bog_shambler", "fen_spirit"));
             cfg.Zones.Add(Zone("amber_dunes", "Amber Dunes", "desert",
                 (0.80, 0.68, 0.42), (0.66, 0.52, 0.30), "dune_wurm", EquipSlot.Gloves, "dust_scarab", "dune_stalker"));
             cfg.Zones.Add(Zone("frostpeak_tundra", "Frostpeak Tundra", "tundra",

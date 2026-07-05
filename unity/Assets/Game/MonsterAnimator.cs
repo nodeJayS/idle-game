@@ -5,6 +5,23 @@ using UnityEngine;
 namespace IdleGame.Game
 {
     /// <summary>
+    /// The feed shape CombatView drives every enemy view through, regardless of HOW it's rendered
+    /// (rigid faceted <see cref="MonsterAnimator"/> body-pivot vs the SDF-blob <see cref="SdfBlobAnimator"/>).
+    /// The five members mirror the SyncViews / TriggerHit / TriggerLunge / death feed sites EXACTLY
+    /// by name, so those sites compile UNCHANGED when View.MonsterAnim is typed as this interface
+    /// (ROADMAP 4, slice 3). Both animator kinds own only what CombatView doesn't (the body pivot /
+    /// the prim nodes) until Die, after which the animator owns the detached object and self-destructs.
+    /// </summary>
+    public interface IMonsterAnim
+    {
+        void SetMoving(bool moving);
+        void SetMoveSpeed(float speed);
+        void TriggerAttack(float lungeDur);
+        void TriggerHit();
+        void Die(Vector3 hitDir);
+    }
+
+    /// <summary>
     /// Procedural "life" for the rigid faceted monster models (art rule: monsters are ONE
     /// flat-shaded group, no rig — the smooth MS2 pipeline is heroes-only). With no bones to
     /// pose, we can't play clips; instead we animate a single BODY PIVOT the model hangs from,
@@ -23,7 +40,7 @@ namespace IdleGame.Game
     /// gain one. The static <see cref="Families"/> table maps monster id (= MonsterDef.Id =
     /// the fbx name = CombatEntity.RefId) to a gait; unknown ids fall back to Stride.
     /// </summary>
-    public sealed class MonsterAnimator : MonoBehaviour
+    public sealed class MonsterAnimator : MonoBehaviour, IMonsterAnim
     {
         public enum Family { Hop, Stride, Float, Stomp }
 

@@ -27,9 +27,9 @@ namespace IdleGame.Game
     /// from SdfBlobWiggle: Application.isPlaying ? Time.time : Time.realtimeSinceStartup).
     /// </summary>
     [ExecuteAlways]
-    public sealed class SdfBlobAnimator : MonoBehaviour
+    public sealed class SdfBlobAnimator : MonoBehaviour, IMonsterAnim
     {
-        public enum Family { Walk, Hop }
+        public enum Family { Walk, Hop, Float }
 
         // ---- tunables (subtle — cozy ortho 45° diorama, mirrors MonsterAnimator amplitudes) ----
         private const float StrideBob      = 0.05f;  // body/head double-bounce bob amplitude (world units)
@@ -42,6 +42,24 @@ namespace IdleGame.Game
         private const float HopSquashY     = 0.25f;  // node local-Y compression toward the base at touchdown
         private const float BreatheAmp     = 0.02f;  // idle breathing y-position pulse of body/head (world units)
         private const float BreatheHz      = 0.5f;   // idle breathing frequency
+        private const float FloatHover     = 0.15f;  // continuous whole-blob hover amplitude (world units)
+        private const float FloatHz        = 0.55f;  // hover frequency (mirrors MonsterAnimator.PoseFloat)
+
+        // Attack telegraph (crouch then punch-out) and hit reaction (squash spring-back). A single
+        // per-prim radius squash is impossible (the SDF carries one radius) — see MonsterAnimator's
+        // note; we FAKE both via NODE local-Y instead of a per-axis scale.
+        private const float AtkCrouchY   = 0.18f;  // body/head local-Y compression at the anticipation low
+        private const float AtkStretchY  = 0.14f;  // body/head local-Y lift at the punch-out peak
+        private const float HitSquashSec = 0.16f;  // hit squash spring-back time (mirrors MonsterAnimator)
+        private const float HitSquashY   = 0.20f;  // peak body/head local-Y compression on a hit
+        private const float FlashSec     = 0.12f;  // hit emission-flash duration (mirrors MonsterAnimator)
+
+        // Death: the POOF (blobs never topple). Mirrors MonsterAnimator's Hop/Float death branch,
+        // INCLUDING the ownership flip — after Die the animator owns the whole detached object and
+        // may drive ROOT scale/position (CombatView has detached the view from the live set).
+        private const float DieLife    = 0.5f;   // corpse lingers long enough for a projectile to land
+        private const float DieInflate = 1.15f;  // brief inflate before the shrink
+        private const float DieWaft    = 0.6f;   // upward drift over the death (world units, pre root-scale)
 
         // ---- one animated prim node + its captured rest pose ----
         // Rest pose is the AUTHORED local transform; every frame we pose relative to it and never
@@ -70,6 +88,27 @@ namespace IdleGame.Game
         private float _hopCycle;     // hops elapsed; fraction = progress through the current arc
         private float _hopLandT;     // final-touchdown squash timer (hop stop, item feel)
 
+        // Attack telegraph: a crouch during the lunge's anticipation, a stretch on the punch-out.
+        private float _atkT, _atkDur;
+        // Hit squash: a quick body/head local-Y flatten that springs back.
+        private float _hitT;
+
+        // Emission flash THROUGH THE RIG: cache the rig's PRIOR persistent emission (a rank/mod
+        // tell set by CombatView) so we restore EXACTLY that after the flash, never black. Only
+        // snapshot when no flash is in flight — a second hit inside the flash window would otherwise
+        // cache the mid-flash whitened colour and latch the blob permanently glowing (same bug
+        // MonsterAnimator's _emCache guards).
+        private bool _flashing;
+        private float _flashT;
+        private Color _emCache = Color.black;
+
+        // Death: the animator owns the WHOLE detached object once CombatView calls Die, runs the
+        // poof out on the ROOT transform, then self-destructs.
+        private bool _dying;
+        private float _dieT;
+        private Vector3 _rootBaseScale = Vector3.one; // root scale captured at death for the final shrink
+        private Vector3 _rootBasePos;                 // root position captured at death (for the upward waft)
+
         /// <summary>Wire the animator to a family + phase seed. <paramref name="phaseSeed"/> is a
         /// hash of the entity id so packs of the same critter don't gait in lockstep. The seed is
         /// AVALANCHED exactly like MonsterAnimator.Init: sequential ids ("E41","E43",…) hash near-
@@ -93,6 +132,49 @@ namespace IdleGame.Game
         /// steps must never see a 0, or hop cadence (speed/HopLength) and stride frequency whipsaw
         /// every other frame.</summary>
         public void SetMoveSpeed(float speed) => _speed = Mathf.Max(0f, speed);
+
+        /// <summary>Anticipation for the capsule lunge (mirrors MonsterAnimator.TriggerAttack): a
+        /// quick crouch in the first ~30% of the lunge, then a stretch on the punch-out. Because a
+        /// per-axis prim squash is impossible, this poses body/head NODE local-Y (crouch = compress
+        /// toward the base, stretch = lift) rather than scaling. Never overrides an in-flight death.
+        /// <paramref name="lungeDur"/> matches CombatView's positional lunge.</summary>
+        public void TriggerAttack(float lungeDur)
+        {
+            if (_dying) return;
+            _atkDur = Mathf.Max(0.06f, lungeDur);
+            _atkT = _atkDur;
+        }
+
+        /// <summary>A hit landed (mirrors MonsterAnimator.TriggerHit): a quick body/head squash that
+        /// springs back + an emission flash pushed THROUGH THE RIG. Never overrides a death. Snapshot
+        /// the rig's prior emission ONLY when no flash is in flight, so a second hit inside the window
+        /// (splash/chain) can't cache the whitened mid-flash colour and latch the blob glowing.</summary>
+        public void TriggerHit()
+        {
+            if (_dying || _rig == null) return;
+            _hitT = HitSquashSec;
+            if (!_flashing)
+            {
+                _emCache = _rig.Emission; // the persistent rank/mod tell to restore to
+                _flashing = true;
+            }
+            _flashT = FlashSec;
+        }
+
+        /// <summary>The killing blow (mirrors MonsterAnimator's Hop/Float poof branch): the animator
+        /// now owns the whole detached GameObject — CombatView has removed the view from the live set,
+        /// so driving ROOT scale/position is safe here (and NOWHERE else). Blobs always POOF (inflate
+        /// then shrink to nothing with a small upward waft), then Destroy(gameObject).
+        /// <paramref name="hitDir"/> is unused — a blob has no corpse to tip toward the blow.</summary>
+        public void Die(Vector3 hitDir)
+        {
+            if (_dying) return;
+            _dying = true;
+            _dieT = 0f;
+            _rootBaseScale = transform.localScale; // rank size scale is baked in here; poof scales it
+            _rootBasePos = transform.position;
+            _flashing = false; // the death owns the look now; let any restore drop
+        }
 
         private void OnEnable()
         {
@@ -149,16 +231,116 @@ namespace IdleGame.Game
             float dt = now - _t <= 0f ? 0f : now - _t; // guard against a non-monotonic edit clock
             _t = now;
 
+            if (_dying) { UpdateDeath(dt); return; }
+
+            UpdateFlash(dt);
+
             switch (_family)
             {
-                case Family.Walk: PoseWalk(dt); break;
-                case Family.Hop:  PoseHop(dt);  break;
+                case Family.Walk:  PoseWalk(dt);  break;
+                case Family.Hop:   PoseHop(dt);   break;
+                case Family.Float: PoseFloat();   break;
             }
+
+            // Attack telegraph + hit squash layer ON TOP of the gait pose, both faked via body/head
+            // NODE local-Y (a per-axis prim squash is impossible). Applied after the gait set the
+            // rest-relative pose this frame, so they compose as an additional Y offset.
+            LayerBodySquash(dt);
 
             // The rig pushes on LateUpdate, but edit-mode LateUpdate isn't guaranteed each repaint —
             // push explicitly so the posed children reflect in the MPB immediately (SdfBlobWiggle
             // does the same).
             _rig.SetPrimitivesDirty();
+        }
+
+        // ---- Float: continuous whole-blob hover -----------------------------------------------
+
+        /// <summary>Float: a continuous slow hover of the WHOLE blob (every prim node lifts by the
+        /// same y sine, phase-offset) even when idle — mirrors MonsterAnimator.PoseFloat. It never
+        /// rests, so NO landing squash and NO breathing ever. Banking is skipped: a gentle roll on
+        /// sphere prims can't read (the SDF carries no orientation), so we don't fake it.</summary>
+        private void PoseFloat()
+        {
+            float lift = Mathf.Sin(_t * FloatHz * Mathf.PI * 2f + _phase) * FloatHover;
+            foreach (var n in _allNodes)
+            {
+                var p = n.restPos;
+                p.y += lift;
+                n.t.localPosition = p;
+                n.t.localRotation = n.restRot;
+                n.t.localScale = n.restScale;
+            }
+        }
+
+        // ---- attack / hit squash (layered onto the gait) --------------------------------------
+
+        /// <summary>Layer the attack crouch/stretch and the hit squash onto the body/head nodes as
+        /// an extra local-Y offset. Both fake a per-axis flatten the single-radius SDF can't do:
+        /// crouch/hit COMPRESS local Y toward the base, the punch-out LIFTS it. Timers decay here so
+        /// they run regardless of which gait posed the frame.</summary>
+        private void LayerBodySquash(float dt)
+        {
+            float dy = 0f;
+
+            if (_atkT > 0f)
+            {
+                _atkT = Mathf.Max(0f, _atkT - dt);
+                float p = 1f - (_atkDur > 0f ? _atkT / _atkDur : 1f); // 0 -> 1 over the lunge
+                // Match MonsterAnimator's 0.3/0.7 phase split: crouch for the first 30%, stretch out.
+                dy += p < 0.3f ? Mathf.Lerp(0f, -AtkCrouchY, p / 0.3f)
+                               : Mathf.Lerp(-AtkCrouchY, AtkStretchY, (p - 0.3f) / 0.7f);
+            }
+
+            if (_hitT > 0f)
+            {
+                _hitT = Mathf.Max(0f, _hitT - dt);
+                float k = _hitT / HitSquashSec;        // 1 -> 0
+                float e = Mathf.Sin(k * Mathf.PI);     // 0 at the ends, 1 mid: a spring
+                dy += -HitSquashY * e;
+            }
+
+            if (dy == 0f) return;
+            foreach (var n in _bodyNodes)
+            {
+                var p = n.t.localPosition; // compose on whatever the gait already set this frame
+                p.y += dy;
+                n.t.localPosition = p;
+            }
+        }
+
+        // ---- hit emission flash (through the rig) ---------------------------------------------
+
+        /// <summary>Drive the hit flash to white then back to the rig's CACHED prior emission (a
+        /// rank/mod tell), all via SdfBlobRig.SetEmission — same restore-to-prior contract as
+        /// MonsterAnimator.UpdateFlash, so a flash never wipes a rank glow.</summary>
+        private void UpdateFlash(float dt)
+        {
+            if (!_flashing || _rig == null) return;
+            _flashT -= dt;
+            float k = Mathf.Clamp01(_flashT / FlashSec); // 1 -> 0
+            _rig.SetEmission(Color.Lerp(_emCache, Color.white, k));
+            if (_flashT <= 0f)
+            {
+                _rig.SetEmission(_emCache); // restore EXACTLY the prior tell (never black)
+                _flashing = false;
+            }
+        }
+
+        // ---- death (poof) — owns the ROOT once CombatView detaches the view --------------------
+
+        /// <summary>Poof: a brief inflate then a shrink toward nothing with a small upward waft,
+        /// driven on the ROOT transform (safe now — the view is detached). Mirrors MonsterAnimator's
+        /// Hop/Float death branch; self-destructs when the linger elapses.</summary>
+        private void UpdateDeath(float dt)
+        {
+            _dieT += dt;
+            float a = Mathf.Clamp01(_dieT / DieLife);
+            float scale = a < 0.25f ? Mathf.Lerp(1f, DieInflate, a / 0.25f)       // inflate
+                                    : Mathf.Lerp(DieInflate, 0.02f, (a - 0.25f) / 0.75f); // shrink to ~nothing
+            transform.localScale = _rootBaseScale * scale;
+            transform.position = _rootBasePos + Vector3.up * (DieWaft * a);        // waft upward
+            if (_rig != null) _rig.SetPrimitivesDirty();
+            if (a >= 1f) Destroy(gameObject);
         }
 
         // ---- Walk: 2-legged strider ------------------------------------------------------------
