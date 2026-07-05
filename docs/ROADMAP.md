@@ -63,20 +63,29 @@ SDF (seams cease to exist), colors blend by SDF proximity. OUR twist keeps
 the hard art rule: normals come from screen-space derivatives (flat facets)
 NOT the SDF gradient — a faceted Tunic skin over a seamlessly blended body.
 Client-only (zero GameCore impact). Slices:
-1. ✅ Shader prototype (2026-07-04) — PROVISIONAL PASS: SdfBlendShell
-   shader (16-prim uniform arrays via MPB, 3-step smin snap, ddx/ddy
-   facet normals, proximity color blend) + SdfBlobRig + Tools > SDF
-   Blob Test. Verified in-editor: compiles clean, seams GONE at
-   overlaps, skin reads faceted, colors cross-fade at joins, antenna
-   survives, fusion holds through pose changes (screenshots in git
-   history's session). STILL OPEN: the kill criterion (temporal
-   vertex-slide shimmer) needs a live eyeball — run the menu item,
-   watch the wiggle ~10s. Tuning notes: proximity colors over-mix
-   (pastel wash — sharpen exp weights) and small limbs get swallowed
-   (authoring sizes). Fallback Lit supplies shadows from UNSNAPPED
-   source geometry (mismatch acceptable so far).
-2. Animation wiring: drive primitive transforms from a MonsterAnimator-
-   style gait (fused-while-flopping test); optional jiggle-rope tail.
+1. ✅ Shader prototype (2026-07-04) — PASS (kill criterion closed
+   2026-07-05: user eyeballed the live wiggle, no temporal vertex-slide
+   shimmer): SdfBlendShell shader (16-prim uniform arrays via MPB,
+   3-step smin snap, ddx/ddy facet normals, proximity color blend) +
+   SdfBlobRig + Tools > SDF Blob Test. Verified in-editor: compiles
+   clean, seams GONE at overlaps, skin reads faceted, colors cross-fade
+   at joins, antenna survives, fusion holds through pose changes
+   (screenshots in git history's session). Tuning debts → slice 2:
+   proximity colors over-mix (pastel wash — sharpen exp weights), small
+   limbs get swallowed (authoring sizes), bounds baked at BuildMesh can
+   frustum-pop under big gait swings (recompute or fatten padding).
+   Fallback Lit supplies shadows from UNSNAPPED source geometry
+   (mismatch acceptable so far).
+2. ✅ Animation wiring (2026-07-05) — SdfBlobAnimator (Walk + Hop
+   families driving the prim:* nodes; hip-orbit leg swing, MonsterAnimator
+   phase/seed/sticky-speed/stop-mid-air contracts, squash faked via
+   center-Y compression + radius dip; never touches root — CombatView
+   contract holds) + Tools > SDF Gait Test (walker + hopper, root-owning
+   pacer, edit-mode player-loop pump for smooth no-Play preview).
+   Slice-1 debts paid: shader _ColorSharp (pastel wash), rig
+   boundsPadding (frustum-pop), chubby-limb authoring (smin swallow).
+   User-verified in editor: hips stay fused through the swing, hopper
+   fused through landing squash, no frustum-pop. Jiggle-rope tail parked.
 3. Content: one bounded family where seamless reads as material truth —
    slime/ooze/spirit zone family (JSON-ish defs, rank tint/glow +
    hit-flash per instance through the merged draw). NOT a roster re-skin;

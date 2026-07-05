@@ -22,6 +22,7 @@ Shader "IdleGame/SdfBlendShell"
         _ShadowImpact("Shadow Strength", Range(0,1)) = 0.7
         _EdgeSharp   ("Edge Ink Sharpness", Float)   = 6.0   // reuse TunicSurface's inked-crease look
         _EdgeDark    ("Edge Ink Strength", Range(0,1)) = 0.30
+        _ColorSharp  ("Color Blend Sharpness", Float) = 2.5  // >1 tightens proximity weights so colours stop washing to pastel
     }
 
     SubShader
@@ -50,6 +51,7 @@ Shader "IdleGame/SdfBlendShell"
                 float _ShadowImpact;
                 float _EdgeSharp;
                 float _EdgeDark;
+                float _ColorSharp;
             CBUFFER_END
 
             // Per-renderer primitive arrays (set via MaterialPropertyBlock). These live OUTSIDE
@@ -135,7 +137,9 @@ Shader "IdleGame/SdfBlendShell"
                 [loop] for (int i = 0; i < n; i++)
                 {
                     float k = max(_PrimColor[i].w, 0.05);
-                    float w = exp(-max(0.0, SdfPrim(p, i)) / k);
+                    // _ColorSharp (>1) tightens the falloff so the nearest primitive dominates
+                    // harder — cures the slice-1 pastel wash where every colour over-mixed.
+                    float w = exp(-max(0.0, SdfPrim(p, i)) * _ColorSharp / k);
                     sum  += _PrimColor[i].rgb * w;
                     wsum += w;
                 }

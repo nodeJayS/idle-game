@@ -42,6 +42,11 @@ namespace IdleGame.Game
                + "hundred verts per primitive; the shader snaps them so exact placement is loose.")]
         [Range(4, 16)] public int subdivisions = 8;
 
+        [Tooltip("Extra world-space slack added to every prim's bounds reach. Bounds bake from the "
+               + "AUTHORED poses at BuildMesh; a gait that swings a node out past them frustum-pops "
+               + "the blob. Set this to the largest expected swing/hop excursion (world units).")]
+        public float boundsPadding = 0f;
+
         // ---- shader property ids (cached; string lookups every frame are wasteful) ----
         private static readonly int IdPosRad  = Shader.PropertyToID("_PrimPosRad");
         private static readonly int IdAxisLen = Shader.PropertyToID("_PrimAxisLen");
@@ -101,7 +106,7 @@ namespace IdleGame.Game
 
                 // Pad the bounds: verts get SNAPPED outward by up to (radius + blendK), so the mesh
                 // bounds must cover the union of primitive reach or the whole blob frustum-pops.
-                float reach = pd.radius + pd.halfLength + pd.blendK;
+                float reach = pd.radius + pd.halfLength + pd.blendK + boundsPadding;
                 var b = new Bounds(pd.localPosition, Vector3.one * (reach * 2f));
                 if (!haveBounds) { bounds = b; haveBounds = true; }
                 else bounds.Encapsulate(b);
@@ -135,8 +140,11 @@ namespace IdleGame.Game
                              : transform.TransformPoint(pd.localPosition);
                 Quaternion wrot = pd.node != null ? pd.node.rotation
                              : transform.rotation * Quaternion.Euler(pd.localEuler);
-                // Uniform-ish scale of the parent should scale radius/length so animation reads right.
-                float s = transform.lossyScale.x;
+                // Uniform-ish scale should scale radius/length so animation reads right. Prefer the
+                // NODE's own lossyScale (an animator can squash/stretch a single prim by scaling its
+                // node); fall back to the parent's scale when there's no live node yet. .x by the
+                // existing convention — the SDF only carries a single radius, so scale is uniform-ish.
+                float s = pd.node != null ? pd.node.lossyScale.x : transform.lossyScale.x;
                 Vector3 axis = (wrot * Vector3.up).normalized;
 
                 _posRad[i]  = new Vector4(wpos.x, wpos.y, wpos.z, pd.radius * s);
