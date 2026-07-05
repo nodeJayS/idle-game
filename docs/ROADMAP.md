@@ -52,17 +52,37 @@ Play-verified in one window (standoff/hustle/fire-in-transit live;
 swap + guard exercised through the real UI). Knob feel (4.6/1.8/2.0)
 = user's call after normal play; all one-line Balance tweaks.
 
-### 4. Tower slice 3 — per-floor reward bundles
+### 4. ⭐ SDF blend-shell monsters — the faceted variant (user call 2026-07-04, jumps Tower rewards)
+Port of the Three.js "blend-shell" idea: primitive capsules merged to one
+draw call, vertex shader snaps every vertex onto the combined smooth-min
+SDF (seams cease to exist), colors blend by SDF proximity. OUR twist keeps
+the hard art rule: normals come from screen-space derivatives (flat facets)
+NOT the SDF gradient — a faceted Tunic skin over a seamlessly blended body.
+Client-only (zero GameCore impact). Slices:
+1. Shader prototype + KILL CRITERION: SdfBlendShell shader (uniform
+   arrays, cap ~16 primitives, smin snap 2–3 gradient iterations, ddx/ddy
+   facet normals, proximity color blend) + SdfBlobRig driver + Tools >
+   SDF Blob Test harness (animated test critter). Kill if vertex-slide
+   shimmer under faceted normals can't be tamed — then bail, Tower
+   rewards resumes, no sunk cost.
+2. Animation wiring: drive primitive transforms from a MonsterAnimator-
+   style gait (fused-while-flopping test); optional jiggle-rope tail.
+3. Content: one bounded family where seamless reads as material truth —
+   slime/ooze/spirit zone family (JSON-ish defs, rank tint/glow +
+   hit-flash per instance through the merged draw). NOT a roster re-skin;
+   the 30 faceted monsters stay.
+
+### 5. Tower slice 3 — per-floor reward bundles
 The one unfinished system slice; floors pay only via milestones today.
 GameCore-first, sim-testable, ~1 session.
 
-### 5. Combat presentation debt
+### 6. Combat presentation debt
 - Per-hero impact sounds (`PlayImpact` hardcodes `Hit_SwordDefault`; same
   pattern as the shipped per-hero attack sounds).
 - Sanctify heal visual + Holy Smite cast flourish (`_skillFx` add-on points).
 - Check hero-float quirk (SyncViews writes v.Height into hero Y for capsules).
 
-### 6. Terraced terrain + water (the big remaining Tunic-look gap — sim-gated)
+### 7. Terraced terrain + water (the big remaining Tunic-look gap — sim-gated)
 Tunic reads as PLACES: terraces, cliff strata, stairs, water — ours is an
 infinite plane, and painted ground-wear fails without structure (tried
 2026-07-02, reverted). Slices: (1) GameCore per-stage arena layout (walkable
@@ -70,12 +90,12 @@ region + height tiers as data, movement clamps); (2) client terraces/cliffs
 (TunicSurface side colour = free strata), water + shore ink, stairs;
 (3) per-zone water/lava/void flavor + camera composition pass.
 
-### 7. Content & tuning pass
+### 8. Content & tuning pass
 More stages/mods/kits; balance sim in console; XP curve at roster size.
 Caster pacing lever if ever needed: per-skill CooldownMs (mana removal
 changed nothing observable).
 
-### 8. Later / parked
+### 9. Later / parked
 Prestige/rebirth · manual achievement-claim UX · real-money gems (after
 gacha proves fun) · server authority (design §9) · Xml.m2d item-table
 extraction (when wardrobe grows) · zone drop-table hint in stage picker.
