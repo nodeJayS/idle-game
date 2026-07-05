@@ -51,6 +51,10 @@ left-rail "Swap in for:" stack, greyed "Last hero"). 485 tests;
 Play-verified in one window (standoff/hustle/fire-in-transit live;
 swap + guard exercised through the real UI). Knob feel (4.6/1.8/2.0)
 = user's call after normal play; all one-line Balance tweaks.
+Post-batch fix (2026-07-04, found in live play): panic kite's unbounded
+away-vector ran casters off screen — retreat now runs TO the leader and
+holds at PanicHoldDist (2.0), and melee heroes PEEL (prefer enemies
+attacking a ranged ally, same acquisition radii). 491 tests.
 
 ### 4. ⭐ SDF blend-shell monsters — the faceted variant (user call 2026-07-04, jumps Tower rewards)
 Port of the Three.js "blend-shell" idea: primitive capsules merged to one

@@ -655,6 +655,9 @@ namespace IdleGame.GameCore
             Vec2 heading = new Vec2(0, 1);
             // Per-follower formation slot: role (ranged?) + rank WITHIN that role, in party order.
             Dictionary<string, (bool ranged, int roleRank)>? followerRank = null;
+            // Ids of living RANGED party heroes — the allies a melee hero peels to defend. Built
+            // once per step so the peel preference (below) is O(1) per candidate.
+            HashSet<string>? rangedAllyIds = null;
             if (s.Tactic == PartyTactic.Solo)
             {
                 var line = s.Entities.Where(e => e.Team == Team.Party && e.Alive)
@@ -682,6 +685,10 @@ namespace IdleGame.GameCore
                         if (ReferenceEquals(f, leader)) continue;
                         followerRank[f.Id] = f.RangedRole ? (true, rangedRank++) : (false, meleeRank++);
                     }
+                    // Living ranged party heroes = the casters a melee hero peels to defend.
+                    rangedAllyIds = new HashSet<string>();
+                    foreach (var f in line)
+                        if (f.RangedRole) rangedAllyIds.Add(f.Id);
                 }
             }
 
@@ -709,8 +716,11 @@ namespace IdleGame.GameCore
                     if (isLeader)
                     {
                         // The leader fights anything within its wide engage reach and otherwise
-                        // advances on the nearest pack — it pulls the whole triangle along.
-                        target = FindNearestEnemyWithin(s, e, cfg.Balance.EngageRadius);
+                        // advances on the nearest pack — it pulls the whole triangle along. A MELEE
+                        // leader PREFERS (within that same reach) an enemy attacking a ranged ally,
+                        // peeling for the caster the retreat has dragged into range.
+                        target = FindNearestEnemyWithin(s, e, cfg.Balance.EngageRadius,
+                            e.RangedRole ? null : rangedAllyIds);
                         if (target == null)
                         {
                             if (leaderPack == null) { e.TargetId = null; continue; } // field clear: idle
@@ -731,7 +741,11 @@ namespace IdleGame.GameCore
                         if (followerRank != null && followerRank.TryGetValue(e.Id, out var fr))
                         { ranged = fr.ranged; roleRank = fr.roleRank; }
                         Vec2 home = FormationHome(leader!, heading, ranged, roleRank, cfg);
-                        target = FindNearestEnemyNear(s, home, cfg.Balance.FormationBreakRadius);
+                        // A MELEE follower prefers (within the SAME slot radius) an enemy attacking
+                        // a ranged ally — it peels off its slot to defend the caster. Ranged
+                        // followers acquire exactly as before (pass null, no preference).
+                        target = FindNearestEnemyNear(s, home, cfg.Balance.FormationBreakRadius,
+                            e.RangedRole ? null : rangedAllyIds);
                         // Fire-in-transit (ranged followers only): if the slot found nothing, a
                         // ranged follower still shoots the nearest enemy already within its OWN
                         // attack reach of its CURRENT spot — but it never MOVES toward it. If that
@@ -837,19 +851,17 @@ namespace IdleGame.GameCore
                     MoveToward(e, dest, moveSpd * dtMs / 1000.0);
                 }
 
-                // Panic micro-kite: replaces this step's movement entirely (attacked or not) —
-                // the ranged follower steps directly away from the threat at its own MoveSpd.
-                if (panicThreat != null)
+                // Panic retreat: replaces this step's movement entirely (attacked or not) — a
+                // panicked ranged follower runs TO the leader (not away from the threat, which
+                // ran her off screen) and holds once within PanicHoldDist. Attacks stay ungated,
+                // so she keeps firing the whole retreat. Stateless. If the leader is somehow gone,
+                // hold position rather than fall back to the old unbounded away-vector.
+                if (panicThreat != null && leader != null
+                    && Vec2.Distance(e.Pos, leader.Pos) > cfg.Balance.PanicHoldDist)
                 {
-                    double kiteSpd = e.EffectiveStat(StatKey.MoveSpd);
-                    if (kiteSpd <= 0) kiteSpd = MoveSpeedTilesPerSec;
-                    double ax = e.Pos.X - panicThreat.Pos.X, ay = e.Pos.Y - panicThreat.Pos.Y;
-                    double al = Math.Sqrt(ax * ax + ay * ay);
-                    if (al > 1e-6)
-                    {
-                        double step = kiteSpd * dtMs / 1000.0;
-                        e.Pos = new Vec2(e.Pos.X + ax / al * step, e.Pos.Y + ay / al * step);
-                    }
+                    double retreatSpd = e.EffectiveStat(StatKey.MoveSpd);
+                    if (retreatSpd <= 0) retreatSpd = MoveSpeedTilesPerSec;
+                    MoveToward(e, leader.Pos, retreatSpd * dtMs / 1000.0);
                 }
             }
 
@@ -1217,43 +1229,51 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>The nearest enemy within <paramref name="radius"/> of <paramref name="self"/>,
-        /// or null if none is that close (Solo party engages individually within range).</summary>
-        private static CombatEntity? FindNearestEnemyWithin(CombatState s, CombatEntity self, double radius)
+        /// or null if none is that close (Solo party engages individually within range). When
+        /// <paramref name="preferTargetingIds"/> is non-null, a MELEE hero peels: among the SAME
+        /// candidate set, if any enemy is currently targeting one of those (ranged-ally) Ids, the
+        /// nearest such defender wins; otherwise it falls back to the plain nearest. The set only
+        /// REORDERS the candidates, never widens them.</summary>
+        private static CombatEntity? FindNearestEnemyWithin(CombatState s, CombatEntity self, double radius,
+                                                            HashSet<string>? preferTargetingIds = null)
         {
-            CombatEntity? best = null;
-            double bestDist = double.MaxValue;
+            CombatEntity? best = null;      double bestDist = double.MaxValue;
+            CombatEntity? bestDef = null;   double bestDefDist = double.MaxValue;
             foreach (var o in s.Entities)
             {
                 if (!o.Alive || o.Team == self.Team) continue;
                 double d = Vec2.Distance(self.Pos, o.Pos);
                 if (d > radius) continue;
                 if (d < bestDist || (d == bestDist && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
-                {
-                    bestDist = d;
-                    best = o;
-                }
+                { bestDist = d; best = o; }
+                if (preferTargetingIds != null && o.TargetId != null && preferTargetingIds.Contains(o.TargetId)
+                    && (d < bestDefDist || (d == bestDefDist && bestDef != null && string.CompareOrdinal(o.Id, bestDef.Id) < 0)))
+                { bestDefDist = d; bestDef = o; }
             }
-            return best;
+            return bestDef ?? best;
         }
 
         /// <summary>The enemy nearest a world point but no farther than <paramref name="radius"/>,
-        /// or null if none qualifies. Used to leash a follower's combat to its formation slot.</summary>
-        private static CombatEntity? FindNearestEnemyNear(CombatState s, Vec2 point, double radius)
+        /// or null if none qualifies. Used to leash a follower's combat to its formation slot.
+        /// <paramref name="preferTargetingIds"/> works exactly as in <see cref="FindNearestEnemyWithin"/>:
+        /// a melee follower peels toward an enemy attacking a ranged ally within the same radius.</summary>
+        private static CombatEntity? FindNearestEnemyNear(CombatState s, Vec2 point, double radius,
+                                                          HashSet<string>? preferTargetingIds = null)
         {
-            CombatEntity? best = null;
-            double bestDist = double.MaxValue;
+            CombatEntity? best = null;      double bestDist = double.MaxValue;
+            CombatEntity? bestDef = null;   double bestDefDist = double.MaxValue;
             foreach (var o in s.Entities)
             {
                 if (!o.Alive || o.Team != Team.Enemy) continue;
                 double d = Vec2.Distance(point, o.Pos);
                 if (d > radius) continue;
                 if (d < bestDist || (d == bestDist && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
-                {
-                    bestDist = d;
-                    best = o;
-                }
+                { bestDist = d; best = o; }
+                if (preferTargetingIds != null && o.TargetId != null && preferTargetingIds.Contains(o.TargetId)
+                    && (d < bestDefDist || (d == bestDefDist && bestDef != null && string.CompareOrdinal(o.Id, bestDef.Id) < 0)))
+                { bestDefDist = d; bestDef = o; }
             }
-            return best;
+            return bestDef ?? best;
         }
 
         /// <summary>Nearest living enemy already within <paramref name="self"/>'s OWN attack reach

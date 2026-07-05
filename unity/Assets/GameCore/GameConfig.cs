@@ -367,6 +367,7 @@ namespace IdleGame.GameCore
         public double FormationMeleeBack = 0.6;   // melee followers flank at the leader's shoulder
         public double FormationRangedBack = 4.6;  // ranged followers park at casting distance
         public double PanicRadius = 1.8;          // a ranged follower with an enemy this close backpedals while it keeps firing
+        public double PanicHoldDist = 2.0;  // a panicked caster runs to the leader and holds once this close — never kites off into the wild
         public double FormationDeadzone = 0.6;
         public double FormationBreakRadius = 6.0;
         // A follower farther than FormationBreakRadius from its slot regroups at

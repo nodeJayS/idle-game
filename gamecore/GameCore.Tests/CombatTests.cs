@@ -523,15 +523,15 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
-        public void RangedFollowerPanicKitesAwayWhileFiring()
+        public void RangedFollowerPanicRetreatsTowardLeaderWhileFiring()
         {
             var cfg = GameConfig.Default();
-            // Leader parked far off so it neither collides with the follower nor engages the enemy
-            // (enemy is >EngageRadius away from it) — isolates the follower's kite to a clean step.
+            // Leader parked far off (+X) so it neither collides with the follower nor engages the
+            // enemy (enemy is >EngageRadius away from it) — isolates the retreat to a clean step.
             var leader = Ent("P0", Team.Party, hp: 200, atk: 0, def: 0, x: 30, y: 0);
             leader.Slot = 0;
-            // Ranged follower at its own spot with a valid in-reach target 1.0 below it (< PanicRadius
-            // 1.8). It should fire AND backpedal directly away (up, +Y) at own MoveSpd * dt.
+            // Ranged follower with a valid in-reach target 1.0 below it (< PanicRadius 1.8). It fires
+            // AND runs TOWARD the leader (not away from the threat, which used to run it off screen).
             var follower = Ent("P1", Team.Party, hp: 200, atk: 10, def: 0, x: 0, y: 0);
             follower.Slot = 1; follower.RangedRole = true;
             follower.Stats[StatKey.AttackRange] = 2.0;
@@ -541,18 +541,80 @@ namespace IdleGame.GameCore.Tests
             s.Tactic = PartyTactic.Solo;
             double hpBefore = enemy.Hp;
             var before = follower.Pos;
-            double distBefore = Vec2.Distance(follower.Pos, enemy.Pos);
+            double distLeaderBefore = Vec2.Distance(follower.Pos, leader.Pos);
 
             double dt = Combat.DefaultStepMs;
             Combat.StepCombat(s, dt, cfg, new Rng(1));
 
-            Assert.True(enemy.Hp < hpBefore, "kiting must not cost DPS — the shot still lands");
-            Assert.True(Vec2.Distance(follower.Pos, enemy.Pos) > distBefore, "follower should back away from the threat");
-            // Backpedal is straight away (up) at own MoveSpd * dt.
+            Assert.True(enemy.Hp < hpBefore, "retreat must not cost DPS — the shot still lands");
+            // Distance to the LEADER shrank (she ran to the party, not off into the wild).
+            Assert.True(Vec2.Distance(follower.Pos, leader.Pos) < distLeaderBefore,
+                $"follower should close on the leader: {Vec2.Distance(follower.Pos, leader.Pos):0.000} vs {distLeaderBefore:0.000}");
+            // Step length = own MoveSpd * dt (MoveToward would only clamp shorter near arrival; leader is far).
             double expected = follower.Stats.Get(StatKey.MoveSpd) * dt / 1000.0;
             double moved = Vec2.Distance(follower.Pos, before);
-            Assert.True(System.Math.Abs(moved - expected) < 1e-6, $"kite moved {moved:0.0000}, expected {expected:0.0000}");
-            Assert.True(follower.Pos.Y > before.Y, "kite direction should be away from the enemy below");
+            Assert.True(moved <= expected + 1e-6, $"retreat over-stepped: moved {moved:0.0000}, cap {expected:0.0000}");
+            Assert.True(System.Math.Abs(moved - expected) < 1e-6, $"retreat moved {moved:0.0000}, expected {expected:0.0000}");
+        }
+
+        [Fact]
+        public void PanickedCasterHoldsWithinHoldDistOfLeader()
+        {
+            var cfg = GameConfig.Default();
+            // Follower already within PanicHoldDist (2.0) of the leader: it must NOT move this step
+            // (hold position and keep firing).
+            var leader = Ent("P0", Team.Party, hp: 200, atk: 0, def: 0, x: 1.0, y: 0); // 1.0 < 2.0 away
+            leader.Slot = 0;
+            var follower = Ent("P1", Team.Party, hp: 200, atk: 10, def: 0, x: 0, y: 0);
+            follower.Slot = 1; follower.RangedRole = true;
+            follower.Stats[StatKey.AttackRange] = 2.0;
+            var enemy = Ent("E", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: -1.0); // inside PanicRadius
+            enemy.Aggro = true;
+            var s = State(leader, follower, enemy);
+            s.Tactic = PartyTactic.Solo;
+            double hpBefore = enemy.Hp;
+            var before = follower.Pos;
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.True(enemy.Hp < hpBefore, "held caster still fires");
+            Assert.True(Vec2.Distance(follower.Pos, before) < 1e-6,
+                $"caster within hold dist must not move: ({follower.Pos.X:0.000},{follower.Pos.Y:0.000})");
+        }
+
+        [Fact]
+        public void PanicRetreatIsBoundedTowardLeader()
+        {
+            var cfg = GameConfig.Default();
+            // Caster far behind the leader with the threat adjacent on the FAR side — the old
+            // away-vector would run her ever farther from the party. Assert dist-to-leader shrinks
+            // each step until <= PanicHoldDist, then stays bounded (no runaway).
+            var leader = Ent("P0", Team.Party, hp: 200, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0;
+            var follower = Ent("P1", Team.Party, hp: 200, atk: 10, def: 0, x: 0, y: 10); // far behind (+Y)
+            follower.Slot = 1; follower.RangedRole = true;
+            follower.Stats[StatKey.AttackRange] = 2.0;
+            // Threat sits just beyond the caster on the far side (+Y), inside PanicRadius of her.
+            var enemy = Ent("E", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 11.0);
+            enemy.Aggro = true;
+            var s = State(leader, follower, enemy);
+            s.Tactic = PartyTactic.Solo;
+
+            double start = Vec2.Distance(follower.Pos, leader.Pos);
+            double prev = start;
+            double hold = cfg.Balance.PanicHoldDist;
+            for (int i = 0; i < 40; i++)
+            {
+                Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+                double d = Vec2.Distance(follower.Pos, leader.Pos);
+                Assert.True(d <= start + 1e-6, $"step {i}: ran away from party (d={d:0.000} > start={start:0.000})");
+                if (prev > hold + 1e-6)
+                    Assert.True(d < prev + 1e-6, $"step {i}: dist to leader did not shrink ({d:0.000} vs {prev:0.000})");
+                else
+                    Assert.True(d <= hold + 0.5, $"step {i}: overshot hold band (d={d:0.000})");
+                prev = d;
+            }
+            Assert.True(prev <= hold + 0.5, $"final dist to leader {prev:0.000} not held near {hold}");
         }
 
         [Fact]
@@ -581,6 +643,128 @@ namespace IdleGame.GameCore.Tests
             Assert.True(enemy.Hp < hpBefore, "melee follower should attack the adjacent enemy");
             // No backpedal: the melee follower did not move away (+Y) from the enemy below it.
             Assert.True(follower.Pos.Y <= before.Y + 1e-6, $"melee should not kite: y={follower.Pos.Y:0.0000}");
+        }
+
+        // --- Melee-peel: a melee hero prefers an enemy attacking a ranged ally (Change 2) ---
+        // Enemy TargetId is set by the sim each step BEFORE the party heroes acquire (actors run in
+        // Ordinal Id order, so "E*" enemies act ahead of "P*" heroes). We therefore never pre-set
+        // TargetId; instead we place each enemy so it NATURALLY targets the intended hero via
+        // FindNearestEnemy (nearest, with a melee hero reading TankAggroBias=2.0 tiles closer). A
+        // caster-attacker sits nearest the ranged ally; a leader-attacker sits nearest the melee hero.
+
+        [Fact]
+        public void MeleeLeaderPeelsForCasterOverNearerEnemy()
+        {
+            var cfg = GameConfig.Default();
+            // Melee leader at origin; ranged caster ally up +Y. Two aggro'd enemies inside
+            // EngageRadius: E0 nearer the leader (targets it), E1 nearer the caster (targets it).
+            var leader = Ent("P0", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0; // melee (RangedRole false)
+            var caster = Ent("P1", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 8);
+            caster.Slot = 1; caster.RangedRole = true;
+            var eLeader = Ent("E0", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 2, y: 0);   // nearest leader
+            eLeader.Aggro = true;
+            var eCaster = Ent("E1", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 6);   // nearest caster
+            eCaster.Aggro = true;
+            var s = State(leader, caster, eLeader, eCaster);
+            s.Tactic = PartyTactic.Solo;
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.Equal("P0", eLeader.TargetId);  // sanity: enemy targeting matched the geometry
+            Assert.Equal("P1", eCaster.TargetId);
+            // The leader peels to the FARTHER caster-attacker rather than the nearer enemy on itself.
+            Assert.Equal("E1", leader.TargetId);
+        }
+
+        [Fact]
+        public void MeleeFollowerPeelsForCasterOverNearerEnemy()
+        {
+            var cfg = GameConfig.Default();
+            // A melee FOLLOWER (leashed to its slot) prefers a caster-attacker within the SAME slot
+            // radius over a nearer enemy on itself. Leader at origin; its nearest enemy (E0, straight
+            // +Y) fixes heading = +Y, so the melee follower's slot lands at (-Side,-MeleeBack) — the
+            // same slot the panic test uses. Both peel enemies sit within FormationBreakRadius of it.
+            var leader = Ent("P0", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0; // melee leader
+            // Follower ENTITY placed away from the caster-attacker so the melee TankAggroBias can't
+            // steal E1 onto it; its acquisition uses the slot, not this position.
+            var follower = Ent("P1", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0.3, y: 1.5);
+            follower.Slot = 1; // melee follower
+            var caster = Ent("P2", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0.3, y: 4.3);
+            caster.Slot = 2; caster.RangedRole = true;
+            // E0 nearest the leader (fixes +Y heading) and nearest the follower entity (targets P1).
+            var eFollower = Ent("E0", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 2.5);
+            eFollower.Aggro = true;
+            // E1 unambiguously nearest the caster (targets P2); farther from the slot than E0, so a
+            // plain-nearest pick would take E0 — the peel must override to E1.
+            var eCaster = Ent("E1", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 4.0);
+            eCaster.Aggro = true;
+            var s = State(leader, follower, caster, eFollower, eCaster);
+            s.Tactic = PartyTactic.Solo;
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.Equal("P1", eFollower.TargetId); // sanity: geometry pinned the enemy targeting
+            Assert.Equal("P2", eCaster.TargetId);   // the caster-attacker naturally targets the ranged ally
+            // The follower peels to the caster-attacker (E1) over the nearer enemy on its slot (E0).
+            Assert.Equal("E1", follower.TargetId);
+        }
+
+        [Fact]
+        public void NoDefenseNeededFallsBackToNearest()
+        {
+            var cfg = GameConfig.Default();
+            // No enemy targets a ranged ally (the party is all-melee) => leader and melee follower
+            // both pick exactly the nearest enemy, today's behavior.
+            var leader = Ent("P0", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0; // melee leader
+            var follower = Ent("P1", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0, y: -1);
+            follower.Slot = 1; // melee follower
+            var near = Ent("E0", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 1, y: 0);   // nearest leader
+            near.Aggro = true;
+            var far = Ent("E1", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 5, y: 0);
+            far.Aggro = true;
+            var s = State(leader, follower, near, far);
+            s.Tactic = PartyTactic.Solo;
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.Equal("E0", leader.TargetId); // nearest, no peel preference to override it
+        }
+
+        [Fact]
+        public void RangedFollowerIgnoresPeelPreference()
+        {
+            var cfg = GameConfig.Default();
+            // A RANGED follower must acquire by pure nearest (no peel). Construct a case that would
+            // FLIP if the preference leaked: a nearer enemy on the ranged follower itself, and a
+            // farther enemy attacking ANOTHER ranged ally. Pure-nearest picks the near one.
+            var leader = Ent("P0", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0; // melee leader far from the action below
+            // Two ranged allies down at -Y; the follower under test is P1.
+            var follower = Ent("P1", Team.Party, hp: 1_000_000, atk: 10, def: 0, x: 0, y: -20);
+            follower.Slot = 1; follower.RangedRole = true;
+            follower.Stats[StatKey.AttackRange] = 2.0;
+            var otherCaster = Ent("P2", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0, y: -24);
+            otherCaster.Slot = 2; otherCaster.RangedRole = true;
+            // Near enemy on the follower's slot (which is behind the far-off leader, so the follower is
+            // stranded and regrouping). To exercise slot acquisition, put the follower AT its slot.
+            // Simpler: give the follower a target set via its OWN slot region. Place the near enemy
+            // right on the follower and the "defender" enemy nearer the other caster.
+            var nearEnemy = Ent("E0", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: -21.5); // ~1.5 below follower
+            nearEnemy.Aggro = true;
+            var defenderEnemy = Ent("E1", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: -23.8); // nearest other caster
+            defenderEnemy.Aggro = true;
+            var s = State(leader, follower, otherCaster, nearEnemy, defenderEnemy);
+            s.Tactic = PartyTactic.Solo;
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.Equal("P2", defenderEnemy.TargetId); // the defender-enemy attacks the OTHER caster
+            // The ranged follower fires at the NEAREST in-reach enemy (fire-in-transit), NOT the
+            // farther caster-attacker — the peel preference does not leak to ranged acquisition.
+            Assert.Equal("E0", follower.TargetId);
         }
 
         [Fact]
