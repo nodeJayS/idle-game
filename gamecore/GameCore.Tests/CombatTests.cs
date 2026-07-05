@@ -203,6 +203,120 @@ namespace IdleGame.GameCore.Tests
                 $"follower=({follower.Pos.X:0.0},{follower.Pos.Y:0.0}) didn't rejoin leader=({leaderE.Pos.X:0.0},{leaderE.Pos.Y:0.0}) distLeader={distToLeader:0.0}");
         }
 
+        // --- Regroup hustle: a follower stranded far behind sprints at max(own, leader) speed so a
+        // geared leader can't outrun an ungeared follower between packs. ---
+
+        // Leader idles at the origin (no enemies), so heading = +Y and the rank-0 slot sits at a
+        // fixed point behind it. FormationHome(leader@0,0, heading=+Y, rank 0).
+        private static Vec2 Rank0Home(CombatEntity leader, GameConfig cfg) =>
+            new Vec2(leader.Pos.X - cfg.Balance.FormationSide,
+                     leader.Pos.Y - cfg.Balance.FormationBack);
+
+        // A leader + one follower in Solo, no enemies (so the leader idles and the slot is fixed),
+        // spawns frozen. Follower placed straight below its home so its move is a clean +Y step.
+        private static (CombatState s, CombatEntity leader, CombatEntity follower) HustleSetup(
+            GameConfig cfg, double ownMoveSpd, double leaderMoveSpd, double distBelowHome)
+        {
+            var leader = Ent("P0", Team.Party, hp: 200, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0;
+            leader.Stats[StatKey.MoveSpd] = leaderMoveSpd;
+            var home = Rank0Home(leader, cfg);
+            var follower = Ent("P1", Team.Party, hp: 200, atk: 0, def: 0, x: home.X, y: home.Y - distBelowHome);
+            follower.Slot = 1;
+            follower.Stats[StatKey.MoveSpd] = ownMoveSpd;
+            var s = State(leader, follower);
+            s.Tactic = PartyTactic.Solo;
+            return (s, leader, follower);
+        }
+
+        [Fact]
+        public void FarFollowerHustlesAtMaxOfOwnAndLeaderSpeed()
+        {
+            var cfg = GameConfig.Default();
+            double own = 2.0, lead = 10.0;
+            // 30 tiles below home => well past FormationBreakRadius (6). Leader idles (no enemies),
+            // so its slot doesn't move and the whole step is a clean +Y translation.
+            var (s, leader, follower) = HustleSetup(cfg, own, lead, distBelowHome: 30.0);
+            var before = follower.Pos;
+
+            double dt = Combat.DefaultStepMs;
+            Combat.StepCombat(s, dt, cfg, new Rng(1));
+
+            double moved = Vec2.Distance(follower.Pos, before);
+            double expected = System.Math.Max(own, lead) * cfg.Balance.RegroupHustleMult * dt / 1000.0;
+            Assert.True(leader.Pos.X == 0 && leader.Pos.Y == 0, $"leader drifted to {leader.Pos.X:0.00},{leader.Pos.Y:0.00}");
+            Assert.True(System.Math.Abs(moved - expected) < 1e-6, $"moved {moved:0.0000}, expected {expected:0.0000}");
+        }
+
+        [Fact]
+        public void NearFollowerMovesAtOwnSpeedNotHustle()
+        {
+            var cfg = GameConfig.Default();
+            double own = 2.0, lead = 10.0;
+            // 3 tiles below home: past the deadzone (0.6) but within FormationBreakRadius (6), so no
+            // hustle — it eases in at its OWN speed even though the leader is far faster.
+            var (s, leader, follower) = HustleSetup(cfg, own, lead, distBelowHome: 3.0);
+            var before = follower.Pos;
+
+            double dt = Combat.DefaultStepMs;
+            Combat.StepCombat(s, dt, cfg, new Rng(1));
+
+            double moved = Vec2.Distance(follower.Pos, before);
+            double expected = own * dt / 1000.0;
+            Assert.True(System.Math.Abs(moved - expected) < 1e-6, $"moved {moved:0.0000}, expected {expected:0.0000}");
+        }
+
+        [Fact]
+        public void HustleUsesOwnSpeedWhenItExceedsLeaders()
+        {
+            var cfg = GameConfig.Default();
+            double own = 8.0, lead = 3.0; // follower is the faster one
+            var (s, leader, follower) = HustleSetup(cfg, own, lead, distBelowHome: 30.0);
+            var before = follower.Pos;
+
+            double dt = Combat.DefaultStepMs;
+            Combat.StepCombat(s, dt, cfg, new Rng(1));
+
+            double moved = Vec2.Distance(follower.Pos, before);
+            double expected = own * cfg.Balance.RegroupHustleMult * dt / 1000.0; // max(own,leader)=own
+            Assert.True(System.Math.Abs(moved - expected) < 1e-6, $"moved {moved:0.0000}, expected {expected:0.0000}");
+        }
+
+        [Fact]
+        public void FollowerWithTargetNearSlotChasesAtOwnSpeedNotHustle()
+        {
+            var cfg = GameConfig.Default();
+            double own = 2.0, lead = 10.0;
+            var leader = Ent("P0", Team.Party, hp: 200, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0;
+            leader.Stats[StatKey.MoveSpd] = lead;
+            // A tanky, harmless enemy sits in melee range directly in front of the leader (+Y), so
+            // the leader stays put attacking it and the heading is a clean +Y — the rank-0 slot lands
+            // at the same fixed point as the idle case. The enemy is within FormationBreakRadius of
+            // that slot, so the follower has a target and must chase at its OWN speed (hustle never
+            // applies to targeted movement). The enemy can't hurt anyone, so nothing dies or drifts.
+            var enemy = Ent("E", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 1.4);
+            var home = Rank0Home(leader, cfg);
+            // Follower 5 tiles below its slot: past the break radius from the slot, but it has the
+            // enemy as a target, so the far-follower hustle must NOT kick in. It chases at own speed.
+            var follower = Ent("P1", Team.Party, hp: 200, atk: 0, def: 0, x: home.X, y: home.Y - 5.0);
+            follower.Slot = 1;
+            follower.Stats[StatKey.MoveSpd] = own;
+            var s = State(leader, follower, enemy);
+            s.Tactic = PartyTactic.Solo;
+            var before = follower.Pos;
+
+            double dt = Combat.DefaultStepMs;
+            Combat.StepCombat(s, dt, cfg, new Rng(1));
+
+            // The follower advanced toward the enemy (up, +Y) at exactly its own speed — no hustle.
+            double moved = Vec2.Distance(follower.Pos, before);
+            double expected = own * dt / 1000.0;
+            Assert.True(follower.Pos.Y > before.Y, "follower should advance toward the enemy above it");
+            Assert.True(System.Math.Abs(moved - expected) < 1e-6, $"moved {moved:0.0000}, expected {expected:0.0000}");
+            Assert.Equal("E", follower.TargetId);
+        }
+
         [Fact]
         public void StrongPartyBeatsWeakEnemy()
         {

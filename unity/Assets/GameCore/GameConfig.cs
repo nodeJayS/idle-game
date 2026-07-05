@@ -366,6 +366,10 @@ namespace IdleGame.GameCore
         public double FormationSide = 1.6;
         public double FormationDeadzone = 0.6;
         public double FormationBreakRadius = 6.0;
+        // A follower farther than FormationBreakRadius from its slot regroups at
+        // max(own, leader) MoveSpd × this, so an ungeared follower can never be
+        // outrun by a geared leader between packs.
+        public double RegroupHustleMult = 1.4;
 
         // Wander (idle trash): a non-aggro mob ambles between random points within
         // WanderRadius of itself, repicking every WanderMin..MaxMs, at WanderSpeedMult of

@@ -714,6 +714,16 @@ namespace IdleGame.GameCore
                             {
                                 double ms = e.EffectiveStat(StatKey.MoveSpd);
                                 if (ms <= 0) ms = MoveSpeedTilesPerSec;
+                                // Regroup hustle: a follower stranded past the break radius sprints
+                                // at max(own, leader) × RegroupHustleMult so a geared leader can't
+                                // outrun an ungeared follower between packs. Within the radius it
+                                // just eases into slot at its own speed.
+                                if (Vec2.Distance(e.Pos, home) > cfg.Balance.FormationBreakRadius)
+                                {
+                                    double lms = leader!.EffectiveStat(StatKey.MoveSpd);
+                                    if (lms <= 0) lms = MoveSpeedTilesPerSec;
+                                    ms = Math.Max(ms, lms) * cfg.Balance.RegroupHustleMult;
+                                }
                                 MoveToward(e, home, ms * dtMs / 1000.0);
                             }
                             continue;

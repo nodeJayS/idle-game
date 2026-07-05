@@ -34,6 +34,13 @@ Play-verified end to end via injected free banner. Frost VFX read whiter
 than ice-blue under bloom (glow ×2.5–3 clamps) — retune candidate for
 item 5's presentation pass.
 
+### ✅ Regroup hustle — shipped 2026-07-04 (unplanned sim QoL)
+Receipt: Solo-tactic followers stranded past FormationBreakRadius regroup at
+max(own, leader) MoveSpd × RegroupHustleMult (1.4), so a geared leader can't
+outrun an ungeared follower between packs (the fresh gacha Ice Mage exposed
+it). Sim-only, 459 tests. Play eyeball (+ possible run-clip foot-slide at
+1.4×) rides the next editor window; ranged fire-in-transit idea parked.
+
 ### 4. Tower slice 3 — per-floor reward bundles
 The one unfinished system slice; floors pay only via milestones today.
 GameCore-first, sim-testable, ~1 session.
