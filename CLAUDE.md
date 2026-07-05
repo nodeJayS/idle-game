@@ -16,7 +16,7 @@ animate/poll, never decide rules. A future .NET server reuses GameCore as-is.
 
 ## Build & test
 - Sim: `dotnet test gamecore/GameCore.Tests` (xunit; globs the SAME
-  Assets/GameCore sources — edit sim code there). **434 tests green.**
+  Assets/GameCore sources — edit sim code there). **455 tests green.**
 - Client: open `unity/` in Unity 6 (URP); Play — `Bootstrap` builds the scene
   in code. Play mode can't run headless; visuals verify by screenshot via
   Unity MCP; UI is hand-placed uGUI/IMGUI.
@@ -59,7 +59,9 @@ animate/poll, never decide rules. A future .NET server reuses GameCore as-is.
   the rare mod pairs. Per-floor reward bundles still TBD (roadmap 4).
 - **Idle** (12h cap) · **quests** (rolling board) · **achievements**
   (lifetime ladder, auto-pay per tier) · **daily login → gems** (the ONLY gem
-  source; sink = gacha, roadmap 3) · chat/feed panel (social tabs stubbed).
+  source) · **gacha** (the gem sink: banner defs in config, pity, dupe →
+  XP/scrap; "Winter's Return" gates the Ice Mage) · chat/feed panel (social
+  tabs stubbed).
 - **Art**: faceted vertex-coloured world + TunicSurface height-blend shader,
   **orthographic diorama camera** (45° pitch, zoom drives orthographicSize,
   factor in CameraRig; dead-zone follow) with split-tone grade (warm sun /

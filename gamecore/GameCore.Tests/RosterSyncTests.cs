@@ -52,11 +52,17 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void RemovesShelvedHeroesAndFreesTheirPartySlot()
         {
+            // The Ice Mage is banner-gated in Default() (the live "Winter's Return" banner keeps
+            // her obtainable), so shelving requires a banner-less config: strip the banners and the
+            // same removal path fires. Proves the shelve-and-free-slot mechanism, not the banner.
+            var cfg = GameConfig.Default();
+            cfg.Banners.Clear();
+
             var save = AtStage(22);
-            save = Party.AcquireHero(save, "icemage_basic", Cfg, "h_ice"); // legacy placeholder
+            save = Party.AcquireHero(save, "icemage_basic", cfg, "h_ice"); // legacy placeholder
             save = Party.FieldHero(save, 1, "h_ice");
 
-            var next = Progression.SyncHeroUnlocks(save, Cfg);
+            var next = Progression.SyncHeroUnlocks(save, cfg);
 
             Assert.DoesNotContain(next.Heroes, h => h.DefId == "icemage_basic");
             Assert.DoesNotContain(next.Party, id => id == "h_ice");

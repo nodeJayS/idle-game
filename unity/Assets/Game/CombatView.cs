@@ -134,6 +134,38 @@ namespace IdleGame.Game
                 go.AddComponent<Projectile>().Launch(from, to, 16f,
                     () => { PlayImpact(to, amount, crit); Burst(to, 1.0f, new Color(1f, 0.5f, 0.15f)); }, arc: 2.5f);
             };
+
+            // Ice Mage basic attack: a small pale-ice bolt fired straight (no arc), the frost
+            // sibling of the priest's holy bolt. Cold sphere, gentle glow; the number pops on
+            // impact. No launch sound — the manifest attack_sound (IceStrike cast) already rides
+            // the swing; the extracted IceStrike SPLASH lands on the visible hit instead. (An
+            // "IceStrike_Ball" clip does NOT exist in the extract — only Cast + Splash_01..04.)
+            _projectileFx["icebolt"] = (from, to, amount, crit) =>
+            {
+                var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
+                go.name = "IceBolt";
+                go.transform.localScale = Vector3.one * (crit ? 0.75f : 0.55f);
+                Paint(go, new Color(0.55f, 0.85f, 1f));
+                Glow(go, new Color(0.55f, 0.85f, 1f) * 2.5f);
+                go.AddComponent<Projectile>().Launch(from, to, 15f,
+                    () => { PlayImpact(to, amount, crit); SoundFx.Play("Skill_Wizard_IceStrike_Splash", 0.3f); });
+            };
+
+            // Ice Mage Frostbolt skill: a fat icy orb lobbed at the target — the frost twin of
+            // the fire mage's meteor. Routed through the projectile path so its number pops on
+            // IMPACT; lands with a white-blue frost burst.
+            _projectileFx["frostbolt"] = (from, to, amount, crit) =>
+            {
+                var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
+                go.name = "FrostOrb";
+                go.transform.localScale = Vector3.one * 1.0f;
+                Paint(go, new Color(0.65f, 0.88f, 1f));
+                Glow(go, new Color(0.65f, 0.88f, 1f) * 3f);
+                go.AddComponent<Projectile>().Launch(from, to, 16f,
+                    () => { PlayImpact(to, amount, crit); Burst(to, 0.9f, new Color(0.75f, 0.92f, 1f)); }, arc: 2.5f);
+            };
         }
 
         // SkillDef.Sprite -> cast flourish (purely cosmetic; the sim already applied the
@@ -157,6 +189,15 @@ namespace IdleGame.Game
             {
                 GroundRing(GroundAt(src), 0.9f, new Color(0.75f, 0.85f, 1f), 0.25f);
                 GroundRing(GroundAt(tgt), 1.2f, new Color(0.75f, 0.85f, 1f), 0.35f);
+            };
+
+            // Ice Mage Blizzard: a pale-blue AoE flourish AT THE TARGET — a wide expanding
+            // ground ring sized to the skill's AoeRadius, plus a smaller brighter inner ring
+            // for a frosty double-pulse. No screen shake (that stays the boss quake's identity).
+            _skillFx["blizzard"] = (src, tgt) =>
+            {
+                GroundRing(GroundAt(tgt), 2.6f, new Color(0.6f, 0.85f, 1f), 0.45f);
+                GroundRing(GroundAt(tgt), 1.4f, new Color(0.8f, 0.93f, 1f), 0.35f);
             };
 
             // Boss quake: a big red ground wave at the boss + a shake.

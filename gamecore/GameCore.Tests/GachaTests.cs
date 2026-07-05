@@ -282,15 +282,18 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void GachaGrantedHeroIsShelvedIfItsBannerLeavesConfig()
         {
-            // Sanity on the mechanism: with NO banner in config (default), the Ice Mage IS shelved —
-            // i.e. the protection comes strictly from the live banner pool, not a permanent grant.
+            // Sanity on the mechanism: with NO banner in config, the Ice Mage IS shelved — i.e.
+            // the protection comes strictly from the live banner pool, not a permanent grant.
+            // (Default() now ships the live "Winter's Return" banner with the Ice Mage in its
+            // pool, so we strip ALL banners to get a banner-less config rather than using it.)
             var cfg = CfgWithBanner(featuredWeight: 1000, fillerWeight: 0.0001);
             var save = Save.NewGame(5, cfg, 0);
             save.Currencies["gems"] = 1000;
             var r = Gacha.Roll(save, cfg, "b1");
             Assert.Contains(r.Save.Heroes, h => h.DefId == Featured);
 
-            var noBannerCfg = GameConfig.Default(); // banner gone
+            var noBannerCfg = GameConfig.Default();
+            noBannerCfg.Banners.Clear();           // banner gone
             var synced = Progression.SyncHeroUnlocks(r.Save, noBannerCfg);
             Assert.DoesNotContain(synced.Heroes, h => h.DefId == Featured); // shelved as designed
         }
@@ -326,6 +329,74 @@ namespace IdleGame.GameCore.Tests
             Assert.NotNull(save.GachaPity);
             Assert.Empty(save.GachaPity);
             Assert.Equal(0, Gacha.PityOf(save, "b1"));
+        }
+
+        // ---- the LIVE "Winter's Return" banner in Default() (slice 3) -----------------------------
+
+        [Fact]
+        public void DefaultShipsWintersReturnWithTheExactEconomy()
+        {
+            var cfg = GameConfig.Default();
+            Assert.True(cfg.Banners.TryGetValue("winters_return", out var banner));
+
+            Assert.Equal("winters_return", banner!.Id);
+            Assert.Equal("Winter's Return", banner.Name);
+            Assert.Equal(10, banner.CostGems);              // one day-1 daily login
+            Assert.Equal("icemage_basic", banner.FeaturedHeroDefId);
+            Assert.Equal(20, banner.PityCount);
+            Assert.Equal(2_000_000, banner.DupeXp);
+            Assert.Equal(500, banner.DupeScrap);
+        }
+
+        [Fact]
+        public void WintersReturnPoolHasTheExactWeightsAndAllHeroesExist()
+        {
+            var cfg = GameConfig.Default();
+            var banner = cfg.Banners["winters_return"];
+
+            var weights = banner.Pool.ToDictionary(e => e.HeroDefId, e => e.Weight);
+            Assert.Equal(5, banner.Pool.Count);
+            Assert.Equal(1, weights["icemage_basic"]);
+            Assert.Equal(3, weights["warrior_basic"]);
+            Assert.Equal(3, weights["magician_basic"]);
+            Assert.Equal(3, weights["thief_basic"]);
+            Assert.Equal(3, weights["priest_basic"]);
+
+            // Every pool hero resolves to a real HeroDef (a bad id would crash a real roll).
+            foreach (var entry in banner.Pool)
+                Assert.True(cfg.Heroes.ContainsKey(entry.HeroDefId), $"pool hero missing: {entry.HeroDefId}");
+
+            // Natural featured rate ≈ 1/13 ≈ 7.7% (weight 1 vs total 13).
+            double total = banner.Pool.Sum(e => e.Weight);
+            Assert.Equal(1.0 / 13.0, weights["icemage_basic"] / total, 4);
+        }
+
+        [Fact]
+        public void WintersReturnFeaturedHeroIsInItsOwnPool()
+        {
+            var cfg = GameConfig.Default();
+            var banner = cfg.Banners["winters_return"];
+            Assert.Contains(banner.Pool, e => e.HeroDefId == banner.FeaturedHeroDefId);
+        }
+
+        [Fact]
+        public void IcemageIsObtainableUnderDefaultConfigAndSurvivesASync()
+        {
+            // With the LIVE Default() banner, a roll-granted Ice Mage stays through SyncHeroUnlocks
+            // (banner-pool heroes are obtainable while the banner is live). No test fixture here —
+            // this exercises the real shipped config end to end.
+            var cfg = GameConfig.Default();
+            var save = Save.NewGame(5, cfg, 0);
+            save.Currencies["gems"] = 1000;
+
+            // Force the featured pull deterministically without editing the shipped weights.
+            cfg.Banners["winters_return"].PityCount = 1;
+            var r = Gacha.Roll(save, cfg, "winters_return");
+            Assert.Equal("icemage_basic", r.HeroDefId);
+            Assert.Contains(r.Save.Heroes, h => h.DefId == "icemage_basic");
+
+            var synced = Progression.SyncHeroUnlocks(r.Save, cfg);
+            Assert.Contains(synced.Heroes, h => h.DefId == "icemage_basic"); // NOT shelved
         }
     }
 }

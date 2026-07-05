@@ -8,11 +8,12 @@ here get ONE receipt line when done, then get pruned next pass.
 ## Where the game stands
 
 Core loop, build depth, zones (10 themed, 30 faceted monsters), Tower,
-achievements, daily gems: all ✅. MS2 hero pipeline proven (manifest + 9 clips
-+ 1 bake per hero). Roster: Knight / Fire Mage / Assassin / Priest on the
-archetype backbone (Warrior/Rogue/Magician templates; class = overrides); Ice
-Mage shelved for the gacha banner. Diorama look shipped (ortho 45°, split-tone
-grade). 434 GameCore tests green. No mana — skills are cooldown-only.
+achievements, daily gems, gacha (gem sink): all ✅. MS2 hero pipeline proven
+(manifest + 9 clips + 1 bake per hero). Roster: Knight / Fire Mage / Assassin
+/ Priest on the archetype backbone (Warrior/Rogue/Magician templates; class =
+overrides); Ice Mage is banner-gated behind the live "Winter's Return" gacha
+banner. Diorama look shipped (ortho 45°, split-tone grade). 455 GameCore
+tests green. No mana — skills are cooldown-only.
 
 ## Priorities, in order
 
@@ -24,24 +25,14 @@ root), 4 gait families over all 28 monster ids, telegraph/hit-flash/death
 topple-or-poof, monsters now face movement/target; verified in Play across
 3 zones.
 
-### 3. ⭐ Gem sink → hero gacha MVP (the strategic lever)
-Gems accrue with NO spend — the economy's promise is unredeemed; don't let
-anything else jump this again. Slices:
-1. ✅ GameCore `Gacha.Roll` (2026-07-03): banner-def config, gem cost,
-   persisted-cursor RNG (no re-roll), dupe → hero XP/scrap, per-banner pity;
-   SyncHeroUnlocks keeps banner-pool heroes obtainable. 451 tests.
-2. ✅ UI (2026-07-03): GachaPanel (banner rows, pity progress, greyed Roll)
-   + panel-scoped reveal beat (accent flash gold/blue, NEW!/dupe/pity lines,
-   click-to-clear); Summon button hides until a banner with a pool exists,
-   so nothing is player-visible until slice 3. Roll flushes the save
-   (premium-currency rule). Play-verified via injected test banner.
-3. Content: Ice Mage comeback banner. Def+kit already in config (frostbolt
-   L1 / blizzard L10). Assets verified 2026-07-02: female wizard ice clips
-   (`wizard_icestrike/frostnova/icebomb_01/icesphere`), staffs
-   `15200037_snowgiantstaff`/`15200208_snowqueenstaff`, hats
-   `11300181_cpsnowbell`/`11300185_cpsnowgianthat`, robes dyeable via
-   manifest tints; sounds `Skill_Wizard_FrostNova_Cast`,
-   `Skill_Wizard_IceStrike_*`, `Skill_Magician_IceBreath_Cast`.
+### 3. ✅ Gem sink → hero gacha MVP — shipped 2026-07-03/04 (3 slices)
+Receipt: GameCore `Gacha.Roll` (persisted-cursor RNG, per-banner pity, dupe
+→ XP/scrap) + GachaPanel reveal beat + LIVE "Winter's Return" Ice Mage
+banner (10 gems/roll, pity 20, featured ≈7.7%, dupe 2M XP + 500 scrap;
+skinned icemage bake + icebolt/frostbolt/blizzard frost VFX + 11 ice SFX).
+Play-verified end to end via injected free banner. Frost VFX read whiter
+than ice-blue under bloom (glow ×2.5–3 clamps) — retune candidate for
+item 5's presentation pass.
 
 ### 4. Tower slice 3 — per-floor reward bundles
 The one unfinished system slice; floors pay only via milestones today.

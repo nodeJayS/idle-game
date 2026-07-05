@@ -1,0 +1,3 @@
+_attack 0 Skill_Wizard_IceStrike_Cast
+blizzard 2 Skill_Wizard_FrostNova_Cast
+frostbolt 1 Skill_Wizard_IceBomb_Cast

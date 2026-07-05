@@ -759,10 +759,13 @@ namespace IdleGame.GameCore
                 Sprite = "thief",
             });
 
-            // Ice Mage — SHELVED (2026-07-02): def + kit stay for the future reintroduction
-            // (gacha banner candidate), but it's absent from HeroUnlocks so it can't be
-            // obtained, and Progression.SyncHeroUnlocks strips it from saves that had it.
-            // Magician family: sturdier/slower than the Fire Mage, deepest mana pool.
+            // Ice Mage — BANNER-GATED (slice 3, 2026-07-04): no longer unobtainable. She's
+            // absent from HeroUnlocks (no stage grants her), but the live "Winter's Return"
+            // gacha banner (Default() ~L1320) has her in its pool, and SyncHeroUnlocks keeps
+            // every banner-pool hero obtainable while its banner is live (Progression.cs ~L167)
+            // — so a roll-granted Ice Mage survives a sync. Pull the banner from config and she
+            // shelves again (the same removal path). Magician family: sturdier/slower than the
+            // Fire Mage. AttackFx "icebolt" = the pale-ice basic bolt (CombatView frost VFX pass).
             cfg.Heroes["icemage_basic"] = FromArchetype(magician, new HeroDef
             {
                 DefId = "icemage_basic", Name = "Ice Mage", Role = "ranged",
@@ -771,7 +774,8 @@ namespace IdleGame.GameCore
                                (StatKey.HpRegen, 1.2), (StatKey.SplashRadius, 0.8)),
                 GrowthPerLevel = SB((StatKey.Hp, 13), (StatKey.Atk, 3.5), (StatKey.Def, 1.3)),
                 // 2+2 kit (§7.2): frost nuke + AoE blizzard; armor + cadence passives.
-                Skills = new List<string> { "frostbolt", "permafrost", "blizzard", "frostflow" }, Sprite = "icemage",
+                Skills = new List<string> { "frostbolt", "permafrost", "blizzard", "frostflow" },
+                Sprite = "icemage", AttackFx = "icebolt",
             });
 
             // Priest — Magician family, the party's first SUPPORT (and first male-body
@@ -1094,13 +1098,14 @@ namespace IdleGame.GameCore
                 PassiveStat = StatKey.CritDmg, StatPerRank = 0.08, Sprite = "warcry",
             };
 
-            // Ice Mage kit (§7.2 cadence 1/5/10/15) — dummy ice flavor on existing archetypes:
-            // a slow heavy nuke, a wide AoE, armor + mana-flow passives. Sprites reuse existing
-            // cast FX until a frost VFX pass.
+            // Ice Mage kit (§7.2 cadence 1/5/10/15): a slow heavy nuke, a wide AoE, armor +
+            // cadence passives. The frost VFX pass (slice 3, CombatView.cs) gives "frostbolt"
+            // and "blizzard" real frost visuals; the damage-dealing skills point at them (the
+            // passives still ride the shared bulwark/fireball cast icons).
             cfg.Skills["frostbolt"] = new SkillDef
             {
                 Id = "frostbolt", Name = "Frostbolt", Effect = SkillEffectKind.Damage, Targeting = "nearest",
-                CooldownMs = 4200, Range = 6.0, DamageMult = 2.2, Sprite = "firebolt",
+                CooldownMs = 4200, Range = 6.0, DamageMult = 2.2, Sprite = "frostbolt",
             };
             cfg.Skills["permafrost"] = new SkillDef  // Ice Mage: rimed armor
             {
@@ -1110,7 +1115,7 @@ namespace IdleGame.GameCore
             cfg.Skills["blizzard"] = new SkillDef
             {
                 Id = "blizzard", Name = "Blizzard", Effect = SkillEffectKind.Damage, Targeting = "aoe",
-                CooldownMs = 6500, Range = 6.0, AoeRadius = 2.6, DamageMult = 1.5, Sprite = "quake",
+                CooldownMs = 6500, Range = 6.0, AoeRadius = 2.6, DamageMult = 1.5, Sprite = "blizzard",
                 UnlockLevel = 10,
             };
             cfg.Skills["frostflow"] = new SkillDef   // Ice Mage: glacial cadence (mana removed)
@@ -1316,6 +1321,31 @@ namespace IdleGame.GameCore
             cfg.Achievements.Add(Ach("veteran", "Veteran", AchievementMetric.HeroLevel, "level",
                 AT(10, 2_000, 60, 0), AT(25, 15_000, 300, 0), AT(50, 120_000, 1_500, 0),
                 AT(75, 800_000, 8_000, 0), AT(100, 6_000_000, 40_000, 0)));
+
+            // ---- Gacha banners (roadmap 3, slice 3) — the gem SINK goes live. ------------
+            // "Winter's Return": the Ice Mage comeback banner. The Ice Mage def is shelved
+            // from the stage unlock table (see ~L762), so THIS banner is the only way to
+            // obtain her — and SyncHeroUnlocks keeps every banner-pool hero obtainable while
+            // the banner is live (Progression.cs ~L167). CostGems 10 = one day-1 daily login,
+            // so a single login funds a roll. Pool: featured icemage weight 1 against four
+            // owned-roster fillers weight 3 each ⇒ natural featured ≈ 1/13 ≈ 7.7%; PityCount
+            // 20 guarantees her by the 20th roll. Dupe rewards ≈ 25 min of active mid-game
+            // (~stage 40) farming: XpPerKill≈16·TierScale(40)≈1.65k over ~1 kill/s for 1500s
+            // ⇒ ~2M XP; scrap sized to the same window's salvage trickle ⇒ 500.
+            cfg.Banners["winters_return"] = new GachaBannerDef
+            {
+                Id = "winters_return", Name = "Winter's Return",
+                CostGems = 10, FeaturedHeroDefId = "icemage_basic",
+                PityCount = 20, DupeXp = 2_000_000, DupeScrap = 500,
+                Pool = new List<GachaPoolEntry>
+                {
+                    new GachaPoolEntry { HeroDefId = "icemage_basic",    Weight = 1 },
+                    new GachaPoolEntry { HeroDefId = "warrior_basic",    Weight = 3 },
+                    new GachaPoolEntry { HeroDefId = "magician_basic",   Weight = 3 },
+                    new GachaPoolEntry { HeroDefId = "thief_basic",      Weight = 3 },
+                    new GachaPoolEntry { HeroDefId = "priest_basic",     Weight = 3 },
+                },
+            };
 
             return cfg;
         }
