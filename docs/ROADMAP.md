@@ -121,13 +121,31 @@ hover gear-preview card), Skill2→Run Moving exit in HeroAnimator (the
 "assassin walks in idle pose" bug), Bootstrap sweep of editor test-tool
 objects leaking into Play. 505 tests green.
 
-### 6. Combat presentation debt
+### 6. Ranged-hero feel: base speed + projectile/anim/damage sync (user, 2026-07-05)
+Two parts, one feel goal (ranged heroes read as intentional, not laggy):
+1. Ranged (Magician-family) base MoveSpd slightly ABOVE Warriors' so
+   casters stop trailing the melee dash on every pack move. Sim change —
+   retest against the shipped formation/standoff/panic-retreat feel.
+2. Presentation chain for ranged attacks: projectile spawns ONLY when
+   the cast animation finishes; damage number (+ hit flash) appears
+   ONLY when the projectile lands. NOTE the architecture truth: the sim
+   applies damage the moment the attack steps — this chain is a
+   client-side presentation delay (the firebolt meteor already pops its
+   number on impact, and melee already delays by AttackContactSec ~0.22s;
+   this unifies + extends that to all ranged basics/skills). Decide how
+   deep the illusion goes: number/flash/death-anim can wait for impact;
+   health bars (and loot/XP feeds) update at sim time unless explicitly
+   routed through the same delay. Handle the cancel case (movement
+   cancels the cast anim mid-swing — the projectile must still launch
+   or real damage becomes invisible) and AtkSpd time-scaling.
+
+### 7. Combat presentation debt
 - Per-hero impact sounds (`PlayImpact` hardcodes `Hit_SwordDefault`; same
   pattern as the shipped per-hero attack sounds).
 - Sanctify heal visual + Holy Smite cast flourish (`_skillFx` add-on points).
 - Check hero-float quirk (SyncViews writes v.Height into hero Y for capsules).
 
-### 7. Terraced terrain + water (the big remaining Tunic-look gap — sim-gated)
+### 8. Terraced terrain + water (the big remaining Tunic-look gap — sim-gated)
 Tunic reads as PLACES: terraces, cliff strata, stairs, water — ours is an
 infinite plane, and painted ground-wear fails without structure (tried
 2026-07-02, reverted). Slices: (1) GameCore per-stage arena layout (walkable
