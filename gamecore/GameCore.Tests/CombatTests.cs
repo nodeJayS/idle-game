@@ -767,6 +767,172 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal("E0", follower.TargetId);
         }
 
+        // --- Sticky heading + sticky leader target + arrival cap (stutter fix) ---
+
+        [Fact]
+        public void FormationHeadingFreezesWhileLeaderEngaged()
+        {
+            var cfg = GameConfig.Default();
+            // Lone leader (=> it IS the leader) engaged: E0 sits inside EngageRadius, so the leader
+            // is fighting, not traveling. The stored heading must not budge even when a second enemy
+            // becomes the nearest pack on the OPPOSITE side across steps (the old per-step recompute
+            // whipped it around the noisy ~1-unit vector).
+            var leader = Ent("P0", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0;
+            var e0 = Ent("E0", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 2);  // nearest, fixes +Y
+            e0.Aggro = true;
+            var e1 = Ent("E1", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 12); // farther, same side for now
+            e1.Aggro = true;
+            var s = State(leader, e0, e1);
+            s.Tactic = PartyTactic.Solo;
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+            var frozen = s.FormationHeading;
+            Assert.True(frozen.Y > 0.9, $"heading should point +Y toward E0, got ({frozen.X:0.00},{frozen.Y:0.00})");
+
+            // Now yank E1 to the opposite side and make it the nearest pack; leader stays engaged (E0
+            // still ~2 tiles away < EngageRadius), so the heading must stay frozen.
+            e1.Pos = new Vec2(0, -1);
+            for (int i = 0; i < 5; i++) Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.Equal(frozen.X, s.FormationHeading.X, 6);
+            Assert.Equal(frozen.Y, s.FormationHeading.Y, 6);
+        }
+
+        [Fact]
+        public void FormationHeadingUpdatesWhileTraveling()
+        {
+            var cfg = GameConfig.Default();
+            // Leader with its nearest pack BEYOND EngageRadius (14) is traveling, not fighting — the
+            // long leader→pack vector is stable, so the heading tracks it.
+            var leader = Ent("P0", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0;
+            leader.Stats[StatKey.MoveSpd] = 0.0001; // effectively pinned so the vector stays clean this step
+            var pack = Ent("E0", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 20, y: 0); // 20 > EngageRadius
+            pack.Aggro = true;
+            var s = State(leader, pack);
+            s.Tactic = PartyTactic.Solo;
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            double hx = pack.Pos.X - leader.Pos.X, hy = pack.Pos.Y - leader.Pos.Y;
+            double hl = System.Math.Sqrt(hx * hx + hy * hy);
+            Assert.Equal(hx / hl, s.FormationHeading.X, 4);
+            Assert.Equal(hy / hl, s.FormationHeading.Y, 4);
+        }
+
+        [Fact]
+        public void FreshStateAdoptsHeadingEvenWhenLeaderEngaged()
+        {
+            var cfg = GameConfig.Default();
+            // On the FIRST step of a fresh CombatState the stored heading is (0,0); it must adopt
+            // whatever first candidate appears even though the leader is already engaged (uninitialized
+            // => adopt regardless of travel distance).
+            var leader = Ent("P0", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0;
+            var e0 = Ent("E0", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 3, y: 0); // within EngageRadius
+            e0.Aggro = true;
+            var s = State(leader, e0);
+            s.Tactic = PartyTactic.Solo;
+            Assert.True(s.FormationHeading.X == 0 && s.FormationHeading.Y == 0); // uninitialized
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.False(s.FormationHeading.X == 0 && s.FormationHeading.Y == 0);
+            Assert.True(s.FormationHeading.X > 0.9, $"heading should adopt +X toward E0, got ({s.FormationHeading.X:0.00},{s.FormationHeading.Y:0.00})");
+        }
+
+        [Fact]
+        public void LeaderKeepsCurrentTargetUntilItLeavesReach()
+        {
+            var cfg = GameConfig.Default();
+            // Leader hitting A; B then becomes strictly nearer. The leader must KEEP A (sticky target)
+            // rather than flap to B — re-acquiring "nearest" per step dragged the whole wing around.
+            var leader = Ent("P0", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0;
+            var a = Ent("E0", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 3, y: 0);
+            a.Aggro = true;
+            var b = Ent("E1", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 10, y: 0); // farther for now
+            b.Aggro = true;
+            var s = State(leader, a, b);
+            s.Tactic = PartyTactic.Solo;
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+            Assert.Equal("E0", leader.TargetId); // acquired A
+
+            b.Pos = new Vec2(1, 0); // B now strictly nearer than A
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+            Assert.Equal("E0", leader.TargetId); // still A — sticky, not the nearer B
+
+            // A dies/leaves reach => re-acquire (B).
+            a.Hp = 0;
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+            Assert.Equal("E1", leader.TargetId);
+        }
+
+        [Fact]
+        public void LeaderPeelOverridesStickyCurrentTarget()
+        {
+            var cfg = GameConfig.Default();
+            // Leader locked onto A (not attacking a caster). B (also in reach) attacks a ranged ally.
+            // Peel must still win over the sticky-target hold: the leader switches to the caster-attacker.
+            var leader = Ent("P0", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0; // melee
+            var caster = Ent("P1", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 8);
+            caster.Slot = 1; caster.RangedRole = true;
+            var a = Ent("E0", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 2, y: 0); // nearest leader => targets P0
+            a.Aggro = true;
+            var s = State(leader, caster, a);
+            s.Tactic = PartyTactic.Solo;
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+            Assert.Equal("E0", leader.TargetId); // locked onto A
+
+            // Now introduce B nearest the caster (so it naturally targets the ranged ally): peel wins.
+            var b = Ent("E1", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 6);
+            b.Aggro = true;
+            s.Entities.Add(b);
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.Equal("P1", b.TargetId);       // sanity: B attacks the caster
+            Assert.Equal("E1", leader.TargetId);  // peel overrides the sticky hold on A
+        }
+
+        [Fact]
+        public void ApproachingAttackerStopsJustInsideReachWithoutOvershoot()
+        {
+            var cfg = GameConfig.Default();
+            // A lone attacker approaching a distant target must settle at dist ≈ range - ArriveDepth
+            // and then hold (no in/out flap) while it keeps attacking. Ranged attacker (AttackRange 3
+            // => centre-seeking, so the settle distance is radial and exact) with a tanky target so
+            // nothing dies and the bodies never overlap (no collision perturbation). Group tactic so
+            // this is a plain acquire-and-approach with no formation slotting.
+            var attacker = Ent("P0", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 0);
+            attacker.Stats[StatKey.AttackRange] = 3.0; // > 2 => not melee => aims at target centre
+            attacker.RangedRole = true;
+            // Target stays PUT so we isolate the ATTACKER's approach: the first shot wakes it (aggro),
+            // after which it would normally close the gap — so pin its move speed to a hair above 0
+            // (a real 0 hits the MoveSpeed fallback), leaving it effectively stationary over the run.
+            var target = Ent("E0", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 20, y: 0);
+            target.Stats[StatKey.MoveSpd] = 1e-6;
+            var s = State(attacker, target);
+            s.Tactic = PartyTactic.Group;
+
+            for (int i = 0; i < 200; i++) Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            double range = attacker.Stats.Get(StatKey.AttackRange) + target.BodyRadius;
+            double dist = Vec2.Distance(attacker.Pos, target.Pos);
+            Assert.True(System.Math.Abs(dist - (range - 0.05)) < 1e-4,
+                $"attacker settled at dist={dist:0.000}, expected ≈ {range - 0.05:0.000}");
+            Assert.True(dist <= range, "attacker must be in reach so it keeps attacking");
+
+            // Next step moves it no farther (the flap is gone).
+            var pos = attacker.Pos;
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+            Assert.True(Vec2.Distance(attacker.Pos, pos) < 1e-6,
+                $"attacker still shuffling: moved {Vec2.Distance(attacker.Pos, pos):0.000000}");
+        }
+
         [Fact]
         public void StrongPartyBeatsWeakEnemy()
         {

@@ -137,6 +137,16 @@ clip; at high cadence anims queue behind hits (Animator trigger latching)
 (Knight +1.13 vs mage +0.30) still out-dashes the base bump on pack moves;
 regroup hustle reattaches in ~1.5s — knob/deeper lever (follow-speed
 floor) = user feel call after normal play. 506 tests.
+Post-ship fix (2026-07-05, found in live play): heroes stuttered/paced —
+three sim causes, all fixed: formation heading recomputed per step from
+the leader's noisy ~1-unit nearest-enemy vector (now sticky
+`CombatState.FormationHeading`, frozen while engaged, refreshed while
+traveling), leader re-acquiring "nearest" flapped between equidistant
+mobs (now sticky target; peel still overrides), and attackers
+overshooting into the separation pass each tick (arrival cap: stop
+`ArriveDepth` 0.05 inside reach — applies to monsters too, mosh-pit
+shove gone). Play-probed: 3 isolated mage direction-reversals in 30s
+(was continuous), heading constant through a 10s fight. 512 tests.
 
 ### 7. Combat presentation debt
 - Per-hero impact sounds (`PlayImpact` hardcodes `Hit_SwordDefault`; same

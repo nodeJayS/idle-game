@@ -156,6 +156,10 @@ namespace IdleGame.GameCore
         // Chosen formation leader (a hero RefId), mirrored from SaveState.LeaderHeroId. null
         // (or a downed/absent hero) => the lowest-slot living hero leads. See StepCombat.
         public string? LeaderRefId;
+        // Sticky Solo-formation heading (leader→pack). Frozen while the leader is engaged so the
+        // follower wing holds the approach direction instead of whipping around the noisy ~1-unit
+        // vector to a pack the leader stands inside; only refreshed while traveling. See StepCombat.
+        public Vec2 FormationHeading;
         public LootContext Loot;       // set by InitCombat; mode-agnostic drop params
         public List<CombatEntity> Entities = new List<CombatEntity>();
         public CombatStatus Status = CombatStatus.Running;

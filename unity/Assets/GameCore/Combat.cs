@@ -19,6 +19,9 @@ namespace IdleGame.GameCore
     {
         public const double MeleeRange = 1.0;         // fallback range when an entity has no AttackRange stat
         public const double MoveSpeedTilesPerSec = 3.0; // fallback when an entity has no MoveSpd stat
+        private const double ArriveDepth = 0.05;      // an approaching attacker stops this far INSIDE its reach
+                                                      // so it doesn't overshoot the rim contact point and get
+                                                      // shoved back out by ResolveCollisions (the in/out flap)
         public const double DefaultStepMs = 1000.0 / 30.0;
 
         // Attack/cast cadence scales with AtkSpd (attacks per second at 1.0). Missing/zero
@@ -671,12 +674,26 @@ namespace IdleGame.GameCore
                     leader = (s.LeaderRefId != null ? line.Find(e => e.RefId == s.LeaderRefId) : null)
                              ?? line.Find(e => !e.RangedRole) ?? line[0];
                     leaderPack = FindNearestEnemy(s, leader, cfg);
+                    // Sticky heading: the raw leader→pack vector is ~1 unit (and thus wildly noisy)
+                    // once the leader stands inside a pack — separation jitter + nearest-pack flips
+                    // whip it side to side each step, teleporting the projected follower slots. So we
+                    // only ADOPT a fresh candidate when the stored heading is uninitialized (first
+                    // step) or the leader is still TRAVELING (pack beyond EngageRadius = the long,
+                    // stable vector). While engaged the heading stays FROZEN.
                     if (leaderPack != null)
                     {
                         double hx = leaderPack.Pos.X - leader.Pos.X, hy = leaderPack.Pos.Y - leader.Pos.Y;
                         double hl = Math.Sqrt(hx * hx + hy * hy);
-                        if (hl > 1e-6) heading = new Vec2(hx / hl, hy / hl);
+                        if (hl > 1e-6)
+                        {
+                            bool uninit = s.FormationHeading.X == 0 && s.FormationHeading.Y == 0;
+                            if (uninit || hl > cfg.Balance.EngageRadius)
+                                s.FormationHeading = new Vec2(hx / hl, hy / hl);
+                        }
                     }
+                    // leaderPack == null (field clear): keep the stored heading as-is.
+                    if (!(s.FormationHeading.X == 0 && s.FormationHeading.Y == 0))
+                        heading = s.FormationHeading;
                     // Rank followers within their own role group, preserving party order.
                     followerRank = new Dictionary<string, (bool, int)>();
                     int meleeRank = 0, rangedRank = 0;
@@ -719,8 +736,25 @@ namespace IdleGame.GameCore
                         // advances on the nearest pack — it pulls the whole triangle along. A MELEE
                         // leader PREFERS (within that same reach) an enemy attacking a ranged ally,
                         // peeling for the caster the retreat has dragged into range.
-                        target = FindNearestEnemyWithin(s, e, cfg.Balance.EngageRadius,
+                        var acquired = FindNearestEnemyWithin(s, e, cfg.Balance.EngageRadius,
                             e.RangedRole ? null : rangedAllyIds);
+                        // Sticky target: re-acquiring "nearest" every step flapped between equidistant
+                        // mobs and dragged the whole formation wing with it. Keep the foe we're already
+                        // hitting (cur) if it's still alive and in reach — UNLESS a caster is under
+                        // attack and cur isn't the attacker (peel must still win). Peel only applies to
+                        // a melee leader (ranged has no peel preference; keep that symmetry).
+                        CombatEntity? cur = null;
+                        if (e.TargetId != null)
+                        {
+                            foreach (var o in s.Entities)
+                                if (o.Id == e.TargetId) { cur = o; break; }
+                            if (cur != null && (!cur.Alive || cur.Team == e.Team
+                                                || Vec2.Distance(e.Pos, cur.Pos) > cfg.Balance.EngageRadius))
+                                cur = null;
+                        }
+                        bool IsPeel(CombatEntity? o) => !e.RangedRole && o != null && o.TargetId != null
+                                                        && rangedAllyIds != null && rangedAllyIds.Contains(o.TargetId);
+                        target = (cur != null && (IsPeel(cur) || !IsPeel(acquired))) ? cur : acquired;
                         if (target == null)
                         {
                             if (leaderPack == null) { e.TargetId = null; continue; } // field clear: idle
@@ -848,7 +882,11 @@ namespace IdleGame.GameCore
                     // Ranged attackers keep centre-seeking (they stop at range anyway). Stateless —
                     // the angle folds the attacker's Id into a deterministic hash each step.
                     Vec2 dest = isMelee ? MeleeContactPoint(e, target) : target.Pos;
-                    MoveToward(e, dest, moveSpd * dtMs / 1000.0);
+                    // Arrival cap: stop just INSIDE reach (range - ArriveDepth) instead of striding to
+                    // the rim contact point and getting shoved back out by ResolveCollisions next step
+                    // (the in-place flap). Direction is unchanged — only this step's LENGTH is clamped.
+                    double stepLen = Math.Min(moveSpd * dtMs / 1000.0, Math.Max(0.0, dist - (range - ArriveDepth)));
+                    MoveToward(e, dest, stepLen);
                 }
 
                 // Panic retreat: replaces this step's movement entirely (attacked or not) — a
