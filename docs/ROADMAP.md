@@ -63,12 +63,18 @@ SDF (seams cease to exist), colors blend by SDF proximity. OUR twist keeps
 the hard art rule: normals come from screen-space derivatives (flat facets)
 NOT the SDF gradient — a faceted Tunic skin over a seamlessly blended body.
 Client-only (zero GameCore impact). Slices:
-1. Shader prototype + KILL CRITERION: SdfBlendShell shader (uniform
-   arrays, cap ~16 primitives, smin snap 2–3 gradient iterations, ddx/ddy
-   facet normals, proximity color blend) + SdfBlobRig driver + Tools >
-   SDF Blob Test harness (animated test critter). Kill if vertex-slide
-   shimmer under faceted normals can't be tamed — then bail, Tower
-   rewards resumes, no sunk cost.
+1. ✅ Shader prototype (2026-07-04) — PROVISIONAL PASS: SdfBlendShell
+   shader (16-prim uniform arrays via MPB, 3-step smin snap, ddx/ddy
+   facet normals, proximity color blend) + SdfBlobRig + Tools > SDF
+   Blob Test. Verified in-editor: compiles clean, seams GONE at
+   overlaps, skin reads faceted, colors cross-fade at joins, antenna
+   survives, fusion holds through pose changes (screenshots in git
+   history's session). STILL OPEN: the kill criterion (temporal
+   vertex-slide shimmer) needs a live eyeball — run the menu item,
+   watch the wiggle ~10s. Tuning notes: proximity colors over-mix
+   (pastel wash — sharpen exp weights) and small limbs get swallowed
+   (authoring sizes). Fallback Lit supplies shadows from UNSNAPPED
+   source geometry (mismatch acceptable so far).
 2. Animation wiring: drive primitive transforms from a MonsterAnimator-
    style gait (fused-while-flopping test); optional jiggle-rope tail.
 3. Content: one bounded family where seamless reads as material truth —
