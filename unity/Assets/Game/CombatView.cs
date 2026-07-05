@@ -23,8 +23,8 @@ namespace IdleGame.Game
         {
             public GameObject Go = null!;
             public float Height;   // head height — floating-bar anchor, muzzle points
-            public float YOffset;  // transform Y: capsule center for primitives, 0 for
-                                   // hero models (their pivot is at the FEET — grounded)
+            public float YOffset;  // transform Y: primitives sit at their real half-height
+                                   // (grounded), 0 for hero models (their pivot is at the FEET)
             public Color BaseColor;
             public Vector3 BaseScale;   // full size; spawn anim grows toward this
             public bool Spawning;
@@ -105,7 +105,8 @@ namespace IdleGame.Game
                 Paint(go, new Color(1f, 0.55f, 0.15f));
                 Glow(go, new Color(1f, 0.5f, 0.1f) * 2.5f); // make it read against the ground
                 SoundFx.Play("Skill_Wizard_FireBall_Ball", 0.4f);
-                go.AddComponent<Projectile>().Launch(from, to, 14f, () => PlayImpact(to, amount, crit));
+                go.AddComponent<Projectile>().Launch(from, to, 14f,
+                    () => PlayImpact(to, amount, crit, sound: "Skill_Wizard_Fireball_Destroy"));
             };
 
             // Priest basic attack: a bright holy bolt (warm white-gold, so it reads as
@@ -118,6 +119,7 @@ namespace IdleGame.Game
                 go.transform.localScale = Vector3.one * (crit ? 0.75f : 0.55f);
                 Paint(go, new Color(1f, 0.97f, 0.8f));
                 Glow(go, new Color(1f, 0.95f, 0.6f) * 2.5f);
+                // default impact clang — no holy impact clip extracted yet.
                 go.AddComponent<Projectile>().Launch(from, to, 15f, () => PlayImpact(to, amount, crit));
             };
 
@@ -133,14 +135,15 @@ namespace IdleGame.Game
                 Paint(go, new Color(1f, 0.45f, 0.1f));
                 Glow(go, new Color(1f, 0.4f, 0.05f) * 3.5f);
                 go.AddComponent<Projectile>().Launch(from, to, 16f,
-                    () => { PlayImpact(to, amount, crit); Burst(to, 1.0f, new Color(1f, 0.5f, 0.15f)); }, arc: 2.5f);
+                    () => { PlayImpact(to, amount, crit, sound: "Skill_Wizard_Fireball_Destroy"); Burst(to, 1.0f, new Color(1f, 0.5f, 0.15f)); }, arc: 2.5f);
             };
 
             // Ice Mage basic attack: a small pale-ice bolt fired straight (no arc), the frost
             // sibling of the priest's holy bolt. Cold sphere, gentle glow; the number pops on
             // impact. No launch sound — the manifest attack_sound (IceStrike cast) already rides
-            // the swing; the extracted IceStrike SPLASH lands on the visible hit instead. (An
-            // "IceStrike_Ball" clip does NOT exist in the extract — only Cast + Splash_01..04.)
+            // the swing; the extracted IceStrike SPLASH lands on the visible hit as the impact
+            // sound (replacing the default clang). (An "IceStrike_Ball" clip does NOT exist in the
+            // extract — only Cast + Splash_01..04.)
             _projectileFx["icebolt"] = (from, to, amount, crit) =>
             {
                 var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -150,7 +153,7 @@ namespace IdleGame.Game
                 Paint(go, new Color(0.55f, 0.85f, 1f));
                 Glow(go, new Color(0.55f, 0.85f, 1f) * 2.5f);
                 go.AddComponent<Projectile>().Launch(from, to, 15f,
-                    () => { PlayImpact(to, amount, crit); SoundFx.Play("Skill_Wizard_IceStrike_Splash", 0.3f); });
+                    () => PlayImpact(to, amount, crit, sound: "Skill_Wizard_IceStrike_Splash"));
             };
 
             // Ice Mage Frostbolt skill: a fat icy orb lobbed at the target — the frost twin of
@@ -165,14 +168,16 @@ namespace IdleGame.Game
                 Paint(go, new Color(0.65f, 0.88f, 1f));
                 Glow(go, new Color(0.65f, 0.88f, 1f) * 3f);
                 go.AddComponent<Projectile>().Launch(from, to, 16f,
-                    () => { PlayImpact(to, amount, crit); Burst(to, 0.9f, new Color(0.75f, 0.92f, 1f)); }, arc: 2.5f);
+                    () => { PlayImpact(to, amount, crit, sound: "Skill_Wizard_IceStrike_Splash"); Burst(to, 0.9f, new Color(0.75f, 0.92f, 1f)); }, arc: 2.5f);
             };
         }
 
         // SkillDef.Sprite -> cast flourish (purely cosmetic; the sim already applied the
         // effect and per-victim damage numbers ride the Hit events, so these draw no
         // numbers). Keyed by sprite hint so several skills can share a look. ADD-ON
-        // POINT: register a sprite here and set it on the SkillDef in GameConfig.
+        // POINT: register a sprite here and set it on the SkillDef in GameConfig. A skillId
+        // key wins over the sprite key at lookup, so a specific skill can own its look while
+        // others keep sharing the sprite's.
         // Args: (caster view, primary-target view) — target == caster for self casts.
         private readonly Dictionary<string, System.Action<View, View>> _skillFx = new();
 
@@ -234,6 +239,43 @@ namespace IdleGame.Game
                 go.AddComponent<TransientFx>()
                   .Configure(0.6f, Vector3.one * 0.4f, Vector3.one * (src.BaseScale.x * 2.6f), follow: src.Go.transform);
             };
+
+            // Sanctify: the priest's party-wide HoT — party-wide by design, so the visual is
+            // too (a rising green-white sparkle over EVERY living ally, the +N numbers still
+            // ride the separate Heal events), plus a soft gold-green ring under the caster.
+            _skillFx["sanctify"] = (src, tgt) =>
+            {
+                foreach (var ally in _combat.Entities)
+                {
+                    if (ally.Team != Team.Party || !ally.Alive) continue;
+                    if (!_views.TryGetValue(ally.Id, out var av) || av.Go == null) continue;
+                    var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                    var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
+                    go.name = "SanctifySparkle";
+                    go.transform.position = HeadOf(av);
+                    Paint(go, new Color(0.55f, 1f, 0.65f));
+                    Glow(go, new Color(0.55f, 1f, 0.65f) * 2.5f);
+                    go.AddComponent<TransientFx>().Configure(0.7f, Vector3.one * 0.5f, Vector3.one * 0.1f, rise: 1.6f);
+                }
+                GroundRing(GroundAt(src), 1.6f, new Color(0.75f, 0.95f, 0.55f), 0.4f);
+            };
+
+            // Holy Smite: a holy AoE at the target — distinct from the boss quake (no screen
+            // shake; that stays the boss's identity). Warm-white ground ring sized to the
+            // skill's AoeRadius, a brighter inner ring, and a collapsing pillar of light.
+            _skillFx["holysmite"] = (src, tgt) =>
+            {
+                GroundRing(GroundAt(tgt), 2.4f, new Color(1f, 0.95f, 0.8f), 0.45f);
+                GroundRing(GroundAt(tgt), 1.2f, new Color(1f, 0.98f, 0.9f), 0.35f);
+                var go = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
+                go.name = "HolyPillar";
+                go.transform.position = GroundAt(tgt) + Vector3.up * 1.4f;
+                Paint(go, new Color(1f, 0.95f, 0.75f));
+                Glow(go, new Color(1f, 0.95f, 0.75f) * 2.5f);
+                // Cylinder is 2 units tall at scale 1; y-scale 1.4 = a 2.8-tall column on the ground.
+                go.AddComponent<TransientFx>().Configure(0.4f, new Vector3(1.0f, 1.4f, 1.0f), new Vector3(0.15f, 1.4f, 0.15f));
+            };
         }
 
         // ---- skill-FX geometry helpers (positions read from views) ----
@@ -272,14 +314,14 @@ namespace IdleGame.Game
         /// per its toggle. <paramref name="secondary"/> = a splash/chain/thorns hit riding the
         /// same swing: the number still pops, but the clang is quieter (~0.5×) so a swing into a
         /// pack reads as one hit with echoes, not a wall of full-volume clangs.</summary>
-        private void PlayImpact(Vector3 at, double amount, bool crit, bool secondary = false)
+        private void PlayImpact(Vector3 at, double amount, bool crit, bool secondary = false, string? sound = null)
         {
             if (_juice == null) return;
             if (Settings.DamageNumbers) _juice.DamageNumber(at, amount, crit);
             if (crit && Settings.ScreenShake && !secondary) _rig?.Shake(0.15f);
             float vol = crit ? 0.6f : 0.45f;
             if (secondary) vol *= 0.5f;
-            SoundFx.Play("Hit_SwordDefault", vol);
+            SoundFx.Play(sound ?? "Hit_SwordDefault", vol);
         }
 
         /// <summary>Present a melee hit's number + impact sound after <paramref name="delaySec"/>
@@ -287,16 +329,16 @@ namespace IdleGame.Game
         /// Presentation-only — the sim already applied the damage. Caches the world point at
         /// schedule time (the victim may die/move before contact). Falls through to an immediate
         /// pop when there's no meaningful delay (0 = projectile/skill paths already time it).</summary>
-        private void ScheduleImpact(Vector3 at, double amount, bool crit, float delaySec, bool secondary)
+        private void ScheduleImpact(Vector3 at, double amount, bool crit, float delaySec, bool secondary, string? sound = null)
         {
-            if (delaySec <= 0.001f) { PlayImpact(at, amount, crit, secondary); return; }
-            StartCoroutine(ImpactAfter(at, amount, crit, delaySec, secondary));
+            if (delaySec <= 0.001f) { PlayImpact(at, amount, crit, secondary, sound); return; }
+            StartCoroutine(ImpactAfter(at, amount, crit, delaySec, secondary, sound));
         }
 
-        private System.Collections.IEnumerator ImpactAfter(Vector3 at, double amount, bool crit, float delaySec, bool secondary)
+        private System.Collections.IEnumerator ImpactAfter(Vector3 at, double amount, bool crit, float delaySec, bool secondary, string? sound)
         {
             yield return new WaitForSeconds(delaySec);
-            PlayImpact(at, amount, crit, secondary);
+            PlayImpact(at, amount, crit, secondary, sound);
         }
 
         /// <summary>Launch a ranged projectile only once the source's cast/swing anim finishes
@@ -342,6 +384,15 @@ namespace IdleGame.Game
             if (sourceId != null && _views.TryGetValue(sourceId, out var sv) && sv.Anim != null)
                 return sv.Anim.AttackContactSec;
             return 0f;
+        }
+
+        /// <summary>The melee impact clang for a hero source; null for monsters/anim-less
+        /// sources -> PlayImpact falls back to its default sword clang.</summary>
+        private string? ImpactSoundFor(string? sourceId)
+        {
+            if (sourceId != null && _views.TryGetValue(sourceId, out var sv) && sv.Anim != null)
+                return sv.Anim.ImpactSound;
+            return null;
         }
 
         /// <summary>Resolve an attacker's basic-attack visual hint (hero or monster def).</summary>
@@ -1139,6 +1190,7 @@ namespace IdleGame.Game
             bool isHero = e.Team == Team.Party;
             GameObject go;
             float height;
+            float yOffset = 0f; // transform Y: primitives sit at their real half-height; models stay 0 (feet pivot)
             Vector3 baseScale;
             Color color = Color.white;
             IHeroAnim? heroAnim = null;
@@ -1254,8 +1306,13 @@ namespace IdleGame.Game
                 if (!isHero && !e.IsBoss)
                     scale *= e.Rank == MonsterRank.Rare ? 1.7f : e.Rank == MonsterRank.Elite ? 1.35f : 1f;
                 height = (type == PrimitiveType.Capsule ? 1f : 0.5f) * scale;
-                go.transform.position = new Vector3((float)e.Pos.X, height, (float)e.Pos.Y);
                 baseScale = new Vector3(0.7f * scale, 0.9f * scale, 0.7f * scale);
+                // Ground the primitive at its REAL half-height under baseScale.y = 0.9×scale
+                // (capsule mesh 2 units tall ⇒ 0.9×scale; cube 1 unit ⇒ 0.45×scale) — placing it
+                // at `height` (unscaled) floated it 0.1×scale off the ground. `height` still
+                // anchors the health bar / muzzle (offsets ABOVE the transform), so it stays.
+                yOffset = (type == PrimitiveType.Capsule ? 0.9f : 0.45f) * scale;
+                go.transform.position = new Vector3((float)e.Pos.X, yOffset, (float)e.Pos.Y);
 
                 if (isHero)
                 {
@@ -1305,7 +1362,7 @@ namespace IdleGame.Game
                 monsterAnim = ma;
             }
 
-            var view = new View { Go = go, Height = height, YOffset = model != null ? 0f : height,
+            var view = new View { Go = go, Height = height, YOffset = yOffset,
                                   BaseColor = color, BaseScale = baseScale,
                                   PrevPos = go.transform.position, CurPos = go.transform.position, SmoothPos = go.transform.position,
                                   Anim = heroAnim, MonsterAnim = monsterAnim };
@@ -1401,7 +1458,7 @@ namespace IdleGame.Game
                                 // An AoE skill's per-victim ticks: first at full volume, the rest
                                 // quieter so a big cast reads as one boom + echoes, not N clangs.
                                 bool skPrimary = (swung ??= new HashSet<string>()).Add("sk:" + ev.SourceId);
-                                PlayImpact(head, ev.Amount, ev.Crit, secondary: !skPrimary);
+                                PlayImpact(head, ev.Amount, ev.Crit, secondary: !skPrimary, sound: ImpactSoundFor(ev.SourceId));
                             }
                             break;
                         }
@@ -1430,7 +1487,8 @@ namespace IdleGame.Game
                         }
                         else
                         {
-                            ScheduleImpact(head, ev.Amount, ev.Crit, ContactDelayFor(ev.SourceId), secondary: !primary);
+                            ScheduleImpact(head, ev.Amount, ev.Crit, ContactDelayFor(ev.SourceId), secondary: !primary,
+                                sound: ImpactSoundFor(ev.SourceId));
                         }
                         break;
                     }
@@ -1451,8 +1509,12 @@ namespace IdleGame.Game
                                 (skillHitFx ??= new Dictionary<string, string?>())[ev.SourceId] = isProjectile ? key : null;
 
                             // Instant/area flourish drawn now (projectile skills draw on impact).
+                            // A skillId-keyed entry overrides the sprite-keyed one so a specific
+                            // skill can own its look while others share the sprite's.
+                            System.Action<View, View>? play = null;
+                            if (!_skillFx.TryGetValue(ev.SkillId, out play)) _skillFx.TryGetValue(key, out play);
                             if (!isProjectile && ev.SourceId != null
-                                && _skillFx.TryGetValue(key, out var play)
+                                && play != null
                                 && _views.TryGetValue(ev.SourceId, out var csv) && csv.Go != null)
                             {
                                 string tgtId = ev.TargetId ?? ev.SourceId;

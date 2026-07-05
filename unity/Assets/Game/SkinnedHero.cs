@@ -22,6 +22,12 @@ namespace IdleGame.Game
         /// shouldn't clang like a sword).</summary>
         string AttackSound => "Swing_Sword";
 
+        /// <summary>Sound set for the melee impact — the hit LANDING (the clang), vs
+        /// <see cref="AttackSound"/> = the swing. Default = the sword clang. No hero
+        /// sidecar ships an "_impact" line yet and no distinct melee-impact clips exist
+        /// in Resources/Sound, so this is a one-line sidecar edit away when clips land.</summary>
+        string ImpactSound => "Hit_SwordDefault";
+
         /// <summary>Seconds from the last <see cref="TriggerAttack"/> until the swing's
         /// contact moment (the sword lands / the shot is loosed). CombatView delays the
         /// damage number + impact sound by this so they land ON the visible hit rather
@@ -143,12 +149,17 @@ namespace IdleGame.Game
 
         /// <summary>GameCore skill id -> (Skill state slot, MS2 sound set). Loaded
         /// from the manifest-exported bindings by SkinnedHero.Build. Reserved ids:
-        /// "_attack" = basic-attack sound override, "_run" = native run speed.</summary>
+        /// "_attack" = basic-attack sound override, "_impact" = melee impact clang
+        /// override, "_run" = native run speed.</summary>
         public System.Collections.Generic.Dictionary<string, (int slot, string sound)>? SkillBindings;
 
         public string AttackSound =>
             SkillBindings != null && SkillBindings.TryGetValue("_attack", out var b)
                 ? b.sound : "Swing_Sword";
+
+        public string ImpactSound =>
+            SkillBindings != null && SkillBindings.TryGetValue("_impact", out var b)
+                ? b.sound : "Hit_SwordDefault";
 
         // Contact tuning: the swing should LAND about this long after TriggerAttack, and the
         // clip is time-scaled so the contact moment sits at ~this fraction of its length. Both

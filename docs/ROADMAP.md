@@ -155,11 +155,22 @@ within the existing leash radii, never widens). Stops the caster waking
 fresh mobs; aggro piles onto tanked ones. Ranged LEADER keeps own
 acquisition (anchor). Play-probed 97% assist rate over 40s. 517 tests.
 
-### 7. Combat presentation debt
-- Per-hero impact sounds (`PlayImpact` hardcodes `Hit_SwordDefault`; same
-  pattern as the shipped per-hero attack sounds).
-- Sanctify heal visual + Holy Smite cast flourish (`_skillFx` add-on points).
-- Check hero-float quirk (SyncViews writes v.Height into hero Y for capsules).
+### ✅ 7. Combat presentation debt — shipped 2026-07-05
+Receipt: per-source impact sounds (`PlayImpact(sound)` threaded through
+Schedule/ImpactAfter + `IHeroAnim.ImpactSound` reading a new reserved
+"_impact" sidecar binding — no distinct melee-impact clips extracted yet,
+so heroes stay on the sword clang until clips land, one sidecar line each;
+fireball/firebolt now land with the previously-unused Fireball_Destroy,
+icebolt/frostbolt with IceStrike_Splash replacing the splash+clang
+double-play) · Sanctify + Holy Smite own their looks via skillId-keyed
+`_skillFx` entries that override the shared sprite key (icons/GameCore
+untouched — they'd borrowed the warcry aura and the BOSS QUAKE red wave
++ shake): party-wide rising heal sparkles + caster ring, and warm-white
+AoE rings + collapsing light pillar, no shake · hero-float quirk fixed
+(primitives grounded at real half-height 0.9/0.45×scale; placement at
+`height` floated them 0.1×scale). FX Play-verified via direct closure
+invoke + screenshot (priest not fielded in the live party); sound sets
+verified resolving. 517 tests.
 
 ### 8. Terraced terrain + water (the big remaining Tunic-look gap — sim-gated)
 Tunic reads as PLACES: terraces, cliff strata, stairs, water — ours is an
