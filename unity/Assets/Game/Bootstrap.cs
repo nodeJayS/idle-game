@@ -25,6 +25,15 @@ namespace IdleGame.Game
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         public static void Boot()
         {
+            // Editor test-tool spawns (Tools > SDF Blob/Gait Test) live in the open scene, and a
+            // long-lived editor session carries them into every Play — they showed up as idle
+            // ghost blobs in a real session (2026-07-05). Play is authoritative: sweep them.
+            foreach (var n in new[] { "SdfBlobTest", "SdfGaitTest" })
+            {
+                var stale = GameObject.Find(n);
+                if (stale != null) Object.Destroy(stale);
+            }
+
             var cfg = GameConfig.Default();
             AudioListener.volume = Settings.MasterVolume; // apply persisted master volume at boot
             BuildEnvironment(cfg);

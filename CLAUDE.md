@@ -56,10 +56,10 @@ animate/poll, never decide rules. A future .NET server reuses GameCore as-is.
   to apply, ≤1 prefix + ≤1 suffix per item). Shop/Reforge = one gamble verb
   (gold+scrap, ±5% floored, escalating cost).
 - **Tower**: one-clear-per-floor alt mode, account buffs per 10 floors, gates
-  the rare mod pairs. Per-floor reward bundles still TBD (roadmap 4).
+  the rare mod pairs; every first clear pays gems (TowerGemsPerFloor).
 - **Idle** (12h cap) · **quests** (rolling board) · **achievements**
-  (lifetime ladder, auto-pay per tier) · **daily login → gems** (the ONLY gem
-  source) · **gacha** (the gem sink: banner defs in config, pity, dupe →
+  (lifetime ladder, auto-pay per tier) · **daily login → gems** (+ Tower
+  floor clears; the gem sources) · **gacha** (the gem sink: banner defs in config, pity, dupe →
   XP/scrap; "Winter's Return" gates the Ice Mage) · chat/feed panel (social
   tabs stubbed).
 - **Art**: faceted vertex-coloured world + TunicSurface height-blend shader,

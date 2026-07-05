@@ -513,6 +513,23 @@ namespace IdleGame.Game
                            delta >= 0 ? new Color(0.55f, 0.9f, 0.6f) : new Color(0.95f, 0.6f, 0.45f));
         }
 
+        /// <summary>Modifier shop: reset a mod's tuning back to base (free, no refund — the gamble spend is
+        /// sunk). Mirrors <see cref="UpgradeModifier"/>'s persist + live re-resolve exactly, routing the
+        /// GameCore reducer. The ModifierPanel calls this by name (the contract). No-op with a feed note if
+        /// there's nothing to reset.</summary>
+        public void ResetModifierTuning(string typeId)
+        {
+            double before = Modifiers.TuningOf(_save, typeId);
+            _save = Modifiers.ResetTuning(_save, typeId);
+            if (_combat != null) _combat.ActiveModifiers = Modifiers.ResolveActive(_save, _cfg);
+
+            string nm = _cfg.Modifiers.TryGetValue(typeId, out var d) ? d.Name : typeId;
+            if (before <= 1.0)
+                _chat?.AddFeed($"{nm} is already at base tuning.", new Color(0.9f, 0.6f, 0.5f));
+            else
+                _chat?.AddFeed($"{nm} tuning reset to base (+0%).", new Color(0.7f, 0.8f, 0.95f));
+        }
+
         /// <summary>Reforge (item shop): gamble an item's normal affix values with gold+scrap. Persists
         /// via the reducer + reports in the feed. No-op with a note if it can't be reforged/afforded.</summary>
         public void ReforgeItem(string itemId)
@@ -928,7 +945,6 @@ namespace IdleGame.Game
 
                 _save = Progression.OnStageCleared(_save, cleared, _cfg); // also syncs modifiers to depth
                 _chat?.AddFeed($"Stage {cleared} cleared!", new Color(0.55f, 0.9f, 0.55f));
-                AdvanceQuest(QuestKind.ClearStages, 1);
                 Award(AchievementMetric.BossesKilled, 1);                          // stage boss down (Lever 4)
                 Award(AchievementMetric.HighestStage, _save.Progress.HighestStage); // deepest-stage milestone
 

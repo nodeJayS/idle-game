@@ -20,6 +20,16 @@ namespace IdleGame.Game
         private GameConfig _cfg = null!;
         private Canvas? _canvas;
 
+        // Two-click arm/confirm for the free "reset tuning" action (mirrors InventoryPanel's SalvageAll
+        // idiom): a reset forfeits gambled tuning, so the first click ARMS ("sure?") and the second
+        // executes. Only one row can be armed at a time; any Rebuild disarms.
+        private string? _confirmResetId;
+        private Coroutine? _resetTimer;
+
+        // The live imprint-preview mock card (a hover tooltip on a rare row's imprint text). At most one
+        // exists; pointer-exit / any Rebuild destroys it so it can't leak across redraws.
+        private GameObject? _imprintPreview;
+
         public bool IsOpen => _canvas != null;
 
         public void Bind(CombatView view, GameConfig cfg) { _view = view; _cfg = cfg; }
@@ -28,17 +38,35 @@ namespace IdleGame.Game
 
         public void Close()
         {
+            if (_resetTimer != null) { StopCoroutine(_resetTimer); _resetTimer = null; }
+            DestroyImprintPreview();
             if (_canvas != null) Destroy(_canvas.gameObject);
             _canvas = null;
         }
 
-        private void Rebuild() { Close(); Build(); }
+        /// <summary>Redraw on the current save. Disarms any pending reset (a rebuild cancels the arm,
+        /// matching the bag's "any mutation cancels the confirm" behavior).</summary>
+        private void Rebuild() { _confirmResetId = null; RebuildKeepConfirm(); }
+
+        /// <summary>Redraw WITHOUT disarming the reset confirm (used by the arm click itself).</summary>
+        private void RebuildKeepConfirm()
+        {
+            if (_resetTimer != null) { StopCoroutine(_resetTimer); _resetTimer = null; }
+            DestroyImprintPreview();
+            if (_canvas != null) Destroy(_canvas.gameObject);
+            _canvas = null;
+            Build();
+        }
 
         // ---- build ----
 
-        private const float RowH = 60f;
+        // RowH gained a few px over the old 60: the sub line now carries gold ▲-delta chips, and rare
+        // rows render the full imprint payload inline, so rows are a touch taller for breathing room.
+        private const float RowH = 64f;
         private const float SectionH = 26f;
-        private const float HeaderH = 92f;
+        // HeaderH grew to fit the new one-line help under the title/net (title -14, net -48, help -70).
+        private const float HeaderH = 108f;
+        private const float PanelW = 620f; // widened from 580 to fit the right-side Tune/Reset + imprint payload
 
         private void Build()
         {
@@ -65,7 +93,7 @@ namespace IdleGame.Game
             int sections = (normals.Count > 0 ? 1 : 0) + (prefixes.Count > 0 ? 1 : 0) + (suffixes.Count > 0 ? 1 : 0);
             float h = Mathf.Min(HeaderH + rowCount * RowH + sections * SectionH + 16f, 600f);
 
-            var panel = UiKit.Panel(_canvas.transform, new Vector2(580f, h), new Color(0.09f, 0.10f, 0.13f, 0.98f));
+            var panel = UiKit.Panel(_canvas.transform, new Vector2(PanelW, h), new Color(0.09f, 0.10f, 0.13f, 0.98f));
             var prt = panel.rectTransform;
             prt.anchorMin = prt.anchorMax = new Vector2(0.5f, 0.5f);
             prt.pivot = new Vector2(0.5f, 0.5f);
@@ -75,10 +103,19 @@ namespace IdleGame.Game
             title.color = new Color(0.85f, 0.62f, 1f);
             AnchorTL(title, new Vector2(22f, -14f));
 
-            var net = UiKit.Label(panel.transform, NetSummary(applied), 14, TextAnchor.UpperLeft, new Vector2(540f, 40f), Vector2.zero);
+            var net = UiKit.Label(panel.transform, NetSummary(applied), 14, TextAnchor.UpperLeft, new Vector2(560f, 24f), Vector2.zero);
             net.color = new Color(0.80f, 0.84f, 0.90f);
             net.supportRichText = true;
             AnchorTL(net, new Vector2(22f, -48f));
+
+            // Plain-language help: what tuning is, and that rares are off-limits. Muted 12px. Height 32
+            // lets the sentence wrap to a second line instead of CLIPPING mid-word (caught on the 1400px
+            // capture: an 18px-high rect truncated at "rare mods can't be").
+            var help = UiKit.Label(panel.transform,
+                "Tune gambles gold + scrap to raise a mod's danger and reward together · rare mods can't be tuned.",
+                12, TextAnchor.UpperLeft, new Vector2(580f, 32f), Vector2.zero);
+            help.color = new Color(0.58f, 0.62f, 0.70f);
+            AnchorTL(help, new Vector2(22f, -70f));
 
             var close = UiKit.TextButton(panel.transform, "Close", new Vector2(84f, 30f), Vector2.zero, Close, 15);
             AnchorTR((RectTransform)close.transform, new Vector2(-14f, -14f));
@@ -86,7 +123,7 @@ namespace IdleGame.Game
             if (rowCount == 0)
             {
                 int firstAt = _cfg.Balance.ModifierNewEveryStages;
-                var empty = UiKit.Label(panel.transform, $"Push deeper to unlock modifiers — your first unlocks at stage {firstAt}.", 15, TextAnchor.MiddleCenter, new Vector2(520f, 40f), Vector2.zero);
+                var empty = UiKit.Label(panel.transform, $"Push deeper to unlock modifiers — your first unlocks at stage {firstAt}.", 15, TextAnchor.MiddleCenter, new Vector2(560f, 40f), Vector2.zero);
                 empty.color = new Color(0.70f, 0.74f, 0.80f);
                 AnchorTL(empty, new Vector2(30f, -HeaderH - 10f));
                 return;
@@ -132,18 +169,21 @@ namespace IdleGame.Game
             var save = _view.CurrentSave;
             double tuning = Modifiers.TuningOf(save, def.Id);
             double eff = strength * tuning; // shop tuning scales BOTH danger and reward
-            string tuned = tuning > 1.0001 ? $"   <color=#ffd27f>+{(tuning - 1) * 100:0}% tuned</color>" : "";
+            bool tuned = tuning > 1.0001;   // any tuning bought over base?
 
-            var name = UiKit.Label(parent, $"{def.Name}   ·   str {strength}{tuned}", 16, TextAnchor.UpperLeft, new Vector2(360f, 22f), Vector2.zero);
+            // Title: name + banked strength. The "+x% tuned" jargon chip is gone — tuning now reads as
+            // per-number gold ▲ deltas on the summary line below (you see exactly what it bought).
+            var name = UiKit.Label(parent, $"{def.Name}   ·   str {strength}", 16, TextAnchor.UpperLeft, new Vector2(360f, 22f), Vector2.zero);
             name.color = new Color((float)def.TintR, (float)def.TintG, (float)def.TintB) * 1.15f;
             name.supportRichText = true;
             AnchorTL(name, new Vector2(34f, y - 4f));
 
-            string mech = def.Mechanical ? "  ·  <color=#d99bff>✦ imprints</color>" : "";
+            // Summary shows EFFECTIVE numbers (strength × tuning); when tuned, each number carries a
+            // compact gold ▲ delta = effective − strength-only, so the tuning gain is legible per-stat.
             string inert = (active && !applies) ? "  ·  <color=#e0a070>inert (needs pair)</color>" : "";
             var sub = UiKit.Label(parent,
-                $"{MonsterSummary(def, eff)}  ·  <color=#9fe0a0>{RewardSummary(def, eff)}</color>{mech}{inert}",
-                12, TextAnchor.UpperLeft, new Vector2(340f, 30f), Vector2.zero);
+                $"{MonsterSummary(def, strength, eff)}  ·  <color=#9fe0a0>{RewardSummary(def, strength, eff)}</color>{inert}",
+                12, TextAnchor.UpperLeft, new Vector2(400f, 30f), Vector2.zero);
             sub.color = new Color(0.78f, 0.82f, 0.88f);
             sub.supportRichText = true;
             AnchorTL(sub, new Vector2(34f, y - 28f));
@@ -158,15 +198,151 @@ namespace IdleGame.Game
                                        : full ? new Color(0.22f, 0.24f, 0.28f) : new Color(0.30f, 0.32f, 0.38f);
             AnchorTR((RectTransform)btn.transform, new Vector2(-14f, y - 2f));
 
-            // Upgrade (shop): gamble tuning with gold+scrap; cost rises as the mod climbs.
+            if (def.Mechanical)
+                BuildImprintPayload(parent, def, strength, y); // rare rows: no Tune/Reset — show the imprint instead
+            else
+                BuildTuneControls(parent, def, tuned, y);      // normal rows: Tune (+ Reset when tuned)
+        }
+
+        /// <summary>Right-side controls for a NORMAL mod: the Tune gamble button, and — only when the mod
+        /// has been tuned above base — a small "↺" reset that arms/confirms before forfeiting the gamble.</summary>
+        private void BuildTuneControls(Transform parent, ModifierDef def, bool tuned, float y)
+        {
+            var save = _view.CurrentSave;
+
+            // Tune (shop): gamble tuning with gold+scrap; cost rises as the mod climbs. CanUpgrade gates
+            // affordability; the label spells the cost out ("Tune ▲  {gold}g+{scrap}s").
             var (g, s) = Modifiers.UpgradeCost(save, _cfg, def.Id);
             bool canUp = Modifiers.CanUpgrade(save, _cfg, def.Id);
-            var up = UiKit.TextButton(parent, $"⬆ {Num.CompactCeil(g)}g+{Num.CompactCeil(s)}s", new Vector2(120f, 32f), Vector2.zero,
+            var up = UiKit.TextButton(parent, $"Tune ▲  {Num.CompactCeil(g)}g+{Num.CompactCeil(s)}s", new Vector2(150f, 32f), Vector2.zero,
                 canUp ? () => { _view.UpgradeModifier(def.Id); Rebuild(); } : (System.Action)(() => { }), 12);
             up.interactable = canUp;
             var upImg = up.GetComponent<Image>();
             if (upImg != null) upImg.color = canUp ? new Color(0.34f, 0.30f, 0.46f) : new Color(0.22f, 0.22f, 0.26f);
             AnchorTR((RectTransform)up.transform, new Vector2(-84f, y - 2f));
+
+            if (!tuned) return; // nothing to reset on an untuned mod
+
+            // Reset (free, but forfeits gambled tuning → two-click arm/confirm, mirroring the bag's
+            // "Salvage all". First click arms ("sure?"), auto-disarms after a few seconds; second resets.
+            bool armed = _confirmResetId == def.Id;
+            var reset = UiKit.TextButton(parent, armed ? "sure?" : "↺", new Vector2(58f, 32f), Vector2.zero,
+                () => OnResetClick(def.Id), 14);
+            var rImg = reset.GetComponent<Image>();
+            if (rImg != null) rImg.color = armed ? new Color(0.62f, 0.22f, 0.22f) : new Color(0.30f, 0.28f, 0.34f);
+            AnchorTR((RectTransform)reset.transform, new Vector2(-238f, y - 2f));
+        }
+
+        /// <summary>Reset arm/confirm (free action, forfeits gambled tuning). First click arms this row and
+        /// starts the auto-disarm; second click (within the window) resets its tuning to base.</summary>
+        private void OnResetClick(string id)
+        {
+            if (_confirmResetId != id)
+            {
+                // Arm this row and redraw (RebuildKeepConfirm keeps the arm but resets the timer), THEN
+                // start the auto-disarm — starting it after the rebuild, since RebuildKeepConfirm stops
+                // any running timer as part of its teardown.
+                _confirmResetId = id;
+                RebuildKeepConfirm();
+                if (gameObject.activeInHierarchy) _resetTimer = StartCoroutine(DisarmResetAfter());
+                return;
+            }
+            _confirmResetId = null;
+            _view.ResetModifierTuning(id);
+            Rebuild();
+        }
+
+        private const float ResetConfirmSeconds = 3f;
+
+        private System.Collections.IEnumerator DisarmResetAfter()
+        {
+            yield return new WaitForSecondsRealtime(ResetConfirmSeconds);
+            _resetTimer = null;
+            if (_canvas != null && _confirmResetId != null) { _confirmResetId = null; RebuildKeepConfirm(); }
+        }
+
+        /// <summary>Rare (mechanical) row right side: the actual imprint payload spelled out — chance,
+        /// value, stat, and slot — in the pool's purple, hoverable to preview the resulting gear.</summary>
+        private void BuildImprintPayload(Transform parent, ModifierDef def, int strength, float y)
+        {
+            var lbl = UiKit.Label(parent, ImprintText(def, strength), 12, TextAnchor.UpperRight,
+                                  new Vector2(230f, 40f), Vector2.zero);
+            lbl.color = new Color(0.85f, 0.61f, 1f); // #d99bff purple, matching the rare pool
+            lbl.supportRichText = true;
+            lbl.raycastTarget = true; // hover target for the gear preview
+            AnchorTR((RectTransform)lbl.transform, new Vector2(-84f, y - 2f));
+
+            // Hover → mock item card anchored just left of the panel; exit destroys it. `parent` is the
+            // panel transform and `y` is the row's top-left layout Y (both feed the anchoring math).
+            UiKit.Hover(lbl.gameObject, () => ShowImprintPreview(def, strength, parent, y),
+                        DestroyImprintPreview);
+        }
+
+        /// <summary>Inline imprint payload text: "✦ {chance}% of drops: +{value} {stat} ({prefix|suffix})".
+        /// The value is formatted exactly as gear affixes render this StatKey in the bag.</summary>
+        private string ImprintText(ModifierDef def, int strength)
+        {
+            double value = def.ImprintPerStrength * strength;
+            string slot = def.ImprintSlot == ImprintSlot.Prefix ? "prefix" : "suffix";
+            return $"✦ {def.ImprintChance * 100:0}% of drops: +{StatDisplay.Value(def.ImprintStat, value)} {StatDisplay.Label(def.ImprintStat)} ({slot})";
+        }
+
+        // ---- imprint gear preview (hover a rare row's imprint text) ----
+
+        private const float PreviewW = 230f, PreviewH = 120f;
+
+        /// <summary>Build the mock item-card tooltip beside a rare row: a generic drop ("Any {slot} drop")
+        /// with two muted normal affix lines, then the imprint bonus line in purple with a "✦ imprinted"
+        /// tag — communicating "your normal drop, PLUS this bonus line". Parented to the panel and pinned
+        /// just OUTSIDE its left edge (the panel is screen-centered, so this stays well inside the canvas);
+        /// its Y is clamped to the panel height so a bottom-row hover doesn't push the card off-screen.</summary>
+        private void ShowImprintPreview(ModifierDef def, int strength, Transform panel, float rowY)
+        {
+            DestroyImprintPreview();
+            if (_canvas == null) return;
+
+            // Parent to the panel so positioning is panel-local (top-left origin, matching the rows).
+            var card = UiKit.Panel(panel, new Vector2(PreviewW, PreviewH), new Color(0.06f, 0.07f, 0.10f, 0.99f));
+            _imprintPreview = card.gameObject;
+            var crt = card.rectTransform;
+            crt.anchorMin = crt.anchorMax = new Vector2(0f, 1f); // panel top-left
+            crt.pivot = new Vector2(1f, 1f);                     // card's top-right corner is the anchor point
+
+            // Sit just left of the panel's left edge, top-aligned with the hovered row. Clamp the bottom
+            // so a low row can't push the card past the panel bottom (simple y-clamp per the design note).
+            float panelH = ((RectTransform)panel).sizeDelta.y;
+            // Card top = rowY (≤0), extending down PreviewH. Clamp so the bottom (top − PreviewH) stays
+            // within the panel: top ≥ −panelH + PreviewH. (rowY is already ≤ 0, so no upper clamp needed.)
+            float top = Mathf.Max(rowY, -panelH + PreviewH);
+            crt.anchoredPosition = new Vector2(-8f, top);        // -8 = small gap outside the left edge
+
+            // "Any gear drop" — the prefix/suffix word describes the AFFIX position (shown in the row
+            // text), not which items can drop; any gear slot can carry the imprint.
+            var title = UiKit.Label(card.transform, "Any gear drop", 14, TextAnchor.UpperLeft, new Vector2(210f, 20f), Vector2.zero);
+            title.color = new Color(0.82f, 0.85f, 0.90f);
+            AnchorTL(title, new Vector2(12f, -10f));
+
+            // Two generic normal affix lines (grey) — the "your normal drop" part of the message.
+            var a1 = UiKit.Label(card.transform, "+… Atk", 12, TextAnchor.UpperLeft, new Vector2(210f, 16f), Vector2.zero);
+            a1.color = new Color(0.55f, 0.58f, 0.63f);
+            AnchorTL(a1, new Vector2(12f, -36f));
+            var a2 = UiKit.Label(card.transform, "+… Hp", 12, TextAnchor.UpperLeft, new Vector2(210f, 16f), Vector2.zero);
+            a2.color = new Color(0.55f, 0.58f, 0.63f);
+            AnchorTL(a2, new Vector2(12f, -54f));
+
+            // The imprint bonus line (purple) + the "✦ imprinted" tag — the extra line tuning grants.
+            double value = def.ImprintPerStrength * strength;
+            var imp = UiKit.Label(card.transform, $"+{StatDisplay.Value(def.ImprintStat, value)} {StatDisplay.Label(def.ImprintStat)}", 12, TextAnchor.UpperLeft, new Vector2(210f, 16f), Vector2.zero);
+            imp.color = new Color(0.85f, 0.61f, 1f);
+            AnchorTL(imp, new Vector2(12f, -78f));
+            var tag = UiKit.Label(card.transform, "✦ imprinted", 11, TextAnchor.UpperLeft, new Vector2(210f, 16f), Vector2.zero);
+            tag.color = new Color(0.72f, 0.52f, 0.92f);
+            AnchorTL(tag, new Vector2(12f, -98f));
+        }
+
+        private void DestroyImprintPreview()
+        {
+            if (_imprintPreview != null) { Destroy(_imprintPreview); _imprintPreview = null; }
         }
 
         // ---- summaries ----
@@ -188,14 +364,35 @@ namespace IdleGame.Game
             return list;
         }
 
-        private string MonsterSummary(ModifierDef def, double eff)
+        /// <summary>A compact gold ▲ chip = effective% − base% for one number, e.g. " <color=#ffd27f>▲2%</color>".
+        /// Empty when untuned or when the rounded delta is 0% (so a 0.4% gain doesn't show a fake "▲0%").
+        /// <paramref name="pctPerStr"/> is the per-strength percentage coefficient; base = ×strength,
+        /// effective = ×eff.</summary>
+        private static string Delta(double pctPerStr, int strength, double eff)
+        {
+            int baseP = Mathf.RoundToInt((float)(pctPerStr * strength));
+            int effP = Mathf.RoundToInt((float)(pctPerStr * eff));
+            int d = effP - baseP;
+            // NBSP so a line wrap can never orphan the ▲ chip from its number ("+25% XP / ▲1%" —
+            // caught on the Chaining row's capture).
+            return d > 0 ? $" <color=#ffd27f>▲{d}%</color>" : "";
+        }
+
+        // Effective monster-stat/behavior summary. When tuned (eff > strength), each % number gets a gold
+        // ▲ delta showing what tuning added over the strength-only base.
+        private string MonsterSummary(ModifierDef def, int strength, double eff)
         {
             var parts = new List<string>();
             foreach (var kv in def.StatPerStrength)
-                parts.Add($"+{kv.Value * eff * 100:0}% {StatName(kv.Key)}");
+                parts.Add($"+{kv.Value * eff * 100:0}% {StatName(kv.Key)}{Delta(kv.Value * 100, strength, eff)}");
             double frac = Mathf.Min((float)_cfg.Balance.ModifierBehaviorCap, (float)(def.BehaviorPerStrength * eff)) * 100;
-            if (def.Behavior == ModifierBehavior.Vampiric) parts.Add($"lifesteal {frac:0}%");
-            else if (def.Behavior == ModifierBehavior.Thorns) parts.Add($"reflect {frac:0}%");
+            // Behavior fractions are capped, so a naive per-strength delta could overstate the gain near
+            // the cap — compute base as the capped strength-only fraction and subtract.
+            double baseFrac = Mathf.Min((float)_cfg.Balance.ModifierBehaviorCap, (float)(def.BehaviorPerStrength * strength)) * 100;
+            string bDelta = Mathf.RoundToInt((float)(frac - baseFrac)) > 0
+                ? $" <color=#ffd27f>▲{Mathf.RoundToInt((float)(frac - baseFrac))}%</color>" : "";
+            if (def.Behavior == ModifierBehavior.Vampiric) parts.Add($"lifesteal {frac:0}%{bDelta}");
+            else if (def.Behavior == ModifierBehavior.Thorns) parts.Add($"reflect {frac:0}%{bDelta}");
             else if (def.Behavior == ModifierBehavior.Splash) parts.Add("attacks splash the party");
             else if (def.Behavior == ModifierBehavior.Chain) parts.Add("attacks chain");
             return string.Join(", ", parts);
@@ -209,11 +406,11 @@ namespace IdleGame.Game
             _ => "reward",
         };
 
-        private static string RewardSummary(ModifierDef def, double eff)
+        private static string RewardSummary(ModifierDef def, int strength, double eff)
         {
             var parts = new List<string>();
             foreach (var p in def.Rewards) // hybrid mods list several channels
-                parts.Add($"+{p.PerStrength * eff * 100:0}% {ChannelName(p.Channel)}");
+                parts.Add($"+{p.PerStrength * eff * 100:0}% {ChannelName(p.Channel)}{Delta(p.PerStrength * 100, strength, eff)}");
             return string.Join(", ", parts);
         }
 

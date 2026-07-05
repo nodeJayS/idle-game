@@ -103,9 +103,23 @@ Client-only (zero GameCore impact). Slices:
 
 ⭐ Item 4 DONE — the blend-shell is proven tech + shipped content.
 
-### 5. Tower slice 3 — per-floor reward bundles
-The one unfinished system slice; floors pay only via milestones today.
-GameCore-first, sim-testable, ~1 session.
+### ✅ 5. Tower slice 3 — per-floor rewards — shipped 2026-07-05 (user-specified)
+Every FIRST clear pays TowerGemsPerFloor (10) gems through RecordClear
+(no-op path pays nothing); 10th-interval floors stay the milestone
+floors (account buff + configured rare-pair unlock = the "modifier
+reward" — unlock floors deliberately NOT moved: SyncToStage re-derives
+ownership, moving them would revoke owned mods). TowerView previews the
+next floor's reward line. Shipped in the same batch (2026-07-05):
+quest board rework (ClearStages retired from the roll cycle — enum kept
+for saves; no duplicate kinds, dedup vs SURVIVORS not the built prefix
+— Fable-caught ordering bug + regression test; load-time sanitize
+replaces old ClearStages/dupes; every kind passive under AFK), rare
+mods untunable + free ResetTuning reducer, ModifierPanel UX rework
+(per-number gold ▲ tuning deltas replace the "+x% tuned" jargon, help
+line, Tune ▲ relabel, arm/confirm ↺ reset, inline imprint payload +
+hover gear-preview card), Skill2→Run Moving exit in HeroAnimator (the
+"assassin walks in idle pose" bug), Bootstrap sweep of editor test-tool
+objects leaking into Play. 505 tests green.
 
 ### 6. Combat presentation debt
 - Per-hero impact sounds (`PlayImpact` hardcodes `Hit_SwordDefault`; same

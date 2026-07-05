@@ -87,11 +87,24 @@ namespace IdleGame.Game
             prev.color = new Color(0.86f, 0.80f, 0.72f); prev.supportRichText = true;
             AnchorTL(prev, new Vector2(22f, -160f));
 
+            // Next-floor reward preview: the flat gem bounty, plus the two big milestone perks when they
+            // apply — a milestone floor grants the account buff, and a rare-mod unlock floor hands over a
+            // prefix/suffix mod pair. Kept to one muted line beside the floor/enter UI.
+            string reward = $"Clear: +{_cfg.Balance.TowerGemsPerFloor} gems";
+            if (milestone) reward += " · account buff";
+            bool unlocksMod = false;
+            foreach (var kv in _cfg.Modifiers)
+                if (kv.Value.TowerUnlockFloor == next) { unlocksMod = true; break; }
+            if (unlocksMod) reward += " · unlocks rare modifier pair";
+            var rew = UiKit.Label(panel.transform, reward, 13, TextAnchor.UpperLeft, new Vector2(516f, 20f), Vector2.zero);
+            rew.color = new Color(0.72f, 0.82f, 0.66f); // muted green accent (a reward line)
+            AnchorTL(rew, new Vector2(22f, -186f));
+
             var warn = UiKit.Label(panel.transform,
                 "One attempt per floor — no farm income here. Beat it to keep the floor; fail and train up to retry.",
                 12, TextAnchor.UpperLeft, new Vector2(516f, 40f), Vector2.zero);
             warn.color = new Color(0.66f, 0.70f, 0.78f);
-            AnchorTL(warn, new Vector2(22f, -192f));
+            AnchorTL(warn, new Vector2(22f, -212f));
 
             int floor = next;
             var enter = UiKit.TextButton(panel.transform, $"Enter Floor {floor}", new Vector2(240f, 52f), Vector2.zero,

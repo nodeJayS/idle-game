@@ -294,6 +294,56 @@ namespace IdleGame.GameCore.Tests
             Assert.NotEqual(before, after.RngCursor); // roll persisted, can't be re-rolled
         }
 
+        // --- rare mods can't be tuned; ResetTuning ---
+
+        // A rich save that also owns a Mechanical (rare) mod — "volatile" unlocks at Tower floor 5.
+        private static SaveState RichWithRare()
+        {
+            var s = AtStageAndFloor(30, 5);
+            Assert.True(s.Modifiers.Owned.ContainsKey("volatile")); // sanity: rare mod is owned
+            s.Currencies["gold"] = 1_000_000_000;
+            s.Currencies["scrap"] = 1_000_000_000;
+            return s;
+        }
+
+        [Fact]
+        public void RareModCannotBeUpgradedEvenWithFunds()
+        {
+            var s = RichWithRare();
+            Assert.False(Modifiers.CanUpgrade(s, Cfg, "volatile")); // Mechanical -> not tunable
+            Assert.True(Modifiers.CanUpgrade(s, Cfg, "prosperous")); // a normal mod still is
+        }
+
+        [Fact]
+        public void UpgradeModifierNoOpsOnRareMod()
+        {
+            var s = RichWithRare();
+            Assert.Same(s, Modifiers.UpgradeModifier(s, "volatile", Cfg)); // shares ref even called directly
+        }
+
+        [Fact]
+        public void ResetTuningClearsTuningWithoutRefund()
+        {
+            var s = Rich(30);
+            s = Modifiers.UpgradeModifier(s, "prosperous", Cfg);
+            s = Modifiers.UpgradeModifier(s, "prosperous", Cfg);
+            Assert.True(s.Modifiers.Tuning.ContainsKey("prosperous")); // tuned
+            long goldBefore = s.Currencies["gold"];
+
+            var reset = Modifiers.ResetTuning(s, "prosperous");
+            Assert.False(reset.Modifiers.Tuning.ContainsKey("prosperous")); // back to base 1.0
+            Assert.Equal(1.0, Modifiers.TuningOf(reset, "prosperous"));
+            Assert.Equal(goldBefore, reset.Currencies["gold"]);            // free — no refund
+        }
+
+        [Fact]
+        public void ResetTuningNoOpsWhenUntunedOrUnowned()
+        {
+            var s = AtStage(30); // owns prosperous, untuned
+            Assert.Same(s, Modifiers.ResetTuning(s, "prosperous")); // already at base -> shares ref
+            Assert.Same(s, Modifiers.ResetTuning(s, "not_owned"));  // unowned -> shares ref
+        }
+
         // --- hybrid rewards + tuning applied in combat ---
 
         [Fact]

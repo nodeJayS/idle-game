@@ -54,6 +54,39 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(3, Tower.HighestFloor(save));
         }
 
+        // ---- per-floor gem reward ----
+
+        private static long Gems(SaveState save)
+            => save.Currencies.TryGetValue(Cfg.Balance.PremiumCurrency, out var v) ? v : 0;
+
+        [Fact]
+        public void ClearingAFloorGrantsExactlyTowerGemsPerFloor()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            long before = Gems(save);
+
+            var after = Tower.RecordClear(save, 1, Cfg);
+            Assert.Equal(1, Tower.HighestFloor(after));                       // advances as before
+            Assert.Equal(before + Cfg.Balance.TowerGemsPerFloor, Gems(after)); // exactly one floor's gems
+        }
+
+        [Fact]
+        public void ReclearingGrantsNoGems()
+        {
+            var save = ClearTo(Save.NewGame(1, Cfg, 0), 3);
+            long before = Gems(save);
+            var noop = Tower.RecordClear(save, 2, Cfg); // already past -> no advance, no gems
+            Assert.Same(save, noop);
+            Assert.Equal(before, Gems(noop));
+        }
+
+        [Fact]
+        public void GemsAccumulateAcrossFloors()
+        {
+            var save = ClearTo(Save.NewGame(1, Cfg, 0), 5);
+            Assert.Equal(5L * Cfg.Balance.TowerGemsPerFloor, Gems(save)); // 5 first-time clears
+        }
+
         [Fact]
         public void CannotClearPastTheTop()
         {

@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections.Generic;
 
 namespace IdleGame.GameCore
 {
@@ -35,13 +36,21 @@ namespace IdleGame.GameCore
         public static bool CanAttempt(SaveState save, int floor, GameConfig cfg)
             => floor == NextFloor(save) && floor >= 1 && floor <= MaxFloor(cfg);
 
-        /// <summary>Record a floor clear: advances <see cref="TowerState.HighestFloor"/> by one. No-op
-        /// (shares the save ref) unless <paramref name="floor"/> is exactly the next sequential floor —
-        /// so re-clearing an old floor or skipping ahead does nothing. Forward-only. Pure.</summary>
+        /// <summary>Record a floor clear: advances <see cref="TowerState.HighestFloor"/> by one AND grants
+        /// <see cref="BalanceConstants.TowerGemsPerFloor"/> gems (the per-floor reward). No-op (shares the
+        /// save ref, grants NOTHING) unless <paramref name="floor"/> is exactly the next sequential floor —
+        /// so re-clearing an old floor or skipping ahead pays nothing. Forward-only. Pure.
+        ///
+        /// Reward convention: EVERY floor pays gems on its first clear. The floors on the
+        /// <see cref="BalanceConstants.TowerMilestoneEvery"/> interval are the MILESTONE floors — they add
+        /// the permanent account-wide buff (derived in <see cref="MilestonesCleared"/>) and are also where
+        /// any configured rare-mod pair unlocks (<see cref="ModifierDef.TowerUnlockFloor"/>, re-derived by
+        /// <see cref="Modifiers.SyncToStage"/> from the floor count — so unlock floors must NOT move or
+        /// owned mods would be revoked). The gem grant here is on TOP of those milestone payoffs.</summary>
         public static SaveState RecordClear(SaveState save, int floor, GameConfig cfg)
         {
             if (!CanAttempt(save, floor, cfg)) return save;
-            return WithFloor(save, floor);
+            return WithFloor(save, floor, cfg);
         }
 
         // ---- derived milestone / account-buff payoff ----
@@ -84,7 +93,7 @@ namespace IdleGame.GameCore
 
         // ---- copy helper (Tower progress lives under ProgressState) ----
 
-        private static SaveState WithFloor(SaveState save, int floor)
+        private static SaveState WithFloor(SaveState save, int floor, GameConfig cfg)
         {
             var progress = new ProgressState
             {
@@ -95,6 +104,17 @@ namespace IdleGame.GameCore
                 Achievements = save.Progress.Achievements,
                 Daily = save.Progress.Daily,
             };
+            // Grant the per-floor gem reward — mirror DailyLogin.Apply's premium-currency credit exactly
+            // (clone the currencies dict, add to Currencies[PremiumCurrency]). Only ever reached on the
+            // real advance path (CanAttempt already gated the no-op), so re-clears grant nothing.
+            long gems = cfg.Balance.TowerGemsPerFloor;
+            var currencies = save.Currencies;
+            if (gems != 0)
+            {
+                currencies = new Dictionary<string, long>(save.Currencies);
+                string key = cfg.Balance.PremiumCurrency;
+                currencies[key] = (currencies.TryGetValue(key, out var v) ? v : 0) + gems;
+            }
             return new SaveState
             {
                 Version = save.Version,
@@ -104,7 +124,7 @@ namespace IdleGame.GameCore
                 Party = save.Party,
                 LeaderHeroId = save.LeaderHeroId,
                 Inventory = save.Inventory,
-                Currencies = save.Currencies,
+                Currencies = currencies,
                 Progress = progress,
                 Quests = save.Quests,
                 Modifiers = save.Modifiers,

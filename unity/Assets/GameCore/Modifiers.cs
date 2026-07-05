@@ -180,17 +180,22 @@ namespace IdleGame.GameCore
             return ((long)(cfg.Balance.ModShopBaseGold * f), (long)(cfg.Balance.ModShopBaseScrap * f));
         }
 
-        /// <summary>True if the mod is owned and the player can afford the next upgrade.</summary>
+        /// <summary>True if the mod is owned, TUNABLE, and the player can afford the next upgrade. Rare
+        /// (Mechanical) mods are NOT tunable: their power is imprint-driven and pair-gated, so tuning is
+        /// deliberately the NORMAL mods' gold+scrap sink — never the rare mods'.</summary>
         public static bool CanUpgrade(SaveState save, GameConfig cfg, string id)
         {
             if (!save.Modifiers.Owned.ContainsKey(id)) return false;
+            if (cfg.Modifiers.TryGetValue(id, out var def) && def.Mechanical) return false; // rare mods can't be tuned
             var (gold, scrap) = UpgradeCost(save, cfg, id);
             return Cur(save, "gold") >= gold && Cur(save, "scrap") >= scrap;
         }
 
         /// <summary>Spend gold+scrap to gamble a mod's tuning: roll a delta in [RollMin, RollMax] and
-        /// apply it, floored at 1.0 (can't drop below base). No-op (shares the ref) if unowned or
-        /// unaffordable. Deterministic via the save's own rng cursor (advanced + persisted). Pure.</summary>
+        /// apply it, floored at 1.0 (can't drop below base). No-op (shares the ref) if unowned,
+        /// unaffordable, or a rare (Mechanical) def — rare mods aren't tunable even if this is called
+        /// directly (CanUpgrade already refuses them). Deterministic via the save's own rng cursor
+        /// (advanced + persisted). Pure.</summary>
         public static SaveState UpgradeModifier(SaveState save, string id, GameConfig cfg)
         {
             if (!CanUpgrade(save, cfg, id)) return save;
@@ -215,6 +220,36 @@ namespace IdleGame.GameCore
                 LeaderHeroId = save.LeaderHeroId,
                 Inventory = save.Inventory,
                 Currencies = currencies,
+                Progress = save.Progress,
+                Quests = save.Quests,
+                Modifiers = new MonsterModifiers { Owned = save.Modifiers.Owned, Active = save.Modifiers.Active, Tuning = tuning },
+                GachaPity = save.GachaPity,
+                LastClaimAt = save.LastClaimAt,
+            };
+        }
+
+        /// <summary>Reset a mod's tuning back to its 1.0 base: remove its <see cref="MonsterModifiers.Tuning"/>
+        /// entry. FREE — no refund (the gamble spend that built the tuning is sunk). No-op (shares the ref)
+        /// when the id is unowned or already untuned. Pure. Mirrors <see cref="UpgradeModifier"/>'s
+        /// construction shape but only touches the Tuning dict (no currencies, no rng).</summary>
+        public static SaveState ResetTuning(SaveState save, string id)
+        {
+            if (!save.Modifiers.Owned.ContainsKey(id)) return save; // unowned — nothing to reset
+            if (!save.Modifiers.Tuning.ContainsKey(id)) return save; // already at base 1.0
+
+            var tuning = new Dictionary<string, double>(save.Modifiers.Tuning);
+            tuning.Remove(id);
+
+            return new SaveState
+            {
+                Version = save.Version,
+                RngSeed = save.RngSeed,
+                RngCursor = save.RngCursor,
+                Heroes = save.Heroes,
+                Party = save.Party,
+                LeaderHeroId = save.LeaderHeroId,
+                Inventory = save.Inventory,
+                Currencies = save.Currencies,
                 Progress = save.Progress,
                 Quests = save.Quests,
                 Modifiers = new MonsterModifiers { Owned = save.Modifiers.Owned, Active = save.Modifiers.Active, Tuning = tuning },
