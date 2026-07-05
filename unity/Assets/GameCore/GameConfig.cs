@@ -732,7 +732,10 @@ namespace IdleGame.GameCore
             {
                 Id = "magician", Name = "Magician", // fragile ranged casters, hardest-hitting spells
                 BaseStats = SB((StatKey.Hp, 72), (StatKey.Atk, 17), (StatKey.Def, 4),
-                               (StatKey.MoveSpd, 3.0), (StatKey.AtkSpd, 1.15),
+                               // slightly above the Warrior template (3.0) so casters don't trail
+                               // the melee dash to every pack — they park farther out (standoff ~4.6)
+                               // at equal speed and lagged; rogue (3.4) stays fastest. Play-tuning candidate.
+                               (StatKey.MoveSpd, 3.15), (StatKey.AtkSpd, 1.15),
                                (StatKey.CritChance, 0.07), (StatKey.CritDmg, 1.5),
                                (StatKey.HpRegen, 1.0),
                                (StatKey.AttackRange, 6.0),             // max reach; still fine point-blank

@@ -43,12 +43,25 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(90, priest.BaseStats.Get(StatKey.Hp));         // overridden
             Assert.Equal(12, priest.BaseStats.Get(StatKey.Atk));        // overridden (low on purpose)
             Assert.Equal(6.0, priest.BaseStats.Get(StatKey.AttackRange)); // inherited from the family
-            Assert.Equal(3.0, priest.BaseStats.Get(StatKey.MoveSpd));     // inherited
+            Assert.Equal(3.15, priest.BaseStats.Get(StatKey.MoveSpd));    // inherited
             Assert.Equal(1.5, priest.BaseStats.Get(StatKey.CritDmg));     // inherited
 
             var ice = Cfg.Heroes["icemage_basic"];
             Assert.Equal(82, ice.BaseStats.Get(StatKey.Hp));            // overridden
             Assert.Equal(6.0, ice.BaseStats.Get(StatKey.AttackRange));  // inherited
+        }
+
+        [Fact]
+        public void RangedCastersOutpaceTheFrontLine()
+        {
+            // Ranged casters park farther out (standoff ~4.6); at equal MoveSpd they trailed
+            // the melee dash on every pack move. Magician sits above the Warrior template but
+            // below the Rogue, which stays the fastest. Pin the ordering, not the literals.
+            var warrior = Cfg.Archetypes["warrior"].BaseStats.Get(StatKey.MoveSpd);
+            var magician = Cfg.Archetypes["magician"].BaseStats.Get(StatKey.MoveSpd);
+            var rogue = Cfg.Archetypes["rogue"].BaseStats.Get(StatKey.MoveSpd);
+            Assert.True(warrior < magician, "magician should out-pace the warrior front line");
+            Assert.True(magician < rogue, "rogue should stay the fastest archetype");
         }
 
         [Fact]
