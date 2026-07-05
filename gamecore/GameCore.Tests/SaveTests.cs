@@ -61,8 +61,29 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void SetPartySlotClearsWithNull()
         {
-            var save = Save.NewGame(1, Cfg, 0);
+            var save = TwoHeroSave(); // h1 slot 0, h2 slot 1 — clearing one leaves the party non-empty
             Assert.Null(Party.SetPartySlot(save, 0, null).Party[0]);
+        }
+
+        [Fact]
+        public void SetPartySlotClearingLastFieldedHeroIsNoOp()
+        {
+            // Guard rail: a fresh save has exactly one fielded hero. Clearing it would strand
+            // the party empty, so the reducer no-ops and returns the SAME reference.
+            var save = Save.NewGame(1, Cfg, 0);
+            var next = Party.SetPartySlot(save, 0, null);
+            Assert.Same(save, next);                 // no-op shares the ref
+            Assert.Equal(save.Heroes[0].Id, next.Party[0]); // hero still fielded
+        }
+
+        [Fact]
+        public void SetPartySlotClearsOneOfTwoFieldedHeroes()
+        {
+            var save = TwoHeroSave(); // h1 slot 0, h2 slot 1
+            var next = Party.SetPartySlot(save, 0, null); // clear h1; h2 remains fielded
+            Assert.Null(next.Party[0]);
+            Assert.Equal("h2", next.Party[1]);
+            Assert.Equal(save.Heroes[0].Id, save.Party[0]); // original untouched (pure)
         }
 
         [Fact]
@@ -146,6 +167,54 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal("h2", Progression.GrantGold(save, 10).LeaderHeroId);
             Assert.Equal("h2", Progression.GrantPartyXp(save, 50, Cfg).LeaderHeroId);
             Assert.Equal("h2", Skills.RespecHero(save, "h2", Cfg).LeaderHeroId);
+        }
+
+        // h1 (warrior) slot 0, h2 (magician) slot 1, h3 (thief) owned but benched.
+        private static SaveState TwoFieldedOneBenched()
+        {
+            var save = Party.AcquireHero(TwoHeroSave(), "thief_basic", Cfg, "h3");
+            return save;
+        }
+
+        [Fact]
+        public void SwapHeroPutsBenchedHeroInOutgoingHerosExactSlot()
+        {
+            var save = TwoFieldedOneBenched(); // h1@0, h2@1, h3 benched
+            var next = Party.SwapHero(save, "h3", "h2"); // h3 in for h2 (slot 1)
+
+            Assert.Equal("h3", next.Party[1]);          // incoming took the exact slot
+            Assert.Equal(save.Party[0], next.Party[0]);  // other slot unchanged
+            Assert.DoesNotContain("h2", next.Party);     // outgoing no longer fielded
+            Assert.Contains(next.Heroes, h => h.Id == "h2"); // but still owned
+            Assert.Equal("h2", save.Party[1]);           // original untouched (pure)
+        }
+
+        [Fact]
+        public void SwapHeroOnLeaderClearsLeaderToNull()
+        {
+            var save = Party.SetLeader(TwoFieldedOneBenched(), "h2"); // h2 is leader
+            var next = Party.SwapHero(save, "h3", "h2");              // bench the leader
+            Assert.Null(next.LeaderHeroId); // reverts to auto, does NOT transfer to h3
+        }
+
+        [Fact]
+        public void SwapHeroPreservesUnrelatedLeader()
+        {
+            var save = Party.SetLeader(TwoFieldedOneBenched(), "h1"); // h1 leads
+            var next = Party.SwapHero(save, "h3", "h2");              // swap the non-leader
+            Assert.Equal("h1", next.LeaderHeroId); // leadership preserved
+        }
+
+        [Fact]
+        public void SwapHeroNoOpsOnInvalidArgs()
+        {
+            var save = TwoFieldedOneBenched(); // h1@0, h2@1, h3 benched
+
+            Assert.Same(save, Party.SwapHero(save, "h1", "h2")); // benched id already fielded
+            Assert.Same(save, Party.SwapHero(save, "h3", "h3")); // fielded id not in party (h3 benched)
+            Assert.Same(save, Party.SwapHero(save, "nope", "h2")); // unknown benched id
+            Assert.Same(save, Party.SwapHero(save, "h3", "nope")); // unknown fielded id
+            Assert.Same(save, Party.SwapHero(save, "h2", "h2"));   // same id
         }
 
         [Fact]

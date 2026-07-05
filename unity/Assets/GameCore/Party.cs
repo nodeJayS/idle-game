@@ -23,6 +23,12 @@ namespace IdleGame.GameCore
             if (heroId != null && !save.Heroes.Exists(h => h.Id == heroId))
                 throw new InvalidOperationException($"SetPartySlot: hero \"{heroId}\" not owned");
 
+            // Guard rail: never let a reducer strand the party with zero fielded heroes.
+            // Clearing the only fielded hero is a no-op (share the ref); the UI warns too,
+            // but the sim must stay safe regardless of the UI.
+            if (heroId == null && save.Party[slot] != null && CountFielded(save.Party) == 1)
+                return save;
+
             var nextParty = (string?[])save.Party.Clone();
             nextParty[slot] = heroId;
             return WithParty(save, nextParty);
@@ -102,6 +108,46 @@ namespace IdleGame.GameCore
                 throw new InvalidOperationException($"SetLeader: hero \"{heroId}\" is not fielded");
             if (save.LeaderHeroId == heroId) return save; // no-op, share the ref
             return WithParty(save, save.Party, heroId);
+        }
+
+        /// <summary>
+        /// One-move bench/field swap: the owned-but-benched <paramref name="benchedHeroId"/>
+        /// takes the EXACT party slot the currently-fielded <paramref name="fieldedHeroId"/>
+        /// occupied (formation rank order is meaningful), and the outgoing hero leaves the
+        /// party (still owned). If the outgoing hero was the leader, leadership reverts to
+        /// auto (LeaderHeroId ⇒ null) — it does NOT transfer to the incoming hero. Pure.
+        /// Any violation (unknown ids, benched hero already fielded, fielded hero not
+        /// fielded, same id) is a no-op that returns the SAME save reference.
+        /// </summary>
+        public static SaveState SwapHero(SaveState save, string benchedHeroId, string fieldedHeroId)
+        {
+            if (benchedHeroId == null || fieldedHeroId == null || benchedHeroId == fieldedHeroId)
+                return save; // no-op
+
+            // benched must be OWNED and NOT currently fielded.
+            if (!save.Heroes.Exists(h => h.Id == benchedHeroId)) return save;
+            if (Array.IndexOf(save.Party, benchedHeroId) >= 0) return save;
+
+            // fielded must be currently in the party.
+            int slot = Array.IndexOf(save.Party, fieldedHeroId);
+            if (slot < 0) return save;
+
+            var nextParty = (string?[])save.Party.Clone();
+            nextParty[slot] = benchedHeroId; // incoming takes the outgoing hero's exact rank
+
+            // Leadership fixup: outgoing leader is benched ⇒ revert to auto (null); do NOT
+            // hand leadership to the incoming hero. Any other leader is preserved.
+            var nextLeader = save.LeaderHeroId == fieldedHeroId ? null : save.LeaderHeroId;
+            return WithParty(save, nextParty, nextLeader);
+        }
+
+        /// <summary>Count of occupied (non-null) party slots.</summary>
+        private static int CountFielded(string?[] party)
+        {
+            int n = 0;
+            for (int i = 0; i < party.Length; i++)
+                if (party[i] != null) n++;
+            return n;
         }
 
         private static SaveState WithParty(SaveState save, string?[] nextParty)
