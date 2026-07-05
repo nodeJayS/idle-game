@@ -767,6 +767,156 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal("E0", follower.TargetId);
         }
 
+        // --- Ranged-assist: a RANGED follower focuses what the MELEE line is on (mirror of peel) ---
+        // The front line's TargetIds form the focus set; a ranged follower prefers (within its OWN
+        // slot radius / reach — preference never WIDENS the leash) an enemy the melee heroes are
+        // already fighting or walking toward, so it stacks onto tanked mobs instead of waking fresh
+        // ones. meleeFocusIds reads last step's melee TargetIds, so tests step once to seed them.
+        // All movers are pinned (MoveSpd 0) so geometry holds across the two steps.
+
+        [Fact]
+        public void RangedFollowerAssistsTheMeleeTarget()
+        {
+            var cfg = GameConfig.Default();
+            // Melee leader at origin, heading +Y (nearest enemy A up-front). Lone ranged follower =>
+            // slot home = (-Side, -RangedBack) = (-1.6, -4.6). A (the leader's engaged target) sits
+            // within the slot radius; B is STRICTLY NEARER the slot but the leader isn't on it.
+            var leader = Ent("P0", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0; leader.Stats[StatKey.MoveSpd] = 0; // pinned so heading/home hold across steps
+            var follower = Ent("P1", Team.Party, hp: 1_000_000, atk: 0, def: 0,
+                               x: -cfg.Balance.FormationSide, y: -cfg.Balance.FormationRangedBack);
+            follower.Slot = 1; follower.RangedRole = true;
+            var a = Ent("E1", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 1.0); // nearest leader => its target; ~5.8 from home (<6)
+            a.Aggro = true; a.Stats[StatKey.MoveSpd] = 0;
+            var b = Ent("E0", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: -1.6, y: -1.0); // 3.6 from home => nearer the slot
+            b.Aggro = true; b.Stats[StatKey.MoveSpd] = 0;
+            var s = State(leader, follower, a, b);
+            s.Tactic = PartyTactic.Solo;
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1)); // seed: leader acquires A
+            Assert.Equal("E1", leader.TargetId);                        // sanity: the front line is on A
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            // The follower assists the leader's target A over the nearer-but-untanked B.
+            Assert.Equal("E1", follower.TargetId);
+        }
+
+        [Fact]
+        public void RangedFollowerAssistsWhatTheLeaderWalksToward()
+        {
+            var cfg = GameConfig.Default();
+            // The leader's TargetId is set to the pack it is WALKING TOWARD by the advance branch
+            // (pack beyond EngageRadius). We first confirm that (traveling seeds TargetId = pack),
+            // then bring that pack into the follower's slot radius alongside a nearer decoy: the
+            // walked-toward mob is in meleeFocusIds, so the follower assists IT over the decoy.
+            var leader = Ent("P0", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0; leader.Stats[StatKey.MoveSpd] = 0;
+            // Follower entity parked aside so the nearer decoy targets the LEADER, not this ranged
+            // ally (which would trip the leader's peel off E9); acquisition uses the computed slot.
+            var follower = Ent("P1", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 15, y: 0);
+            follower.Slot = 1; follower.RangedRole = true;
+            var pack = Ent("E9", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 20); // >EngageRadius => leader travels
+            pack.Aggro = true; pack.Stats[StatKey.MoveSpd] = 0;
+            var s = State(leader, follower, pack);
+            s.Tactic = PartyTactic.Solo;
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1)); // travel: advance branch sets TargetId = pack
+            Assert.Equal("E9", leader.TargetId);                        // sanity: walking-toward target recorded
+
+            // Bring the pack into the slot radius (leader now engages it, TargetId stays E9) and drop a
+            // decoy STRICTLY nearer the slot. Heading is frozen +Y from the travel step, home = (-1.6,-4.6).
+            pack.Pos = new Vec2(-1.6, -3.0); // 1.6 from home, 3.4 from leader (< EngageRadius)
+            var decoy = Ent("E0", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: -1.6, y: -5.5); // 0.9 from home => nearer
+            decoy.Aggro = true; decoy.Stats[StatKey.MoveSpd] = 0;
+            s.Entities.Add(decoy);
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.Equal("E9", leader.TargetId);   // leader still on the walked-toward mob
+            Assert.Equal("E9", follower.TargetId);  // follower assists it over the nearer decoy
+        }
+
+        [Fact]
+        public void RangedFollowerFireInTransitAssistsTheTankedEnemy()
+        {
+            var cfg = GameConfig.Default();
+            // Follower stranded far from its slot (nothing within FormationBreakRadius of home), so
+            // acquisition falls to fire-in-transit (its OWN reach). Two enemies sit in reach; the
+            // FARTHER one is tanked by the melee leader, the nearer isn't. Assist targets the tanked one.
+            var leader = Ent("P0", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0; leader.Stats[StatKey.MoveSpd] = 0;
+            var follower = Ent("P1", Team.Party, hp: 1_000_000, atk: 10, def: 0, x: 0, y: 6); // ~10.6 from home => stranded
+            follower.Slot = 1; follower.RangedRole = true;
+            follower.Stats[StatKey.AttackRange] = 3.0;
+            var tanked = Ent("E0", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 7.0); // 1.0 from follower, leader's sticky target
+            tanked.Aggro = true; tanked.Stats[StatKey.MoveSpd] = 0;
+            var s = State(leader, follower, tanked);
+            s.Tactic = PartyTactic.Solo;
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1)); // seed: leader sticks to the far mob
+            Assert.Equal("E0", leader.TargetId);
+
+            var nearer = Ent("E1", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 5.3); // 0.7 from follower => nearer, untanked
+            nearer.Aggro = true; nearer.Stats[StatKey.MoveSpd] = 0;
+            s.Entities.Add(nearer);
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.Equal("E0", leader.TargetId);    // leader still on the tanked mob
+            Assert.Equal("E0", follower.TargetId);   // fire-in-transit assists it over the nearer untanked one
+        }
+
+        [Fact]
+        public void RangedFollowerWithNoMeleeFocusFiresNearest()
+        {
+            var cfg = GameConfig.Default();
+            // ALL-ranged party => meleeFocusIds is empty, so the ranged follower falls back to plain
+            // nearest (today's behavior). Same fire-in-transit geometry as the assist test, but with a
+            // ranged leader there is no tank: the follower shoots the NEARER enemy, not the farther one.
+            var leader = Ent("P0", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0; leader.RangedRole = true; leader.Stats[StatKey.MoveSpd] = 0;
+            var follower = Ent("P1", Team.Party, hp: 1_000_000, atk: 10, def: 0, x: 0, y: 6);
+            follower.Slot = 1; follower.RangedRole = true;
+            follower.Stats[StatKey.AttackRange] = 3.0;
+            var far = Ent("E0", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 7.0); // 1.0 from follower
+            far.Aggro = true; far.Stats[StatKey.MoveSpd] = 0;
+            var near = Ent("E1", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 5.3); // 0.7 from follower => nearer
+            near.Aggro = true; near.Stats[StatKey.MoveSpd] = 0;
+            var s = State(leader, follower, far, near);
+            s.Tactic = PartyTactic.Solo;
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            Assert.Equal("E1", follower.TargetId); // plain nearest — no melee focus to reorder toward E0
+        }
+
+        [Fact]
+        public void RangedAssistNeverWidensTheLeash()
+        {
+            var cfg = GameConfig.Default();
+            // The melee target sits OUTSIDE the follower's slot radius (and out of its reach); a plain
+            // enemy sits INSIDE the slot radius. Assist must not extend the leash — the follower takes
+            // the in-radius plain enemy, ignoring the out-of-radius tanked one.
+            var leader = Ent("P0", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 0);
+            leader.Slot = 0; leader.Stats[StatKey.MoveSpd] = 0;
+            // Follower entity parked away from the plain enemy so that enemy targets the leader (no peel
+            // contamination); acquisition still uses the computed slot home = (-1.6,-4.6).
+            var follower = Ent("P1", Team.Party, hp: 1_000_000, atk: 0, def: 0, x: 10, y: 10);
+            follower.Slot = 1; follower.RangedRole = true;
+            var farTank = Ent("E1", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: 0, y: 3.0); // nearest leader => its target; ~7.8 from home (>6)
+            farTank.Aggro = true; farTank.Stats[StatKey.MoveSpd] = 0;
+            var plain = Ent("E0", Team.Enemy, hp: 1_000_000, atk: 0, def: 0, x: -1.6, y: -5.5); // 0.9 from home (<6), untanked
+            plain.Aggro = true; plain.Stats[StatKey.MoveSpd] = 0;
+            var s = State(leader, follower, farTank, plain);
+            s.Tactic = PartyTactic.Solo;
+
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1)); // seed: leader acquires the far mob
+            Assert.Equal("E1", leader.TargetId);
+            Combat.StepCombat(s, Combat.DefaultStepMs, cfg, new Rng(1));
+
+            // Assist did not widen the slot radius to reach the tanked mob; the in-radius plain enemy wins.
+            Assert.Equal("E0", follower.TargetId);
+        }
+
         // --- Sticky heading + sticky leader target + arrival cap (stutter fix) ---
 
         [Fact]

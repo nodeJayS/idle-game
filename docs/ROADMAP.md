@@ -147,6 +147,13 @@ overshooting into the separation pass each tick (arrival cap: stop
 `ArriveDepth` 0.05 inside reach — applies to monsters too, mosh-pit
 shove gone). Play-probed: 3 isolated mage direction-reversals in 30s
 (was continuous), heading constant through a 10s fight. 512 tests.
+Ranged assist (2026-07-05, user call): ranged FOLLOWERS prefer enemies
+the melee heroes are fighting or walking toward (`meleeFocusIds` =
+living melee TargetIds incl. the leader's advance-branch pack; second
+`preferIds` bucket in the acquisition helpers, mirror of peel — reorders
+within the existing leash radii, never widens). Stops the caster waking
+fresh mobs; aggro piles onto tanked ones. Ranged LEADER keeps own
+acquisition (anchor). Play-probed 97% assist rate over 40s. 517 tests.
 
 ### 7. Combat presentation debt
 - Per-hero impact sounds (`PlayImpact` hardcodes `Hit_SwordDefault`; same
