@@ -212,15 +212,22 @@ Goal: the EXACT reference aesthetic on our stack, roguelite rules designed
 later. Slices: (1) ✅ GameCore generator (2026-07-06) — DungeonGen 9-stage
 pipeline (scatter/separate/kNN graph+MST+loops/semantics/carve/rasterize/
 decorate/name), pure + deterministic (FNV-1a checksum), 29 acceptance tests,
-~5ms @60 rooms (budget 50). (2) client renderer: baked meshes + DungeonLit
-shader (vertex colour × URP additional lights — TunicSurface is main-light
-only, verified), 12-light budget (key lights + farthest-point torches),
-emissive flame quads under bloom, theme palettes/AO/checkerboard from the
-extracted constants table, Tools > Dungeon Preview editor window (seed/dice/
-sliders/overlays, no Play needed), screenshot-matched to preview.jpg.
-(3) roguelite design + sim integration (room-gated aggro, doorway-waypoint
-travel — concave layouts break open-field acquisition; entry point TBD:
-Tower-adjacent vs own mode). (4) BFS build-reveal animation (parked).
+~5ms @60 rooms (budget 50). (2) ✅ client renderer (2026-07-06) —
+chunked baked meshes + DungeonLit shader (vertex colour; point lights come
+from OUR global light table pushed by DungeonFlicker: URP's additional-light
+plumbing proved path-dependent in edit mode — the Forward+ cluster macros
+rendered black offscreen), 12-light budget (entrance/boss/shrine keys +
+farthest-point torches, ×15 URP intensity scale ≈ the reference's gamma-
+display lift), emissive flame pairs under bloom, exact theme palettes/AO
+(0.11)/checkerboard/doorway/tint recipe with hex used RAW (three.js gamma
+pipeline — .linear read 4× dark), Tools > Dungeon Preview window (seed/dice/
+sliders/theme/overlays/stats, stages camera+fog+ambient+post itself, no Play
+needed). Screenshot-matched to preview.jpg at seed 880239/molten/80.
+NO tilt-shift: URP DoF is perspective-only (uniform blur under ortho) —
+custom band-blur pass = later polish. (3) roguelite design + sim integration
+(room-gated aggro, doorway-waypoint travel — concave layouts break
+open-field acquisition; entry point TBD: Tower-adjacent vs own mode).
+(4) BFS build-reveal animation (parked).
 
 ### 8. Content & tuning pass
 More stages/mods/kits; balance sim in console; XP curve at roster size.
