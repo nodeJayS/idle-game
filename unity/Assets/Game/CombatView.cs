@@ -533,7 +533,8 @@ namespace IdleGame.Game
         /// buff; either way it returns to farming on the same map after the result shows).</summary>
         public void EnterTowerFloor(int floor)
         {
-            if (_combat == null || !Tower.CanAttempt(_save, floor, _cfg)) return;
+            if (_combat == null || _combat.Kind == EncounterKind.Dungeon) return; // not mid-dungeon
+            if (!Tower.CanAttempt(_save, floor, _cfg)) return;
             CommitPending();
             Combat.EnterTower(_combat, floor, _cfg, NewRng());
             DressZone(floor); // tower floors travel the same zones (floor = zone key)
@@ -803,9 +804,17 @@ namespace IdleGame.Game
                 // which fast-forwards the timer); losses use the longer banner delay.
                 bool bossWin = _combat.Kind == EncounterKind.BossChallenge && _combat.Status == CombatStatus.Won;
                 bool towerDone = _combat.Kind == EncounterKind.Tower; // win or lose: brief result, then back to farm
-                float delay = (bossWin || towerDone) ? 1.0f : OutcomeDelaySec;
+                bool dungeonDone = _combat.Kind == EncounterKind.Dungeon; // win or lose: unwind the world swap, back to farm
+                float delay = (bossWin || towerDone || dungeonDone) ? 1.0f : OutcomeDelaySec;
                 if (_outcomeTimer >= delay)
                 {
+                    // A dungeon run unwinds the world swap FIRST (restore the overworld + lighting), then
+                    // clears the sim's dungeon surface so ResumeFarm lands on the flat farm map again.
+                    if (dungeonDone)
+                    {
+                        DungeonMode.Exit();
+                        _combat.Dungeon = null; // ResumeFarm doesn't clear it — drop the grid surface so ArenaOf returns the farm arena
+                    }
                     // Back to farming on the SAME map (no rebuild). A win farms the next stage at
                     // normal cadence; a fail/wipe re-farms the current stage after the anti-spam
                     // cooldown before trash returns.
@@ -1096,6 +1105,20 @@ namespace IdleGame.Game
                     _chat?.AddFeed($"Tower floor {floor} failed — train up and try again.", new Color(1f, 0.6f, 0.4f));
                 }
             }
+            // Crypt dungeon run (roguelite slice 3b): a win clears the floor (boss down), a loss ends the
+            // attempt. No roguelite meta yet — the world swap unwinds in the Update resume block below.
+            else if (_combat.Kind == EncounterKind.Dungeon)
+            {
+                if (_combat.Status == CombatStatus.Won)
+                {
+                    _chat?.AddFeed("Crypt cleared! The party returns to the surface.", new Color(0.6f, 0.85f, 1f));
+                    Award(AchievementMetric.BossesKilled, 1); // the floor boss went down
+                }
+                else
+                {
+                    _chat?.AddFeed("The crypt claims this attempt…", new Color(1f, 0.6f, 0.4f));
+                }
+            }
         }
 
         // All owned modifiers share the same stage-derived strength; read the max (0 if none owned).
@@ -1146,6 +1169,7 @@ namespace IdleGame.Game
 
         private void GoToStage(int stage)
         {
+            if (_combat != null && _combat.Kind == EncounterKind.Dungeon) return; // stage nav is farm-only
             try { _save = Progression.SetStage(_save, stage, _cfg); }
             catch (System.ArgumentOutOfRangeException) { return; }
             CommitPending(); _runCount++; StartFarm();
@@ -1155,8 +1179,28 @@ namespace IdleGame.Game
         // boss appears — rather than swapping to a fresh arena.
         private void ChallengeBoss()
         {
+            if (_combat.Kind == EncounterKind.Dungeon) return; // no boss challenge mid-dungeon
             CommitPending();
             Combat.EnterBossChallenge(_combat, _cfg);
+            _accMs = 0; _outcomeTimer = 0; _resolved = false;
+            ReconcileViews();
+        }
+
+        /// <summary>Dev entry (roguelite slice 3b): swap the overworld for a generated crypt dungeon and
+        /// convert the live farm into a run in place (mirrors ChallengeBoss / EnterTowerFloor). The world
+        /// swap + sim transition live in <see cref="DungeonMode"/>; here we bank pending, kick it off,
+        /// announce the seeded name, and fully rebuild the entity views — despawned farm trash must lose
+        /// its views and the dungeon's fresh spawns must gain theirs, so we ClearViews then reconcile.</summary>
+        private void EnterDungeonRun()
+        {
+            if (_combat.Kind != EncounterKind.Farm) return;
+            CommitPending();
+            var d = DungeonMode.Enter(_cfg, _combat, _save, NewRng());
+            _chat?.AddFeed($"Entering {d.Name}… ", new Color(0.72f, 0.55f, 0.95f));
+            // The in-place transition swapped the whole enemy set (and moved the party into grid space),
+            // so drop every stale view and respawn from the new entity list — same clean-slate the
+            // ClearViews-in-Begin path gives (ReconcileViews alone would keep dead farm-trash views).
+            ClearViews();
             _accMs = 0; _outcomeTimer = 0; _resolved = false;
             ReconcileViews();
         }
@@ -2029,6 +2073,9 @@ namespace IdleGame.Game
 
                 bool major = _cfg.Stages.Find(x => x.Stage == cur)?.IsMajorBoss == true;
                 if (Button(cx - 185, 90, 370, 46, major ? "Challenge ★ Major Boss" : "Challenge Miniboss", BtnStyleSm)) ChallengeBoss();
+
+                // Dev-only: drop into a generated crypt dungeon (roguelite slice 3b test entry).
+                if (Button(cx - 185, 140, 370, 34, "Crypt Run (dev)", BtnStyleSm)) EnterDungeonRun();
             }
             else if (_combat.Kind == EncounterKind.BossChallenge)
             {
@@ -2056,7 +2103,8 @@ namespace IdleGame.Game
 
             bool bossWin = _combat.Kind == EncounterKind.BossChallenge && _combat.Status == CombatStatus.Won;
             bool towerWin = _combat.Kind == EncounterKind.Tower && _combat.Status == CombatStatus.Won;
-            if (bossWin || towerWin)
+            bool dungeonWin = _combat.Kind == EncounterKind.Dungeon && _combat.Status == CombatStatus.Won;
+            if (bossWin || towerWin || dungeonWin)
             {
                 float w = 420f, h = 180f, x = sw / 2f - w / 2f, y = sh / 2f - h / 2f;
                 DrawRect(x - 2, y - 2, w + 4, h + 4, new Color(0.40f, 0.70f, 0.45f, 0.95f));
@@ -2064,12 +2112,14 @@ namespace IdleGame.Game
 
                 var t = new GUIStyle(GUI.skin.label) { fontSize = 30, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
                 t.normal.textColor = new Color(0.6f, 0.95f, 0.6f);
-                GUI.Label(new Rect(x, y + 24, w, 40),
-                    towerWin ? $"Tower floor {_combat.TowerFloor} cleared!" : $"Stage {_combat.Stage} cleared!", t);
+                string title = dungeonWin ? "Crypt cleared!"
+                             : towerWin ? $"Tower floor {_combat.TowerFloor} cleared!"
+                             : $"Stage {_combat.Stage} cleared!";
+                GUI.Label(new Rect(x, y + 24, w, 40), title, t);
                 var sub = new GUIStyle(GUI.skin.label) { fontSize = 15, alignment = TextAnchor.MiddleCenter };
                 sub.normal.textColor = new Color(0.8f, 0.85f, 0.8f);
                 GUI.Label(new Rect(x, y + 70, w, 24),
-                    towerWin ? "Returning to the field…" : "Advancing to the next stage…", sub);
+                    (towerWin || dungeonWin) ? "Returning to the field…" : "Advancing to the next stage…", sub);
 
                 if (Button(x + w / 2f - 80, y + h - 60, 160, 44, "OK")) _outcomeTimer = 9999f; // fast-forward
             }
@@ -2077,6 +2127,7 @@ namespace IdleGame.Game
             {
                 string banner = _combat.Kind == EncounterKind.BossChallenge ? "BOSS FAILED"
                               : _combat.Kind == EncounterKind.Tower ? $"FLOOR {_combat.TowerFloor} FAILED"
+                              : _combat.Kind == EncounterKind.Dungeon ? "CRYPT FAILED"
                               : "PARTY WIPED";
                 var bs = new GUIStyle(GUI.skin.label) { fontSize = 34, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
                 GUI.Label(new Rect(0, sh / 2f - 60, sw, 44), banner, bs);

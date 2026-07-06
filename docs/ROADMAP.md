@@ -224,9 +224,22 @@ pipeline — .linear read 4× dark), Tools > Dungeon Preview window (seed/dice/
 sliders/theme/overlays/stats, stages camera+fog+ambient+post itself, no Play
 needed). Screenshot-matched to preview.jpg at seed 880239/molten/80.
 NO tilt-shift: URP DoF is perspective-only (uniform blur under ortho) —
-custom band-blur pass = later polish. (3) roguelite design + sim integration
-(room-gated aggro, doorway-waypoint travel — concave layouts break
-open-field acquisition; entry point TBD: Tower-adjacent vs own mode).
+custom band-blur pass = later polish. (3) ✅ playable test floor (2026-07-06, two commits) — 3a sim:
+IArenaSurface abstraction, grid-backed DungeonArena (0.35 wall inset,
+ring-search Clamp), room-gated acquisition (GateTargets: same room or
+corridor-proximity 6.5 — no wallhacks either direction), leader walks the
+BossBfs flow field between fights (the BFS field IS the pathfinding),
+room-bound wander, win = boss dead / lose = wipe or 600s, 587 tests.
+3b client: "Crypt Run (dev)" farm button → DungeonMode world swap
+(overworld roots hidden, DungeonRenderer world, crypt fog/ambient/sun
+staging with a 0.35 gameplay sun-dim — the preview calibration washes out
+under the game grade), Gloom Hollow cast (cave_bat/gloom_shade/
+nightmare_maw), win/lose feed + popup, auto-return to farm. Play-verified
+end-to-end: seeded name in feed, party traversed room-to-room (toBoss
+77→52→26→1 with a 24s room-clear plateau, 31 trash killed en route),
+35s boss grind (12,283 HP), loot flowing, auto-exit to farm, save intact.
+NEXT: the actual roguelite meta (entry economy, floor progression,
+death rules, rewards — user design conversation) + mood polish pass.
 (4) BFS build-reveal animation (parked).
 
 ### 8. Content & tuning pass
