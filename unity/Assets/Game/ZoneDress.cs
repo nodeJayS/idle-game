@@ -25,7 +25,12 @@ namespace IdleGame.Game
             if (id == _zoneId) return null;
             _zoneId = id;
             Ground.SetZone(zone);
-            Scenery.SetZone(zone);
+            // Terraced arena terrain (ROADMAP 8 slice 2): rebuild the floor for this zone's layout
+            // (or restore the legacy plane when the zone has none), THEN re-scatter props onto it so
+            // nothing floats over the new shore/void. Both hang off the same dress-changed event.
+            var arena = cfg.ArenaForStage(key);
+            ArenaTerrain.Rebuild(cfg, arena);
+            Scenery.SetZone(zone, arena);
             return zone;
         }
     }

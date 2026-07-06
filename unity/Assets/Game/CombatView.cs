@@ -41,6 +41,12 @@ namespace IdleGame.Game
             public Vector3 CurPos;
             public Vector3 SmoothPos;
 
+            // Terraced-arena floor height (ROADMAP 8 slice 2): the world Y of the terrace the entity
+            // stands on, SMOOTHED toward the target height so climbing a terrace reads as a ~0.25s hop,
+            // not a teleport. 0 on the open plane. Baked into CurPos each frame (so SmoothPos, the
+            // camera focus, health bars and ground FX all ride the terrace with the unit).
+            public float TerrainY;
+
             // Procedural chibi animation (set for code-built hero puppets). Idle/Walk blend by
             // Moving; the swing fires on a Hit/SkillCast. Null for capsules/enemies.
             public IHeroAnim? Anim;
@@ -281,7 +287,10 @@ namespace IdleGame.Game
         // ---- skill-FX geometry helpers (positions read from views) ----
 
         private static Vector3 HeadOf(View v) => v.Go.transform.position + Vector3.up * (v.Height + 0.6f);
-        private static Vector3 GroundAt(View v) { var p = v.Go.transform.position; p.y = 0.06f; return p; }
+        // Skill ground-rings/impacts sit just above the terrace the source stands on: take the view's
+        // XZ but pin Y to its terrace floor + the tiny hover (0.06), so a ring on a raised platform
+        // rides the platform instead of sinking to world-0.
+        private static Vector3 GroundAt(View v) { var p = v.Go.transform.position; p.y = v.TerrainY + 0.06f; return p; }
 
         /// <summary>A flat disc that expands outward and fades — a shockwave on the ground.</summary>
         private void GroundRing(Vector3 at, float radius, Color color, float life)
@@ -416,6 +425,11 @@ namespace IdleGame.Game
         private SaveState _save = null!;
         private CombatState _combat = null!;
         private Rng _rng = null!;
+
+        // The terraced arena the current stage renders on (ROADMAP 8 slice 2), for unit/FX height.
+        // GoToStage swaps _combat, so re-resolve when the id changes (defensively, each SyncViews).
+        private ArenaLayout? _arena;
+        private string? _arenaId;
         private CombatJuice? _juice;
         private CameraRig? _rig;
         private InventoryView? _inventory;
@@ -1116,6 +1130,18 @@ namespace IdleGame.Game
             _chat?.AddFeed($"Now entering {zone.Name}.", Color.Lerp(accent, Color.white, 0.45f));
         }
 
+        /// <summary>Re-resolve the terraced arena the current combat renders on. GoToStage swaps the
+        /// _combat state object, so we key off _combat.ArenaId (the sim's per-stage arena id) and only
+        /// look up the layout when it changes — cheap to call every frame from SyncViews. Null id or an
+        /// unknown layout ⇒ the open plane (_arena stays null, HeightAt returns 0).</summary>
+        private void ResolveArena()
+        {
+            string? id = _combat?.ArenaId;
+            if (id == _arenaId) return;
+            _arenaId = id;
+            _arena = (id != null && _cfg.Arenas.TryGetValue(id, out var a)) ? a : null;
+        }
+
         // ---- player controls (called from the IMGUI bar) ----
 
         private void GoToStage(int stage)
@@ -1187,6 +1213,11 @@ namespace IdleGame.Game
 
         private void SpawnView(CombatEntity e)
         {
+            ResolveArena();
+            // Terrace floor height under the spawn point, seeded WITHOUT smoothing so entities never
+            // rise out of the floor on spawn (0 on the open plane).
+            float terrainY = ArenaTerrain.HeightAt(_cfg, _arena, e.Pos.X, e.Pos.Y);
+
             bool isHero = e.Team == Team.Party;
             GameObject go;
             float height;
@@ -1261,7 +1292,7 @@ namespace IdleGame.Game
                 baseScale = Vector3.one * mScale;
                 go.transform.localScale = baseScale;
                 height = modelHeight * mScale;
-                go.transform.position = new Vector3((float)e.Pos.X, 0f, (float)e.Pos.Y); // feet at the ground
+                go.transform.position = new Vector3((float)e.Pos.X, terrainY, (float)e.Pos.Y); // feet on the terrace
 
                 if (!isHero)
                 {
@@ -1312,7 +1343,7 @@ namespace IdleGame.Game
                 // at `height` (unscaled) floated it 0.1×scale off the ground. `height` still
                 // anchors the health bar / muzzle (offsets ABOVE the transform), so it stays.
                 yOffset = (type == PrimitiveType.Capsule ? 0.9f : 0.45f) * scale;
-                go.transform.position = new Vector3((float)e.Pos.X, yOffset, (float)e.Pos.Y);
+                go.transform.position = new Vector3((float)e.Pos.X, yOffset + terrainY, (float)e.Pos.Y);
 
                 if (isHero)
                 {
@@ -1362,7 +1393,7 @@ namespace IdleGame.Game
                 monsterAnim = ma;
             }
 
-            var view = new View { Go = go, Height = height, YOffset = yOffset,
+            var view = new View { Go = go, Height = height, YOffset = yOffset, TerrainY = terrainY,
                                   BaseColor = color, BaseScale = baseScale,
                                   PrevPos = go.transform.position, CurPos = go.transform.position, SmoothPos = go.transform.position,
                                   Anim = heroAnim, MonsterAnim = monsterAnim };
@@ -1614,16 +1645,33 @@ namespace IdleGame.Game
 
         private void SyncViews()
         {
+            ResolveArena();
+            // How fast TerrainY chases its target: one tier of climb over ~0.25s reads as a hop.
+            float climbStep = (float)_cfg.Balance.TerrainTierHeight / 0.25f * Time.deltaTime;
+
             foreach (var e in _combat.Entities)
             {
                 if (!_views.TryGetValue(e.Id, out var v) || v.Go == null || !v.Go.activeSelf) continue;
+
+                // Terrace height: chase the sim-pos floor height so climbing reads as a hop, not a
+                // teleport. Baked into CurPos so SmoothPos / camera / health bars / ground FX ride it.
+                float targetY = ArenaTerrain.HeightAt(_cfg, _arena, e.Pos.X, e.Pos.Y);
+                v.TerrainY = Mathf.MoveTowards(v.TerrainY, targetY, climbStep);
+
                 // On a sim step, roll the snapshot forward; between steps hold prev/cur and
                 // just advance alpha. Drawing Lerp(prev,cur,alpha) is smooth at any framerate
                 // and immune to the 30Hz step beat that made the old exponential ease pulse.
                 if (_steppedThisFrame)
                 {
                     v.PrevPos = v.CurPos;
-                    v.CurPos = new Vector3((float)e.Pos.X, v.YOffset, (float)e.Pos.Y);
+                    v.CurPos = new Vector3((float)e.Pos.X, v.YOffset + v.TerrainY, (float)e.Pos.Y);
+                }
+                else
+                {
+                    // Between sim steps the entity holds position, but TerrainY still eases (hop),
+                    // so refresh CurPos's Y in place — otherwise the climb would only advance on
+                    // the 30Hz beat and stutter.
+                    v.CurPos.y = v.YOffset + v.TerrainY;
                 }
                 v.SmoothPos = Vector3.Lerp(v.PrevPos, v.CurPos, _renderAlpha);
                 v.Go.transform.position = v.SmoothPos + LungeOffset(v) + KnockOffset(v);
@@ -1637,10 +1685,13 @@ namespace IdleGame.Game
                 {
                     if (_steppedThisFrame)
                     {
-                        v.Moving = (v.CurPos - v.PrevPos).sqrMagnitude > 0.0004f;
+                        // Horizontal delta only — a vertical terrace hop (TerrainY easing) must not
+                        // read as walking / drive the gait speed.
+                        var flat = v.CurPos - v.PrevPos; flat.y = 0f;
+                        v.Moving = flat.sqrMagnitude > 0.0004f;
                         if (v.Moving)
                         {
-                            float groundSpeed = (v.CurPos - v.PrevPos).magnitude /
+                            float groundSpeed = flat.magnitude /
                                                 (float)(Combat.DefaultStepMs / 1000.0);
                             v.Anim?.SetMoveSpeed(groundSpeed);        // clip playback matches (no foot-glide)
                             v.MonsterAnim?.SetMoveSpeed(groundSpeed); // gait cadence tracks real pace
@@ -1697,8 +1748,9 @@ namespace IdleGame.Game
             if (_leaderMarkerEntityId != entityId) _leaderMarkerEntityId = entityId; // note the re-target
             _leaderMarker.SetActive(true);
             // Glue it to the leader's feet each frame (view roots sit at the ground; SmoothPos is the
-            // interpolated on-screen position the health bars/camera already read).
-            var p = lv.SmoothPos; p.y = LeaderMarkerY;
+            // interpolated on-screen position the health bars/camera already read). Lift by the
+            // leader's terrace height so the disc rides a raised platform with them.
+            var p = lv.SmoothPos; p.y = lv.TerrainY + LeaderMarkerY;
             _leaderMarker.transform.position = p;
         }
 

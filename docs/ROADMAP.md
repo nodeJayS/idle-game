@@ -190,6 +190,20 @@ stairs; (3) per-zone water/lava/void flavor + camera composition pass.
    Play-probed live: stage-22 swamp bay + stage-5 glade, ~110k position
    samples, zero off-union (after a nanometre rim-inset fix the probe
    caught), kills/spawns flowing, no shore-jams.
+2. ✅ Client terraces/cliffs/water (2026-07-05) — ArenaTerrain heightfield
+   mesh from the layout (1-tile cells; shoreline corners pulled onto the
+   exact union boundary so shores hug disc rims; tier walls read
+   TunicSurface _SideColor strata for free; tier-diff-1 edges become
+   two half-step terracotta treads = the stairs read, outset into the
+   lower cell + corner-extended — both fixes Play-caught: inset-under
+   left an open slot, corners left pinhole gaps); shore-ink vertex band;
+   matte water plane at −0.45 (neutral colour — zone flavor is slice 3);
+   rebuilt from ZoneDress.Sync per zone crossing; units/FX ride tiers
+   via smoothed View.TerrainY (~0.25s step-up; gait uses horizontal-only
+   delta), leader disc + skill ground-rings included; Scenery re-scatters
+   per zone onto walkable ground at tier height. Play-verified by
+   screenshot: swamp bay + hummock stairs + glade island, live zone-hop
+   rebuild, mob on tier 1 at y=0.70 exact, console clean.
 
 ### 8. Content & tuning pass
 More stages/mods/kits; balance sim in console; XP curve at roster size.

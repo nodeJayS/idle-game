@@ -22,31 +22,38 @@ namespace IdleGame.Game
         private static GameConfig _cfg = null!;
         private static GameObject? _root;
         private static string _builtSet = "";
+        private static ArenaLayout? _arena; // current zone's layout; scatter is clamped inside it (null = open field)
 
         public static void Build(GameConfig cfg)
         {
             _cfg = cfg;
             _builtSet = "";
-            Rebuild("forest", null); // pre-session default; ZoneDress re-syncs on play
+            _arena = null;
+            Rebuild("forest", null, null); // pre-session default; ZoneDress re-syncs on play
         }
 
-        /// <summary>Zone reskin: rebuild the scatter when the zone's prop family changes.
-        /// (Called by ZoneDress on stage/floor change — a no-op within the same zone.)</summary>
-        public static void SetZone(ZoneDef? zone)
+        /// <summary>Zone reskin: rebuild the scatter when the zone's prop family OR its arena layout
+        /// changes. Props only land where <paramref name="arena"/> contains them (so nothing floats over
+        /// the shore/void) and are planted at that spot's terrace height. (Called by ZoneDress on stage/
+        /// floor change — a no-op within the same zone AND arena.)</summary>
+        public static void SetZone(ZoneDef? zone, ArenaLayout? arena = null)
         {
             if (_cfg == null) return;
             string set = string.IsNullOrEmpty(zone?.PropSet) ? "forest" : zone!.PropSet;
-            if (set == _builtSet) return;
-            Rebuild(set, zone);
+            string arenaId = arena?.Id ?? "";
+            if (set == _builtSet && arenaId == (_arena?.Id ?? "")) return;
+            _arena = arena;
+            Rebuild(set, zone, arena);
         }
 
         // --- scatter -------------------------------------------------------------
 
-        private static void Rebuild(string set, ZoneDef? zone)
+        private static void Rebuild(string set, ZoneDef? zone, ArenaLayout? arena)
         {
             if (_root != null) Object.Destroy(_root);
             _root = new GameObject("Scenery");
             _builtSet = set;
+            _arena = arena;
 
             float halfW = (float)_cfg.Balance.MapHalfWidth - 2f;
             float halfD = (float)_cfg.Balance.MapHalfDepth - 2f;
@@ -117,18 +124,46 @@ namespace IdleGame.Game
         private static void Scatter(System.Random rng, int count, float halfW, float halfD,
                                     System.Action<Vector3> place)
         {
+            // With an arena, scatter INSIDE its bounds (the layout is a compact place, ~±46u) and reject
+            // points off the walkable union — a swamp prop over the water bay would break the diorama.
+            // Props plant at their spot's terrace height so a knoll's rocks sit on the knoll, not in it.
+            float rangeW = halfW, rangeZ = halfD;
+            float cx = 0f, cz = 0f;
+            if (_arena != null)
+            {
+                ArenaBounds(_arena, out float bx0, out float bz0, out float bx1, out float bz1);
+                cx = (bx0 + bx1) * 0.5f; cz = (bz0 + bz1) * 0.5f;
+                rangeW = (bx1 - bx0) * 0.5f; rangeZ = (bz1 - bz0) * 0.5f;
+            }
             for (int i = 0; i < count; i++)
             {
                 Vector3 p = default; bool ok = false;
-                for (int t = 0; t < 8; t++)
+                for (int t = 0; t < 12; t++)
                 {
-                    float x = (float)((rng.NextDouble() * 2 - 1) * halfW);
-                    float z = (float)((rng.NextDouble() * 2 - 1) * halfD);
-                    if (x * x + z * z >= ClearRadius * ClearRadius) { p = new Vector3(x, 0f, z); ok = true; break; }
+                    float x = cx + (float)((rng.NextDouble() * 2 - 1) * rangeW);
+                    float z = cz + (float)((rng.NextDouble() * 2 - 1) * rangeZ);
+                    if (x * x + z * z < ClearRadius * ClearRadius) continue;            // off the spawn bubble
+                    if (_arena != null && !_arena.Contains(new Vec2(x, z))) continue;   // off the walkable union
+                    float y = ArenaTerrain.HeightAt(_cfg, _arena, x, z);
+                    p = new Vector3(x, y, z); ok = true; break;
                 }
-                if (!ok) p = new Vector3(halfW * 0.5f, 0f, halfD * 0.5f);
+                if (!ok) continue; // couldn't find a valid spot in this budget — skip rather than float one
                 place(p);
             }
+        }
+
+        /// <summary>XZ bounds of an arena's shapes (disc uses radius on both axes) — the scatter box.</summary>
+        private static void ArenaBounds(ArenaLayout a, out float minX, out float minZ, out float maxX, out float maxZ)
+        {
+            minX = minZ = float.MaxValue; maxX = maxZ = float.MinValue;
+            foreach (var sh in a.Shapes)
+            {
+                float ex = (float)sh.HalfW;                                        // rect half-W or disc radius
+                float ez = (float)(sh.Kind == ArenaShapeKind.Disc ? sh.HalfW : sh.HalfD);
+                minX = Mathf.Min(minX, (float)sh.X - ex); maxX = Mathf.Max(maxX, (float)sh.X + ex);
+                minZ = Mathf.Min(minZ, (float)sh.Y - ez); maxZ = Mathf.Max(maxZ, (float)sh.Y + ez);
+            }
+            if (minX > maxX) { minX = minZ = -1f; maxX = maxZ = 1f; }
         }
 
         // --- prop placers ----------------------------------------------------------

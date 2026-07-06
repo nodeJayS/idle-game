@@ -20,6 +20,7 @@ namespace IdleGame.Game
         private const float Amplitude = 0.3f;  // max height deviation (keep small: units sit at y=0)
 
         private static Material _mat = null!;
+        private static GameObject? _plane; // the legacy Perlin plane; hidden when an arena mesh owns the field
 
         // The shipped grass palette — also the restore point for zone retints (zone 1's
         // config hints mirror these values so the early game look is unchanged).
@@ -56,8 +57,21 @@ namespace IdleGame.Game
             _mat.SetFloat("_DetailStrength", strength);
         }
 
+        /// <summary>Show or hide the legacy Perlin plane. ArenaTerrain hides it while a terraced
+        /// arena mesh owns the field (the plane would z-fight the arena floor), and shows it again
+        /// on a zone with no arena (the open-plane legacy look). Cheap toggle — the mesh survives.</summary>
+        public static void SetVisible(bool on)
+        {
+            if (_plane != null) _plane.SetActive(on);
+        }
+
+        /// <summary>The shared TunicSurface (or fallback) material painting both the legacy plane and
+        /// the arena terrace mesh, so <see cref="SetZone"/> retints reach both from one SetColor.</summary>
+        public static Material SharedMaterial() => EnsureMaterial();
+
         public static void Build(GameConfig cfg)
         {
+            if (_plane != null) Object.Destroy(_plane); // rebuild idempotently (zone re-sync path)
             float halfX = (float)cfg.Balance.MapHalfWidth + MarginPad;
             float halfZ = (float)cfg.Balance.MapHalfDepth + MarginPad;
             int nx = Mathf.Max(1, Mathf.RoundToInt(2f * halfX / CellSize));
@@ -94,6 +108,7 @@ namespace IdleGame.Game
             var mr = go.AddComponent<MeshRenderer>();
             mr.sharedMaterial = EnsureMaterial();
             mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; // ground only receives
+            _plane = go;
         }
 
         private static void AddTri(List<Vector3> verts, List<Color> cols, List<int> tris,
