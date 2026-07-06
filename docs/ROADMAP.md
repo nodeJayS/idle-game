@@ -205,6 +205,23 @@ stairs; (3) per-zone water/lava/void flavor + camera composition pass.
    screenshot: swamp bay + hummock stairs + glade island, live zone-hop
    rebuild, mob on tier 1 at y=0.70 exact, console clean.
 
+### 8.5 Roguelite dungeon mode (user call 2026-07-06 — aesthetic-first)
+Port of the MIT "Dungeon Forge" Three.js procedural dungeon (repo cloned to
+~/reference/threejs-procedural-dungeon; its preview.jpg = the art target).
+Goal: the EXACT reference aesthetic on our stack, roguelite rules designed
+later. Slices: (1) ✅ GameCore generator (2026-07-06) — DungeonGen 9-stage
+pipeline (scatter/separate/kNN graph+MST+loops/semantics/carve/rasterize/
+decorate/name), pure + deterministic (FNV-1a checksum), 29 acceptance tests,
+~5ms @60 rooms (budget 50). (2) client renderer: baked meshes + DungeonLit
+shader (vertex colour × URP additional lights — TunicSurface is main-light
+only, verified), 12-light budget (key lights + farthest-point torches),
+emissive flame quads under bloom, theme palettes/AO/checkerboard from the
+extracted constants table, Tools > Dungeon Preview editor window (seed/dice/
+sliders/overlays, no Play needed), screenshot-matched to preview.jpg.
+(3) roguelite design + sim integration (room-gated aggro, doorway-waypoint
+travel — concave layouts break open-field acquisition; entry point TBD:
+Tower-adjacent vs own mode). (4) BFS build-reveal animation (parked).
+
 ### 8. Content & tuning pass
 More stages/mods/kits; balance sim in console; XP curve at roster size.
 Caster pacing lever if ever needed: per-skill CooldownMs (mana removal
