@@ -136,9 +136,9 @@ namespace IdleGame.GameCore
 
             // 6 — Carve corridors + stamp room footprints into a float-space grid, then
             // 7 — Rasterise into the final W×H byte grid with a margin.
-            if (!CarveAndRasterise(rooms, edges, entranceId, out var grid, out int w, out int h,
-                    out var corridorCells, out var doorways, out var bfs, out int entranceCx, out int entranceCy,
-                    out int ox, out int oy, out failStage))
+            if (!CarveAndRasterise(rooms, edges, entranceId, bossId, out var grid, out int w, out int h,
+                    out var corridorCells, out var doorways, out var bfs, out var cellRoom, out var bossBfs,
+                    out int entranceCx, out int entranceCy, out int ox, out int oy, out failStage))
                 return false;
 
             // Validation: entrance degree, boss depth, connectivity already checked inside carve/graph.
@@ -177,6 +177,8 @@ namespace IdleGame.GameCore
             dungeon.H = h;
             dungeon.Grid = grid;
             dungeon.Bfs = bfs;
+            dungeon.CellRoom = cellRoom;
+            dungeon.BossBfs = bossBfs;
             dungeon.Rooms = outRooms;
             dungeon.Edges = edges;
             dungeon.Doorways = doorways;
@@ -665,12 +667,14 @@ namespace IdleGame.GameCore
         // and the entrance BFS distance field.
         // --------------------------------------------------------------------
 
-        private static bool CarveAndRasterise(List<RoomWork> rooms, List<DungeonEdge> edges, int entranceId,
+        private static bool CarveAndRasterise(List<RoomWork> rooms, List<DungeonEdge> edges, int entranceId, int bossId,
             out byte[] grid, out int w, out int h, out List<GridCell> corridorCells, out List<GridCell> doorways,
-            out short[] bfs, out int entranceCx, out int entranceCy, out int ox, out int oy, out string failStage)
+            out short[] bfs, out short[] cellRoom, out short[] bossBfs,
+            out int entranceCx, out int entranceCy, out int ox, out int oy, out string failStage)
         {
             grid = Array.Empty<byte>(); w = 0; h = 0;
             corridorCells = new List<GridCell>(); doorways = new List<GridCell>(); bfs = Array.Empty<short>();
+            cellRoom = Array.Empty<short>(); bossBfs = Array.Empty<short>();
             entranceCx = 0; entranceCy = 0; ox = 0; oy = 0;
             failStage = "";
 
@@ -703,10 +707,15 @@ namespace IdleGame.GameCore
 
             // Track which cells belong to a room footprint (to separate corridor cells).
             var isRoomCell = new bool[w * h];
+            // Per-cell owning room id, -1 for corridor/void. Filled as each footprint is stamped
+            // (later rooms can't overlap earlier ones — separation guarantees disjoint footprints —
+            // so first-writer-wins is moot, but we keep the stamp order deterministic regardless).
+            cellRoom = new short[w * h];
+            for (int i = 0; i < cellRoom.Length; i++) cellRoom[i] = -1;
 
             // Stamp room footprints (shape-aware).
             for (int i = 0; i < rooms.Count; i++)
-                StampRoom(rooms[i], rcx[i], rcy[i], grid, isRoomCell, w, h);
+                StampRoom(rooms[i], rcx[i], rcy[i], grid, isRoomCell, cellRoom, w, h);
 
             // Carve corridors: one L per edge, width from role.
             foreach (var e in edges)
@@ -755,11 +764,20 @@ namespace IdleGame.GameCore
             bfs = FloorBfs(grid, w, h, entranceCx, entranceCy, out int reached, out int totalFloor);
             if (reached != totalFloor) { failStage = "floor-connectivity"; return false; }
 
+            // Same field seeded from the BOSS room centre — Combat's leader-travel flow field descends
+            // it toward the boss. The floor is fully connected (checked above), so every floor cell
+            // gets a finite distance; the boss centre itself is 0.
+            var bossCentre = rcx[bossId] >= 0 && rcx[bossId] < w && rcy[bossId] >= 0 && rcy[bossId] < h
+                             && grid[rcy[bossId] * w + rcx[bossId]] == DungeonCell.Floor;
+            if (!bossCentre) { failStage = "boss-cell"; return false; }
+            bossBfs = FloorBfs(grid, w, h, rcx[bossId], rcy[bossId], out _, out _);
+
             return true;
         }
 
-        /// <summary>Stamp one room's footprint (rect / ellipse / chamfered octagon) as FLOOR.</summary>
-        private static void StampRoom(RoomWork r, int cx, int cy, byte[] grid, bool[] isRoomCell, int w, int h)
+        /// <summary>Stamp one room's footprint (rect / ellipse / chamfered octagon) as FLOOR, and
+        /// tag each stamped cell with the room's id in <paramref name="cellRoom"/>.</summary>
+        private static void StampRoom(RoomWork r, int cx, int cy, byte[] grid, bool[] isRoomCell, short[] cellRoom, int w, int h)
         {
             int halfW = r.W / 2, halfH = r.H / 2;
             for (int dy = -halfH; dy <= halfH; dy++)
@@ -791,13 +809,14 @@ namespace IdleGame.GameCore
                     int idx = y * w + x;
                     grid[idx] = DungeonCell.Floor;
                     isRoomCell[idx] = true;
+                    cellRoom[idx] = (short)r.Id;
                 }
             }
             // Guarantee the centre is floor even for degenerate shapes.
             if (cx >= 0 && cx < w && cy >= 0 && cy < h)
             {
                 int c = cy * w + cx;
-                grid[c] = DungeonCell.Floor; isRoomCell[c] = true;
+                grid[c] = DungeonCell.Floor; isRoomCell[c] = true; cellRoom[c] = (short)r.Id;
             }
         }
 

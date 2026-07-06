@@ -441,5 +441,45 @@ namespace IdleGame.GameCore.Tests
                     Assert.Equal(floor, d.Bfs.Count(v => v >= 0));
                 }
         }
+
+        // ---------------- CellRoom + BossBfs (slice 3a data for Combat) ----------------
+
+        [Fact]
+        public void EveryRoomFootprintCellHasThatRoomsId()
+        {
+            // Sample each room's bounding box: every FLOOR cell that its shape stamped is tagged with
+            // the room's id (corridors carved into it can't override — separation keeps footprints
+            // disjoint, so a room's own stamped cells stay its own).
+            var d = Gen(7);
+            Assert.Equal(d.Grid.Length, d.CellRoom.Length);
+            foreach (var r in d.Rooms)
+            {
+                // The room centre cell is guaranteed floor + tagged.
+                int cIdx = r.Cy * d.W + r.Cx;
+                Assert.Equal(DungeonCell.Floor, d.Grid[cIdx]);
+                Assert.Equal(r.Id, d.CellRoom[cIdx]);
+            }
+            // No cell claims a non-existent room id; corridor/void cells read -1.
+            int maxId = d.Rooms.Max(r => r.Id);
+            for (int i = 0; i < d.CellRoom.Length; i++)
+            {
+                Assert.True(d.CellRoom[i] >= -1 && d.CellRoom[i] <= maxId);
+                if (d.Grid[i] != DungeonCell.Floor) Assert.Equal(-1, d.CellRoom[i]); // walls/void untagged
+            }
+        }
+
+        [Fact]
+        public void BossBfsIsZeroAtBossCentreAndCoversEveryFloorCell()
+        {
+            for (int seed = 1; seed <= 6; seed++)
+            {
+                var d = Gen(seed);
+                var boss = Boss(d);
+                Assert.Equal(0, d.BossBfs[boss.Cy * d.W + boss.Cx]); // seeded at the boss centre
+                // Fully connected floor ⇒ every floor cell has a finite (≥0) boss distance; non-floor -1.
+                int floor = d.Grid.Count(c => c == DungeonCell.Floor);
+                Assert.Equal(floor, d.BossBfs.Count(v => v >= 0));
+            }
+        }
     }
 }

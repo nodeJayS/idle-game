@@ -46,7 +46,9 @@ namespace IdleGame.GameCore
     /// </summary>
     /// Tower = a Tower-of-Ascension floor: a bounded one-clear fight (steeper, modified pack;
     /// no respawns, no farm income) that advances the tower track on a win.
-    public enum EncounterKind { Encounter, Farm, BossChallenge, Tower }
+    /// Dungeon = a procedurally-generated roguelite floor: the party auto-battles through grid-walkable
+    /// rooms/corridors toward the boss; win = boss dead, lose = wipe or the failsafe timeout. No respawns.
+    public enum EncounterKind { Encounter, Farm, BossChallenge, Tower, Dungeon }
 
     /// <summary>
     /// How the party moves/targets. Solo = formation travel: the lowest-slot living hero
@@ -155,6 +157,11 @@ namespace IdleGame.GameCore
         // null, which keeps synthetic fights (and legacy saves) on the open plane. null => no
         // walkable clamp; movement/spawns behave exactly as they did pre-arena.
         public string? ArenaId;
+        // Dungeon (roguelite slice 3a): the grid-walkable surface for a Kind == Dungeon run — set by
+        // Combat.EnterDungeon, null everywhere else. When non-null it OVERRIDES ArenaId as the arena
+        // surface (ArenaOf returns it first) and unlocks the room-gated targeting + BFS leader travel.
+        // Transient like the rest of CombatState; never persisted.
+        public DungeonArena? Dungeon;
         public int TowerFloor;         // the tower floor this fight represents (Kind == Tower); 0 otherwise
         public EncounterKind Kind = EncounterKind.Encounter;
         public PartyTactic Tactic = PartyTactic.Solo;

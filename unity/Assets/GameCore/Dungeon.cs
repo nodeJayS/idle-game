@@ -105,8 +105,10 @@ namespace IdleGame.GameCore
     /// <summary>
     /// The generated dungeon. <see cref="Grid"/> is a W×H byte map (index i = y*W + x) of
     /// VOID/FLOOR/WALL; <see cref="Bfs"/> is the 4-connected distance field from the entrance
-    /// centre over FLOOR cells (-1 for any non-floor cell). All lists are in a deterministic
-    /// order and <see cref="Checksum"/> (FNV-1a 32) pins the whole payload for regression tests.
+    /// centre over FLOOR cells (-1 for any non-floor cell); <see cref="BossBfs"/> is the same field
+    /// seeded from the boss room, and <see cref="CellRoom"/> maps each cell to its owning room. All
+    /// lists are in a deterministic order and <see cref="Checksum"/> (FNV-1a 32) pins the grid/rooms/
+    /// props/spawns payload for regression tests (the new fields ride alongside, not hashed).
     /// </summary>
     public sealed class Dungeon
     {
@@ -115,6 +117,12 @@ namespace IdleGame.GameCore
         public int W, H;
         public byte[] Grid = System.Array.Empty<byte>();  // W*H, index i = y*W + x — VOID|FLOOR|WALL
         public short[] Bfs = System.Array.Empty<short>();  // per-cell distance from entrance, -1 = non-floor
+        // Per-cell owning room id (index i = y*W + x), -1 for corridor/void cells. Combat's room-gated
+        // targeting (an anti-wallhack rule) reads this to tell "same room" from "across a wall".
+        public short[] CellRoom = System.Array.Empty<short>();
+        // 4-connected BFS distance field over FLOOR cells seeded from the BOSS room's centre, -1 for
+        // non-floor. Combat's leader-travel flow field descends this toward the boss (the exit).
+        public short[] BossBfs = System.Array.Empty<short>();
         public List<DungeonRoom> Rooms = new List<DungeonRoom>();
         public List<DungeonEdge> Edges = new List<DungeonEdge>();
         public List<GridCell> Doorways = new List<GridCell>();

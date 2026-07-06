@@ -330,6 +330,13 @@ namespace IdleGame.GameCore
 
         // Boss challenge (M8): seconds to kill the stage's boss and advance.
         public double BossChallengeSeconds = 30;
+
+        // Dungeon (roguelite slice 3a): the anti-wallhack corridor-sight range — a unit standing in a
+        // corridor may only target across a doorway when within this euclidean distance (in-room pairs
+        // see each other freely). DungeonMaxRunSeconds is the failsafe timeout: a run that hasn't cleared
+        // the boss by then is Lost (stuck / under-geared), mirroring MaxRunSeconds for the endless field.
+        public double DungeonCorridorSight = 6.5;
+        public double DungeonMaxRunSeconds = 600;
         // Boss challenge (C1): pressing Challenge despawns the trash and the boss appears this far
         // ahead of the party on the SAME map (a step or two away — not a separate arena). After a
         // flee/fail, trash stays gone for BossFleeCooldownMs before repopulating, so spamming

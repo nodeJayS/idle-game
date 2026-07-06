@@ -8,6 +8,23 @@ namespace IdleGame.GameCore
     public enum ArenaShapeKind { Rect, Disc }
 
     /// <summary>
+    /// The minimal walkable-surface contract Combat consumes (M8 slice 3a). Both the union-of-shapes
+    /// <see cref="ArenaLayout"/> and the grid-backed <see cref="DungeonArena"/> implement it, so the
+    /// sim's movement/spawn/collision plumbing is surface-agnostic: it only asks "is this point
+    /// walkable?", "project it back onto the surface", and "what height tier?". Every implementation
+    /// must be pure and deterministic — same point ⇒ same answer.
+    /// </summary>
+    public interface IArenaSurface
+    {
+        /// <summary>True when point <paramref name="p"/> lies on the walkable region.</summary>
+        bool Contains(Vec2 p);
+        /// <summary><paramref name="p"/> when contained, else the nearest walkable point (deterministic).</summary>
+        Vec2 Clamp(Vec2 p);
+        /// <summary>Height tier at <paramref name="p"/> (0 = base plain).</summary>
+        int TierAt(Vec2 p);
+    }
+
+    /// <summary>
     /// One convex piece of a per-stage arena (M8 slice 1). A layout's walkable region is the UNION
     /// of its shapes; a shape is either an axis-aligned rectangle (HalfW × HalfD half-extents) or a
     /// disc (HalfW = radius, HalfD ignored). <see cref="Tier"/> is COSMETIC height data this slice —
@@ -80,7 +97,7 @@ namespace IdleGame.GameCore
     /// </list>
     /// Pure geometry, no rng — every method is deterministic.
     /// </summary>
-    public sealed class ArenaLayout
+    public sealed class ArenaLayout : IArenaSurface
     {
         public string Id = "";
         public List<ArenaShape> Shapes = new List<ArenaShape>(); // walkable region = the UNION of shapes

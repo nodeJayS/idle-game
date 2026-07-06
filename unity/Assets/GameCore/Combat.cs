@@ -45,8 +45,9 @@ namespace IdleGame.GameCore
         /// <summary>The arena a live state is fought on, or null (open plane). Resolves the pinned
         /// <see cref="CombatState.ArenaId"/> against the config; a null id or an unknown layout both
         /// mean "no arena", so legacy states and synthetic fights stay on the open plane.</summary>
-        private static ArenaLayout? ArenaOf(CombatState s, GameConfig cfg)
-            => s.ArenaId != null && cfg.Arenas.TryGetValue(s.ArenaId, out var a) ? a : null;
+        private static IArenaSurface? ArenaOf(CombatState s, GameConfig cfg)
+            => s.Dungeon != null ? s.Dungeon
+             : (s.ArenaId != null && cfg.Arenas.TryGetValue(s.ArenaId, out var a) ? a : null);
 
         /// <summary>The trash def for spawn number <paramref name="index"/> at a stage:
         /// cycles the stage's ZONE roster (zones = the themed ~10-stage bands; Tower floors
@@ -262,6 +263,79 @@ namespace IdleGame.GameCore
                     if (e.Team == Team.Party) e.Pos = arena.Clamp(e.Pos);
         }
 
+        /// <summary>
+        /// Roguelite dungeon (slice 3a): convert the current encounter into a generated-dungeon run IN
+        /// PLACE (mirrors <see cref="EnterTower"/>). Despawn enemies, restore the party, wrap the dungeon
+        /// as the walkable surface, drop the party at the entrance room centre (fanned by the usual
+        /// PartyStartPos cluster, Clamp'd onto the grid), then materialise the dungeon's authored spawns:
+        /// each <see cref="DungeonSpawn"/> becomes a monster at its cell centre — Tier 0 = a roster trash
+        /// mob (cycled by spawn index), Tier 1 = the same promoted to Elite (<see cref="ApplyRank"/>),
+        /// Tier 2 = the floor boss (IsBoss, BossHpMult). Stats scale exactly like a stage fight at
+        /// <c>s.Stage</c> (same StageScale/HpScale the farm uses) so difficulty tracks the player's depth.
+        /// All non-boss spawns start non-aggro and idle in place (staggered wander repick via rng, the
+        /// SpawnPack pattern). Deterministic: <paramref name="d"/>.Spawns is iterated in list order.
+        /// Mutates s.
+        /// </summary>
+        public static void EnterDungeon(CombatState s, Dungeon d, IReadOnlyList<string> trashRoster, string bossId,
+                                        GameConfig cfg, Rng rng)
+        {
+            s.Entities.RemoveAll(e => e.Team == Team.Enemy);
+            RestoreParty(s);
+
+            var arena = new DungeonArena(d, cfg.Balance.DungeonCorridorSight);
+            s.Dungeon = arena;
+            s.ArenaId = null; // the DungeonArena is the surface now (ArenaOf returns it first)
+
+            // Party at the entrance room centre, fanned by the usual cluster offsets and Clamp'd onto
+            // the walkable grid so nobody spawns in a wall/corner.
+            var entrance = arena.EntranceCentre();
+            foreach (var e in s.Entities)
+                if (e.Team == Team.Party)
+                {
+                    var off = PartyStartPos(e.Slot == int.MaxValue ? 0 : e.Slot);
+                    e.Pos = arena.Clamp(new Vec2(entrance.X + off.X, entrance.Y + off.Y));
+                }
+
+            // Stat scale mirrors a stage fight at the current stage — deeper players face tougher floors.
+            var rt = cfg.Stages.Find(r => r.Stage == s.Stage) ?? cfg.Stages[0];
+            s.Loot = LootContext.ForStage(rt, cfg);
+            double atkScale = StageScale(rt, cfg), hpScale = HpScale(rt, cfg);
+
+            // Materialise the authored spawns in list order (deterministic). Trash cycles the roster by
+            // spawn index; elites are the same roster mob promoted; the boss is its own def.
+            int idx = 0;
+            foreach (var sp in d.Spawns)
+            {
+                var pos = new Vec2(sp.X + 0.5, sp.Y + 0.5); // cell centre in world space
+                if (sp.Tier == 2)
+                {
+                    if (cfg.Monsters.TryGetValue(bossId, out var bossDef))
+                        s.Entities.Add(MakeMonster(cfg, bossDef, "EBOSS", pos, atkScale, true,
+                            hpScale * cfg.Balance.BossHpMult));
+                    // A tier-2 spawn is a boss placement; it never counts toward the trash-index cycle.
+                    continue;
+                }
+
+                // Tier 0/1 trash — cycle the roster (guard an empty roster by falling back to the config
+                // trash resolver so a run always populates).
+                MonsterDef mdef = trashRoster.Count > 0 && cfg.Monsters.TryGetValue(trashRoster[idx % trashRoster.Count], out var rm)
+                    ? rm
+                    : TrashDef(cfg, s.Stage, idx);
+                var mob = MakeMonster(cfg, mdef, "E" + idx, pos, atkScale, false, hpScale);
+                mob.Aggro = false;          // idle until a hero hits it (or it's woken by an in-room fight)
+                mob.WanderTarget = pos;     // holds in place until the staggered repick
+                mob.WanderCdMs = rng.RandRange(0, cfg.Balance.WanderMaxMs); // staggered — mirrors SpawnPack
+                if (sp.Tier == 1) ApplyRank(mob, MonsterRank.Elite, cfg); // room-typed elite
+                s.Entities.Add(mob);
+                idx++;
+            }
+
+            s.Kind = EncounterKind.Dungeon;
+            s.TimeMs = 0;
+            s.SpawnTimerMs = 0;
+            s.Status = CombatStatus.Running;
+        }
+
         /// <summary>Heal the party to full and clear downed / cooldown / buff state — a phase
         /// transition (farm↔boss) begins a fresh fight on the same map, mirroring the clean slate
         /// the old rebuild-from-scratch flow gave.</summary>
@@ -448,7 +522,7 @@ namespace IdleGame.GameCore
         /// the ring around the party (PoE-style — packs with quiet gaps between, not an even
         /// scatter). The pack centre rings the group so packs appear near it wherever it roams.
         /// </summary>
-        private static void SpawnPack(CombatState s, StageDef rt, GameConfig cfg, Rng rng, int count, ArenaLayout? arena)
+        private static void SpawnPack(CombatState s, StageDef rt, GameConfig cfg, Rng rng, int count, IArenaSurface? arena)
         {
             double w = cfg.Balance.MapHalfWidth - 1.0, d = cfg.Balance.MapHalfDepth - 1.0;
             var c = PartyCentroid(s);
@@ -767,7 +841,7 @@ namespace IdleGame.GameCore
 
                 // Idle (non-aggro) trash just ambles randomly; it doesn't seek or attack the
                 // party until something hits it (ApplyHit flips Aggro on).
-                if (e.Team == Team.Enemy && !e.Aggro) { Wander(e, cfg, dtMs, rng, arena); continue; }
+                if (e.Team == Team.Enemy && !e.Aggro) { Wander(e, cfg, dtMs, rng, arena, s.Dungeon); continue; }
 
                 // A ready skill replaces this step's basic attack/move (M11).
                 if (TryCastSkill(s, e, cfg, rng, events, arena)) continue;
@@ -807,9 +881,21 @@ namespace IdleGame.GameCore
                         target = (cur != null && (IsPeel(cur) || !IsPeel(acquired))) ? cur : acquired;
                         if (target == null)
                         {
-                            if (leaderPack == null) { e.TargetId = null; continue; } // field clear: idle
                             double ms = e.EffectiveStat(StatKey.MoveSpd);
                             if (ms <= 0) ms = MoveSpeedTilesPerSec;
+                            // Dungeon leader travel: with no reachable target (room-gating hides packs
+                            // behind walls), descend the boss BFS flow field toward the exit — it routes
+                            // the leader through corridors room-to-room. The wing trails via the frozen
+                            // heading (no visible pack ⇒ heading holds; acceptable — it re-snaps on the
+                            // next pack). Step toward the next downhill cell centre at MoveSpd.
+                            if (s.Dungeon != null)
+                            {
+                                var next = s.Dungeon.DownhillStep(e.Pos);
+                                e.TargetId = null;
+                                MoveToward(e, next, ms * dtMs / 1000.0, arena);
+                                continue;
+                            }
+                            if (leaderPack == null) { e.TargetId = null; continue; } // field clear: idle
                             e.TargetId = leaderPack.Id;
                             MoveToward(e, leaderPack.Pos, ms * dtMs / 1000.0, arena);
                             continue;
@@ -979,6 +1065,18 @@ namespace IdleGame.GameCore
                 // makes each kill feel more impactful (and future AoE will thin packs).
                 s.Entities.RemoveAll(e => e.Team == Team.Enemy && !e.Alive);
             }
+            else if (s.Kind == EncounterKind.Dungeon)
+            {
+                // Clearing the FLOOR = killing the boss. Trash may still be alive in rooms the party
+                // skipped past — that's fine, the boss's death opens the exit. Lose on a full wipe or
+                // the failsafe timeout (a run that can't reach/kill the boss in DungeonMaxRunSeconds).
+                bool bossAlive = s.Entities.Any(e => e.Team == Team.Enemy && e.IsBoss && e.Alive);
+                if (!partyAlive) s.Status = CombatStatus.Lost;
+                else if (!bossAlive) s.Status = CombatStatus.Won; // EnterDungeon guarantees a boss existed
+                else if (s.TimeMs >= cfg.Balance.DungeonMaxRunSeconds * 1000.0) s.Status = CombatStatus.Lost;
+                // Prune dead trash (same rationale as farm; keeps the entity list from growing).
+                s.Entities.RemoveAll(e => e.Team == Team.Enemy && !e.Alive && !e.IsBoss);
+            }
             else
             {
                 bool enemyAlive = s.Entities.Any(e => e.Team == Team.Enemy && e.Alive);
@@ -1059,7 +1157,7 @@ namespace IdleGame.GameCore
         /// return true (the caller then skips this step's basic attack). Skills are gated on
         /// cooldown only — mana was removed. Deterministic — rng is only used inside ApplyHit.
         /// </summary>
-        private static bool TryCastSkill(CombatState s, CombatEntity e, GameConfig cfg, Rng rng, List<CombatEvent> events, ArenaLayout? arena = null)
+        private static bool TryCastSkill(CombatState s, CombatEntity e, GameConfig cfg, Rng rng, List<CombatEvent> events, IArenaSurface? arena = null)
         {
             foreach (var id in e.Skills)
             {
@@ -1230,11 +1328,12 @@ namespace IdleGame.GameCore
 
             if (target.Team == Team.Party)
             {
-                // Farm: downed, not dead — respawns after the countdown. Boss challenge AND Tower:
-                // NO respawn — a death there is for the whole run, so the fight is a real wall (it
-                // fails once every hero is down). RespawnMs stays 0, leaving the hero plainly dead
+                // Farm: downed, not dead — respawns after the countdown. Boss challenge, Tower AND
+                // Dungeon: NO respawn — a death there is for the whole run, so the fight is a real wall
+                // (it fails once every hero is down). RespawnMs stays 0, leaving the hero plainly dead
                 // rather than a frozen-timer "downed".
-                if (s.Kind != EncounterKind.BossChallenge && s.Kind != EncounterKind.Tower)
+                if (s.Kind != EncounterKind.BossChallenge && s.Kind != EncounterKind.Tower
+                    && s.Kind != EncounterKind.Dungeon)
                     target.RespawnMs = target.RespawnDurationMs;
                 return;
             }
@@ -1315,6 +1414,7 @@ namespace IdleGame.GameCore
             foreach (var o in s.Entities)
             {
                 if (!o.Alive || o.Team != Team.Enemy) continue;
+                if (s.Dungeon != null && !s.Dungeon.GateTargets(centre, o.Pos)) continue; // room-gate
                 double d = Vec2.Distance(centre, o.Pos);
                 if (d < bestDist || (d == bestDist && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
                 {
@@ -1342,6 +1442,7 @@ namespace IdleGame.GameCore
             foreach (var o in s.Entities)
             {
                 if (!o.Alive || o.Team == self.Team) continue;
+                if (s.Dungeon != null && !s.Dungeon.GateTargets(self.Pos, o.Pos)) continue; // room-gate
                 double d = Vec2.Distance(self.Pos, o.Pos);
                 if (d > radius) continue;
                 if (d < bestDist || (d == bestDist && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
@@ -1370,6 +1471,7 @@ namespace IdleGame.GameCore
             foreach (var o in s.Entities)
             {
                 if (!o.Alive || o.Team != Team.Enemy) continue;
+                if (s.Dungeon != null && !s.Dungeon.GateTargets(point, o.Pos)) continue; // room-gate (seeker = slot)
                 double d = Vec2.Distance(point, o.Pos);
                 if (d > radius) continue;
                 if (d < bestDist || (d == bestDist && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
@@ -1400,6 +1502,7 @@ namespace IdleGame.GameCore
             foreach (var o in s.Entities)
             {
                 if (!o.Alive || o.Team == self.Team) continue;
+                if (s.Dungeon != null && !s.Dungeon.GateTargets(self.Pos, o.Pos)) continue; // room-gate
                 double d = Vec2.Distance(self.Pos, o.Pos);
                 if (d > baseRange + o.BodyRadius) continue; // must be genuinely in reach
                 if (d < bestDist || (d == bestDist && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
@@ -1421,6 +1524,7 @@ namespace IdleGame.GameCore
             foreach (var o in s.Entities)
             {
                 if (!o.Alive || o.Team == self.Team || !o.Aggro) continue;
+                if (s.Dungeon != null && !s.Dungeon.GateTargets(self.Pos, o.Pos)) continue; // room-gate
                 double d = Vec2.Distance(self.Pos, o.Pos);
                 if (d > radius) continue;
                 if (d < bestDist || (d == bestDist && best != null && string.CompareOrdinal(o.Id, best.Id) < 0))
@@ -1447,6 +1551,7 @@ namespace IdleGame.GameCore
             foreach (var other in s.Entities)
             {
                 if (!other.Alive || other.Team == self.Team) continue;
+                if (s.Dungeon != null && !s.Dungeon.GateTargets(self.Pos, other.Pos)) continue; // room-gate (symmetric)
                 double d = Vec2.Distance(self.Pos, other.Pos);
                 if (monster && !other.RangedRole) d -= bias; // melee heroes read closer
                 if (d < bestDist || (d == bestDist && best != null &&
@@ -1467,7 +1572,7 @@ namespace IdleGame.GameCore
         /// separate along a fixed axis (smaller Id moves -x). Pushes are clamped to the map.
         /// A few relaxation passes (Balance.CollisionIterations) settle dense crowds.
         /// </summary>
-        private static void ResolveCollisions(CombatState s, GameConfig cfg, ArenaLayout? arena = null)
+        private static void ResolveCollisions(CombatState s, GameConfig cfg, IArenaSurface? arena = null)
         {
             var bodies = s.Entities.Where(e => e.Alive)
                                    .OrderBy(e => e.Id, StringComparer.Ordinal)
@@ -1552,7 +1657,7 @@ namespace IdleGame.GameCore
         /// slide along a shore/wall around a shallow bay instead of jamming; if neither is walkable the
         /// entity holds position. There is no pathfinding — this only rounds convex boundaries.
         /// </summary>
-        private static void MoveToward(CombatEntity e, Vec2 dest, double maxStep, ArenaLayout? arena = null)
+        private static void MoveToward(CombatEntity e, Vec2 dest, double maxStep, IArenaSurface? arena = null)
         {
             double dx = dest.X - e.Pos.X;
             double dy = dest.Y - e.Pos.Y;
@@ -1578,7 +1683,8 @@ namespace IdleGame.GameCore
         /// <summary>Idle amble: stroll toward a random point within the field, repicking when
         /// reached or after a random interval. Deterministic (rng-driven). Clamped to the map
         /// so wanderers never drift out of bounds.</summary>
-        private static void Wander(CombatEntity e, GameConfig cfg, double dtMs, Rng rng, ArenaLayout? arena = null)
+        private static void Wander(CombatEntity e, GameConfig cfg, double dtMs, Rng rng, IArenaSurface? arena = null,
+                                   DungeonArena? dungeon = null)
         {
             // Repick a fresh destination only when the timer elapses (gated purely by the
             // staggered cooldown, so a batch of spawns doesn't all turn on the same frame).
@@ -1594,7 +1700,13 @@ namespace IdleGame.GameCore
                 double tx = e.Pos.X + ox; if (tx < -w || tx > w) tx = e.Pos.X - ox;
                 double ty = e.Pos.Y + oy; if (ty < -d || ty > d) ty = e.Pos.Y - oy;
                 var picked = new Vec2(Math.Clamp(tx, -w, w), Math.Clamp(ty, -d, d));
-                e.WanderTarget = arena != null ? arena.Clamp(picked) : picked;
+                var target = arena != null ? arena.Clamp(picked) : picked;
+                // Dungeon: keep wanderers ROOM-BOUND — a target that clamps into a different room (or a
+                // corridor) is rejected in favour of holding position, so idle packs don't drift out of
+                // their room and pile into halls. Same rng draws as above, so determinism is unaffected.
+                if (dungeon != null && dungeon.RoomAt(target) != dungeon.RoomAt(e.Pos))
+                    target = e.Pos;
+                e.WanderTarget = target;
                 e.WanderCdMs = rng.RandRange(cfg.Balance.WanderMinMs, cfg.Balance.WanderMaxMs);
             }
             double speed = e.EffectiveStat(StatKey.MoveSpd);
