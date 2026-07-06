@@ -57,23 +57,18 @@ namespace IdleGame.Game
         private const string BossId = "nightmare_maw";
 
         /// <summary>
-        /// Swap the world to a freshly-generated dungeon and return a BRAND-NEW dungeon CombatState —
-        /// the campaign state is never touched. Fresh-state isolation is the fix for the mode-leak the
-        /// user hit live: the old in-place transition left dungeon grid positions behind, so returning
-        /// clamped the party (and thus every spawn ring) onto the campaign arena's rim. Now each mode's
-        /// state is built from scratch on entry and dropped wholesale on exit — nothing CAN leak.
-        /// <paramref name="rng"/> is threaded to the sim for the spawn stagger (never UnityEngine.Random).
+        /// Generate the run's dungeon (pure data; the caller shows its seeded name on the loading
+        /// screen BEFORE any world change happens). Deterministic seed from farm depth, salted, then
+        /// advanced by the session entry counter so the FIRST dungeon at a given stage is reproducible
+        /// while re-entries re-roll the layout.
         /// </summary>
-        public static CombatState Enter(GameConfig cfg, System.Collections.Generic.IReadOnlyList<HeroInstance> party,
-                                        SaveState save, Rng rng, out Dungeon dungeon, string themeKey = "crypt")
+        public static Dungeon Generate(SaveState save, string themeKey = "crypt")
         {
-            // Deterministic seed from farm depth, salted, then advanced by the session entry counter so
-            // the FIRST dungeon at a given stage is reproducible while re-entries re-roll the layout.
             int stage = save.Progress.CurrentStage;
             int seed = unchecked((stage * (int)2654435761u ^ 0x5EED) + _entryCounter);
             _entryCounter++;
 
-            dungeon = DungeonGen.Generate(new DungeonParams
+            return DungeonGen.Generate(new DungeonParams
             {
                 Seed = seed,
                 RoomCount = 26,       // a test floor — walkable in minutes, not the 80-room showpiece
@@ -81,11 +76,25 @@ namespace IdleGame.Game
                 DecorDensity = 0.6,
                 Theme = themeKey,
             });
+        }
 
+        /// <summary>
+        /// Swap the world to <paramref name="dungeon"/> and return a BRAND-NEW dungeon CombatState —
+        /// the campaign state is never touched. Fresh-state isolation is the fix for the mode-leak the
+        /// user hit live: the old in-place transition left dungeon grid positions behind, so returning
+        /// clamped the party (and thus every spawn ring) onto the campaign arena's rim. Now each mode's
+        /// state is built from scratch on entry and dropped wholesale on exit — nothing CAN leak.
+        /// Runs AT FULL BLACK behind the LoadingScreen (the caller orchestrates), so neither the
+        /// teardown nor the camera snap is ever on screen.
+        /// <paramref name="rng"/> is threaded to the sim for the spawn stagger (never UnityEngine.Random).
+        /// </summary>
+        public static CombatState Enter(GameConfig cfg, System.Collections.Generic.IReadOnlyList<HeroInstance> party,
+                                        SaveState save, Rng rng, Dungeon dungeon, string themeKey = "crypt")
+        {
             // Fresh sim state (party at the entrance, authored spawns materialised). Guard the boss id
             // against a config that dropped it (the sim tolerates "" and just spawns no boss).
             string boss = cfg.Monsters.ContainsKey(BossId) ? BossId : "";
-            var state = Combat.InitDungeon(party, stage, dungeon, TrashRoster, boss, cfg, rng);
+            var state = Combat.InitDungeon(party, save.Progress.CurrentStage, dungeon, TrashRoster, boss, cfg, rng);
 
             SwapWorldIn(dungeon, themeKey);
             Active = true;

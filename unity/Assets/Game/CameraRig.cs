@@ -83,6 +83,19 @@ namespace IdleGame.Game
 
         public void Shake(float magnitude) => _shake = Mathf.Max(_shake, magnitude);
 
+        /// <summary>Teleport the view: park focus AND target on <paramref name="worldFocus"/> with no
+        /// glide (velocity cleared). For LOAD boundaries only (mode transitions behind the loading
+        /// screen) — a cross-map SetFocus would smooth-damp the camera diagonally across the world,
+        /// which read as "the same map sliding over" (user-caught). Gameplay following stays on the
+        /// dead-zone glide.</summary>
+        public void SnapTo(Vector3 worldFocus)
+        {
+            _focus = _targetFocus = worldFocus;
+            _focusVel = Vector3.zero;
+            _hasFocus = true;
+            if (_cam != null) _cam.transform.position = _focus - _dir * _distance;
+        }
+
         private void LateUpdate()
         {
             if (_cam == null) return;

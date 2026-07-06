@@ -527,19 +527,22 @@ namespace IdleGame.Game
         /// GachaPanel greys the Roll button off this. Delegates to the GameCore gate.</summary>
         public bool CanRollGacha(string bannerId) => Gacha.CanRoll(_save, _cfg, bannerId);
 
-        /// <summary>Enter a Tower-of-Ascension floor from the TowerView: convert the live encounter
-        /// into the bounded tower fight IN PLACE (no scene reset), mirroring the boss challenge. The
+        /// <summary>Enter a Tower-of-Ascension floor from the TowerView: LOAD into the floor's own
+        /// map (fresh CombatState via Combat.InitTower behind the loading screen — mode isolation,
+        /// same treatment as the crypt; the campaign state is dropped and rebuilt on return). The
         /// outcome is banked in <see cref="ResolveOutcome"/> (win → Tower.RecordClear + any milestone
-        /// buff; either way it returns to farming on the same map after the result shows).</summary>
+        /// buff; either way the run returns to camp through the loading screen).</summary>
         public void EnterTowerFloor(int floor)
         {
-            if (_combat == null || _combat.Kind == EncounterKind.Dungeon) return; // not mid-dungeon
+            if (_combat == null || _combat.Kind != EncounterKind.Farm) return; // only from camp
             if (!Tower.CanAttempt(_save, floor, _cfg)) return;
+            if (LoadingScreen.Busy) return;
             CommitPending();
-            Combat.EnterTower(_combat, floor, _cfg, NewRng());
-            DressZone(floor); // tower floors travel the same zones (floor = zone key)
-            _accMs = 0; _outcomeTimer = 0; _resolved = false;
-            ReconcileViews();
+            LoadingScreen.Run($"Ascending — Floor {floor}", () =>
+            {
+                Begin(Combat.InitTower(BuildParty(), floor, _cfg, NewRng())); // Begin refreshes gear + dresses the floor's zone
+                SnapCameraToParty();
+            });
         }
 
         /// <summary>Hero gacha (roadmap 3): spend gems on one roll of a banner from the GachaPanel. Persists
@@ -751,6 +754,9 @@ namespace IdleGame.Game
             _combat.Tactic = PartyTactic.Solo;        // formation travel: the leader heads for
             _combat.LeaderRefId = _save.LeaderHeroId; // the pack, the rest hold a triangle behind
                                                       // it (chosen leader, else lowest slot)
+            // Every fresh state starts from ComputeHeroStats WITHOUT equipment (AddParty) — fold in
+            // gear + Tower account buffs here, once, so no init path can field a naked party.
+            Combat.RefreshPartyStats(_combat, _save, _cfg);
             // Zone dress is an OVERWORLD concern — a dungeon state owns its world via DungeonMode
             // (the overworld roots are hidden; dressing them would fight the swap).
             if (_combat.Kind != EncounterKind.Dungeon) DressZone(_combat.Stage);
@@ -768,6 +774,10 @@ namespace IdleGame.Game
         private void Update()
         {
             if (_combat == null) return;
+            // Load boundary: while the loading screen covers the swap, the sim holds its breath —
+            // the destination map takes its first step only once the player can see it (otherwise
+            // dungeon mobs converge under the shroud and entry reads as "pre-aggroed", user-caught).
+            if (LoadingScreen.Busy) { _steppedThisFrame = false; return; }
             _steppedThisFrame = false;
             _questPanel?.UpdateBoard(_save.Quests, _cfg); // reflect live goal progress
 
@@ -810,19 +820,19 @@ namespace IdleGame.Game
                 float delay = (bossWin || towerDone || dungeonDone) ? 1.0f : OutcomeDelaySec;
                 if (_outcomeTimer >= delay)
                 {
-                    // A dungeon run ends by DROPPING its state wholesale: unwind the world swap, then
-                    // rebuild the campaign from scratch (StartFarm → fresh InitFarm). Mode isolation —
-                    // the old in-place ResumeFarm clamped dungeon grid positions onto the campaign
-                    // arena's rim and every farm pack ringed there (user-caught live).
-                    if (dungeonDone)
+                    // Alt modes (dungeon AND tower) end by DROPPING their state wholesale and
+                    // LOADING back to camp — StartFarm rebuilds the campaign from scratch behind
+                    // the loading screen. Mode isolation: the old in-place ResumeFarm clamped
+                    // dungeon grid positions onto the campaign arena's rim and every farm pack
+                    // ringed there (user-caught live).
+                    if (dungeonDone || towerDone)
                     {
-                        DungeonMode.Exit();
-                        StartFarm();
+                        ReturnToCampThroughLoad();
                         return;
                     }
-                    // Back to farming on the SAME map (no rebuild). A win farms the next stage at
-                    // normal cadence; a fail/wipe re-farms the current stage after the anti-spam
-                    // cooldown before trash returns.
+                    // A boss challenge stays a CAMPAIGN event on the same map (no load): a win
+                    // farms the next stage at normal cadence; a fail/wipe re-farms the current
+                    // stage after the anti-spam cooldown before trash returns.
                     double spawnDelay = bossWin ? _cfg.Balance.SpawnIntervalMs : _cfg.Balance.BossFleeCooldownMs;
                     ResumeFarmInPlace(_save.Progress.CurrentStage, spawnDelay);
                     return;
@@ -1191,30 +1201,63 @@ namespace IdleGame.Game
             ReconcileViews();
         }
 
-        /// <summary>Start a crypt run (Modes menu): the world swap + FRESH dungeon CombatState come
-        /// from <see cref="DungeonMode.Enter"/>; the campaign state is simply dropped (mode isolation —
-        /// no in-place mutation, so nothing leaks between the maps in either direction). Begin() gives
-        /// the new state the same clean-slate view/timer treatment as any run start.</summary>
+        /// <summary>Start a crypt run (Modes menu): generate first (so the loading screen carries the
+        /// seeded name), then LOAD in — the world swap, the fresh dungeon CombatState, and the camera
+        /// snap all run at full black. The campaign state is simply dropped (mode isolation — no
+        /// in-place mutation, so nothing leaks between the maps in either direction).</summary>
         private void EnterDungeonRun()
         {
             if (_combat.Kind != EncounterKind.Farm || _combat.Status != CombatStatus.Running) return;
+            if (LoadingScreen.Busy) return;
             CommitPending(); // bank campaign loot/xp before the state is dropped
-            var state = DungeonMode.Enter(_cfg, BuildParty(), _save, NewRng(), out var d);
-            _chat?.AddFeed($"Entering {d.Name}… ", new Color(0.72f, 0.55f, 0.95f));
-            Begin(state);
             _modesOpen = false;
+            var d = DungeonMode.Generate(_save);
+            _chat?.AddFeed($"Entering {d.Name}… ", new Color(0.72f, 0.55f, 0.95f));
+            LoadingScreen.Run($"Entering {d.Name}", () =>
+            {
+                Begin(DungeonMode.Enter(_cfg, BuildParty(), _save, NewRng(), d)); // Begin refreshes gear
+                SnapCameraToParty();
+            });
         }
 
-        /// <summary>Leave a crypt run early (Modes menu): unwind the world swap and rebuild the
-        /// campaign from scratch. Kills so far already banked via CommitPending each frame; the rest
-        /// of the run is simply forfeited.</summary>
+        /// <summary>Leave a crypt run early (top-centre Exit / Modes menu): LOAD back to camp —
+        /// unwind the world swap and rebuild the campaign from scratch at full black. Kills so far
+        /// already banked via CommitPending each frame; the rest of the run is forfeited.</summary>
         private void AbandonDungeonRun()
         {
-            if (_combat.Kind != EncounterKind.Dungeon) return;
+            if (_combat.Kind != EncounterKind.Dungeon || LoadingScreen.Busy) return;
             _chat?.AddFeed("Crypt run abandoned.", new Color(1f, 0.72f, 0.5f));
-            DungeonMode.Exit();
-            StartFarm();
             _modesOpen = false;
+            ReturnToCampThroughLoad();
+        }
+
+        /// <summary>Leave a tower floor early (top-centre Exit / Modes menu): the attempt is
+        /// forfeited (no RecordClear), LOAD back to camp.</summary>
+        private void AbandonTowerRun()
+        {
+            if (_combat.Kind != EncounterKind.Tower || LoadingScreen.Busy) return;
+            _chat?.AddFeed($"Tower floor {_combat.TowerFloor} abandoned.", new Color(1f, 0.72f, 0.5f));
+            _modesOpen = false;
+            ReturnToCampThroughLoad();
+        }
+
+        /// <summary>The shared way HOME from any alt mode: tear the mode's world down (dungeon swap
+        /// or nothing for tower) and rebuild the campaign fresh, all behind the loading screen.</summary>
+        private void ReturnToCampThroughLoad()
+        {
+            LoadingScreen.Run("Returning to camp", () =>
+            {
+                DungeonMode.Exit(); // safe no-op when not in a dungeon (tower uses the overworld)
+                StartFarm();
+                SnapCameraToParty();
+            });
+        }
+
+        /// <summary>Park the camera on the party with NO glide — load boundaries only (a cross-map
+        /// glide read as the same map sliding over).</summary>
+        private void SnapCameraToParty()
+        {
+            if (_rig != null && TryPartyCentroid(out var focus)) _rig.SnapTo(focus);
         }
 
         private void FleeToFarm()
@@ -2092,6 +2135,16 @@ namespace IdleGame.Game
             {
                 if (Button(cx - 90, 90, 180, 44, "Flee")) FleeToFarm();
             }
+            // Alt modes put an EXIT where the campaign's Challenge button lives (user call
+            // 2026-07-06): the way home is always in the same spot.
+            else if (_combat.Kind == EncounterKind.Dungeon)
+            {
+                if (Button(cx - 185, 90, 370, 46, "Exit Crypt", BtnStyleSm)) AbandonDungeonRun();
+            }
+            else if (_combat.Kind == EncounterKind.Tower)
+            {
+                if (Button(cx - 185, 90, 370, 46, $"Exit Tower — Floor {_combat.TowerFloor}", BtnStyleSm)) AbandonTowerRun();
+            }
 
             // Auto-push toggle — always available while running so it can be armed or cancelled
             // mid-fight. When on it chains boss challenges automatically until one fails.
@@ -2110,15 +2163,16 @@ namespace IdleGame.Game
         private bool _modesOpen;
 
         /// <summary>The mode-select menu (control-bar "Modes"): one row per game mode with an
-        /// active marker and the switch action. Campaign and the Crypt are FULLY SEPARATE states —
-        /// switching always builds the destination fresh (see EnterDungeonRun / AbandonDungeonRun).</summary>
+        /// active marker and the switch action. Every mode is a FULLY SEPARATE state reached
+        /// through the loading screen — switching always builds the destination fresh (see
+        /// EnterDungeonRun / EnterTowerFloor / the Abandon* returns).</summary>
         private void DrawModesPanel(float s)
         {
             if (!_modesOpen) return;
             if (AnyPanelOpen) { _modesOpen = false; return; } // a uGUI panel takes the screen — yield
 
             float sw = Screen.width / s, sh = Screen.height / s;
-            float w = 620f, h = 330f, x = sw / 2f - w / 2f, y = sh / 2f - h / 2f;
+            float w = 620f, h = 436f, x = sw / 2f - w / 2f, y = sh / 2f - h / 2f;
             DrawRect(x - 2, y - 2, w + 4, h + 4, new Color(0.55f, 0.48f, 0.75f, 0.95f)); // violet frame
             DrawRect(x, y, w, h, new Color(0.09f, 0.09f, 0.13f, 0.98f));
 
@@ -2127,15 +2181,24 @@ namespace IdleGame.Game
             GUI.Label(new Rect(x, y + 14, w, 34), "Game Modes", t);
 
             bool inDungeon = _combat.Kind == EncounterKind.Dungeon;
+            bool inTower = _combat.Kind == EncounterKind.Tower;
+            bool inCampaign = !inDungeon && !inTower;
+
             DrawModeRow(x + 20, y + 66, w - 40, "Campaign",
                 "The endless ladder — farm stages, challenge bosses, push deeper.",
-                active: !inDungeon,
-                buttonLabel: inDungeon ? "Abandon & Return" : null,
-                onClick: AbandonDungeonRun);
-            DrawModeRow(x + 20, y + 172, w - 40, "Crypt",
+                active: inCampaign,
+                buttonLabel: inCampaign ? null : "Abandon & Return",
+                onClick: inDungeon ? AbandonDungeonRun : AbandonTowerRun);
+            DrawModeRow(x + 20, y + 172, w - 40, $"Tower of Ascension  (F{Tower.HighestFloor(_save)})",
+                inTower ? $"Climbing floor {_combat.TowerFloor} — clear it or exit up top."
+                        : "One-clear floors on a brutal curve; milestones pay permanent buffs.",
+                active: inTower,
+                buttonLabel: inCampaign ? "Choose Floor" : null,
+                onClick: () => { _modesOpen = false; _towerView?.Toggle(); });
+            DrawModeRow(x + 20, y + 278, w - 40, "Crypt",
                 "Delve a generated crypt. The run ends when every monster is dead.",
                 active: inDungeon,
-                buttonLabel: inDungeon ? null : "Enter the Crypt",
+                buttonLabel: inCampaign ? "Enter the Crypt" : null,
                 onClick: EnterDungeonRun);
 
             if (Button(x + w / 2f - 70, y + h - 48, 140, 36, "Close", BtnStyleSm)) _modesOpen = false;
@@ -2193,7 +2256,7 @@ namespace IdleGame.Game
                 var sub = new GUIStyle(GUI.skin.label) { fontSize = 15, alignment = TextAnchor.MiddleCenter };
                 sub.normal.textColor = new Color(0.8f, 0.85f, 0.8f);
                 GUI.Label(new Rect(x, y + 70, w, 24),
-                    (towerWin || dungeonWin) ? "Returning to the field…" : "Advancing to the next stage…", sub);
+                    (towerWin || dungeonWin) ? "Returning to camp…" : "Advancing to the next stage…", sub);
 
                 if (Button(x + w / 2f - 80, y + h - 60, 160, 44, "OK")) _outcomeTimer = 9999f; // fast-forward
             }
@@ -2369,13 +2432,11 @@ namespace IdleGame.Game
             if (Button(x, y, 230, h, modLabel)) _modifierPanel?.Toggle();
             x += 230 + gap;
 
-            // Tower of Ascension (alt mode): shows the highest floor cleared.
-            if (Button(x, y, 190, h, $"Tower (F{Tower.HighestFloor(_save)})")) _towerView?.Toggle();
-            x += 190 + gap;
-
-            // Game modes (campaign / crypt): the mode-select menu. Violet label while a crypt run is
+            // Game modes (campaign / tower / crypt): the mode-select menu — the Tower's standalone
+            // button folded in here (user call 2026-07-06). Violet label while an alt-mode run is
             // live so the way home is obvious.
-            if (Button(x, y, 170, h, "Modes", _combat.Kind == EncounterKind.Dungeon ? ModesActiveStyle : BtnStyle))
+            bool altMode = _combat.Kind == EncounterKind.Dungeon || _combat.Kind == EncounterKind.Tower;
+            if (Button(x, y, 170, h, "Modes", altMode ? ModesActiveStyle : BtnStyle))
                 _modesOpen = !_modesOpen;
             x += 170 + gap;
 

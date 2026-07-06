@@ -94,16 +94,14 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void TowerFloorsTravelTheZones()
         {
-            var s = Combat.InitFarm(Party(), 1, Cfg, new Rng(3));
-
-            Combat.EnterTower(s, 11, Cfg, new Rng(3)); // floors 11-20 = zone 2
+            var s = Combat.InitTower(Party(), 11, Cfg, new Rng(3)); // floors 11-20 = zone 2
             var zone = Cfg.ZoneForStage(11)!;
             foreach (var e in s.Entities.Where(e => e.Team == Team.Enemy && !e.IsBoss))
                 Assert.Contains(e.RefId, zone.TrashMonsters);
 
             // milestone guardian = the floor's zone boss
-            Combat.EnterTower(s, 20, Cfg, new Rng(3));
-            Assert.Equal(Cfg.ZoneForStage(20)!.BossId, s.Entities.Single(e => e.IsBoss).RefId);
+            var s20 = Combat.InitTower(Party(), 20, Cfg, new Rng(3));
+            Assert.Equal(Cfg.ZoneForStage(20)!.BossId, s20.Entities.Single(e => e.IsBoss).RefId);
         }
 
         // --- Zone drop tables ("boots drop best in the ruins") ---

@@ -172,23 +172,28 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>
-        /// Tower of Ascension: convert the current encounter into a tower-floor fight IN PLACE
-        /// (mirrors <see cref="EnterBossChallenge"/>). Despawn trash, restore the party, then spawn
-        /// floor N's pack — scaled by the tower's OWN steep curve (<see cref="Tower.FloorHpMult"/> /
-        /// <see cref="Tower.FloorDmgMult"/>, not the stage ladder), wearing the floor's modifier as a
-        /// full (not behavior-only) buff so it bites, plus a guardian boss on milestone floors. The
-        /// fight is bounded (no respawns; win = all enemies dead, lose = wipe / failsafe timeout) and
-        /// grants no farm income (see HandleDeath). Mutates s.
+        /// Tower of Ascension: build a FRESH tower-floor fight — its own CombatState, like
+        /// <see cref="InitDungeon"/> (mode isolation, user call 2026-07-06: alt modes LOAD into their
+        /// own map; the old in-place EnterTower shared the campaign state and leaked positions both
+        /// ways). Party starts at the map centre on the FLOOR's zone arena (floors travel the zones);
+        /// floor N's pack spawns a step ahead — scaled by the tower's OWN steep curve
+        /// (<see cref="Tower.FloorHpMult"/> / <see cref="Tower.FloorDmgMult"/>, not the stage ladder),
+        /// wearing the floor's modifier as a full (not behavior-only) buff so it bites, plus a guardian
+        /// boss on milestone floors. The fight is bounded (no respawns; win = all enemies dead, lose =
+        /// wipe / failsafe timeout) and grants no farm income (see HandleDeath).
         /// </summary>
-        public static void EnterTower(CombatState s, int floor, GameConfig cfg, Rng rng)
+        public static CombatState InitTower(IReadOnlyList<HeroInstance> party, int floor, GameConfig cfg, Rng rng)
         {
-            s.Entities.RemoveAll(e => e.Team == Team.Enemy);
-            RestoreParty(s);
-
-            // Floors travel the zones, so the tower re-resolves the arena by FLOOR (same convention as
-            // TrashDef). A stage/zone hop can strand the party off the new layout, so clamp every party
-            // entity into it BEFORE PartyCentroid so the pack ring anchors on the clamped party.
+            var s = new CombatState { Stage = floor, Kind = EncounterKind.Tower, TowerFloor = floor };
             s.ArenaId = cfg.ArenaForStage(floor)?.Id;
+            // Tower kills pay no farm income (HandleDeath gates on Kind), but set a coherent loot
+            // context anyway — every Init* does, and a zeroed struct would be a trap for future code.
+            var rt = cfg.Stages.Find(r => r.Stage == floor) ?? cfg.Stages[0];
+            s.Loot = LootContext.ForStage(rt, cfg);
+            AddParty(s, party, cfg);
+
+            // Party cluster sits at the origin (inside every zone arena by the authoring rule);
+            // clamp defensively anyway so a future exotic arena can't strand anyone.
             var arena = ArenaOf(s, cfg);
             if (arena != null)
                 foreach (var e in s.Entities)
@@ -227,11 +232,7 @@ namespace IdleGame.GameCore
                 foreach (var e in s.Entities)
                     if (e.Team == Team.Enemy) ApplyModifier(e, modDef, floor, 1.0, cfg, behaviorOnly: false);
 
-            s.Kind = EncounterKind.Tower;
-            s.TowerFloor = floor;
-            s.TimeMs = 0;
-            s.SpawnTimerMs = 0;
-            s.Status = CombatStatus.Running;
+            return s;
         }
 
         /// <summary>

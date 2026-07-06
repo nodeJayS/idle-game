@@ -252,6 +252,19 @@ markers, enter/abandon actions (dev button removed); button glows violet
 during a run. 591 tests; Play-verified both leak directions numerically
 (spawns spread X[23..97] zero pre-aggro; return centroid (0.3,0.1) with
 packs ringing 11-22) + a 146-kill full clear → auto-return.
+Second same-day rework (user: transitions must be LOADS, not pans):
+LoadingScreen (fade→black, swap+camera SNAP at full cover, dummy-load
+hold, fade out; sim paused while covered so destination mobs take their
+first step on-screen); Tower joined the isolation model (EnterTower
+deleted → Combat.InitTower fresh state on the floor's zone arena; exits
+rebuild camp via StartFarm through the load); CameraRig.SnapTo (the
+cross-map glide read as one map sliding over); Modes menu now lists
+Campaign/Tower/Crypt (Tower's bar button folded in; Choose Floor opens
+TowerView); alt modes show a top-centre EXIT where Challenge lives;
+Begin() folds gear+account buffs into every fresh state (fresh-init
+parties were fielding naked base stats). Play-verified: sim frozen at
+black (t=0 → first step after fade), camera off-axis 1.3 post-snap,
+tower floor 8 in/out, crypt arrival calm at the portal.
 NEXT: roguelite meta (entry economy, floor progression, death rules,
 rewards — user design conversation) + mood polish; sweep-tail polish
 (last far leaf room adds a long quiet walk — consider nearest-first

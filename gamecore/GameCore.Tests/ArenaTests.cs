@@ -271,16 +271,15 @@ namespace IdleGame.GameCore.Tests
         // ---------------- Tower / boss transitions ----------------
 
         [Fact]
-        public void EnterTowerClampsStrandedPartyInside()
+        public void InitTowerPlacesEveryoneOnTheFloorsArena()
         {
-            var s = Combat.InitFarm(Party(), 1, Cfg, new Rng(3));
-            // Strand the party far outside any arena.
-            foreach (var e in s.Entities.Where(e => e.Team == Team.Party)) e.Pos = new Vec2(150, 90);
-
-            Combat.EnterTower(s, 11, Cfg, new Rng(3)); // zone 2 arena
+            // Fresh-init (mode isolation, 2026-07-06): a tower floor builds its own state, so the
+            // old "stranded party clamped in" scenario can't occur — the invariant is simply that
+            // everything the init places (party cluster + pack + guardian) is on the floor's arena.
+            var s = Combat.InitTower(Party(), 11, Cfg, new Rng(3)); // zone 2 arena
             var arena = Cfg.ArenaForStage(11)!;
             foreach (var e in s.Entities.Where(e => e.Team == Team.Party))
-                Assert.True(arena.Contains(e.Pos), $"party not clamped in: {e.Pos.X},{e.Pos.Y}");
+                Assert.True(arena.Contains(e.Pos), $"party off-arena: {e.Pos.X},{e.Pos.Y}");
             foreach (var e in s.Entities.Where(e => e.Team == Team.Enemy))
                 Assert.True(arena.Contains(e.Pos), $"tower spawn off-arena: {e.Pos.X},{e.Pos.Y}");
         }

@@ -32,9 +32,10 @@ namespace IdleGame.GameCore.Tests
 
         private static CombatState TowerFight(SaveState save, int floor)
         {
-            var s = Combat.InitFarm(PartyHeroes(save), 1, Cfg, new Rng(1));
-            Combat.RefreshPartyStats(s, save, Cfg);   // apply gear + account buffs
-            Combat.EnterTower(s, floor, Cfg, new Rng(1));
+            // Fresh-init (mode isolation, 2026-07-06): a tower floor is its own CombatState, never a
+            // converted farm. RefreshPartyStats after init applies gear + account buffs, as the client does.
+            var s = Combat.InitTower(PartyHeroes(save), floor, Cfg, new Rng(1));
+            Combat.RefreshPartyStats(s, save, Cfg);
             return s;
         }
 
