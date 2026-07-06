@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections.Generic;
 
 namespace IdleGame.GameCore
 {
@@ -31,6 +32,14 @@ namespace IdleGame.GameCore
         private readonly Dungeon _d;
         private readonly int _w, _h;
         private readonly double _corridorSight;
+
+        // Per-room objective flow fields (sweep routing): roomId -> BFS distance over FLOOR from that
+        // room's centre cell, -1 for non-floor. Computed on demand and cached; deterministic (a pure
+        // function of the immutable grid), so caching never changes results.
+        private readonly Dictionary<int, short[]> _roomFields = new Dictionary<int, short[]>();
+        // Per-seed-cell flow fields (sweep travel onto a pack): cell index -> BFS field from that cell.
+        // Same deterministic pure-of-grid caching as _roomFields.
+        private readonly Dictionary<int, short[]> _cellFields = new Dictionary<int, short[]>();
 
         /// <summary>Wrap a dungeon. <paramref name="corridorSight"/> is the euclidean range at which a unit
         /// in a corridor may see across a doorway (Balance.DungeonCorridorSight); defaults to 6.5 so a
@@ -131,12 +140,28 @@ namespace IdleGame.GameCore
         /// from the boss, or off the floor), returns <paramref name="from"/>'s own cell centre so the
         /// caller simply holds. Deterministic.
         /// </summary>
-        public Vec2 DownhillStep(Vec2 from)
+        public Vec2 DownhillStep(Vec2 from) => DownhillStep(from, _d.BossBfs);
+
+        /// <summary>
+        /// The flow-field step toward the CENTRE of <paramref name="roomId"/> — the room-sweep router.
+        /// Same downhill rule as the boss overload, but against <see cref="FieldFor"/>(roomId) so the
+        /// leader is drawn to the current objective room rather than always the boss. Deterministic.
+        /// </summary>
+        public Vec2 DownhillStep(Vec2 from, int roomId) => DownhillStep(from, FieldFor(roomId));
+
+        /// <summary>
+        /// The centre of the 4-neighbour FLOOR cell with the LOWEST <paramref name="field"/> value that is
+        /// STRICTLY lower than the current cell's — the flow-field step toward that field's seed. Fixed
+        /// neighbour scan order (+x, -x, +y, -y) breaks ties. When no neighbour is strictly lower (at or one
+        /// cell from the seed, or off the floor), returns <paramref name="from"/>'s own cell centre so the
+        /// caller simply holds. Deterministic.
+        /// </summary>
+        private Vec2 DownhillStep(Vec2 from, short[] field)
         {
             int cx = (int)Math.Floor(from.X), cy = (int)Math.Floor(from.Y);
             var here = CellCentreOf(from.X, from.Y);
             if (cx < 0 || cx >= _w || cy < 0 || cy >= _h) return here;
-            short cur = _d.BossBfs[cy * _w + cx];
+            short cur = field[cy * _w + cx];
             if (cur < 0) return here; // not on the flow field
 
             int[] dxs = { 1, -1, 0, 0 };
@@ -147,12 +172,98 @@ namespace IdleGame.GameCore
             {
                 int nx = cx + dxs[k], ny = cy + dys[k];
                 if (nx < 0 || nx >= _w || ny < 0 || ny >= _h) continue;
-                short v = _d.BossBfs[ny * _w + nx];
+                short v = field[ny * _w + nx];
                 if (v < 0) continue;          // non-floor
                 if (v < bestVal) { bestVal = v; bx = nx; by = ny; } // strictly lower; fixed order = tie-break
             }
-            if (bx == cx && by == cy) return here; // nothing lower — at/near the boss
+            if (bx == cx && by == cy) return here; // nothing lower — at/near the seed
             return new Vec2(bx + 0.5, by + 0.5);
+        }
+
+        /// <summary>
+        /// The 4-connected BFS distance field over FLOOR cells seeded from <paramref name="roomId"/>'s
+        /// centre cell (-1 for non-floor). Computed on demand and CACHED (a pure function of the immutable
+        /// grid, so the cache never affects results). Used by the room-sweep router: the leader descends
+        /// the field of the current objective room. An unknown room id, or a room whose centre cell isn't
+        /// floor, yields an all-(-1) field (no reachable step — the caller holds).
+        /// </summary>
+        public short[] FieldFor(int roomId)
+        {
+            if (_roomFields.TryGetValue(roomId, out var cached)) return cached;
+
+            int cx = -1, cy = -1;
+            foreach (var r in _d.Rooms)
+                if (r.Id == roomId) { cx = r.Cx; cy = r.Cy; break; }
+
+            var field = BfsFieldFromCell(cx, cy);
+            _roomFields[roomId] = field;
+            return field;
+        }
+
+        /// <summary>
+        /// The centre of the 4-neighbour FLOOR cell that steps toward the CELL <paramref name="cellX"/>,
+        /// <paramref name="cellY"/> — the flow-field step toward a specific cell (used to route the sweep
+        /// leader onto a pack that spawned on corridor-tagged cells, where the room-centre field would
+        /// leave the leader stranded at the seed). Cached per cell index; deterministic. Off-floor seed ⇒
+        /// hold at <paramref name="from"/>.
+        /// </summary>
+        public Vec2 DownhillStepToCell(Vec2 from, int cellX, int cellY)
+        {
+            int key = cellY * _w + cellX;
+            if (!_cellFields.TryGetValue(key, out var field))
+            {
+                field = BfsFieldFromCell(cellX, cellY);
+                _cellFields[key] = field;
+            }
+            return DownhillStep(from, field);
+        }
+
+        /// <summary>4-connected BFS distance field over FLOOR seeded from cell (cx,cy) (-1 for non-floor
+        /// or an off-floor/out-of-bounds seed). The shared field builder behind the room + cell caches.</summary>
+        private short[] BfsFieldFromCell(int cx, int cy)
+        {
+            var field = new short[_w * _h];
+            for (int i = 0; i < field.Length; i++) field[i] = -1;
+            if (cx < 0 || cx >= _w || cy < 0 || cy >= _h || _d.Grid[cy * _w + cx] != DungeonCell.Floor)
+                return field;
+
+            var q = new Queue<int>();
+            int start = cy * _w + cx;
+            field[start] = 0;
+            q.Enqueue(start);
+            int[] dxs = { 1, -1, 0, 0 };
+            int[] dys = { 0, 0, 1, -1 };
+            while (q.Count > 0)
+            {
+                int idx = q.Dequeue();
+                int x = idx % _w, y = idx / _w;
+                short nd = (short)(field[idx] + 1);
+                for (int k = 0; k < 4; k++)
+                {
+                    int nx = x + dxs[k], ny = y + dys[k];
+                    if (nx < 0 || nx >= _w || ny < 0 || ny >= _h) continue;
+                    int ni = ny * _w + nx;
+                    if (_d.Grid[ni] != DungeonCell.Floor || field[ni] >= 0) continue;
+                    field[ni] = nd;
+                    q.Enqueue(ni);
+                }
+            }
+            return field;
+        }
+
+        /// <summary>The entrance-BFS distance at a room's CENTRE cell — how "deep" the room is from the
+        /// entrance along the floor. Drives objective ordering (sweep the shallowest living room first).
+        /// A room whose centre isn't floor (never for a valid dungeon) reads short.MaxValue = last.</summary>
+        public short RoomEntranceDepth(int roomId)
+        {
+            foreach (var r in _d.Rooms)
+                if (r.Id == roomId)
+                {
+                    if (r.Cx < 0 || r.Cx >= _w || r.Cy < 0 || r.Cy >= _h) return short.MaxValue;
+                    short v = _d.Bfs[r.Cy * _w + r.Cx];
+                    return v < 0 ? short.MaxValue : v;
+                }
+            return short.MaxValue;
         }
 
         /// <summary>The entrance room's centre-cell world point — the Clamp fallback and party spawn anchor.

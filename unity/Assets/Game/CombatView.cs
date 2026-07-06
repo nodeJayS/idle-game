@@ -751,7 +751,9 @@ namespace IdleGame.Game
             _combat.Tactic = PartyTactic.Solo;        // formation travel: the leader heads for
             _combat.LeaderRefId = _save.LeaderHeroId; // the pack, the rest hold a triangle behind
                                                       // it (chosen leader, else lowest slot)
-            DressZone(_combat.Stage);                 // reskin the world for the stage's zone
+            // Zone dress is an OVERWORLD concern — a dungeon state owns its world via DungeonMode
+            // (the overworld roots are hidden; dressing them would fight the swap).
+            if (_combat.Kind != EncounterKind.Dungeon) DressZone(_combat.Stage);
             ReconcileViews();
             _accMs = 0;
             _outcomeTimer = 0;
@@ -808,12 +810,15 @@ namespace IdleGame.Game
                 float delay = (bossWin || towerDone || dungeonDone) ? 1.0f : OutcomeDelaySec;
                 if (_outcomeTimer >= delay)
                 {
-                    // A dungeon run unwinds the world swap FIRST (restore the overworld + lighting), then
-                    // clears the sim's dungeon surface so ResumeFarm lands on the flat farm map again.
+                    // A dungeon run ends by DROPPING its state wholesale: unwind the world swap, then
+                    // rebuild the campaign from scratch (StartFarm → fresh InitFarm). Mode isolation —
+                    // the old in-place ResumeFarm clamped dungeon grid positions onto the campaign
+                    // arena's rim and every farm pack ringed there (user-caught live).
                     if (dungeonDone)
                     {
                         DungeonMode.Exit();
-                        _combat.Dungeon = null; // ResumeFarm doesn't clear it — drop the grid surface so ArenaOf returns the farm arena
+                        StartFarm();
+                        return;
                     }
                     // Back to farming on the SAME map (no rebuild). A win farms the next stage at
                     // normal cadence; a fail/wipe re-farms the current stage after the anti-spam
@@ -1186,23 +1191,30 @@ namespace IdleGame.Game
             ReconcileViews();
         }
 
-        /// <summary>Dev entry (roguelite slice 3b): swap the overworld for a generated crypt dungeon and
-        /// convert the live farm into a run in place (mirrors ChallengeBoss / EnterTowerFloor). The world
-        /// swap + sim transition live in <see cref="DungeonMode"/>; here we bank pending, kick it off,
-        /// announce the seeded name, and fully rebuild the entity views — despawned farm trash must lose
-        /// its views and the dungeon's fresh spawns must gain theirs, so we ClearViews then reconcile.</summary>
+        /// <summary>Start a crypt run (Modes menu): the world swap + FRESH dungeon CombatState come
+        /// from <see cref="DungeonMode.Enter"/>; the campaign state is simply dropped (mode isolation —
+        /// no in-place mutation, so nothing leaks between the maps in either direction). Begin() gives
+        /// the new state the same clean-slate view/timer treatment as any run start.</summary>
         private void EnterDungeonRun()
         {
-            if (_combat.Kind != EncounterKind.Farm) return;
-            CommitPending();
-            var d = DungeonMode.Enter(_cfg, _combat, _save, NewRng());
+            if (_combat.Kind != EncounterKind.Farm || _combat.Status != CombatStatus.Running) return;
+            CommitPending(); // bank campaign loot/xp before the state is dropped
+            var state = DungeonMode.Enter(_cfg, BuildParty(), _save, NewRng(), out var d);
             _chat?.AddFeed($"Entering {d.Name}… ", new Color(0.72f, 0.55f, 0.95f));
-            // The in-place transition swapped the whole enemy set (and moved the party into grid space),
-            // so drop every stale view and respawn from the new entity list — same clean-slate the
-            // ClearViews-in-Begin path gives (ReconcileViews alone would keep dead farm-trash views).
-            ClearViews();
-            _accMs = 0; _outcomeTimer = 0; _resolved = false;
-            ReconcileViews();
+            Begin(state);
+            _modesOpen = false;
+        }
+
+        /// <summary>Leave a crypt run early (Modes menu): unwind the world swap and rebuild the
+        /// campaign from scratch. Kills so far already banked via CommitPending each frame; the rest
+        /// of the run is simply forfeited.</summary>
+        private void AbandonDungeonRun()
+        {
+            if (_combat.Kind != EncounterKind.Dungeon) return;
+            _chat?.AddFeed("Crypt run abandoned.", new Color(1f, 0.72f, 0.5f));
+            DungeonMode.Exit();
+            StartFarm();
+            _modesOpen = false;
         }
 
         private void FleeToFarm()
@@ -1946,6 +1958,7 @@ namespace IdleGame.Game
             DrawOutcome(s);
             DrawPartyHud(s);
             DrawControlBar();
+            DrawModesPanel(s); // last: the mode-select menu overlays the HUD when open
 
             GUI.matrix = prevMatrix;
         }
@@ -2073,9 +2086,7 @@ namespace IdleGame.Game
 
                 bool major = _cfg.Stages.Find(x => x.Stage == cur)?.IsMajorBoss == true;
                 if (Button(cx - 185, 90, 370, 46, major ? "Challenge ★ Major Boss" : "Challenge Miniboss", BtnStyleSm)) ChallengeBoss();
-
-                // Dev-only: drop into a generated crypt dungeon (roguelite slice 3b test entry).
-                if (Button(cx - 185, 140, 370, 34, "Crypt Run (dev)", BtnStyleSm)) EnterDungeonRun();
+                // (Crypt entry moved to the Modes menu on the control bar.)
             }
             else if (_combat.Kind == EncounterKind.BossChallenge)
             {
@@ -2092,6 +2103,69 @@ namespace IdleGame.Game
                 if (Button(cx - 130, 144, 260, 36, _autoAdvance ? "■ Stop Auto-Advance" : "▶ Auto-Advance", autoStyle))
                     ToggleAutoAdvance();
             }
+        }
+
+        // ---- Modes menu (campaign / crypt) --------------------------------------------
+
+        private bool _modesOpen;
+
+        /// <summary>The mode-select menu (control-bar "Modes"): one row per game mode with an
+        /// active marker and the switch action. Campaign and the Crypt are FULLY SEPARATE states —
+        /// switching always builds the destination fresh (see EnterDungeonRun / AbandonDungeonRun).</summary>
+        private void DrawModesPanel(float s)
+        {
+            if (!_modesOpen) return;
+            if (AnyPanelOpen) { _modesOpen = false; return; } // a uGUI panel takes the screen — yield
+
+            float sw = Screen.width / s, sh = Screen.height / s;
+            float w = 620f, h = 330f, x = sw / 2f - w / 2f, y = sh / 2f - h / 2f;
+            DrawRect(x - 2, y - 2, w + 4, h + 4, new Color(0.55f, 0.48f, 0.75f, 0.95f)); // violet frame
+            DrawRect(x, y, w, h, new Color(0.09f, 0.09f, 0.13f, 0.98f));
+
+            var t = new GUIStyle(GUI.skin.label) { fontSize = 26, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+            t.normal.textColor = new Color(0.92f, 0.9f, 1f);
+            GUI.Label(new Rect(x, y + 14, w, 34), "Game Modes", t);
+
+            bool inDungeon = _combat.Kind == EncounterKind.Dungeon;
+            DrawModeRow(x + 20, y + 66, w - 40, "Campaign",
+                "The endless ladder — farm stages, challenge bosses, push deeper.",
+                active: !inDungeon,
+                buttonLabel: inDungeon ? "Abandon & Return" : null,
+                onClick: AbandonDungeonRun);
+            DrawModeRow(x + 20, y + 172, w - 40, "Crypt",
+                "Delve a generated crypt. The run ends when every monster is dead.",
+                active: inDungeon,
+                buttonLabel: inDungeon ? null : "Enter the Crypt",
+                onClick: EnterDungeonRun);
+
+            if (Button(x + w / 2f - 70, y + h - 48, 140, 36, "Close", BtnStyleSm)) _modesOpen = false;
+        }
+
+        /// <summary>One Modes row: name + green "● Active" marker (or the switch button), and a
+        /// one-line description. <paramref name="buttonLabel"/> null = this mode is current.</summary>
+        private void DrawModeRow(float x, float y, float w, string name, string desc,
+                                 bool active, string? buttonLabel, System.Action onClick)
+        {
+            const float rowH = 92f;
+            DrawRect(x, y, w, rowH, new Color(0.13f, 0.13f, 0.18f, 0.95f));
+
+            var nameStyle = new GUIStyle(GUI.skin.label) { fontSize = 21, fontStyle = FontStyle.Bold };
+            nameStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(x + 16, y + 10, 300, 26), name, nameStyle);
+
+            if (active)
+            {
+                var on = new GUIStyle(GUI.skin.label) { fontSize = 16, fontStyle = FontStyle.Bold };
+                on.normal.textColor = new Color(0.55f, 0.9f, 0.6f);
+                GUI.Label(new Rect(x + 16 + 130, y + 13, 140, 22), "● Active", on);
+            }
+
+            var d = new GUIStyle(GUI.skin.label) { fontSize = 15, wordWrap = true };
+            d.normal.textColor = new Color(0.72f, 0.74f, 0.82f);
+            GUI.Label(new Rect(x + 16, y + 40, w - 240, 46), desc, d);
+
+            if (buttonLabel != null && Button(x + w - 224, y + rowH / 2f - 21, 208, 42, buttonLabel, BtnStyleSm))
+                onClick();
         }
 
         /// <summary>Outcome overlay: a success popup on a boss win (auto-advances ~1s or OK),
@@ -2299,6 +2373,12 @@ namespace IdleGame.Game
             if (Button(x, y, 190, h, $"Tower (F{Tower.HighestFloor(_save)})")) _towerView?.Toggle();
             x += 190 + gap;
 
+            // Game modes (campaign / crypt): the mode-select menu. Violet label while a crypt run is
+            // live so the way home is obvious.
+            if (Button(x, y, 170, h, "Modes", _combat.Kind == EncounterKind.Dungeon ? ModesActiveStyle : BtnStyle))
+                _modesOpen = !_modesOpen;
+            x += 170 + gap;
+
             // Hero gacha (roadmap 3): only surfaces once a banner with a real pool exists. cfg.Banners is
             // empty until slice 3 seeds the Ice Mage banner, so this button HIDES itself until then.
             if (AnyLiveBanner)
@@ -2331,6 +2411,21 @@ namespace IdleGame.Game
         private GUIStyle? _btnStyleSm;
         private GUIStyle BtnStyleSm => _btnStyleSm ??= new GUIStyle(GUI.skin.button)
         { fontSize = 20, fontStyle = FontStyle.Bold };
+
+        // "Modes" bar button while a crypt run is live — violet, matching the dungeon feed lines.
+        private GUIStyle? _modesActiveStyle;
+        private GUIStyle ModesActiveStyle
+        {
+            get
+            {
+                if (_modesActiveStyle == null)
+                {
+                    _modesActiveStyle = new GUIStyle(BtnStyle);
+                    _modesActiveStyle.normal.textColor = new Color(0.8f, 0.68f, 1f);
+                }
+                return _modesActiveStyle;
+            }
+        }
 
         private bool Button(float x, float y, float w, float h, string label) =>
             GUI.Button(new Rect(x, y, w, h), label, BtnStyle);

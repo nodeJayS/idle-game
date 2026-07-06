@@ -109,6 +109,11 @@ namespace IdleGame.GameCore
         // the rest follow in a triangle behind it. Non-heroes leave this at int.MaxValue.
         public int Slot = int.MaxValue;
 
+        // Dungeon (roguelite): the room this enemy was SEEDED in (its spawn's RoomId), so the
+        // room-sweep objective can attribute a mob that wandered/chased into a corridor to its home
+        // room. Set at dungeon spawn seeding; heroes and every non-dungeon entity leave this -1.
+        public int DungeonRoomId = -1;
+
         // Role axis (formation): a ranged hero (HeroDef.Role == "ranged") parks at casting
         // distance, fires at what's already in reach mid-regroup, and backpedals from anything
         // that closes on it. Set in AddParty from the hero's def; every other entity leaves it
@@ -158,7 +163,7 @@ namespace IdleGame.GameCore
         // walkable clamp; movement/spawns behave exactly as they did pre-arena.
         public string? ArenaId;
         // Dungeon (roguelite slice 3a): the grid-walkable surface for a Kind == Dungeon run — set by
-        // Combat.EnterDungeon, null everywhere else. When non-null it OVERRIDES ArenaId as the arena
+        // Combat.InitDungeon, null everywhere else. When non-null it OVERRIDES ArenaId as the arena
         // surface (ArenaOf returns it first) and unlocks the room-gated targeting + BFS leader travel.
         // Transient like the rest of CombatState; never persisted.
         public DungeonArena? Dungeon;

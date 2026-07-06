@@ -238,8 +238,24 @@ nightmare_maw), win/lose feed + popup, auto-return to farm. Play-verified
 end-to-end: seeded name in feed, party traversed room-to-room (toBoss
 77→52→26→1 with a 24s room-clear plateau, 31 trash killed en route),
 35s boss grind (12,283 HP), loot flowing, auto-exit to farm, save intact.
-NEXT: the actual roguelite meta (entry economy, floor progression,
-death rules, rewards — user design conversation) + mood polish pass.
+Reworked same day after live user feedback (mode-leak + "one room" feel):
+FULL MODE ISOLATION — Combat.InitDungeon builds a fresh CombatState
+(EnterDungeon deleted; the old in-place path let ResumeFarm clamp dungeon
+grid coords onto the campaign arena rim, ringing farm packs there);
+returning rebuilds the campaign via StartFarm from scratch. FULL-CLEAR
+WIN — the whole crypt is the level: win = every monster dead (timeout
+900s), leader SWEEPS rooms shallowest-entrance-depth-first via cached
+per-room BFS flow fields (plus: flow-field approach for out-of-reach
+targets, immovable sweep leader vs body-shove — 12/12 seeds full-clear).
+MODES MENU — control-bar "Modes" panel lists Campaign/Crypt with active
+markers, enter/abandon actions (dev button removed); button glows violet
+during a run. 591 tests; Play-verified both leak directions numerically
+(spawns spread X[23..97] zero pre-aggro; return centroid (0.3,0.1) with
+packs ringing 11-22) + a 146-kill full clear → auto-return.
+NEXT: roguelite meta (entry economy, floor progression, death rules,
+rewards — user design conversation) + mood polish; sweep-tail polish
+(last far leaf room adds a long quiet walk — consider nearest-first
+routing once few enemies remain).
 (4) BFS build-reveal animation (parked).
 
 ### 8. Content & tuning pass

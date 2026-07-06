@@ -8,15 +8,16 @@ namespace IdleGame.Game
     /// <summary>
     /// Client coordinator for a playable dungeon RUN (roguelite slice 3b). Mirrors ZoneDress's role:
     /// it owns the WORLD SWAP that turns the overworld into the crypt dungeon and back — nothing here
-    /// decides rules, it only drives Unity presentation and calls the existing sim transitions
-    /// (<see cref="Combat.EnterDungeon"/>) so a MonoBehaviour never authors game state.
+    /// decides rules, it only drives Unity presentation and calls the existing sim constructors
+    /// (<see cref="Combat.InitDungeon"/>) so a MonoBehaviour never authors game state.
     ///
-    /// Enter: seed a dungeon deterministically from save progress, generate it (slice 1), hand it to
-    /// the sim to place the party + spawns (slice 3a), deactivate the overworld roots, build the
-    /// dungeon visual (slice 2 renderer) under "DungeonWorld", and STASH → restage the scene lighting/
-    /// fog/ambient/camera-clear for the crypt look. Exit: tear the visual down and restore everything
-    /// exactly. This is a static singleton because there is at most one live run at a time (the sim's
-    /// <see cref="CombatState.Dungeon"/> is likewise single).
+    /// Enter: seed a dungeon deterministically from save progress, generate it (slice 1), build a
+    /// FRESH dungeon CombatState via <see cref="Combat.InitDungeon"/> (slice 3a — full mode isolation,
+    /// the campaign state is never mutated), deactivate the overworld roots, build the dungeon visual
+    /// (slice 2 renderer) under "DungeonWorld", and STASH → restage the scene lighting/fog/ambient/
+    /// camera-clear for the crypt look. Exit: tear the visual down and restore everything exactly;
+    /// the caller then rebuilds the campaign state from scratch (StartFarm). This is a static
+    /// singleton because there is at most one live run at a time.
     /// </summary>
     public static class DungeonMode
     {
@@ -51,16 +52,20 @@ namespace IdleGame.Game
         private static readonly string[] OverworldRoots = { "Ground", "ArenaTerrain", "ArenaWater", "Scenery" };
 
         // Gloom Hollow cast — the crypt test floor's roster (ids confirmed present in GameConfig; the
-        // trash roster falls back inside Combat.EnterDungeon if a config drops one).
+        // trash roster falls back inside Combat.InitDungeon if a config drops one).
         private static readonly string[] TrashRoster = { "cave_bat", "gloom_shade" };
         private const string BossId = "nightmare_maw";
 
         /// <summary>
-        /// Swap the world to a freshly-generated dungeon and transition the live combat into a run.
-        /// Returns the generated <see cref="Dungeon"/> (the caller wants its seeded name for the feed).
+        /// Swap the world to a freshly-generated dungeon and return a BRAND-NEW dungeon CombatState —
+        /// the campaign state is never touched. Fresh-state isolation is the fix for the mode-leak the
+        /// user hit live: the old in-place transition left dungeon grid positions behind, so returning
+        /// clamped the party (and thus every spawn ring) onto the campaign arena's rim. Now each mode's
+        /// state is built from scratch on entry and dropped wholesale on exit — nothing CAN leak.
         /// <paramref name="rng"/> is threaded to the sim for the spawn stagger (never UnityEngine.Random).
         /// </summary>
-        public static Dungeon Enter(GameConfig cfg, CombatState combat, SaveState save, Rng rng, string themeKey = "crypt")
+        public static CombatState Enter(GameConfig cfg, System.Collections.Generic.IReadOnlyList<HeroInstance> party,
+                                        SaveState save, Rng rng, out Dungeon dungeon, string themeKey = "crypt")
         {
             // Deterministic seed from farm depth, salted, then advanced by the session entry counter so
             // the FIRST dungeon at a given stage is reproducible while re-entries re-roll the layout.
@@ -68,7 +73,7 @@ namespace IdleGame.Game
             int seed = unchecked((stage * (int)2654435761u ^ 0x5EED) + _entryCounter);
             _entryCounter++;
 
-            var d = DungeonGen.Generate(new DungeonParams
+            dungeon = DungeonGen.Generate(new DungeonParams
             {
                 Seed = seed,
                 RoomCount = 26,       // a test floor — walkable in minutes, not the 80-room showpiece
@@ -77,14 +82,14 @@ namespace IdleGame.Game
                 Theme = themeKey,
             });
 
-            // Sim transition IN PLACE (party at the entrance, authored spawns materialised). Guard the
-            // roster/boss against a config that dropped an id (Combat.EnterDungeon also falls back).
+            // Fresh sim state (party at the entrance, authored spawns materialised). Guard the boss id
+            // against a config that dropped it (the sim tolerates "" and just spawns no boss).
             string boss = cfg.Monsters.ContainsKey(BossId) ? BossId : "";
-            Combat.EnterDungeon(combat, d, TrashRoster, boss, cfg, rng);
+            var state = Combat.InitDungeon(party, stage, dungeon, TrashRoster, boss, cfg, rng);
 
-            SwapWorldIn(d, themeKey);
+            SwapWorldIn(dungeon, themeKey);
             Active = true;
-            return d;
+            return state;
         }
 
         /// <summary>Tear down the dungeon visual, restore the stashed scene state, and reactivate the

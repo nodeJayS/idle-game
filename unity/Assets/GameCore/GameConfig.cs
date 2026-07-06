@@ -336,7 +336,9 @@ namespace IdleGame.GameCore
         // see each other freely). DungeonMaxRunSeconds is the failsafe timeout: a run that hasn't cleared
         // the boss by then is Lost (stuck / under-geared), mirroring MaxRunSeconds for the endless field.
         public double DungeonCorridorSight = 6.5;
-        public double DungeonMaxRunSeconds = 600;
+        // Failsafe timeout for a full-clear run: the party sweeps the WHOLE crypt room by room (minutes,
+        // not the ~16s a single boss room took), so this is bumped to 900 to leave headroom.
+        public double DungeonMaxRunSeconds = 900;
         // Boss challenge (C1): pressing Challenge despawns the trash and the boss appears this far
         // ahead of the party on the SAME map (a step or two away — not a separate arena). After a
         // flee/fail, trash stays gone for BossFleeCooldownMs before repopulating, so spamming
