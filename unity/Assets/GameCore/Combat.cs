@@ -42,6 +42,12 @@ namespace IdleGame.GameCore
             return 1000.0 / (aps > 0 ? aps : 1.0);
         }
 
+        /// <summary>The arena a live state is fought on, or null (open plane). Resolves the pinned
+        /// <see cref="CombatState.ArenaId"/> against the config; a null id or an unknown layout both
+        /// mean "no arena", so legacy states and synthetic fights stay on the open plane.</summary>
+        private static ArenaLayout? ArenaOf(CombatState s, GameConfig cfg)
+            => s.ArenaId != null && cfg.Arenas.TryGetValue(s.ArenaId, out var a) ? a : null;
+
         /// <summary>The trash def for spawn number <paramref name="index"/> at a stage:
         /// cycles the stage's ZONE roster (zones = the themed ~10-stage bands; Tower floors
         /// pass the floor so the climb travels the same zones). Falls back to the legacy
@@ -59,6 +65,7 @@ namespace IdleGame.GameCore
         public static CombatState InitCombat(IReadOnlyList<HeroInstance> party, int stage, GameConfig cfg, Rng rng)
         {
             var s = new CombatState { Stage = stage, Kind = EncounterKind.Encounter };
+            s.ArenaId = cfg.ArenaForStage(stage)?.Id;
             AddParty(s, party, cfg);
 
             var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
@@ -91,6 +98,7 @@ namespace IdleGame.GameCore
                                            IReadOnlyList<ModifierInstance>? activeModifiers = null)
         {
             var s = new CombatState { Stage = stage, Kind = EncounterKind.Farm };
+            s.ArenaId = cfg.ArenaForStage(stage)?.Id;
             if (activeModifiers != null) s.ActiveModifiers = new List<ModifierInstance>(activeModifiers);
             AddParty(s, party, cfg);
 
@@ -98,7 +106,7 @@ namespace IdleGame.GameCore
             s.Loot = LootContext.ForStage(rt, cfg);
 
             int initial = Math.Min(cfg.Balance.SpawnBatchSize, cfg.Balance.MobCap);
-            if (initial > 0) SpawnPack(s, rt, cfg, rng, initial);
+            if (initial > 0) SpawnPack(s, rt, cfg, rng, initial, ArenaOf(s, cfg));
 
             s.SpawnTimerMs = cfg.Balance.SpawnIntervalMs;
             return s;
@@ -113,6 +121,7 @@ namespace IdleGame.GameCore
         public static CombatState InitBossChallenge(IReadOnlyList<HeroInstance> party, int stage, GameConfig cfg, Rng rng)
         {
             var s = new CombatState { Stage = stage, Kind = EncounterKind.BossChallenge };
+            s.ArenaId = cfg.ArenaForStage(stage)?.Id;
             AddParty(s, party, cfg);
 
             var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
@@ -148,6 +157,8 @@ namespace IdleGame.GameCore
                 var c = PartyCentroid(s);
                 double w = cfg.Balance.MapHalfWidth - 1.0, d = cfg.Balance.MapHalfDepth - 1.0;
                 var pos = new Vec2(Math.Clamp(c.X + cfg.Balance.BossSpawnDistance, -w, w), Math.Clamp(c.Y, -d, d));
+                var arena = ArenaOf(s, cfg); // same stage/map: ArenaId unchanged, but keep the boss walkable
+                if (arena != null) pos = arena.Clamp(pos);
                 s.Entities.Add(MakeMonster(cfg, boss, "EBOSS", pos,
                     StageScale(rt, cfg) * major, true, HpScale(rt, cfg) * cfg.Balance.BossHpMult * major));
             }
@@ -173,6 +184,15 @@ namespace IdleGame.GameCore
             s.Entities.RemoveAll(e => e.Team == Team.Enemy);
             RestoreParty(s);
 
+            // Floors travel the zones, so the tower re-resolves the arena by FLOOR (same convention as
+            // TrashDef). A stage/zone hop can strand the party off the new layout, so clamp every party
+            // entity into it BEFORE PartyCentroid so the pack ring anchors on the clamped party.
+            s.ArenaId = cfg.ArenaForStage(floor)?.Id;
+            var arena = ArenaOf(s, cfg);
+            if (arena != null)
+                foreach (var e in s.Entities)
+                    if (e.Team == Team.Party) e.Pos = arena.Clamp(e.Pos);
+
             double hpScale = Tower.FloorHpMult(floor, cfg);
             double dmgScale = Tower.FloorDmgMult(floor, cfg);
             var c = PartyCentroid(s);
@@ -184,6 +204,7 @@ namespace IdleGame.GameCore
                 var mdef = TrashDef(cfg, floor, j); // floor as zone key — the climb travels the zones
                 var pos = new Vec2(Math.Clamp(c.X + cfg.Balance.BossSpawnDistance + j * 0.6, -w, w),
                                    Math.Clamp(c.Y + (j - pack / 2) * 1.0, -d, d));
+                if (arena != null) pos = arena.Clamp(pos);
                 s.Entities.Add(MakeMonster(cfg, mdef, "E" + j, pos, dmgScale, false, hpScale));
             }
 
@@ -195,6 +216,7 @@ namespace IdleGame.GameCore
                 && cfg.Monsters.TryGetValue(guardianId, out var boss))
             {
                 var pos = new Vec2(Math.Clamp(c.X + cfg.Balance.BossSpawnDistance, -w, w), Math.Clamp(c.Y, -d, d));
+                if (arena != null) pos = arena.Clamp(pos);
                 s.Entities.Add(MakeMonster(cfg, boss, "EBOSS", pos, dmgScale, true, hpScale * cfg.Balance.BossHpMult));
             }
 
@@ -230,6 +252,14 @@ namespace IdleGame.GameCore
             s.TimeMs = 0;
             s.Status = CombatStatus.Running;
             s.SpawnTimerMs = spawnDelayMs; // lull before the next pack (no instant respawn)
+
+            // A stage hop can cross into a new zone/arena — re-resolve and clamp the party into it so
+            // nobody resumes stranded off the walkable region.
+            s.ArenaId = cfg.ArenaForStage(stage)?.Id;
+            var arena = ArenaOf(s, cfg);
+            if (arena != null)
+                foreach (var e in s.Entities)
+                    if (e.Team == Team.Party) e.Pos = arena.Clamp(e.Pos);
         }
 
         /// <summary>Heal the party to full and clear downed / cooldown / buff state — a phase
@@ -418,7 +448,7 @@ namespace IdleGame.GameCore
         /// the ring around the party (PoE-style — packs with quiet gaps between, not an even
         /// scatter). The pack centre rings the group so packs appear near it wherever it roams.
         /// </summary>
-        private static void SpawnPack(CombatState s, StageDef rt, GameConfig cfg, Rng rng, int count)
+        private static void SpawnPack(CombatState s, StageDef rt, GameConfig cfg, Rng rng, int count, ArenaLayout? arena)
         {
             double w = cfg.Balance.MapHalfWidth - 1.0, d = cfg.Balance.MapHalfDepth - 1.0;
             var c = PartyCentroid(s);
@@ -430,8 +460,12 @@ namespace IdleGame.GameCore
             for (int i = 0; i < count; i++)
             {
                 var mdef = TrashDef(cfg, rt.Stage, s.SpawnCount);
-                var pos = new Vec2(Math.Clamp(center.X + rng.RandRange(-pr, pr), -w, w),
-                                   Math.Clamp(center.Y + rng.RandRange(-pr, pr), -d, d));
+                // Same rng draws in the same order as the open-plane path, THEN clamp: an arena
+                // projects the pack point onto the walkable region; no arena keeps the rect clamp.
+                double px = rng.RandRange(-pr, pr), py = rng.RandRange(-pr, pr);
+                var pos = arena != null
+                    ? arena.Clamp(new Vec2(center.X + px, center.Y + py))
+                    : new Vec2(Math.Clamp(center.X + px, -w, w), Math.Clamp(center.Y + py, -d, d));
                 var mob = MakeMonster(cfg, mdef, "E" + s.SpawnCount, pos, StageScale(rt, cfg), false, HpScale(rt, cfg));
                 mob.Aggro = false;          // ambles until a hero hits it
                 mob.WanderTarget = pos;     // idle in place until...
@@ -581,6 +615,10 @@ namespace IdleGame.GameCore
             var events = new List<CombatEvent>();
             if (s.Status != CombatStatus.Running) return events;
 
+            // The arena (or null = open plane) for this whole step — threaded to every movement,
+            // spawn, formation-home, dash, and collision site so units stay on the walkable region.
+            var arena = ArenaOf(s, cfg);
+
             s.TimeMs += dtMs;
 
             // Respawn countdown (before acting + before the win/lose check) so a hero
@@ -610,7 +648,7 @@ namespace IdleGame.GameCore
                     if (n > 0)
                     {
                         var rt = cfg.Stages.Find(r => r.Stage == s.Stage) ?? cfg.Stages[0];
-                        SpawnPack(s, rt, cfg, rng, n);
+                        SpawnPack(s, rt, cfg, rng, n, arena);
                     }
                     s.SpawnTimerMs = cfg.Balance.SpawnIntervalMs;
                 }
@@ -729,10 +767,10 @@ namespace IdleGame.GameCore
 
                 // Idle (non-aggro) trash just ambles randomly; it doesn't seek or attack the
                 // party until something hits it (ApplyHit flips Aggro on).
-                if (e.Team == Team.Enemy && !e.Aggro) { Wander(e, cfg, dtMs, rng); continue; }
+                if (e.Team == Team.Enemy && !e.Aggro) { Wander(e, cfg, dtMs, rng, arena); continue; }
 
                 // A ready skill replaces this step's basic attack/move (M11).
-                if (TryCastSkill(s, e, cfg, rng, events)) continue;
+                if (TryCastSkill(s, e, cfg, rng, events, arena)) continue;
 
                 CombatEntity? target;
                 // Panic micro-kite: a ranged follower with an aggro'd enemy inside PanicRadius
@@ -773,7 +811,7 @@ namespace IdleGame.GameCore
                             double ms = e.EffectiveStat(StatKey.MoveSpd);
                             if (ms <= 0) ms = MoveSpeedTilesPerSec;
                             e.TargetId = leaderPack.Id;
-                            MoveToward(e, leaderPack.Pos, ms * dtMs / 1000.0);
+                            MoveToward(e, leaderPack.Pos, ms * dtMs / 1000.0, arena);
                             continue;
                         }
                     }
@@ -787,6 +825,10 @@ namespace IdleGame.GameCore
                         if (followerRank != null && followerRank.TryGetValue(e.Id, out var fr))
                         { ranged = fr.ranged; roleRank = fr.roleRank; }
                         Vec2 home = FormationHome(leader!, heading, ranged, roleRank, cfg);
+                        // An arena can place a slot off the walkable region (e.g. behind a leader on a
+                        // shore) — degrade the home to the nearest walkable point so the deadzone/hustle
+                        // logic terminates at a reachable spot instead of running in place at a cliff.
+                        if (arena != null) home = arena.Clamp(home);
                         // A MELEE follower prefers (within the SAME slot radius) an enemy attacking
                         // a ranged ally — it peels off its slot to defend the caster. A RANGED
                         // follower instead ASSISTS the front line: within the same radius it prefers
@@ -822,7 +864,7 @@ namespace IdleGame.GameCore
                                     if (lms <= 0) lms = MoveSpeedTilesPerSec;
                                     ms = Math.Max(ms, lms) * cfg.Balance.RegroupHustleMult;
                                 }
-                                MoveToward(e, home, ms * dtMs / 1000.0);
+                                MoveToward(e, home, ms * dtMs / 1000.0, arena);
                             }
                             continue;
                         }
@@ -902,7 +944,7 @@ namespace IdleGame.GameCore
                     // the rim contact point and getting shoved back out by ResolveCollisions next step
                     // (the in-place flap). Direction is unchanged — only this step's LENGTH is clamped.
                     double stepLen = Math.Min(moveSpd * dtMs / 1000.0, Math.Max(0.0, dist - (range - ArriveDepth)));
-                    MoveToward(e, dest, stepLen);
+                    MoveToward(e, dest, stepLen, arena);
                 }
 
                 // Panic retreat: replaces this step's movement entirely (attacked or not) — a
@@ -915,14 +957,14 @@ namespace IdleGame.GameCore
                 {
                     double retreatSpd = e.EffectiveStat(StatKey.MoveSpd);
                     if (retreatSpd <= 0) retreatSpd = MoveSpeedTilesPerSec;
-                    MoveToward(e, leader.Pos, retreatSpd * dtMs / 1000.0);
+                    MoveToward(e, leader.Pos, retreatSpd * dtMs / 1000.0, arena);
                 }
             }
 
             // Soft-body separation: push overlapping units apart so they occupy space
             // instead of stacking. Runs AFTER movement/attacks (which already resolved at
             // their pre-push positions), so it only affects spacing, never hit outcomes.
-            ResolveCollisions(s, cfg);
+            ResolveCollisions(s, cfg, arena);
 
             // A downed hero has Hp 0 (Alive == false), so an all-at-once wipe makes
             // partyAlive false -> Lost.
@@ -1017,7 +1059,7 @@ namespace IdleGame.GameCore
         /// return true (the caller then skips this step's basic attack). Skills are gated on
         /// cooldown only — mana was removed. Deterministic — rng is only used inside ApplyHit.
         /// </summary>
-        private static bool TryCastSkill(CombatState s, CombatEntity e, GameConfig cfg, Rng rng, List<CombatEvent> events)
+        private static bool TryCastSkill(CombatState s, CombatEntity e, GameConfig cfg, Rng rng, List<CombatEvent> events, ArenaLayout? arena = null)
         {
             foreach (var id in e.Skills)
             {
@@ -1087,8 +1129,9 @@ namespace IdleGame.GameCore
                         if (gap <= contact + 0.5) continue;
                         CastStart(e, sk, target.Id, events);
                         double inv = contact / gap; // land on the approach side, just touching
-                        e.Pos = new Vec2(target.Pos.X - (target.Pos.X - e.Pos.X) * inv,
-                                         target.Pos.Y - (target.Pos.Y - e.Pos.Y) * inv);
+                        var landing = new Vec2(target.Pos.X - (target.Pos.X - e.Pos.X) * inv,
+                                               target.Pos.Y - (target.Pos.Y - e.Pos.Y) * inv);
+                        e.Pos = arena != null ? arena.Clamp(landing) : landing; // never dash off the walkable region
                         ApplyHit(s, e, target, cfg, rng, events, sk.DamageMult * rankFactor);
                         return true;
                     }
@@ -1424,7 +1467,7 @@ namespace IdleGame.GameCore
         /// separate along a fixed axis (smaller Id moves -x). Pushes are clamped to the map.
         /// A few relaxation passes (Balance.CollisionIterations) settle dense crowds.
         /// </summary>
-        private static void ResolveCollisions(CombatState s, GameConfig cfg)
+        private static void ResolveCollisions(CombatState s, GameConfig cfg, ArenaLayout? arena = null)
         {
             var bodies = s.Entities.Where(e => e.Alive)
                                    .OrderBy(e => e.Id, StringComparer.Ordinal)
@@ -1455,10 +1498,14 @@ namespace IdleGame.GameCore
                         double overlap = rsum - dist;
                         double aShare = b.BodyRadius / rsum; // heavier (bigger) body moves less
                         double bShare = a.BodyRadius / rsum;
-                        a.Pos = new Vec2(Math.Clamp(a.Pos.X - nx * overlap * aShare, -w, w),
-                                         Math.Clamp(a.Pos.Y - ny * overlap * aShare, -d, d));
-                        b.Pos = new Vec2(Math.Clamp(b.Pos.X + nx * overlap * bShare, -w, w),
-                                         Math.Clamp(b.Pos.Y + ny * overlap * bShare, -d, d));
+                        // Pushed bodies stay on the walkable region (arena) or in the field (rect).
+                        // Clamp short-circuits on Contains, so the arena branch stays cheap.
+                        var aPush = new Vec2(a.Pos.X - nx * overlap * aShare, a.Pos.Y - ny * overlap * aShare);
+                        var bPush = new Vec2(b.Pos.X + nx * overlap * bShare, b.Pos.Y + ny * overlap * bShare);
+                        a.Pos = arena != null ? arena.Clamp(aPush)
+                                              : new Vec2(Math.Clamp(aPush.X, -w, w), Math.Clamp(aPush.Y, -d, d));
+                        b.Pos = arena != null ? arena.Clamp(bPush)
+                                              : new Vec2(Math.Clamp(bPush.X, -w, w), Math.Clamp(bPush.Y, -d, d));
                     }
                 }
             }
@@ -1496,23 +1543,42 @@ namespace IdleGame.GameCore
             return hash;
         }
 
-        private static void MoveToward(CombatEntity e, Vec2 dest, double maxStep)
+        /// <summary>
+        /// Step an entity toward <paramref name="dest"/> by at most <paramref name="maxStep"/>, with
+        /// COLLIDE-AND-SLIDE against the arena. The candidate position is computed exactly as the
+        /// legacy path; if there's no arena or the candidate is walkable it's accepted (bit-identical
+        /// to pre-arena behavior). Otherwise the two axis-decomposed candidates are tried — the axis
+        /// with the LARGER |delta| first (tie → X) — and the first walkable one is accepted, so units
+        /// slide along a shore/wall around a shallow bay instead of jamming; if neither is walkable the
+        /// entity holds position. There is no pathfinding — this only rounds convex boundaries.
+        /// </summary>
+        private static void MoveToward(CombatEntity e, Vec2 dest, double maxStep, ArenaLayout? arena = null)
         {
             double dx = dest.X - e.Pos.X;
             double dy = dest.Y - e.Pos.Y;
             double dist = Math.Sqrt(dx * dx + dy * dy);
-            if (dist <= maxStep || dist == 0)
-            {
-                e.Pos = new Vec2(dest.X, dest.Y);
-                return;
-            }
-            e.Pos = new Vec2(e.Pos.X + dx / dist * maxStep, e.Pos.Y + dy / dist * maxStep);
+            Vec2 candidate = (dist <= maxStep || dist == 0)
+                ? new Vec2(dest.X, dest.Y)
+                : new Vec2(e.Pos.X + dx / dist * maxStep, e.Pos.Y + dy / dist * maxStep);
+
+            if (arena == null || arena.Contains(candidate)) { e.Pos = candidate; return; }
+
+            // Blocked: slide along the boundary by keeping one axis of the move. Try the dominant
+            // axis first so motion stays as close to the intended direction as possible.
+            var slideX = new Vec2(candidate.X, e.Pos.Y);
+            var slideY = new Vec2(e.Pos.X, candidate.Y);
+            bool xFirst = Math.Abs(candidate.X - e.Pos.X) >= Math.Abs(candidate.Y - e.Pos.Y);
+            var first = xFirst ? slideX : slideY;
+            var second = xFirst ? slideY : slideX;
+            if (arena.Contains(first)) e.Pos = first;
+            else if (arena.Contains(second)) e.Pos = second;
+            // neither axis walkable: stay put (no pathfinding).
         }
 
         /// <summary>Idle amble: stroll toward a random point within the field, repicking when
         /// reached or after a random interval. Deterministic (rng-driven). Clamped to the map
         /// so wanderers never drift out of bounds.</summary>
-        private static void Wander(CombatEntity e, GameConfig cfg, double dtMs, Rng rng)
+        private static void Wander(CombatEntity e, GameConfig cfg, double dtMs, Rng rng, ArenaLayout? arena = null)
         {
             // Repick a fresh destination only when the timer elapses (gated purely by the
             // staggered cooldown, so a batch of spawns doesn't all turn on the same frame).
@@ -1522,15 +1588,18 @@ namespace IdleGame.GameCore
                 double w = cfg.Balance.MapHalfWidth - 0.5, d = cfg.Balance.MapHalfDepth - 0.5, r = cfg.Balance.WanderRadius;
                 // random local step; if it would leave the field, reflect inward instead of
                 // clamping to the edge (clamping makes mobs pile along / trace the rectangle).
+                // The rng DRAW ORDER is identical with or without an arena — the arena only projects
+                // the already-reflected target onto the walkable region afterward.
                 double ox = rng.RandRange(-r, r), oy = rng.RandRange(-r, r);
                 double tx = e.Pos.X + ox; if (tx < -w || tx > w) tx = e.Pos.X - ox;
                 double ty = e.Pos.Y + oy; if (ty < -d || ty > d) ty = e.Pos.Y - oy;
-                e.WanderTarget = new Vec2(Math.Clamp(tx, -w, w), Math.Clamp(ty, -d, d));
+                var picked = new Vec2(Math.Clamp(tx, -w, w), Math.Clamp(ty, -d, d));
+                e.WanderTarget = arena != null ? arena.Clamp(picked) : picked;
                 e.WanderCdMs = rng.RandRange(cfg.Balance.WanderMinMs, cfg.Balance.WanderMaxMs);
             }
             double speed = e.EffectiveStat(StatKey.MoveSpd);
             if (speed <= 0) speed = MoveSpeedTilesPerSec;
-            MoveToward(e, e.WanderTarget, speed * cfg.Balance.WanderSpeedMult * dtMs / 1000.0);
+            MoveToward(e, e.WanderTarget, speed * cfg.Balance.WanderSpeedMult * dtMs / 1000.0, arena);
         }
     }
 }

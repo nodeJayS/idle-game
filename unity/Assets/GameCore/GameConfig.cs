@@ -102,6 +102,9 @@ namespace IdleGame.GameCore
         public double GroundR, GroundG, GroundB;
         public double AccentR, AccentG, AccentB;
         public string PropSet = "";
+        // Arena hint (M8 slice 1): the per-stage layout id fought in this zone (client renders the
+        // walkable region + height tiers). "" = no arena → the open plane. See GameConfig.Arenas.
+        public string ArenaId = "";
     }
 
     public sealed class StageDef
@@ -340,6 +343,10 @@ namespace IdleGame.GameCore
         public double MapHalfWidth = 200;
         public double MapHalfDepth = 140;
 
+        // Arena height (M8 slice 1): world units of vertical rise per ArenaShape.Tier — the client
+        // renders a tier-N platform at Y = N * this. Engine-free; slice 2 reads it (no sim rule does).
+        public double TerrainTierHeight = 0.7;
+
         // Unit bodies (M-feel): every unit occupies a soft circle so two units can't stand
         // on the same point. Overlapping LIVING units are pushed apart each step — split by
         // the opposite body's radius, so a boss barely budges while trash is shoved clear.
@@ -567,6 +574,9 @@ namespace IdleGame.GameCore
         // Themed zones, one per StagesPerTier band ascending (zone[0] = stages 1..10, …).
         // Deeper stages than the table clamp to the last zone. See ZoneForStage.
         public List<ZoneDef> Zones = new List<ZoneDef>();
+        // Per-stage arena layouts (M8 slice 1), keyed by arena id. A zone points at one via
+        // ZoneDef.ArenaId; empty/missing => the open plane (legacy behavior). See ArenaForStage.
+        public Dictionary<string, ArenaLayout> Arenas = new Dictionary<string, ArenaLayout>();
         public Dictionary<string, SkillDef> Skills = new Dictionary<string, SkillDef>();
         // Monster modifier catalog + the order they cycle across stages (each stage's boss owns
         // ModifierCycle[(stage-1) % count] — see ModifierTypeForStage). Lever 1.
@@ -589,6 +599,16 @@ namespace IdleGame.GameCore
         {
             if (Zones.Count == 0) return null;
             return Zones[Math.Clamp(Balance.Tier(stage), 0, Zones.Count - 1)];
+        }
+
+        /// <summary>The arena layout a stage is fought on: resolve the stage's zone, return its
+        /// layout when the zone names a non-empty ArenaId present in <see cref="Arenas"/>, else null
+        /// (the open plane). Tower floors reuse this by passing the floor (floors travel the zones).</summary>
+        public ArenaLayout? ArenaForStage(int stage)
+        {
+            var zone = ZoneForStage(stage);
+            if (zone == null || zone.ArenaId.Length == 0) return null;
+            return Arenas.TryGetValue(zone.ArenaId, out var layout) ? layout : null;
         }
 
         /// <summary>The modifier type a stage's boss exhibits (and grants on a kill). Cycles the
@@ -667,6 +687,18 @@ namespace IdleGame.GameCore
                 GroundR = ground.r, GroundG = ground.g, GroundB = ground.b,
                 AccentR = accent.r, AccentG = accent.g, AccentB = accent.b,
             };
+
+        // Arena content helpers (M8 slice 1). An arena reads as data: a list of shapes whose UNION is
+        // the walkable region. Rect(cx,cz, halfW,halfD, tier) and Disc(cx,cz, radius, tier) build one
+        // piece; Arena(id, shapes) assembles the layout. Authoring rules (enforced by ArenaTests, not
+        // code): union connected + star-ish around origin, tier-0 covers the r≈32 spawn bubble, every
+        // Tier>0 shape overlaps a lower-tier shape (the ramp band), perimeter gaps are shallow bays only.
+        private static ArenaShape Rect(double cx, double cz, double halfW, double halfD, int tier = 0)
+            => new ArenaShape { Kind = ArenaShapeKind.Rect, X = cx, Y = cz, HalfW = halfW, HalfD = halfD, Tier = tier };
+        private static ArenaShape Disc(double cx, double cz, double radius, int tier = 0)
+            => new ArenaShape { Kind = ArenaShapeKind.Disc, X = cx, Y = cz, HalfW = radius, Tier = tier };
+        private static ArenaLayout Arena(string id, params ArenaShape[] shapes)
+            => new ArenaLayout { Id = id, Shapes = new List<ArenaShape>(shapes) };
 
         // One achievement tier (threshold + gold/scrap/XP reward), and an achievement (tiers ascending).
         private static AchievementTier AT(long threshold, long gold, long scrap, int xp)
@@ -967,6 +999,78 @@ namespace IdleGame.GameCore
                 (0.40, 0.34, 0.55), (0.60, 0.48, 0.85), "riftwalker", EquipSlot.Gloves, "void_wisp", "rune_construct"));
             cfg.Zones.Add(Zone("crown_of_the_world", "Crown of the World", "summit",
                 (0.75, 0.70, 0.55), (0.90, 0.82, 0.55), "world_ender", EquipSlot.Weapon, "crown_seraph", "chaos_spawn"));
+
+            // ---- Arenas (ROADMAP 8, slice 1) — one PLACE per zone, id arena_<zoneId>. Each is the
+            // walkable UNION of its shapes. Every layout's tier-0 base covers the r≈32 spawn bubble
+            // around the origin (party centre + spawn ring 26 + wander 5 + pad), stays connected and
+            // star-ish around origin, and every raised (Tier>0) shape overlaps a lower-tier shape by a
+            // ≥2-tile band = the ramp the client draws up. Height tiers are cosmetic data this slice.
+            // Geometry stays SIMPLE and well inside the legacy 200×140 field; zones vary so slice-2
+            // dioramas feel distinct (forest glade, ruined plaza, swamp with a water bay, dune bowl…).
+
+            // Verdant Woods: a round forest glade with two low mossy knolls the party fights over.
+            cfg.Arenas["arena_verdant_woods"] = Arena("arena_verdant_woods",
+                Disc(0, 0, 40, 0),
+                Disc(24, 14, 10, 1), Disc(-22, -12, 9, 1));
+
+            // Ruined Courtyard: a squared flagstone plaza with two raised terraces, one stacking a dais.
+            cfg.Arenas["arena_ruined_courtyard"] = Arena("arena_ruined_courtyard",
+                Rect(0, 0, 42, 34, 0),
+                Rect(28, 18, 12, 10, 1), Rect(-30, 16, 11, 9, 1), Rect(30, 20, 6, 5, 2));
+
+            // Murkwater Swamp: a mud-flat disc (covers the whole spawn bubble) with a shallow water BAY
+            // biting the south PERIMETER — the bay lives beyond the bubble, cut by omitting the far-south
+            // extension the flanking banks give east/west (mouth ≥8, depth ≤6). Two hummocks rise above.
+            cfg.Arenas["arena_murkwater_swamp"] = Arena("arena_murkwater_swamp",
+                Disc(0, 0, 33, 0),               // core flat: fully covers the r≈32 bubble
+                Rect(-30, -30, 12, 8, 0), Rect(30, -30, 12, 8, 0), // SE/SW banks; the gap between = the bay
+                Disc(20, 16, 9, 1), Disc(-24, 14, 8, 1));
+
+            // Amber Dunes: a sand bowl (disc) with two dune crests and a wind-carved high shelf.
+            cfg.Arenas["arena_amber_dunes"] = Arena("arena_amber_dunes",
+                Disc(0, 0, 41, 0),
+                Disc(-20, 18, 11, 1), Disc(22, -16, 10, 1), Disc(-18, 20, 6, 2));
+
+            // Frostpeak Tundra: a broad snowfield with two ice shelves the fight climbs onto.
+            cfg.Arenas["arena_frostpeak_tundra"] = Arena("arena_frostpeak_tundra",
+                Rect(0, 0, 46, 30, 0),
+                Rect(-26, 14, 13, 11, 1), Rect(28, -12, 12, 10, 1));
+
+            // Ember Caldera: a rock apron (disc covers the bubble) with a lava INLET biting the east
+            // PERIMETER — omitted between the north/south lips that extend east past the core — and a
+            // stacked central rise (tier-1 with a tier-2 cap) reading as the caldera cone.
+            cfg.Arenas["arena_ember_caldera"] = Arena("arena_ember_caldera",
+                Disc(-2, 0, 33, 0),              // core apron: fully covers the r≈32 bubble
+                Rect(30, 22, 10, 8, 0), Rect(30, -22, 10, 8, 0), // NE/SE lips; the gap between = the inlet
+                Disc(-8, 4, 12, 1), Disc(-8, 4, 6, 2));
+
+            // Gloom Hollow: a cavern floor with two stalagmite plinths, one topped by a higher ledge.
+            cfg.Arenas["arena_gloom_hollow"] = Arena("arena_gloom_hollow",
+                Disc(0, 0, 39, 0),
+                Disc(18, 16, 9, 1), Disc(-20, -14, 9, 1), Disc(18, 16, 5, 2));
+
+            // Storm Coast: a headland (disc covers the bubble) with a shallow COVE biting the south
+            // PERIMETER — omitted between the two shoulders that reach south past the core — and two
+            // sea-stack rises the fight climbs onto.
+            cfg.Arenas["arena_storm_coast"] = Arena("arena_storm_coast",
+                Disc(0, 0, 33, 0),               // headland core: fully covers the r≈32 bubble
+                Rect(-30, -30, 11, 8, 0), Rect(30, -30, 11, 8, 0), // shoulders framing the cove mouth
+                Disc(24, 14, 10, 1), Disc(-26, 12, 8, 1));
+
+            // Astral Ruins: floating-plaza vibe — a disc base with three rune platforms, one elevated.
+            cfg.Arenas["arena_astral_ruins"] = Arena("arena_astral_ruins",
+                Disc(0, 0, 40, 0),
+                Rect(22, 16, 10, 8, 1), Rect(-24, 14, 9, 8, 1), Rect(0, -26, 10, 8, 1),
+                Rect(22, 16, 5, 4, 2));
+
+            // Crown of the World: a summit plateau with two ascending terraces climbing to a peak dais.
+            cfg.Arenas["arena_crown_of_the_world"] = Arena("arena_crown_of_the_world",
+                Rect(0, 0, 44, 32, 0),
+                Rect(-24, 16, 14, 12, 1), Rect(-24, 16, 8, 7, 2), Rect(26, -14, 12, 10, 1));
+
+            // Point every zone at its arena (id convention arena_<zoneId>).
+            foreach (var z in cfg.Zones)
+                if (cfg.Arenas.ContainsKey("arena_" + z.Id)) z.ArenaId = "arena_" + z.Id;
 
             for (int i = 0; i < 100; i++)
             {

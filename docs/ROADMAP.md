@@ -175,10 +175,21 @@ verified resolving. 517 tests.
 ### 8. Terraced terrain + water (the big remaining Tunic-look gap — sim-gated)
 Tunic reads as PLACES: terraces, cliff strata, stairs, water — ours is an
 infinite plane, and painted ground-wear fails without structure (tried
-2026-07-02, reverted). Slices: (1) GameCore per-stage arena layout (walkable
-region + height tiers as data, movement clamps); (2) client terraces/cliffs
-(TunicSurface side colour = free strata), water + shore ink, stairs;
-(3) per-zone water/lava/void flavor + camera composition pass.
+2026-07-02, reverted). Slices: (1) ✅ GameCore arena layout; (2) client
+terraces/cliffs (TunicSurface side colour = free strata), water + shore ink,
+stairs; (3) per-zone water/lava/void flavor + camera composition pass.
+1. ✅ GameCore arena layout (2026-07-05) — ArenaLayout = union of convex
+   rect/disc shapes + cosmetic height tiers (max-tier-wins; client Y =
+   Tier × Balance.TerrainTierHeight, no sim rule reads height yet); pinned
+   on CombatState.ArenaId at init/transition (null = open plane ⇒ the 517
+   legacy tests bit-identical); collide-and-slide MoveToward + nearest-point
+   clamps on spawns/homes/dash/collisions/wander (no pathfinding — authoring
+   rules: connected star-ish unions, tier-0 covers the r≈32 spawn bubble,
+   terraces overlap a lower tier = the ramp, water only as shallow perimeter
+   bays; all test-pinned); 10 authored zone arenas in Default(). 543 tests.
+   Play-probed live: stage-22 swamp bay + stage-5 glade, ~110k position
+   samples, zero off-union (after a nanometre rim-inset fix the probe
+   caught), kills/spawns flowing, no shore-jams.
 
 ### 8. Content & tuning pass
 More stages/mods/kits; balance sim in console; XP curve at roster size.

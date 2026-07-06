@@ -150,6 +150,11 @@ namespace IdleGame.GameCore
     {
         public double TimeMs;
         public int Stage;
+        // Arena (M8 slice 1): the per-stage layout this encounter is fought on, pinned at
+        // init/transition. Transient like the rest of CombatState — a hand-built state leaves it
+        // null, which keeps synthetic fights (and legacy saves) on the open plane. null => no
+        // walkable clamp; movement/spawns behave exactly as they did pre-arena.
+        public string? ArenaId;
         public int TowerFloor;         // the tower floor this fight represents (Kind == Tower); 0 otherwise
         public EncounterKind Kind = EncounterKind.Encounter;
         public PartyTactic Tactic = PartyTactic.Solo;
