@@ -2,7 +2,7 @@
 
 Parses NiMesh blocks with their datastream semantics (verified layouts — see
 docs/ms2-port-plan.md Phase 0):
-  - INDEX (u16 triangles), POSITION/_BP, NORMAL/_BP (f32x3), TEXCOORD (f32x2),
+  - INDEX (u16 or u32 triangles), POSITION/_BP, NORMAL/_BP (f32x3), TEXCOORD (f32x2),
     BLENDINDICES (u8x4), BLENDWEIGHT (f32x3, 4th derived), BONE_PALETTE (u16),
     BINORMAL/TANGENT (ignored).
   - _BP semantics = bind-pose (model space) — what skinned meshes carry.
@@ -28,6 +28,7 @@ from nif_skeleton import read_header, load_nodes  # noqa: E402
 
 FMT_SIZE = {
     0x00010215: 2,   # uint16 x1 (index)
+    0x00010425: 4,   # uint32 x1 (index; >64k-vert-range items, e.g. clpafrozen02)
     0x00020436: 8,   # float32 x2
     0x00030437: 12,  # float32 x3
     0x00040438: 16,  # float32 x4
@@ -92,6 +93,8 @@ def decode_component(fmt, data, stride, off, nelem):
             out.append(struct.unpack_from("<4B", data, base))
         elif fmt == 0x00010215:
             out.append(struct.unpack_from("<H", data, base)[0])
+        elif fmt == 0x00010425:
+            out.append(struct.unpack_from("<I", data, base)[0])
         else:
             out.append(data[base:base + FMT_SIZE[fmt]])
     return out
