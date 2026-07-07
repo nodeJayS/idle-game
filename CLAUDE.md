@@ -16,7 +16,7 @@ animate/poll, never decide rules. A future .NET server reuses GameCore as-is.
 
 ## Build & test
 - Sim: `dotnet test gamecore/GameCore.Tests` (xunit; globs the SAME
-  Assets/GameCore sources — edit sim code there). **491 tests green.**
+  Assets/GameCore sources — edit sim code there). **617 tests green.**
 - Client: open `unity/` in Unity 6 (URP); Play — `Bootstrap` builds the scene
   in code. Play mode can't run headless; visuals verify by screenshot via
   Unity MCP; UI is hand-placed uGUI/IMGUI.
