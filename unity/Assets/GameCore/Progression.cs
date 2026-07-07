@@ -130,6 +130,7 @@ namespace IdleGame.GameCore
                 Tower = save.Progress.Tower,
                 Achievements = save.Progress.Achievements,
                 Daily = save.Progress.Daily,
+                Crypt = save.Progress.Crypt,
             });
 
             next = SyncHeroUnlocks(next, cfg);
@@ -227,6 +228,7 @@ namespace IdleGame.GameCore
                 Tower = save.Progress.Tower,
                 Achievements = save.Progress.Achievements,
                 Daily = save.Progress.Daily,
+                Crypt = save.Progress.Crypt,
             });
         }
 

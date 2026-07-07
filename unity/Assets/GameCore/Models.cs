@@ -121,6 +121,8 @@ namespace IdleGame.GameCore
         public AchievementState Achievements = new AchievementState();
         // Daily-login streak (Lever 4 — premium currency). Nested here for the same threading reason.
         public DailyLoginState Daily = new DailyLoginState();
+        // Crypt (roguelite dungeon) meta. Nested here for the same threading reason.
+        public CryptState Crypt = new CryptState();
     }
 
     /// <summary>Tower of Ascension progress (a separate one-clear-per-floor track, distinct from the
@@ -192,6 +194,25 @@ namespace IdleGame.GameCore
         public long LastClaimDay; // UTC day-index of the last claim; 0 = never claimed
         public int Streak;        // consecutive-day streak (1 on the first claim or after a break)
         public int TotalClaims;   // lifetime daily claims
+    }
+
+    /// <summary>
+    /// Crypt (roguelite dungeon) meta progress. Entry is gated by KEYS that recharge one per UTC day
+    /// (banked up to <see cref="BalanceConstants.CryptKeyBank"/>; <see cref="CryptState.LastKeyDay"/> is
+    /// the DailyLogin-style day-index stamp). A run descends CryptFloorsPerRun floors back-to-back
+    /// starting at <see cref="DepthRecord"/>+1 — the record is the deepest floor ever CLEARED (the
+    /// difficulty ladder, Tower-style: first clears pay gems, re-runs repeat the frontier). Completing
+    /// a whole run grants the end-of-run chest (grave dust, a crypt-only currency in
+    /// <see cref="SaveState.Currencies"/>); a wipe forfeits the chest but keeps everything dropped.
+    /// Dust buys permanent account-wide BOONS (<see cref="Boons"/>: boonId → rank), the crypt's own
+    /// progression lane. Nested under <see cref="ProgressState"/> like Tower/Daily.
+    /// </summary>
+    public sealed class CryptState
+    {
+        public int Keys;        // banked entry keys (cap = Balance.CryptKeyBank)
+        public long LastKeyDay; // UTC day-index of the last key grant; 0 = never ticked (first tick grants)
+        public int DepthRecord; // deepest floor cleared (0 = none); the next run starts at DepthRecord+1
+        public Dictionary<string, int> Boons = new Dictionary<string, int>(); // boonId -> rank purchased
     }
 
     /// <summary>Which reward channel a monster modifier boosts (thematic per type — see

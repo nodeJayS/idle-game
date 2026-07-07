@@ -107,6 +107,26 @@ namespace IdleGame.GameCore
         public string ArenaId = "";
     }
 
+    /// <summary>One crypt depth TIER (the roguelite mode's theme band): floors travel these in
+    /// <see cref="BalanceConstants.CryptTierFloors"/>-floor bands, cycling when the list runs out.
+    /// ThemeKey is a client rendering hint (DungeonTheme key); the roster/boss are sim content.</summary>
+    public sealed class CryptTierDef
+    {
+        public string ThemeKey = "crypt";
+        public List<string> TrashRoster = new List<string>(); // cycled by spawn index
+        public string BossId = "";
+    }
+
+    /// <summary>One crypt BOON track: a permanent account-wide stat buff bought with grave dust
+    /// (the crypt's end-of-run chest currency). Each purchased rank multiplies <see cref="Stat"/>
+    /// by (1 + <see cref="BalanceConstants.CryptBoonStatPct"/>); cost escalates geometrically.</summary>
+    public sealed class CryptBoonDef
+    {
+        public string Id = "";
+        public string Name = "";
+        public StatKey Stat;
+    }
+
     public sealed class StageDef
     {
         public int Stage;
@@ -343,6 +363,30 @@ namespace IdleGame.GameCore
         // in the open field): corridor fights are close-quarters, and the open-field standoff left the
         // caster a full room behind the front line (user-caught).
         public double DungeonRangedBack = 2.6;
+
+        // Crypt meta (roguelite mode, user-approved design 2026-07-06): entry is KEY-gated (1 key
+        // recharges per UTC day, banked to CryptKeyBank); a run = CryptFloorsPerRun floors back-to-back
+        // starting at DepthRecord+1. Floors ramp geometrically ON TOP of current-stage monster scaling
+        // (gentler than Tower — a floor is a 100+-mob crawl, not one fight). Every FIRST clear of a
+        // floor pays CryptGemsPerFloor gems (Tower-style drip); completing the whole run grants the
+        // chest: CryptChestBaseDust + CryptChestDustPerDepth × final depth of GRAVE DUST (the crypt-only
+        // currency, key CryptDustCurrency) — a wipe forfeits the chest but keeps everything dropped.
+        // Dust buys permanent account boons: rank r of a boon costs ceil(Base × Growth^r), each rank
+        // adds CryptBoonStatPct to its stat, capped at CryptBoonMaxRank.
+        public int CryptKeyBank = 2;              // max banked keys
+        public int CryptFloorsPerRun = 3;         // floors per run (descend beats between them)
+        public int CryptMaxDepth = 60;            // content height (like TowerFloors)
+        public int CryptTierFloors = 10;          // floors per theme tier (crypt→molten→frost, cycling)
+        public int CryptGemsPerFloor = 5;         // first-clear gem pay per NEW depth floor
+        public double CryptHpGrowth = 1.06;       // per-floor monster HP ramp (on top of stage scaling)
+        public double CryptDmgGrowth = 1.04;      // per-floor monster atk ramp
+        public long CryptChestBaseDust = 25;      // end-of-run chest: base grave dust…
+        public long CryptChestDustPerDepth = 5;   // …plus this per final depth reached
+        public string CryptDustCurrency = "grave_dust";
+        public long CryptBoonBaseCost = 20;       // rank-0→1 boon cost (grave dust)
+        public double CryptBoonCostGrowth = 1.5;  // geometric cost growth per rank
+        public int CryptBoonMaxRank = 10;
+        public double CryptBoonStatPct = 0.02;    // +2% of the boon's stat per rank
         // Boss challenge (C1): pressing Challenge despawns the trash and the boss appears this far
         // ahead of the party on the SAME map (a step or two away — not a separate arena). After a
         // flee/fail, trash stays gone for BossFleeCooldownMs before repopulating, so spamming
@@ -603,6 +647,10 @@ namespace IdleGame.GameCore
         // Gacha banners (roadmap 3 — the gem SINK), keyed by banner id. Empty in Default() for slice 1
         // (no live content); the Ice Mage comeback banner arrives in slice 3. See Gacha.cs.
         public Dictionary<string, GachaBannerDef> Banners = new Dictionary<string, GachaBannerDef>();
+        // Crypt (roguelite) depth tiers + boon tracks. Tiers theme the floor bands (crypt → molten →
+        // frost, cycling); boons are the grave-dust sink. See Crypt.cs.
+        public List<CryptTierDef> CryptTiers = new List<CryptTierDef>();
+        public List<CryptBoonDef> CryptBoons = new List<CryptBoonDef>();
         public BalanceConstants Balance = new BalanceConstants();
 
         /// <summary>The zone a stage belongs to: one zone per StagesPerTier band (the same
@@ -1012,6 +1060,33 @@ namespace IdleGame.GameCore
                 (0.40, 0.34, 0.55), (0.60, 0.48, 0.85), "riftwalker", EquipSlot.Gloves, "void_wisp", "rune_construct"));
             cfg.Zones.Add(Zone("crown_of_the_world", "Crown of the World", "summit",
                 (0.75, 0.70, 0.55), (0.90, 0.82, 0.55), "world_ender", EquipSlot.Weapon, "crown_seraph", "chaos_spawn"));
+
+            // ---- Crypt depth tiers + boons (roguelite meta, 2026-07-06) -----------------
+            // Floors travel the tiers in CryptTierFloors bands, cycling: 1-10 crypt, 11-20 molten,
+            // 21-30 frost, 31-40 crypt again… Rosters/bosses borrow the matching zones' casts (the
+            // monsters and their client models already exist); themes are DungeonTheme keys.
+            cfg.CryptTiers.Add(new CryptTierDef
+            {
+                ThemeKey = "crypt",
+                TrashRoster = new List<string> { "cave_bat", "gloom_shade" },
+                BossId = "nightmare_maw",
+            });
+            cfg.CryptTiers.Add(new CryptTierDef
+            {
+                ThemeKey = "molten",
+                TrashRoster = new List<string> { "magma_imp", "cinder_hound" },
+                BossId = "ash_tyrant",
+            });
+            cfg.CryptTiers.Add(new CryptTierDef
+            {
+                ThemeKey = "frost",
+                TrashRoster = new List<string> { "ice_sprite", "frost_wolf" },
+                BossId = "glacier_golem",
+            });
+            // Three boon tracks — the grave-dust sink (permanent, account-wide).
+            cfg.CryptBoons.Add(new CryptBoonDef { Id = "vigor", Name = "Vigor", Stat = StatKey.Hp });
+            cfg.CryptBoons.Add(new CryptBoonDef { Id = "ferocity", Name = "Ferocity", Stat = StatKey.Atk });
+            cfg.CryptBoons.Add(new CryptBoonDef { Id = "bulwark", Name = "Bulwark", Stat = StatKey.Def });
 
             // ---- Arenas (ROADMAP 8, slice 1) — one PLACE per zone, id arena_<zoneId>. Each is the
             // walkable UNION of its shapes. Every layout's tier-0 base covers the r≈32 spawn bubble

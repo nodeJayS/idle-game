@@ -92,6 +92,7 @@ namespace IdleGame.GameCore
                 Tower = save.Progress.Tower,
                 Achievements = ach,
                 Daily = save.Progress.Daily,
+                Crypt = save.Progress.Crypt,
             },
             Quests = save.Quests,
             Modifiers = save.Modifiers,

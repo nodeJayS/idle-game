@@ -280,7 +280,8 @@ namespace IdleGame.GameCore
         /// <paramref name="d"/>.Spawns is iterated in list order. Returns the new state.
         /// </summary>
         public static CombatState InitDungeon(IReadOnlyList<HeroInstance> party, int stage, Dungeon d,
-                                              IReadOnlyList<string> trashRoster, string bossId, GameConfig cfg, Rng rng)
+                                              IReadOnlyList<string> trashRoster, string bossId, GameConfig cfg, Rng rng,
+                                              double hpMult = 1.0, double dmgMult = 1.0)
         {
             var s = new CombatState { Stage = stage, Kind = EncounterKind.Dungeon };
             var arena = new DungeonArena(d, cfg.Balance.DungeonCorridorSight);
@@ -298,7 +299,7 @@ namespace IdleGame.GameCore
                     e.Pos = arena.Clamp(new Vec2(entrance.X + off.X, entrance.Y + off.Y));
                 }
 
-            SeedDungeonSpawns(s, d, trashRoster, bossId, cfg, rng);
+            SeedDungeonSpawns(s, d, trashRoster, bossId, cfg, rng, hpMult, dmgMult);
 
             s.TimeMs = 0;
             s.SpawnTimerMs = 0;
@@ -310,12 +311,15 @@ namespace IdleGame.GameCore
         /// init path). Deterministic — iterates d.Spawns in list order, cycling the trash roster by spawn
         /// index, and stamps each enemy's DungeonRoomId from its spawn.</summary>
         private static void SeedDungeonSpawns(CombatState s, Dungeon d, IReadOnlyList<string> trashRoster,
-                                              string bossId, GameConfig cfg, Rng rng)
+                                              string bossId, GameConfig cfg, Rng rng,
+                                              double hpMult = 1.0, double dmgMult = 1.0)
         {
-            // Stat scale mirrors a stage fight at the current stage — deeper players face tougher floors.
+            // Stat scale mirrors a stage fight at the current stage — deeper players face tougher
+            // floors. The optional multipliers stack the crypt's per-floor depth ramp on top
+            // (Crypt.FloorHpMult / FloorDmgMult — the roguelite difficulty ladder).
             var rt = cfg.Stages.Find(r => r.Stage == s.Stage) ?? cfg.Stages[0];
             s.Loot = LootContext.ForStage(rt, cfg);
-            double atkScale = StageScale(rt, cfg), hpScale = HpScale(rt, cfg);
+            double atkScale = StageScale(rt, cfg) * dmgMult, hpScale = HpScale(rt, cfg) * hpMult;
 
             int idx = 0;
             foreach (var sp in d.Spawns)
@@ -383,6 +387,7 @@ namespace IdleGame.GameCore
 
                 var stats = Stats.ComputeHeroStats(hero, cfg, Stats.ResolveEquipped(save, hero));
                 stats = Tower.ApplyAccountBuffs(stats, save, cfg); // permanent Tower milestone buffs (account-wide)
+                stats = Crypt.ApplyBoons(stats, save, cfg);        // permanent crypt boons (grave-dust track)
                 double oldMax = e.MaxHp;
                 double newMax = stats.Get(StatKey.Hp);
 
