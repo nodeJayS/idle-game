@@ -77,12 +77,13 @@ animate/poll, never decide rules. A future .NET server reuses GameCore as-is.
 - **GameCore-first**: build + test a slice, wire into Unity, verify, STOP for
   review/commit. One verified slice per commit; end commit messages with
   `Co-Authored-By: <the model running the session> <noreply@anthropic.com>`.
-  The user pushes. Work on `main`. New content seeds at New Game.
-- **Delegation model (user)**: Fable designs/specs/reviews/commits; Opus 4.8
-  subagents implement and run dotnet tests. **Agents never drive the Unity
-  editor without a user-approved window** — user shares ONE editor + ONE live
-  save; batch Play-verification into announced windows; user playing =
-  pipeline paused.
+  Push after committing (user call 2026-07-07). Work on `main`. New content
+  seeds at New Game.
+- **Delegation model (user, updated 2026-07-06)**: Fable does it all —
+  designs, implements, tests, verifies in Play, commits, pushes. No
+  subagents for implementation. Full editor/Play autonomy (user call
+  2026-07-05) with the rails: back up save.json before Play, stop Play
+  before compiling; user playing = pipeline paused.
 - **Unity MCP verify loop**: refresh_unity + read_console for compile; stop
   Play BEFORE compiling (domain reload wipes Play state). In Play: dismiss
   MainMenu via reflected `CloseAnd(OnContinue)`, IdleClaimModal via first
