@@ -117,13 +117,11 @@ namespace IdleGame.Game
             // light against both the ground and the fire mage's oranges).
             _projectileFx["holybolt"] = (from, to, amount, crit) =>
             {
-                var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
-                go.name = "HolyBolt";
-                go.transform.localScale = Vector3.one * (crit ? 0.75f : 0.55f);
-                Paint(go, new Color(1f, 0.97f, 0.8f));
-                Glow(go, new Color(1f, 0.95f, 0.6f) * 2.5f);
+                // a slim shard of light rolling along the flight path (FxKit holy family).
                 // default impact clang — no holy impact clip extracted yet.
+                var go = FxKit.LightShard(crit ? 1.3f : 1f);
+                go.name = "HolyBolt";
+                go.transform.rotation = Quaternion.LookRotation((to - from).normalized);
                 go.AddComponent<Projectile>().Launch(from, to, 15f, () => PlayImpact(to, amount, crit));
             };
 

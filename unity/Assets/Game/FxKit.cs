@@ -44,6 +44,20 @@ namespace IdleGame.Game
             return root;
         }
 
+        /// <summary>A holy bolt: one slim bright shard of light (no chips — light is clean),
+        /// warm-white with a gold halo, gentle roll. The priest's basic attack.</summary>
+        public static GameObject LightShard(float scale = 1f)
+        {
+            var root = new GameObject("LightShard");
+            var shard = Part(root, Crystal(0.045f, 0.26f, 0.10f),
+                             CrystalMat(new Color(1f, 0.93f, 0.72f), new Color(1f, 0.85f, 0.45f) * 0.8f));
+            shard.transform.localRotation = Quaternion.Euler(90f, 0f, 0f); // mesh +Y -> root +Z
+            Halo(root, 0.5f, new Color(1f, 0.88f, 0.5f, 0.35f));
+            root.AddComponent<FxSpin>().Configure(Vector3.forward, 160f);
+            root.transform.localScale = Vector3.one * scale;
+            return root;
+        }
+
         /// <summary>A molten rock chunk: stubby dark crystal running hot (emission carries
         /// the heat; the game's bloom does the rest), ember chips, warm halo, slow tumble.
         /// The fire family's projectile body (fireball basic, firebolt meteor).</summary>

@@ -49,7 +49,7 @@ before anyone acts on them:
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
-**NEXT UP (user-assigned 2026-07-07): 10.11, then 10.7 (crypt overhaul).**
+**NEXT UP: 10.7 crypt overhaul — starts with a USER design session.**
 
 Self-contained briefs for future sessions (any model); slice order =
 shipping order, each one-verified-slice-per-commit sized. Standing rules
@@ -219,14 +219,15 @@ red/black-tinted Shadowy Spiked set; Fire Mage = hot-tinted magician hat
 (e) DONE 2026-07-07: spike ran, user picked PROCEDURAL — `FxKit`
 (code-built crystal meshes + IdleGame/FxAdditive halo shader) is the
 FX language, spike folder deleted;
-(f) roll FxKit across basic attacks + the 2+2 kits, one hero per
-slice: ICE DONE 2026-07-07 (icebolt shard, frostbolt tumbling shard,
-blizzard crystal ring — Play-verified); fire → holy → physical remain.
+(f) DONE 2026-07-07: FxKit covers every projectile in the registry —
+ice (bolt/tumbling frostbolt/blizzard crystal ring), fire (molten
+chunk + meteor), holy (light shard); physical heroes are melee (their
+impact language belongs to 10.6b). 10.11 COMPLETE.
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
-- 2026-07-07 10.11a-d: wardrobe browser + Ice Mage/Assassin/Fire Mage
-  relooks (user-picked) + icebolt FX spike (`638d356`..)
+- 2026-07-07 10.11 complete: wardrobe browser, hero relooks
+  (user-picked), FxKit procedural FX for all projectiles (`638d356`..)
 - 2026-07-07 Projectile release-frame launch (`b91359d`)
 - 2026-07-07 Anim feel: wing flap + hero swing/cast stutter fix (`0c5e1d4`)
 - 2026-07-07 Balance sim (walls|sweep|farm) + wall findings (`4635483`)
