@@ -102,14 +102,12 @@ namespace IdleGame.Game
 
         private void BuildProjectileEffects()
         {
+            // Fire Mage basic attack: a tumbling molten chunk (FxKit fire family — the
+            // 10.11f procedural language; emission carries the heat, bloom sells it).
             _projectileFx["fireball"] = (from, to, amount, crit) =>
             {
-                var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
+                var go = FxKit.FireChunk(crit ? 1.35f : 1f);
                 go.name = "Fireball";
-                go.transform.localScale = Vector3.one * (crit ? 0.8f : 0.6f);
-                Paint(go, new Color(1f, 0.55f, 0.15f));
-                Glow(go, new Color(1f, 0.5f, 0.1f) * 2.5f); // make it read against the ground
                 SoundFx.Play("Skill_Wizard_FireBall_Ball", 0.4f);
                 go.AddComponent<Projectile>().Launch(from, to, 14f,
                     () => PlayImpact(to, amount, crit, sound: "Skill_Wizard_Fireball_Destroy"));
@@ -134,12 +132,11 @@ namespace IdleGame.Game
             // IMPACT, in sync with the meteor landing — like the basic fireball does.
             _projectileFx["firebolt"] = (from, to, amount, crit) =>
             {
-                var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
+                // the meteor: a big molten chunk on the same lob, faster tumble so it
+                // reads violent; lands with the existing orange burst.
+                var go = FxKit.FireChunk(2.4f);
                 go.name = "Meteor";
-                go.transform.localScale = Vector3.one * 1.1f;
-                Paint(go, new Color(1f, 0.45f, 0.1f));
-                Glow(go, new Color(1f, 0.4f, 0.05f) * 3.5f);
+                go.GetComponent<FxSpin>().Configure(new Vector3(0.8f, 0.3f, 0.6f).normalized, 340f);
                 go.AddComponent<Projectile>().Launch(from, to, 16f,
                     () => { PlayImpact(to, amount, crit, sound: "Skill_Wizard_Fireball_Destroy"); Burst(to, 1.0f, new Color(1f, 0.5f, 0.15f)); }, arc: 2.5f);
             };

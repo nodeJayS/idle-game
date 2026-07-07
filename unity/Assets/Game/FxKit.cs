@@ -44,6 +44,31 @@ namespace IdleGame.Game
             return root;
         }
 
+        /// <summary>A molten rock chunk: stubby dark crystal running hot (emission carries
+        /// the heat; the game's bloom does the rest), ember chips, warm halo, slow tumble.
+        /// The fire family's projectile body (fireball basic, firebolt meteor).</summary>
+        public static GameObject FireChunk(float scale = 1f)
+        {
+            var root = new GameObject("FireChunk");
+
+            var rock = Part(root, Crystal(0.11f, 0.10f, 0.10f),
+                            CrystalMat(new Color(0.30f, 0.14f, 0.07f), new Color(1f, 0.3f, 0.05f) * 1.0f));
+            rock.transform.localRotation = Quaternion.Euler(35f, 20f, 0f); // stubby chunk, not a spike
+
+            for (int i = 0; i < 3; i++)
+            {
+                var ember = Part(root, Crystal(0.03f, 0.04f, 0.03f), rock.GetComponent<Renderer>().sharedMaterial);
+                float a = Mathf.PI * 2f * i / 3f;
+                ember.transform.localPosition = new Vector3(Mathf.Cos(a) * 0.13f, Mathf.Sin(a) * 0.10f, -0.10f - 0.04f * i);
+                ember.transform.localRotation = Quaternion.Euler(50f * i, 70f, 20f);
+            }
+
+            Halo(root, 0.55f, new Color(1f, 0.5f, 0.15f, 0.4f));
+            root.AddComponent<FxSpin>().Configure(new Vector3(0.5f, 0.7f, 0.5f).normalized, 240f);
+            root.transform.localScale = Vector3.one * scale;
+            return root;
+        }
+
         /// <summary>A small crystal planted in the ground (blizzard ring beats):
         /// pops in and melts away via TransientFx.</summary>
         public static void GroundCrystal(Vector3 at, float life, float scale)
