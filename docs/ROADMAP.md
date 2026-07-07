@@ -330,7 +330,26 @@ key cadence/ramp once the user has played a few real runs.
 (4) BFS build-reveal animation (parked).
 
 ### 8. Content & tuning pass
-More stages/mods/kits; balance sim in console; XP curve at roster size.
+More stages/mods/kits; XP curve at roster size.
+BALANCE SIM SHIPPED (2026-07-07): `dotnet run --project
+gamecore/BalanceSim -- walls|sweep|farm` — min-clear-level per stage ×
+gear tier, stage×level win grids, farm throughput (kills/min,
+hits-per-kill ≈1 = one-shotting, XP/gold rates). Deterministic
+(--seed); scenario saves built through the live reducers. First
+findings, THE inputs for this pass (sim excludes tower buffs / crypt
+boons / enhance / imprints, so the real frontier sits a bit deeper —
+but not 45 stages deeper):
+(a) THORNS BOSS GATES ANTI-SCALE — every 4th stage's boss wears Thorns
+(ModifierCycle[(stage-1)%4]) and reflect scales with attacker damage,
+so a stronger party self-kills faster: stages 32/36/44/48/52 are
+unwinnable even at L100 full-mythic while their neighbors fall at L1;
+stages 20/40 stack thorns × MajorBossMult (the bare/normal-gear wall at
+20 jumps +21 levels).
+(b) THE LADDER'S MATH ENDS NEAR STAGE 53 — no level/gear combo clears
+55+ inside the 30s boss timer: MonsterHpGrowth 1.18^stage outruns
+ilvl-linear gear. Stages 55-100 are currently decorative.
+(c) GEAR RARITY DOMINATES LEVEL — a full rare set clears stages 1-27
+at hero level 1; bare heroes need L37 by 25 and L75 by 28.
 Caster pacing lever if ever needed: per-skill CooldownMs (mana removal
 changed nothing observable).
 

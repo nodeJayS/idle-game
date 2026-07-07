@@ -12,6 +12,9 @@
     <Compile Include="..\..\unity\Assets\GameCore\**\*.cs" />
     <!-- Plus the host-specific persistence adapter (kept out of the Unity asmdef). -->
     <Compile Include="..\Adapters\Persistence.cs" />
+    <!-- And the balance-sim scenario harness (same pattern: one source, two hosts —
+         the BalanceSim console runner and these tests). Program.cs stays out. -->
+    <Compile Include="..\BalanceSim\Scenarios.cs" />
   </ItemGroup>
 
   <ItemGroup>
