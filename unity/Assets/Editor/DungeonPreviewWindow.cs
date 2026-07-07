@@ -28,6 +28,7 @@ namespace IdleGame.EditorTools
         private float _loopChance = 0.15f;
         private float _decorDensity = 0.6f;
         private int _themeIndex = 0; // index into DungeonTheme.Keys
+        private bool _linear = false; // chain layout (the game's roguelite mode); off = the branching showpiece
         private bool _graphOverlay = false;
         private bool _heatmap = false;
         private bool _spawnMarkers = true;
@@ -71,6 +72,8 @@ namespace IdleGame.EditorTools
             _loopChance = EditorGUILayout.Slider("Loop Chance", _loopChance, 0f, 0.5f);
             _decorDensity = EditorGUILayout.Slider("Decor Density", _decorDensity, 0f, 1f);
             _themeIndex = EditorGUILayout.Popup("Theme", _themeIndex, DungeonTheme.Keys);
+            _linear = EditorGUILayout.Toggle(new GUIContent("Linear (roguelite)",
+                "Single self-avoiding chain — what the in-game crypt uses. Off = the branching showpiece."), _linear);
 
             EditorGUILayout.Space(4);
             _graphOverlay = EditorGUILayout.Toggle("Graph overlay", _graphOverlay);
@@ -123,6 +126,7 @@ namespace IdleGame.EditorTools
                 LoopChance = _loopChance,
                 DecorDensity = _decorDensity,
                 Theme = DungeonTheme.Keys[Mathf.Clamp(_themeIndex, 0, DungeonTheme.Keys.Length - 1)],
+                Linear = _linear,
             };
             try { _dungeon = DungeonGen.Generate(p); }
             catch (System.Exception e)

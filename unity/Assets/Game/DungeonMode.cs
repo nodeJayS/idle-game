@@ -75,6 +75,7 @@ namespace IdleGame.Game
                 LoopChance = 0.15,
                 DecorDensity = 0.6,
                 Theme = themeKey,
+                Linear = true,        // auto-battled runs sweep FORWARD — branches force backtracking
             });
         }
 

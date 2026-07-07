@@ -481,5 +481,82 @@ namespace IdleGame.GameCore.Tests
                 Assert.Equal(floor, d.BossBfs.Count(v => v >= 0));
             }
         }
+
+        // ---- LINEAR layout (the auto-battled roguelite mode: a chain, never a fork) ----
+
+        private static Dungeon GenLinear(int seed, int rooms = 26) =>
+            DungeonGen.Generate(new DungeonParams { Seed = seed, RoomCount = rooms, Linear = true });
+
+        [Fact]
+        public void LinearIsAPureChain()
+        {
+            for (int seed = 1; seed <= 8; seed++)
+            {
+                var d = GenLinear(seed);
+                int n = d.Rooms.Count;
+                Assert.Equal(26, n);
+                Assert.Equal(n - 1, d.Edges.Count);            // exactly the chain links
+                Assert.Equal(0, d.Stats.Loops);                // cyclomatic 0 — no cycles
+                Assert.All(d.Edges, e => Assert.True(e.IsCritical)); // the whole crawl is the path
+                // Degrees: two endpoints (entrance + boss), everything else degree 2.
+                Assert.Equal(2, d.Rooms.Count(r => r.Degree == 1));
+                Assert.Equal(n - 2, d.Rooms.Count(r => r.Degree == 2));
+            }
+        }
+
+        [Fact]
+        public void LinearEntranceAndBossAreTheChainEnds()
+        {
+            for (int seed = 1; seed <= 8; seed++)
+            {
+                var d = GenLinear(seed);
+                int n = d.Rooms.Count;
+                var entrance = Entrance(d);
+                var boss = Boss(d);
+                Assert.Equal(0, entrance.Depth);
+                Assert.Equal(n - 1, boss.Depth);               // boss caps the run — maximal depth
+                Assert.Equal(1, entrance.Degree);
+                Assert.Equal(1, boss.Degree);
+                Assert.Equal(1.0, boss.Difficulty);
+                // Difficulty ramps monotonically along the chain (the watchable ARPG push).
+                var byDepth = d.Rooms.OrderBy(r => r.Depth).ToList();
+                for (int i = 1; i < byDepth.Count; i++)
+                    Assert.True(byDepth[i].Difficulty >= byDepth[i - 1].Difficulty,
+                        $"difficulty dipped at depth {byDepth[i].Depth}");
+            }
+        }
+
+        [Fact]
+        public void LinearStaysConnectedDeterministicAndInBounds()
+        {
+            for (int seed = 1; seed <= 8; seed++)
+            {
+                var d = GenLinear(seed);
+                Assert.True(d.W <= 256 && d.H <= 256, $"grid {d.W}x{d.H} exceeds the clamp (seed {seed})");
+                // Full reachability: every floor cell has a finite entrance-BFS distance.
+                int floor = d.Grid.Count(c => c == DungeonCell.Floor);
+                Assert.Equal(floor, d.Bfs.Count(v => v >= 0));
+                // Same seed ⇒ identical checksum (linear rides the same determinism contract).
+                Assert.Equal(d.Checksum, GenLinear(seed).Checksum);
+            }
+        }
+
+        [Fact]
+        public void LinearStillDressesTheRunWithRoles()
+        {
+            // Breather + spike rooms survive the chain conversion: treasure/shrine/elite present,
+            // all strictly inside the ends.
+            for (int seed = 1; seed <= 8; seed++)
+            {
+                var d = GenLinear(seed);
+                int n = d.Rooms.Count;
+                Assert.InRange(d.Rooms.Count(r => r.Type == RoomType.Treasure), 1, 2);
+                Assert.InRange(d.Rooms.Count(r => r.Type == RoomType.Shrine), 1, 2);
+                Assert.InRange(d.Rooms.Count(r => r.Type == RoomType.Elite), 1, 2);
+                foreach (var r in d.Rooms)
+                    if (r.Type == RoomType.Treasure || r.Type == RoomType.Shrine || r.Type == RoomType.Elite)
+                        Assert.True(r.Depth > 0 && r.Depth < n - 1, $"{r.Type} at a chain end (depth {r.Depth})");
+            }
+        }
     }
 }

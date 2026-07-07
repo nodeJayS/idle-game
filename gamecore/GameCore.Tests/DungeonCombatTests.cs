@@ -346,6 +346,45 @@ namespace IdleGame.GameCore.Tests
             Assert.True(distinctRoomsSwept >= 2, "the sweep should traverse multiple rooms in order");
         }
 
+        [Fact]
+        public void LinearRunSweepsForwardOnlyAndFullClears()
+        {
+            // The user-facing contract of Linear layouts: an auto-battled run NEVER backtracks. On a
+            // chain, room depth == chain index, so the objective (shallowest living-enemy room) must
+            // march monotonically forward through the whole crawl until everything is dead.
+            var d = DungeonGen.Generate(new DungeonParams { Seed = 5, RoomCount = 14, Linear = true });
+            var s = StrongDungeon(d, rngSeed: 11);
+            var a = s.Dungeon!;
+
+            short lastDepth = -1;
+            var sweptDepths = new List<short>();
+            int steps = 0;
+            const int cap = 80000;
+            while (s.Status == CombatStatus.Running && steps < cap)
+            {
+                int? obj = ObjectiveRoom(s);
+                if (obj is int room)
+                {
+                    short depth = a.RoomEntranceDepth(room);
+                    Assert.True(depth >= lastDepth,
+                        $"linear sweep went BACKWARD ({lastDepth} -> {depth}) at step {steps}");
+                    if (sweptDepths.Count == 0 || sweptDepths[sweptDepths.Count - 1] != depth) sweptDepths.Add(depth);
+                    lastDepth = depth;
+                }
+                Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(11));
+                foreach (var e in s.Entities.Where(e => e.Team == Team.Party && e.Alive))
+                    Assert.True(a.Contains(e.Pos), $"party left the floor at step {steps}");
+                steps++;
+            }
+
+            Assert.Equal(CombatStatus.Won, s.Status);
+            Assert.DoesNotContain(s.Entities, e => e.Team == Team.Enemy && e.Alive);
+            // The crawl really traversed the chain (several distinct objective rooms, strictly ascending).
+            Assert.True(sweptDepths.Count >= 5, $"expected a multi-room crawl, saw {sweptDepths.Count} objectives");
+            for (int i = 1; i < sweptDepths.Count; i++)
+                Assert.True(sweptDepths[i] > sweptDepths[i - 1], "objective repeated or regressed");
+        }
+
         // Mirror of Combat.DungeonObjectiveRoom (private): the shallowest living-enemy room, ties → lower
         // id, attributing each mob to its spawn room. Used only to observe sweep order from the test side.
         private static int? ObjectiveRoom(CombatState s)

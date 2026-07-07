@@ -27,6 +27,12 @@ namespace IdleGame.GameCore
         public double LoopChance = 0.15;
         public double DecorDensity = 0.6;
         public string Theme = "crypt"; // opaque string, client interprets
+        // LINEAR layout (user call 2026-07-06): a single self-avoiding CHAIN of rooms — entrance at
+        // one end, boss at the other, no branches, no loops. Branching layouts assume a CONTROLLED
+        // player who chooses at forks; our runs are auto-battled, so on a branching map the sweep
+        // must backtrack through cleared rooms to reach the next branch, which reads as dumb
+        // pathing. On a chain the party only ever advances into new rooms. LoopChance is ignored.
+        public bool Linear;
     }
 
     /// <summary>Grid cell codes packed into <see cref="Dungeon.Grid"/> (byte per cell, i = y*W + x).</summary>

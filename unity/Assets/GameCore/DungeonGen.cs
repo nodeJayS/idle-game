@@ -114,25 +114,45 @@ namespace IdleGame.GameCore
             dungeon = new Dungeon();
             failStage = "";
 
-            // 2 — Scatter candidates.
-            var rooms = ScatterRooms(p, rng);
+            List<RoomWork> rooms;
+            List<DungeonEdge> edges;
+            int loops;
+            if (p.Linear)
+            {
+                // 2–4 (linear) — a self-avoiding chain replaces scatter/separate/graph: rooms are
+                // placed one after another along a drifting heading, edges are simply i-1 → i.
+                // No loops by design (auto-battled runs sweep forward; forks force backtracking).
+                rooms = PlaceLinearChain(p, rng);
+                if (rooms.Count < Math.Max(3, p.RoomCount)) { failStage = "linear-place"; return false; }
+                edges = new List<DungeonEdge>(rooms.Count - 1);
+                for (int i = 1; i < rooms.Count; i++)
+                    edges.Add(new DungeonEdge { A = i - 1, B = i, IsCritical = true, IsLoop = false });
+                loops = 0;
+            }
+            else
+            {
+                // 2 — Scatter candidates.
+                rooms = ScatterRooms(p, rng);
 
-            // 3 — Separate + cull to RoomCount.
-            SeparateRooms(rooms);
-            rooms = CullToCount(rooms, p.RoomCount);
-            if (rooms.Count < 3) { failStage = "scatter"; return false; }
+                // 3 — Separate + cull to RoomCount.
+                SeparateRooms(rooms);
+                rooms = CullToCount(rooms, p.RoomCount);
+                if (rooms.Count < 3) { failStage = "scatter"; return false; }
 
-            // 4 — Connectivity graph (kNN → MST → loops).
-            var edges = BuildGraph(rooms, p, rng, out int loops);
-            if (loops < 1) { failStage = "graph-loops"; return false; }
+                // 4 — Connectivity graph (kNN → MST → loops).
+                edges = BuildGraph(rooms, p, rng, out loops);
+                if (loops < 1) { failStage = "graph-loops"; return false; }
+            }
 
             // Adjacency + degrees.
             var adj = BuildAdjacency(rooms.Count, edges);
             for (int i = 0; i < rooms.Count; i++) rooms[i].Degree = adj[i].Count;
 
             // 5 — Semantics (roles, depth, difficulty, critical path).
-            if (!AssignSemantics(rooms, edges, adj, out var criticalRooms, out int bossId, out int entranceId))
-            { failStage = "semantics"; return false; }
+            bool semanticsOk = p.Linear
+                ? AssignLinearSemantics(rooms, edges, out var criticalRooms, out int bossId, out int entranceId)
+                : AssignSemantics(rooms, edges, adj, out criticalRooms, out bossId, out entranceId);
+            if (!semanticsOk) { failStage = "semantics"; return false; }
 
             // 6 — Carve corridors + stamp room footprints into a float-space grid, then
             // 7 — Rasterise into the final W×H byte grid with a margin.
@@ -269,6 +289,147 @@ namespace IdleGame.GameCore
                             : s < 0.82 ? RoomShape.Ellipse
                             : RoomShape.Octagon;
             return (w, h, shape);
+        }
+
+        // --------------------------------------------------------------------
+        // Stage 2–4 (LINEAR) — self-avoiding room chain.
+        // Rooms are laid one after another along a heading that drifts each
+        // step (a gentle persistent curl bounds the chain's reach so it can't
+        // run off the 256² grid); each placement scans a deterministic fan of
+        // angles until the room's padded AABB clears every earlier room. The
+        // result reads as a winding hand-dug corridor crawl, not a straight
+        // hallway — and the sweep can never backtrack on it.
+        // --------------------------------------------------------------------
+
+        private static List<RoomWork> PlaceLinearChain(DungeonParams p, Rng rng)
+        {
+            int n = Math.Max(3, p.RoomCount);
+            var rooms = new List<RoomWork>(n);
+
+            double heading = Float(rng, 0, Math.PI * 2);
+            // Gentle persistent curl (sign drawn once): purely aesthetic drift — the chain leans
+            // into a lazy arc instead of wandering symmetrically. Kept LIGHT: a strong curl forces
+            // an arc radius smaller than the reach guard below and the two fight until placement
+            // starves (the first cut of this used 0.10–0.22 and failed every seed).
+            double curl = (Chance(rng, 0.5) ? 1.0 : -1.0) * Float(rng, 0.03, 0.10);
+            // Hard reach guard: candidates outside this radius are rejected (the angle fan then
+            // finds an inward direction). r=110 ⇒ extent ≤ ~238 with room halves + carve margin,
+            // inside the 256 grid clamp; a 26-room chain fits in one lazy lap with room to spare.
+            const double maxReach = 110.0;
+
+            for (int i = 0; i < n; i++)
+            {
+                var (w, h, shape) = RollArchetype(rng);
+                if (i == n - 1) { w = Int(rng, 13, 18); h = Int(rng, 13, 18); } // the boss arena caps the run
+
+                if (i == 0)
+                {
+                    rooms.Add(new RoomWork { Id = 0, Cx = 0, Cy = 0, W = w, H = h, Shape = shape });
+                    continue;
+                }
+
+                var prev = rooms[i - 1];
+                double gap = Float(rng, 7.0, 12.0); // corridor breathing room between the two AABBs
+                double dist = (Math.Max(prev.W, prev.H) + Math.Max(w, h)) / 2.0 + gap;
+                double baseTurn = Float(rng, -0.55, 0.55) + curl; // preferred: gentle drift + the curl
+
+                bool placed = false;
+                for (int attempt = 0; attempt < 26 && !placed; attempt++)
+                {
+                    // Attempt 0 = the preferred drift; then fan out alternating left/right in 0.35rad
+                    // steps until (worst case) the scan has covered the full circle.
+                    double turn = attempt == 0
+                        ? baseTurn
+                        : baseTurn + ((attempt % 2 == 1) ? 1 : -1) * 0.35 * ((attempt + 1) / 2);
+                    double ang = heading + turn;
+                    double nx = prev.Cx + Math.Cos(ang) * dist;
+                    double ny = prev.Cy + Math.Sin(ang) * dist;
+
+                    if (Math.Sqrt(nx * nx + ny * ny) > maxReach) continue; // reach guard
+
+                    bool hit = false;
+                    foreach (var r in rooms) // padded AABB vs every earlier room = self-avoiding
+                        if (Math.Abs(nx - r.Cx) < (w + r.W) / 2.0 + 3 &&
+                            Math.Abs(ny - r.Cy) < (h + r.H) / 2.0 + 3) { hit = true; break; }
+                    if (hit) continue;
+
+                    rooms.Add(new RoomWork { Id = i, Cx = nx, Cy = ny, W = w, H = h, Shape = shape });
+                    heading = ang;
+                    placed = true;
+                }
+                if (!placed) break; // trapped — return the short chain; TryGenerate re-rolls a derived seed
+            }
+
+            foreach (var r in rooms) { r.Cx = Math.Round(r.Cx); r.Cy = Math.Round(r.Cy); }
+            return rooms;
+        }
+
+        /// <summary>Semantics for a CHAIN: entrance = room 0, boss = the far end, depth = the index,
+        /// every edge critical. There are no leaves off-path, so Treasure/Shrine become BREATHER
+        /// rooms along the crawl (both spawn no enemies in Decorate — a beat of quiet between
+        /// fights): treasure = the 1–2 smallest mid-band rooms, shrines 1–2 nearest mid-depth,
+        /// elites 1–2 in the 55–85% band, difficulty ramps with the index.</summary>
+        private static bool AssignLinearSemantics(List<RoomWork> rooms, List<DungeonEdge> edges,
+            out List<int> criticalRooms, out int bossId, out int entranceId)
+        {
+            int n = rooms.Count;
+            entranceId = 0;
+            bossId = n - 1;
+            criticalRooms = new List<int>(n);
+            for (int i = 0; i < n; i++)
+            {
+                criticalRooms.Add(i);
+                rooms[i].Depth = i;
+                rooms[i].Type = RoomType.Combat;
+                rooms[i].Difficulty = n > 1 ? 0.15 + 0.85 * (i / (double)(n - 1)) : 0.15;
+            }
+            foreach (var e in edges) e.IsCritical = true;
+            rooms[entranceId].Type = RoomType.Entrance;
+            rooms[bossId].Type = RoomType.Boss;
+            rooms[bossId].Difficulty = 1.0;
+
+            if (n >= 8)
+            {
+                // Treasure: the 1–2 smallest rooms in the 25–85% band (area, then id — deterministic).
+                var band = new List<int>();
+                for (int i = 1; i < n - 1; i++)
+                {
+                    double f = i / (double)(n - 1);
+                    if (f >= 0.25 && f <= 0.85) band.Add(i);
+                }
+                band.Sort((a, b) =>
+                {
+                    int c = rooms[a].Area.CompareTo(rooms[b].Area);
+                    return c != 0 ? c : a.CompareTo(b);
+                });
+                for (int k = 0; k < Math.Min(2, band.Count); k++) rooms[band[k]].Type = RoomType.Treasure;
+
+                // Shrines: 1–2 remaining combat rooms nearest 55% depth.
+                var shrines = new List<int>();
+                for (int i = 1; i < n - 1; i++)
+                {
+                    if (rooms[i].Type != RoomType.Combat) continue;
+                    double f = i / (double)(n - 1);
+                    if (f >= 0.40 && f <= 0.70) shrines.Add(i);
+                }
+                shrines.Sort((a, b) =>
+                {
+                    double fa = Math.Abs(a / (double)(n - 1) - 0.55), fb = Math.Abs(b / (double)(n - 1) - 0.55);
+                    int c = fa.CompareTo(fb);
+                    return c != 0 ? c : a.CompareTo(b);
+                });
+                for (int k = 0; k < Math.Min(2, shrines.Count); k++) rooms[shrines[k]].Type = RoomType.Shrine;
+
+                // Elites: the first 1–2 combat rooms in the 55–85% band (the late-run spike).
+                int elites = 0;
+                for (int i = 1; i < n - 1 && elites < 2; i++)
+                {
+                    if (rooms[i].Type != RoomType.Combat) continue;
+                    double f = i / (double)(n - 1);
+                    if (f >= 0.55 && f <= 0.85) { rooms[i].Type = RoomType.Elite; elites++; }
+                }
+            }
+            return true;
         }
 
         // --------------------------------------------------------------------

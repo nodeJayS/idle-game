@@ -265,10 +265,20 @@ Begin() folds gear+account buffs into every fresh state (fresh-init
 parties were fielding naked base stats). Play-verified: sim frozen at
 black (t=0 → first step after fade), camera off-axis 1.3 post-snap,
 tower floor 8 in/out, crypt arrival calm at the portal.
+Third rework (user, playing live): LINEAR layouts — DungeonParams.Linear
+places rooms as a single self-avoiding chain (drifting heading + light
+curl, 110-reach guard, deterministic angle fan; entrance/boss at the
+ends, treasure/shrine = on-path breather rooms, elites 55-85%, all
+corridors width-3). Branching maps force the auto-battled sweep to
+BACKTRACK through cleared rooms to reach the next fork — fine when a
+player steers, dumb-looking when nobody does; on a chain the party only
+ever advances ("pseudo move to the next room", the true-ARPG push).
+Crypt uses Linear; preview window has a toggle (branching showpiece
+kept). 596 tests (5 new: chain shape/ends/roles/bounds + a sim-level
+forward-only sweep proof); Play-verified objective depth 289→417
+strictly forward. Sweep-tail note above is MOOT for linear runs.
 NEXT: roguelite meta (entry economy, floor progression, death rules,
-rewards — user design conversation) + mood polish; sweep-tail polish
-(last far leaf room adds a long quiet walk — consider nearest-first
-routing once few enemies remain).
+rewards — user design conversation) + mood polish.
 (4) BFS build-reveal animation (parked).
 
 ### 8. Content & tuning pass
