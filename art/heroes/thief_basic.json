@@ -3,7 +3,7 @@
   "gender": "female",
   "items": [
     "Item/0/02/00200009_f_apple_a.nif",
-    "Item/1/13/11300084_c_shadowspike_d.nif",
+    "Item/1/13/11300046_c_cppiratebandana_c.nif",
     "Item/1/14/11400054_f_shadowspike.nif",
     "Item/1/15/11500053_f_shadowspike.nif",
     "Item/1/16/11600049_f_shadowspike.nif",
@@ -13,6 +13,13 @@
     { "nif": "Item/1/31/13100204_darksteeldagger.nif", "bone": "handR", "point": "Weapon_Hand_R_Point" },
     { "nif": "Item/1/31/13100204_darksteeldagger.nif", "bone": "handL", "point": "Weapon_Hand_L_Point" }
   ],
+  "tints": {
+    "11300046": [0.85, 0.15, 0.15],
+    "11400054": [0.9, 0.35, 0.35],
+    "11500053": [0.45, 0.3, 0.3],
+    "11600049": [0.9, 0.35, 0.35],
+    "11700074": [0.45, 0.3, 0.3]
+  },
   "attack_sound": "Swing_Dagger",
   "run_speed": 2.8,
   "skills": {

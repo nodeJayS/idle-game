@@ -3,11 +3,10 @@
   "gender": "female",
   "items": [
     "Item/0/02/00200010_f_basichair02_a.nif",
-    "Item/1/13/11300182_f_cpsnowbell_d.nif",
-    "Item/1/14/11400480_f_soulbinderwhite.nif",
-    "Item/1/15/11500977_f_pafireprism.nif",
-    "Item/1/16/11601166_f_glfireprism.nif",
-    "Item/1/17/11701261_f_shfireprism.nif"
+    "Item/1/13/11300023_c_cpmagehat_c.nif",
+    "Item/1/22/12200702_f_clpafrozen03.nif",
+    "Item/1/16/11601354_f_glfrozen03.nif",
+    "Item/1/17/11701466_f_shfrozen03.nif"
   ],
   "attach": [
     {
@@ -17,26 +16,8 @@
     }
   ],
   "tints": {
-    "00200010": [
-      0.62,
-      0.78,
-      1.0
-    ],
-    "11500977": [
-      0.82,
-      0.9,
-      1.0
-    ],
-    "11601166": [
-      0.86,
-      0.93,
-      1.0
-    ],
-    "11701261": [
-      0.86,
-      0.93,
-      1.0
-    ]
+    "00200010": [0.62, 0.78, 1.0],
+    "11300023": [0.55, 0.72, 1.0]
   },
   "attack_sound": "Skill_Wizard_IceStrike_Cast",
   "skills": {

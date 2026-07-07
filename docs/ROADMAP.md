@@ -213,21 +213,20 @@ primitive spheres. All hero work rides the existing MS2 pipeline
 Tools > Build Hero Animators; raw extracts stay outside the repo). Slices:
 (a) DONE 2026-07-07: Xml.m2d extracted; `art/tools/wardrobe.py` browses
 the wardrobe (keyword → id/name/slot/gender + manifest-ready nif path);
-(b) Ice Mage relook: classic pointy wizard hat + robes, blue/white
-palette — item/dye swaps in `art/heroes/icemage.json`, renders to the
-user before export;
-(c) Assassin relook: red/black theme + bandana (same recipe);
-(d) audit Knight / Fire Mage / Priest silhouettes while the tables are
-open (stereotype-first: plate+shield / warm robes / white-gold
-vestments) — renders per hero, user approves each;
-(e) skill-FX SPIKE (Your calls #9): prototype icebolt twice — ripped
-MS2 FX assets (textures via the extract; skill NAMES/numbers stay ours)
-vs procedural mesh/shader FX inspired by MS2; side-by-side, user picks;
+(b-d) DONE 2026-07-07 (user-picked renders): Ice Mage = magician hat +
+Winter Fairy Tale Snowflake set; Assassin = red pirate-bandana wrap over
+red/black-tinted Shadowy Spiked set; Fire Mage = hot-tinted magician hat
++ warm Magician's Robe. Knight/Priest audited fine as-is;
+(e) skill-FX SPIKE built (Your calls #9 STILL OPEN): Tools > FX Spike >
+Icebolt Comparison — sphere vs ripped MS2 IceStrike cluster vs
+procedural crystal; receipt png in Assets/FxSpike, user picks;
 (f) roll the picked FX approach across basic attacks + the 2+2 kits,
 one hero per slice (fire → ice → holy → physical).
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-07-07 10.11a-d: wardrobe browser + Ice Mage/Assassin/Fire Mage
+  relooks (user-picked) + icebolt FX spike (`638d356`..)
 - 2026-07-07 Projectile release-frame launch (`b91359d`)
 - 2026-07-07 Anim feel: wing flap + hero swing/cast stutter fix (`0c5e1d4`)
 - 2026-07-07 Balance sim (walls|sweep|farm) + wall findings (`4635483`)

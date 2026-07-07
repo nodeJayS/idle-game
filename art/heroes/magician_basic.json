@@ -4,14 +4,20 @@
   "items": [
     "Item/0/02/00200010_f_basichair02_a.nif",
     "Item/1/13/11300023_c_cpmagehat_c.nif",
-    "Item/1/14/11401084_f_clfireprism.nif",
-    "Item/1/15/11500977_f_pafireprism.nif",
+    "Item/1/22/12200006_f_clpamagecoat.nif",
     "Item/1/16/11601166_f_glfireprism.nif",
     "Item/1/17/11701261_f_shfireprism.nif"
   ],
   "attach": [
     { "nif": "Item/1/52/15200143_inferno_staff.nif", "bone": "handR", "point": "Weapon_Hand_R_Point" }
   ],
+  "tints": {
+    "00200010": [1.0, 0.62, 0.42],
+    "11300023": [1.1, 0.5, 0.35],
+    "12200006": [1.05, 0.55, 0.4],
+    "11601166": [1.05, 0.6, 0.45],
+    "11701261": [1.05, 0.6, 0.45]
+  },
   "attack_sound": "Skill_Wizard_MagicClaw_Cast",
   "skills": {
     "firebolt": { "slot": 1, "sound": "Skill_Wizard_FlameBurst_Cast" },
