@@ -1,5 +1,5 @@
 ﻿<Solution>
   <Project Path="IdleGame.GameCore.csproj" />
-  <Project Path="IdleGame.Game.csproj" />
   <Project Path="Assembly-CSharp-Editor.csproj" />
+  <Project Path="IdleGame.Game.csproj" />
 </Solution>
