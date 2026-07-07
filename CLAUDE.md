@@ -16,7 +16,9 @@ animate/poll, never decide rules. A future .NET server reuses GameCore as-is.
 
 ## Build & test
 - Sim: `dotnet test gamecore/GameCore.Tests` (xunit; globs the SAME
-  Assets/GameCore sources — edit sim code there). **625 tests green.**
+  Assets/GameCore sources — edit sim code there). **627 tests green**
+  (incl. DocsTests: ROADMAP ≤250 lines + keeps its sections — the ledger
+  rule has teeth; prune, don't raise the budget).
 - Balance tooling: `dotnet run --project gamecore/BalanceSim -- walls|sweep|farm`
   (difficulty vs level/gear charts over pure GameCore; findings in ROADMAP
   backlog 10.1).

@@ -3,7 +3,9 @@
 Living priority list; update in the same commit that ships an item. Durable
 design → [`game-design.md`](game-design.md); session orientation →
 [`../CLAUDE.md`](../CLAUDE.md). Shipped work gets ONE ledger line here —
-full receipts live in the git commit messages.
+full receipts live in the git commit messages. **ENFORCED:** `DocsTests`
+in GameCore.Tests fails the suite if this file exceeds 250 lines or loses
+its sections — prune, don't raise the budget.
 
 ## Where the game stands
 
