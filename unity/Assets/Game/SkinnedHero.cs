@@ -45,15 +45,17 @@ namespace IdleGame.Game
         /// than the instant the swing starts. Default fits the procedural chibi swing.</summary>
         float AttackContactSec => 0.2f;
 
-        /// <summary>Seconds from the last <see cref="TriggerAttack"/> until the swing/cast
-        /// anim COMPLETES; 0 when the trigger was refused (fire-in-transit: TriggerAttack
-        /// refuses while moving). CombatView delays a ranged projectile's LAUNCH by this so
-        /// the shot emerges as the cast finishes rather than mid-anim.</summary>
-        float AttackFinishSec => 0.45f;
+        /// <summary>Seconds from the last <see cref="TriggerAttack"/> until the swing's
+        /// RELEASE frame — when the shot visibly leaves the hand (the contact moment,
+        /// mid-clip), NOT the clip's end. CombatView delays a ranged projectile's launch by
+        /// this. Waiting for the full clip stacked with flight time into ~1s of felt input
+        /// lag (user-caught 2026-07-07 "projectiles are laggy"). 0 when the trigger was
+        /// refused while moving (fire-in-transit shoots instantly).</summary>
+        float AttackReleaseSec => 0.25f;
 
-        /// <summary>Same as <see cref="AttackFinishSec"/> for the skill cast last passed to
-        /// <see cref="TriggerSkill"/>; 0 when refused.</summary>
-        float SkillFinishSec => 0.45f;
+        /// <summary>Same as <see cref="AttackReleaseSec"/> for the skill cast last passed to
+        /// <see cref="TriggerSkill"/> (casts release later in their clip than swings).</summary>
+        float SkillReleaseSec => 0.3f;
     }
 
     /// <summary>
@@ -193,11 +195,14 @@ namespace IdleGame.Game
         private bool _busyIsSkill;                   // what owns the window: cast (true) vs swing
         private float _attackIntervalSec;            // live cadence, fed by SetAttackInterval
 
-        // Finish times CombatView delays a ranged projectile's launch by: the real playback
-        // length of the swing/cast last triggered, 0 when the trigger was refused.
-        private float _attackFinish, _skillFinish;
-        public float AttackFinishSec => _attackFinish;
-        public float SkillFinishSec => _skillFinish;
+        // Release times CombatView delays a ranged projectile's launch by: the REAL playback
+        // time to the swing/cast's release frame (shot leaves the hand mid-clip, not at clip
+        // end). Casts release later in their clip than swings do.
+        private const float SkillReleaseFraction = 0.6f;
+        private float _attackRelease, _skillRelease;
+        public float AttackReleaseSec => _attackRelease;
+        public float SkillReleaseSec => _skillRelease;
+        private float _busyReleaseAt; // absolute time of the in-flight clip's release frame
 
         /// <summary>Ground speed the hero's MS2 run cycle was authored for
         /// (units/s). Playback scales by actual/native so feet match the ground
@@ -326,12 +331,12 @@ namespace IdleGame.Game
 
         public bool TriggerAttack()
         {
-            if (_animator == null || _moving || _downed) { _attackFinish = 0f; return false; } // never swing mid-slide
+            if (_animator == null || _moving || _downed) { _attackRelease = 0f; return false; } // never swing mid-slide
             if (Time.time < _busyUntil)
             {
                 // A swing/cast is still playing: don't cut it — sync THIS hit's projectile/
-                // impact to the playing clip's end instead (the damage is already real).
-                _attackFinish = _busyUntil - Time.time;
+                // impact to the playing clip's RELEASE frame (the damage is already real).
+                _attackRelease = Mathf.Max(0f, _busyReleaseAt - Time.time);
                 return false;
             }
             bool two = Random.value < 0.5f;
@@ -352,23 +357,24 @@ namespace IdleGame.Game
                 speed = Mathf.Max(speed, len / (_attackIntervalSec * CadenceHeadroom));
             _attackSpeed = Mathf.Clamp(speed, 0.5f, 3f);
             _animator.SetTrigger(two ? Attack2Id : AttackId);
-            _attackFinish = _attackClipLen / _attackSpeed; // real playback length of THIS take
-            _lastContact = wantContact / _attackSpeed;     // real contact moment of THIS take
-            _busyUntil = Time.time + _attackFinish;
+            _lastContact = wantContact / _attackSpeed;             // real contact moment of THIS take
+            _attackRelease = _lastContact;                         // the shot leaves at contact
+            _busyUntil = Time.time + _attackClipLen / _attackSpeed; // full playback still gates re-triggers
+            _busyReleaseAt = Time.time + _lastContact;
             _busyIsSkill = false;
             return true;
         }
 
         public void TriggerSkill(string skillId)
         {
-            if (_animator == null || _downed) { _skillFinish = 0f; return; }
+            if (_animator == null || _downed) { _skillRelease = 0f; return; }
             if (SkillBindings != null && SkillBindings.TryGetValue(skillId, out var b))
             {
                 if (Time.time < _busyUntil && _busyIsSkill)
                 {
                     // Another cast is mid-flight: never cut a cast with a cast — this skill's
-                    // projectile/FX rides the playing clip's end instead.
-                    _skillFinish = _busyUntil - Time.time;
+                    // projectile/FX rides the playing clip's release frame instead.
+                    _skillRelease = Mathf.Max(0f, _busyReleaseAt - Time.time);
                     return;
                 }
                 float len = b.slot == 2 ? _skill2Len : _skill1Len;
@@ -381,14 +387,16 @@ namespace IdleGame.Game
                 _animator.ResetTrigger(Attack2Id);
                 _animator.SetTrigger(b.slot == 2 ? Skill2Id : Skill1Id);
                 SoundFx.Play(b.sound, 0.5f);
-                // Skill states play at authored speed (Update rescales only Run/Attack), so the
-                // take length IS the launch delay. A cast may interrupt a basic SWING (the
-                // flashy clip wins) — it takes over the busy window.
-                _skillFinish = len;
+                // Skill states play at authored speed (Update rescales only Run/Attack). The
+                // shot leaves at the cast's release frame (~SkillReleaseFraction through the
+                // clip), NOT at clip end — clip-end launch read as ~1s of lag. A cast may
+                // interrupt a basic SWING (the flashy clip wins) — it takes the busy window.
+                _skillRelease = len * SkillReleaseFraction;
                 _busyUntil = Time.time + len;
+                _busyReleaseAt = Time.time + _skillRelease;
                 _busyIsSkill = true;
             }
-            else { TriggerAttack(); _skillFinish = _attackFinish; } // unbound skill: fall back to a basic swing
+            else { TriggerAttack(); _skillRelease = _attackRelease; } // unbound skill: fall back to a basic swing
         }
 
         public void TriggerHit()

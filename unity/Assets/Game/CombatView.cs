@@ -350,9 +350,9 @@ namespace IdleGame.Game
             PlayImpact(at, amount, crit, secondary, sound);
         }
 
-        /// <summary>Launch a ranged projectile only once the source's cast/swing anim finishes
-        /// (<paramref name="delaySec"/>), so the shot emerges as the cast completes instead of
-        /// mid-anim; the number still pops on its impact. Presentation-only — the sim already
+        /// <summary>Launch a ranged projectile at the source's cast/swing RELEASE frame
+        /// (<paramref name="delaySec"/>), so the shot leaves the hand on the visible throw;
+        /// the number still pops on its impact. Presentation-only — the sim already
         /// applied the damage, so a cast whose movement got CANCELLED (the controller exits
         /// Attack-&gt;Run on Moving without exit time) must still launch on schedule: real damage
         /// can never become an invisible number. Re-samples both ends after the wait (source/
@@ -1636,10 +1636,11 @@ namespace IdleGame.Game
                             if (skKey != null && Settings.Projectiles && _projectileFx.TryGetValue(skKey, out var skLaunch)
                                 && _views.TryGetValue(ev.SourceId, out var ssv) && ssv.Go != null)
                             {
-                                // Wait for the cast anim to finish before the shot emerges (SkillCast
-                                // precedes its Hits this step, so SkillFinishSec is fresh).
+                                // Launch at the cast's RELEASE frame (SkillCast precedes its Hits
+                                // this step, so SkillReleaseSec is fresh) — clip-end launch stacked
+                                // with flight time into ~1s of felt lag.
                                 ScheduleLaunch(ev.SourceId, ev.TargetId, head, skLaunch, (float)ev.Amount,
-                                    ev.Crit, ssv.Anim?.SkillFinishSec ?? 0f);
+                                    ev.Crit, ssv.Anim?.SkillReleaseSec ?? 0f);
                             }
                             else
                             {
@@ -1666,12 +1667,13 @@ namespace IdleGame.Game
                         if (Settings.Projectiles && hasFx && ev.SourceId != null &&
                             _views.TryGetValue(ev.SourceId, out var sv) && sv.Go != null)
                         {
-                            // Wait for the swing to finish before the shot emerges. TriggerLunge ran
-                            // above, so AttackFinishSec reflects THIS swing; splash/chain siblings
-                            // (non-primary) reuse it — they ride the same swing. Monsters and anim-less
-                            // capsules have Anim == null -> delay 0 -> today's timing (heroes-only scope).
+                            // Launch at the swing's RELEASE frame — the shot leaves the hand on the
+                            // visible throw, mid-clip. TriggerLunge ran above, so AttackReleaseSec
+                            // reflects THIS swing; splash/chain siblings (non-primary) reuse it —
+                            // they ride the same swing. Monsters and anim-less capsules have
+                            // Anim == null -> delay 0 -> today's timing (heroes-only scope).
                             ScheduleLaunch(ev.SourceId, ev.TargetId, head, launch!, (float)ev.Amount,
-                                ev.Crit, sv.Anim?.AttackFinishSec ?? 0f);
+                                ev.Crit, sv.Anim?.AttackReleaseSec ?? 0f);
                         }
                         else
                         {
