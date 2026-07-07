@@ -542,6 +542,37 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void LinearPackedRoomsAbutWithASingleWallOrShortHall()
+        {
+            // Density contract (user call 2026-07-06, reference screenshot): consecutive rooms on the
+            // chain PACK — between two connected footprints sits a single shared wall tile up to at
+            // most a 5-tile hall — and no two rooms anywhere ever merge (≥1 wall tile between every
+            // pair; the room-scoped aggro gate depends on that wall existing).
+            for (int seed = 1; seed <= 8; seed++)
+            {
+                var d = GenLinear(seed);
+                var byId = d.Rooms.OrderBy(r => r.Id).ToList();
+                foreach (var e in d.Edges)
+                {
+                    var a = byId[e.A]; var b = byId[e.B];
+                    int sepX = Math.Abs(a.Cx - b.Cx) - (a.W / 2 + b.W / 2);
+                    int sepY = Math.Abs(a.Cy - b.Cy) - (a.H / 2 + b.H / 2);
+                    int wallGap = Math.Max(sepX, sepY) - 1; // wall tiles between the two footprints
+                    Assert.InRange(wallGap, 1, 5);
+                }
+                for (int i = 0; i < byId.Count; i++)
+                    for (int j = i + 1; j < byId.Count; j++)
+                    {
+                        var a = byId[i]; var b = byId[j];
+                        int sepX = Math.Abs(a.Cx - b.Cx) - (a.W / 2 + b.W / 2);
+                        int sepY = Math.Abs(a.Cy - b.Cy) - (a.H / 2 + b.H / 2);
+                        Assert.True(Math.Max(sepX, sepY) >= 2,
+                            $"rooms {a.Id},{b.Id} merged or touch floor-to-floor (seed {seed})");
+                    }
+            }
+        }
+
+        [Fact]
         public void LinearStillDressesTheRunWithRoles()
         {
             // Breather + spike rooms survive the chain conversion: treasure/shrine/elite present,

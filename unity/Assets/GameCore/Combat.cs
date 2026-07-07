@@ -892,7 +892,11 @@ namespace IdleGame.GameCore
                             foreach (var o in s.Entities)
                                 if (o.Id == e.TargetId) { cur = o; break; }
                             if (cur != null && (!cur.Alive || cur.Team == e.Team
-                                                || Vec2.Distance(e.Pos, cur.Pos) > cfg.Balance.EngageRadius))
+                                                || Vec2.Distance(e.Pos, cur.Pos) > cfg.Balance.EngageRadius
+                                                // Sticky keep must re-pass the room gate: acquisition is
+                                                // gated, but a leader drifting across a doorway mid-fight
+                                                // could otherwise keep swinging at a mob a wall now hides.
+                                                || (s.Dungeon != null && !s.Dungeon.GateTargets(e.Pos, cur.Pos))))
                                 cur = null;
                         }
                         bool IsPeel(CombatEntity? o) => !e.RangedRole && o != null && o.TargetId != null
@@ -968,6 +972,13 @@ namespace IdleGame.GameCore
                         // attack reach of its CURRENT spot — but it never MOVES toward it. Prefers a
                         // melee-tanked mob (assist) among what's in reach. If nothing's in reach,
                         // treat as no target (fall through to home).
+                        // Room-scoped sight is judged from the BODY, not the slot: the slot sits by the
+                        // leader inside the fight room while the follower may still be crossing the
+                        // doorway — dropping the slot-acquired target here means a follower never shoots
+                        // into a room it hasn't entered (user rule 2026-07-06); it keeps homing to its
+                        // slot and re-acquires the moment it steps in.
+                        if (target != null && s.Dungeon != null && !s.Dungeon.GateTargets(e.Pos, target.Pos))
+                            target = null;
                         if (target == null && e.RangedRole)
                         {
                             var inReach = NearestEnemyInReach(s, e, meleeFocusIds);
@@ -999,6 +1010,20 @@ namespace IdleGame.GameCore
                                     double lms = leader!.EffectiveStat(StatKey.MoveSpd);
                                     if (lms <= 0) lms = MoveSpeedTilesPerSec;
                                     ms = Math.Max(ms, lms) * cfg.Balance.RegroupHustleMult;
+                                }
+                                // Maze rejoin routing: straight-line homing wedges a follower on wall
+                                // corners the moment it falls a doorway behind (Play-caught: both
+                                // followers stranded at the entrance while the leader soloed the crypt).
+                                // When the straight segment to the slot is NOT walkable, descend the
+                                // flow field toward the leader instead — the same string-pulled travel
+                                // the leader uses — and resume exact slotting once back in line of walk.
+                                if (s.Dungeon != null && !s.Dungeon.SegmentWalkable(e.Pos, home))
+                                {
+                                    int lr = s.Dungeon.RoomAt(leader!.Pos);
+                                    home = lr >= 0
+                                        ? s.Dungeon.DownhillStep(e.Pos, lr)
+                                        : s.Dungeon.DownhillStepToCell(e.Pos,
+                                            (int)Math.Floor(leader!.Pos.X), (int)Math.Floor(leader!.Pos.Y));
                                 }
                                 MoveToward(e, home, ms * dtMs / 1000.0, arena);
                             }

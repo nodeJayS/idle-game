@@ -292,6 +292,22 @@ dungeon-only: followers home at ≥ the leader's speed and ranged
 standoff compresses 4.6→DungeonRangedBack 2.6 (Play-measured: Ice Mage
 avg 5.8 from the leader = inside cast range, vs a full room behind).
 596 tests.
+Fifth pass (user, reference screenshot): PACKED MAZE — rooms nearly
+fill their lattice cell (pitch 22→16, odd dims {11,13,15}, jitter
+dropped): 1–5 wall tiles between adjacent footprints — walls TOUCH,
+doorways punched through, no void fields (test-pinned; spawn divisor
+scaled so kill counts hold ~147; pillared halls rare + boss arena
+clean). ROOM-SCOPED AGGRO — GateTargets is strictly same-area: same
+room, or both in the hallway with LoS; room↔hallway is ALWAYS false
+(even across an open doorway). Judged from the BODY everywhere: the
+leader's sticky keep re-passes the gate, and a follower drops its
+slot-acquired target until it steps into the room. MAZE REJOIN —
+straight-line slot homing wedged far followers on wall corners
+(Play-caught: two heroes stranded at the entrance while the Knight
+soloed); a follower whose straight segment to slot is wall-blocked now
+descends the flow field toward the leader. Play-verified live: gate
+violations 0/177 sampled pairs, follower avg 3.8 tiles off the leader,
+full 147-kill clear + auto-return. 599 tests.
 NEXT: roguelite meta (entry economy, floor progression, death rules,
 rewards — user design conversation) + mood polish.
 (4) BFS build-reveal animation (parked).

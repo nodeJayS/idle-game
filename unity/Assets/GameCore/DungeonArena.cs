@@ -17,8 +17,9 @@ namespace IdleGame.GameCore
     ///  - WALKABLE SURFACE: <see cref="Contains"/> insets walls/corners (WalkInset) so a 0.45-body hero
     ///    never buries into a wall, while width-1 corridor centres still pass; <see cref="Clamp"/> pushes
     ///    an off-surface point back to the nearest walkable cell centre by a deterministic ring search.
-    ///  - ROOM GATE (<see cref="GateTargets"/>): the anti-wallhack rule — two units may only SEE each
-    ///    other when in the same room, or (if either is in a corridor) within corridor sight range.
+    ///  - ROOM GATE (<see cref="GateTargets"/>): room-scoped sight — two units may only SEE each other
+    ///    inside the SAME room, or both in the hallway within corridor sight range with a clear line;
+    ///    never across a room boundary (not even an open doorway).
     ///  - FLOW FIELD (<see cref="DownhillStep"/>): the leader descends the boss BFS toward the exit,
     ///    routing through corridors without any per-step pathfinding.
     /// </summary>
@@ -41,9 +42,9 @@ namespace IdleGame.GameCore
         // Same deterministic pure-of-grid caching as _roomFields.
         private readonly Dictionary<int, short[]> _cellFields = new Dictionary<int, short[]>();
 
-        /// <summary>Wrap a dungeon. <paramref name="corridorSight"/> is the euclidean range at which a unit
-        /// in a corridor may see across a doorway (Balance.DungeonCorridorSight); defaults to 6.5 so a
-        /// hand-built test arena needn't thread config.</summary>
+        /// <summary>Wrap a dungeon. <paramref name="corridorSight"/> is the euclidean range at which two
+        /// units in the hallway may see each other down it (Balance.DungeonCorridorSight); defaults to
+        /// 6.5 so a hand-built test arena needn't thread config.</summary>
         public DungeonArena(Dungeon d, double corridorSight = 6.5)
         {
             _d = d ?? throw new ArgumentNullException(nameof(d));
@@ -118,20 +119,20 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>
-        /// The anti-wallhack gate: true when <paramref name="seeker"/> and <paramref name="candidate"/> MAY
-        /// see each other — they're in the SAME room (equal room ids, both ≥ 0), OR (when either stands in a
-        /// corridor, room id -1) they're within <see cref="BalanceConstants.DungeonCorridorSight"/> euclidean
-        /// distance AND the straight segment between them is walkable (a REAL sightline down the hall — in
-        /// the compact maze layout, parallel corridors run a wall apart, and plain proximity let units see,
-        /// target, and DASH through that wall; user-caught live). Two units in DIFFERENT rooms can never see
-        /// each other. Symmetric in the two arguments.
+        /// The anti-wallhack gate — sight is ROOM-SCOPED (user rule 2026-07-06): a unit sees exactly as far
+        /// as its own area's walls. True only when both points are in the SAME room (equal ids, ≥ 0), or
+        /// both are in HALLWAY cells (room id -1) within <see cref="BalanceConstants.DungeonCorridorSight"/>
+        /// euclidean range with a walkable straight line between them (sight runs down the hall, never
+        /// through a wall). Room ↔ hallway is ALWAYS false — even across an open doorway — so packs never
+        /// bleed out of their room at heroes passing in the hall, and heroes never pre-aggro the next room
+        /// before stepping through the door. Symmetric in the two arguments.
         /// </summary>
         public bool GateTargets(Vec2 seeker, Vec2 candidate)
         {
             int ra = RoomAt(seeker), rb = RoomAt(candidate);
-            if (ra >= 0 && ra == rb) return true;                 // same room: always visible
-            if (ra >= 0 && rb >= 0) return false;                 // two different rooms: a wall between
-            // At least one is in a corridor — proximity + a walkable line of sight down the hall.
+            if (ra != rb) return false;   // different areas: room vs other room, or room vs hallway
+            if (ra >= 0) return true;     // same room: visible up to the walls
+            // Both in hallway cells: proximity + a walkable line of sight down the hall.
             return Vec2.Distance(seeker, candidate) <= _corridorSight && SegmentWalkable(seeker, candidate);
         }
 

@@ -292,21 +292,23 @@ namespace IdleGame.GameCore
         }
 
         // --------------------------------------------------------------------
-        // Stage 2–4 (LINEAR) — self-avoiding walk on a compact room LATTICE.
+        // Stage 2–4 (LINEAR) — self-avoiding walk on a PACKED room lattice.
         // The first cut placed the chain as a free-wandering arc, which read
         // as "single hallways in a big empty void" (user-caught). Instead the
         // chain is a randomized self-avoiding walk on a square-ish lattice:
-        // rooms sit at lattice cells (small jitter breaks the grid read),
         // consecutive rooms are always lattice NEIGHBOURS (up/down/left/
-        // right turns like a maze), and the walk packs most of the square —
-        // a dense dungeon block with only pocket-sized voids, still strictly
-        // single-path.
+        // right turns like a maze) and rooms are sized to nearly FILL their
+        // lattice cell, so adjacent rooms share a wall (or at most a hall a
+        // few tiles long) — a solid dungeon block with only pocket-sized
+        // voids, still strictly single-path (user call 2026-07-06: "walls
+        // touching each other", reference screenshot).
         // --------------------------------------------------------------------
 
-        // Lattice pitch: max room dim 18 + jitter ±1.5 each side ⇒ min AABB separation 22−3−18 = 1
-        // (a doorway-thick wall between big neighbours; smaller rooms get real corridors).
-        private const double LatticePitch = 22.0;
-        private const double LatticeJitter = 1.5;
+        // Pitch vs the packed dim table {11,13,15} (halves 5–7, no jitter): wall tiles between two
+        // adjacent footprints = Pitch − halfA − halfB − 1 ∈ [1,5]. Rooms always keep ≥1 wall tile
+        // between them (never merge — the room-scoped aggro gate depends on that wall existing) and
+        // never drift further apart than a short hall.
+        private const double LatticePitch = 16.0;
 
         private static List<RoomWork> PlaceLinearChain(DungeonParams p, Rng rng)
         {
@@ -323,20 +325,35 @@ namespace IdleGame.GameCore
             var rooms = new List<RoomWork>(n);
             for (int i = 0; i < n; i++)
             {
-                var (w, h, shape) = RollArchetype(rng);
-                if (i == n - 1) { w = Int(rng, 13, 18); h = Int(rng, 13, 18); } // the boss arena caps the run
+                var (w, h, shape) = RollPackedArchetype(rng);
+                if (i == n - 1) { w = 15; h = 15; shape = RoomShape.Rectangle; } // boss arena fills its cell
 
-                double jx = Float(rng, -LatticeJitter, LatticeJitter);
-                double jy = Float(rng, -LatticeJitter, LatticeJitter);
                 rooms.Add(new RoomWork
                 {
                     Id = i, Shape = shape, W = w, H = h,
-                    Cx = path[i].x * LatticePitch + jx,
-                    Cy = path[i].y * LatticePitch + jy,
+                    Cx = path[i].x * LatticePitch,
+                    Cy = path[i].y * LatticePitch,
                 });
             }
-            foreach (var r in rooms) { r.Cx = Math.Round(r.Cx); r.Cy = Math.Round(r.Cy); }
             return rooms;
+        }
+
+        /// <summary>Packed archetype for the linear lattice: ODD dims only from {11, 13, 15} per axis
+        /// (odd ⇒ the stamped span equals the dim exactly, so the pitch/wall arithmetic above is
+        /// exact), shapes biased to rectangles so abutting rooms read as shared walls.</summary>
+        private static (int w, int h, RoomShape shape) RollPackedArchetype(Rng rng)
+        {
+            int Dim()
+            {
+                double t = rng.Next();
+                return t < 0.20 ? 11 : t < 0.60 ? 13 : 15;
+            }
+            int w = Dim(), h = Dim();
+            double s = rng.Next();
+            RoomShape shape = s < 0.70 ? RoomShape.Rectangle
+                            : s < 0.88 ? RoomShape.Ellipse
+                            : RoomShape.Octagon;
+            return (w, h, shape);
         }
 
         /// <summary>
@@ -1193,16 +1210,21 @@ namespace IdleGame.GameCore
                 }
             }
 
-            // --- Pillars: LARGE rooms only, interior lattice cells ≥2 Chebyshev from doorways. ---
+            // --- Pillars: LARGE rooms only, interior lattice cells ≥2 Chebyshev from doorways.
+            // "Large" = BOTH dims at the top band: in the packed linear lattice almost every room
+            // crosses the old max-dim-13 bar, which turned the whole floor into a pillar forest
+            // (preview-caught) — min-dim-15 keeps pillared halls an occasional set-piece. ---
             for (int i = 0; i < rooms.Count; i++)
             {
                 var r = rooms[i];
-                if (Math.Max(r.W, r.H) < 13) continue; // large only
+                if (r.Type == RoomType.Boss) continue; // the boss arena stays clean (braziers own it)
+                if (Math.Min(r.W, r.H) < 15) continue; // large only
+                if (!Chance(rng, 0.4)) continue;       // a few pillared halls per floor, not every big room
                 int halfW = r.W / 2, halfH = r.H / 2;
                 for (int y = rcy[i] - halfH; y <= rcy[i] + halfH; y++)
                     for (int x = rcx[i] - halfW; x <= rcx[i] + halfW; x++)
                     {
-                        if (((x - rcx[i]) % 3 != 0) || ((y - rcy[i]) % 3 != 0)) continue; // 3-cell lattice
+                        if (((x - rcx[i]) % 4 != 0) || ((y - rcy[i]) % 4 != 0)) continue; // 4-cell lattice (~9/hall)
                         if (!Free(x, y)) continue;
                         if (!AllNeighbours8Floor(grid, w, h, x, y)) continue;
                         if (doorCheby[y * w + x] < 2) continue;
@@ -1276,7 +1298,9 @@ namespace IdleGame.GameCore
                     || r.Type == RoomType.Shrine || r.Type == RoomType.Boss) continue;
 
                 int tier = r.Type == RoomType.Elite ? 1 : 0;
-                int count = (int)Math.Round(r.Area / 18.0 * (0.5 + r.Difficulty));
+                // Packed linear rooms are ~2× the area of scatter rooms; a larger divisor keeps the
+                // pack sizes (and total floor kill count) in the same band either way.
+                int count = (int)Math.Round(r.Area / (p.Linear ? 26.0 : 18.0) * (0.5 + r.Difficulty));
                 if (count < 1) count = 1;
                 var cells = RoomFloorCells(r, rcx[i], rcy[i], grid, w, h);
                 // Deterministic: scan cells in order, place until count reached.

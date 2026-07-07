@@ -172,6 +172,30 @@ namespace IdleGame.GameCore.Tests
             Assert.False(a.GateTargets(p, far), "corridor sight is bounded");
         }
 
+        [Fact]
+        public void GateTargetsRoomToHallwayFalseEvenAcrossAnOpenDoorway()
+        {
+            // Room-scoped sight (user rule 2026-07-06): a unit in the hallway and a unit in the room
+            // NEVER see each other, even standing on either side of the open doorway — sight ends at
+            // the room's walls (hall units see down the hall only; room units see their room only).
+            var d = Gen(7);
+            var a = new DungeonArena(d);
+            foreach (var door in d.Doorways)
+            {
+                var hall = new Vec2(door.X + 0.5, door.Y + 0.5);
+                if (a.RoomAt(hall) != -1) continue; // doorways are corridor cells, but be safe
+                foreach (var (dx, dy) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+                {
+                    var room = new Vec2(door.X + dx + 0.5, door.Y + dy + 0.5);
+                    if (a.RoomAt(room) < 0) continue;
+                    Assert.False(a.GateTargets(hall, room), "hallway unit saw into the room");
+                    Assert.False(a.GateTargets(room, hall), "room unit saw into the hallway");
+                    return;
+                }
+            }
+            Assert.Fail("no doorway with an adjacent room cell (unexpected)");
+        }
+
         // ---------------- DungeonArena: BFS downhill ----------------
 
         [Fact]
@@ -397,6 +421,34 @@ namespace IdleGame.GameCore.Tests
             Assert.True(sweptDepths.Count >= 5, $"expected a multi-room crawl, saw {sweptDepths.Count} objectives");
             for (int i = 1; i < sweptDepths.Count; i++)
                 Assert.True(sweptDepths[i] > sweptDepths[i - 1], "objective repeated or regressed");
+        }
+
+        [Fact]
+        public void FarFollowersRerouteThroughTheMazeToRejoinTheLeader()
+        {
+            // Straight-line slot homing wedges on maze wall corners once a follower falls a doorway
+            // behind (Play-caught: both followers stranded at the entrance while the leader soloed
+            // the crypt). The rejoin fix flow-routes a follower whose straight segment to its slot
+            // is wall-blocked. Setup: only an unkillable boss alive, so the leader marches the whole
+            // chain; followers start stranded at the entrance and must arrive at the far end too.
+            var d = DungeonGen.Generate(new DungeonParams { Seed = 5, RoomCount = 14, Linear = true });
+            var s = StrongDungeon(d, rngSeed: 11);
+            var a = s.Dungeon!;
+            foreach (var e in s.Entities.Where(e => e.Team == Team.Enemy && !e.IsBoss)) e.Hp = 0;
+            var boss = s.Entities.First(e => e.Team == Team.Enemy && e.IsBoss);
+            boss.MaxHp = 1e12; boss.Hp = 1e12; // outlives the probe: the run must stay Running
+            var party = s.Entities.Where(e => e.Team == Team.Party).OrderBy(e => e.Slot).ToList();
+            var entrance = a.EntranceCentre();
+            party[1].Pos = a.Clamp(new Vec2(entrance.X - 0.7, entrance.Y));
+            party[2].Pos = a.Clamp(new Vec2(entrance.X + 0.7, entrance.Y));
+
+            for (int i = 0; i < 20000 && s.Status == CombatStatus.Running; i++)
+                Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(11));
+
+            Assert.Equal(CombatStatus.Running, s.Status);
+            foreach (var f in party.Skip(1))
+                Assert.True(Vec2.Distance(party[0].Pos, f.Pos) < 12.0,
+                    $"follower {f.Id} stranded {Vec2.Distance(party[0].Pos, f.Pos):F1} tiles from the leader");
         }
 
         // Mirror of Combat.DungeonObjectiveRoom (private): the shallowest living-enemy room, ties → lower
