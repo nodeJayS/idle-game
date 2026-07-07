@@ -57,7 +57,8 @@ apply (GameCore-first; MS2 = heroes only; no MS2 music; content seeds at
 New Game). Parked, deliberately not goals: prestige/rebirth · real-money
 gems · server authority (design §9) · zone drop-table hints · manual
 achievement-claim UX · dungeon BFS build-reveal anim · tilt-shift
-band-blur · SDF jiggle-rope tail.
+band-blur · SDF jiggle-rope tail · crypt mid-run merchant/boon-draft
+(user cut 2026-07-07; must never dilute dust's permanent-boon role).
 
 **10.1 The Great Rebalance (sim-driven — unblocks everything else)**
 The balance sim's first run (2026-07-07) found the walls; these findings
@@ -137,27 +138,20 @@ feed line; (f) sound mix bus: SFX ducking under big moments, volume
 sliders in Settings (foundation for 10.9).
 
 **10.7 Crypt overhaul — Mabinogi-style dungeons (user call 2026-07-07:
-"huge update"; runs AFTER 10.11)**
-Inspiration: Mabinogi's Ciar dungeon / its dungeon system — legible
-room-by-room progression (locked doors, defined encounters, reward
-room) instead of one continuous sweep. DESIGN-FIRST: slice (a) is a
-design session with the user; locked decisions land in game-design.md
-before any code. Slices:
-(a) design w/ user: room grammar (combat/chest/merchant/boss roles),
-per-depth encounter tables (mob count + wave phases per room), door/key
-rules (clear the room → door opens; boss door needs a dropped key),
-reward economy (chest tiers, end-of-run reward room, mimics?), mid-run
-shop stock + currency;
-(b) GameCore: DungeonGen assigns room roles + encounter specs; doors
-LOCK until room clear (rides room-scoped aggro); boss-key drop room;
-(c) per-room wave phases (phase 2 spawns on phase 1 clear) + room-clear
-reward beats; (d) chest rooms + the end-of-run REWARD ROOM
-(depth-scaled tables); (e) mid-run MERCHANT room: spend gold/dust on
-run-scoped boons (absorbs the old boon-draft idea); (f) client:
-locked-door tells, room-clear fanfare, chest-open beat, merchant panel;
-(g) carried from the old brief: mid-run persistence (quit resumes, key
-not forfeited) + run summary screen; (h) BalanceSim dungeon mode =
-the difficulty/reward acceptance chart per depth.
+"huge update")**
+(a) DONE 2026-07-07: design locked with the user → game-design §7.3
+(12-room floor grammar, sealed-door fights, key bearer → boss door,
+goofy mimics, end-of-run reward room, depth-band encounter tables;
+mid-run merchant CUT). Remaining slices build exactly that:
+(b) GameCore: DungeonGen assigns the §7.3 room roles + encounter specs;
+doors SEAL until room clear (rides room-scoped aggro); key-bearer room;
+(c) per-room wave phases (wave 2 spawns on wave 1 clear) + room-clear
+reward beats; (d) chest rooms + mimics + the end-of-run REWARD ROOM
+(depth-scaled tables); (e) client: sealed-door tells, room-clear
+fanfare, chest-open beat, mini-boss/boss gate moments;
+(f) mid-run persistence (quit resumes, key not forfeited) + run
+summary screen; (g) BalanceSim dungeon mode = the difficulty/reward
+acceptance chart per depth.
 
 **10.8 Endless mode ("deepest stage")**
 The post-100 chase once 10.1 makes 100 reachable. (a) GameCore:

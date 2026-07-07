@@ -325,6 +325,48 @@ shield-charge dash, armor + health passives. Fire Mage = fire nuke + AoE firebal
 spell-power + mana passives. Assassin = fast stab + heavy vital strike, crit passives.
 Priest = party heal-over-time + AoE smite, sustain + mana-flow passives.
 
+### 7.3 Crypt dungeons — Mabinogi-style rooms (locked 2026-07-07)
+
+**Why:** the shipped crypt reads as one continuous 26-room sweep — no anticipation, no
+rhythm. The overhaul (ROADMAP 10.7) makes each floor a legible room-by-room crawl in the
+spirit of Mabinogi's Ciar dungeon: sealed-door fights, a key hunt, breather rooms, a
+locked boss gate, a reward room. The 2026-07-06 meta lock is UNCHANGED (1 key/UTC day
+bank 2 · 3-floor runs from depth record+1 · gems per first clear · dust chest · permanent
+boons · wipe keeps drops, forfeits the chest).
+
+**Floor grammar** (~12 rooms on the existing linear chain; user picks 2026-07-07):
+- **Entrance** (safe) · **6–7 Combat** · **1 Elite** · **1 Key room** · **1 Chest room**
+  · **Boss**. Combat/Elite/Key rooms **seal both doors** on entry, spawn mobs in waves,
+  and unseal on room clear (rides the room-scoped aggro attribution) + pay a small
+  gold/loot burst. Chest/Entrance/Reward rooms never seal.
+- **Key room** = a combat room with a marked, glowing **key bearer** mob that drops the
+  Boss Key on death (the room must still clear). Every floor has its own key + locked
+  boss door: the per-floor rhythm is *fight → find the bearer → boss*.
+- **Chest room**: 1–3 chests by depth; **~15% of chest-room chests are GOOFY mimics**
+  (googly-eyed elite-rank fight paying the chest contents + a bonus; never in the
+  reward room).
+- Floors 1–2 of a run end at a **floor-guardian mini-boss** (elite-tier); floor 3 ends
+  at the tier's real boss, and behind it the **REWARD ROOM**: 1 golden + 2 iron chests
+  + the dust urn (the existing `GrantChest` formula made diegetic).
+- Mid-run persistence: quitting suspends the run (key not forfeited); resuming replays
+  the same seed at the same room. A run summary screen closes every run.
+
+**Encounter tables** (starting values; BalanceSim dungeon mode is the tuning
+acceptance): depths 1–10 combat = 1 wave × 5, elite + 3, boss + 2 adds; 11–20 = 2×4,
+elite + 4, +3 adds; 21–40 = 2×5, 2 elites + 3, +4 adds; 41–60 = 3×4, 2 elites + 4,
++4 adds with one re-wave at 50% boss HP. Waves spawn on the previous wave's clear,
+rising from floor tells at the room edges. Specs are content-as-data keyed off
+`CryptTierDef` + depth band; new content seeds at New Game.
+
+**Chest tiers** (contents ride the normal drop tables): **Wooden** gold + 1–2 items ·
+**Iron** gold + 2–3 items (≥1 rare) + 5–10 dust · **Golden** 3 items (≥1 epic) +
+15–25 dust, mythic chance at depth 40+. Chest-room count and tier weights scale with
+depth.
+
+**Cut for now (user call 2026-07-07): the mid-run MERCHANT** (run-scoped boon shop,
+which had absorbed the old boon-draft idea) — parked, not designed in. If it ever
+returns, it must not dilute grave dust's permanent-boon role.
+
 ---
 
 ## 8. Milestone roadmap
