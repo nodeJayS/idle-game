@@ -44,24 +44,21 @@ before anyone acts on them:
    panic 1.8 / aggro 2.0), run-clip foot-slide at regroup-hustle 1.4×.
 8. **Housekeeping:** the live save still holds ~996 test crypt keys
    (2026-07-07 testing hack) — say when to restore the normal key economy.
-9. **Skill-FX direction (after the 10.11e spike):** rip MS2 skill-FX
-   assets vs procedural FX inspired by them — one icebolt prototype each,
-   then you pick. Hero relooks (10.11b-d) each need your `--renders`
-   eyeball before export.
+9. **Skill-FX direction (after the 10.11e spike):** rip MS2 FX assets vs
+   procedural-inspired — one icebolt prototype each, you pick. Hero
+   relooks (10.11b-d) each need your `--renders` eyeball before export.
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
-**NEXT UP (user-assigned 2026-07-07): 10.11.**
+**NEXT UP (user-assigned 2026-07-07): 10.11, then 10.7 (crypt overhaul).**
 
-Self-contained briefs for future sessions (any model). Ordering within each
-milestone = shipping order; every slice is one-verified-slice-per-commit
-sized. UX-first lens: the systems are ahead of the presentation. Standing
-rules apply (GameCore-first; MS2 = heroes only; no MS2 music; content seeds
-at New Game). Parked, deliberately not goals: prestige/rebirth ·
-real-money gems · server authority (design §9) · Xml.m2d item-table
-extraction · zone drop-table hints · manual achievement-claim UX ·
-dungeon BFS build-reveal anim · dungeon tilt-shift band-blur ·
-SDF jiggle-rope tail.
+Self-contained briefs for future sessions (any model); slice order =
+shipping order, each one-verified-slice-per-commit sized. Standing rules
+apply (GameCore-first; MS2 = heroes only; no MS2 music; content seeds at
+New Game). Parked, deliberately not goals: prestige/rebirth · real-money
+gems · server authority (design §9) · zone drop-table hints · manual
+achievement-claim UX · dungeon BFS build-reveal anim · tilt-shift
+band-blur · SDF jiggle-rope tail.
 
 **10.1 The Great Rebalance (sim-driven — unblocks everything else)**
 The balance sim's first run (2026-07-07) found the walls; these findings
@@ -140,17 +137,28 @@ pooled); (e) kill-streak feedback: N kills in 2s → small screen pulse +
 feed line; (f) sound mix bus: SFX ducking under big moments, volume
 sliders in Settings (foundation for 10.9).
 
-**10.7 Crypt 2.0 (roguelite depth — the mode has legs)**
-The maze/aggro/meta shell shipped; add the decisions that make
-roguelites sticky. (a) mid-run persistence (CryptState.ActiveRun:
-floor/party HP/rng cursor — quit resumes instead of forfeiting the
-key); (b) between-floor BOON DRAFT: pick 1 of 3 run-scoped modifiers
-(rides ModifierInstance machinery, run-only, not persisted past the
-run); (c) elite/cursed rooms: one room per floor rolls a rank-up pack
-guarding a bonus chest (dungeon gen already has room metadata);
-(d) depth-tier BOSS modifiers (the tier boss wears its tier's signature
-mod — telegraphed in the entry toast); (e) run summary screen (floors,
-kills, dust, drops — the share-able moment).
+**10.7 Crypt overhaul — Mabinogi-style dungeons (user call 2026-07-07:
+"huge update"; runs AFTER 10.11)**
+Inspiration: Mabinogi's Ciar dungeon / its dungeon system — legible
+room-by-room progression (locked doors, defined encounters, reward
+room) instead of one continuous sweep. DESIGN-FIRST: slice (a) is a
+design session with the user; locked decisions land in game-design.md
+before any code. Slices:
+(a) design w/ user: room grammar (combat/chest/merchant/boss roles),
+per-depth encounter tables (mob count + wave phases per room), door/key
+rules (clear the room → door opens; boss door needs a dropped key),
+reward economy (chest tiers, end-of-run reward room, mimics?), mid-run
+shop stock + currency;
+(b) GameCore: DungeonGen assigns room roles + encounter specs; doors
+LOCK until room clear (rides room-scoped aggro); boss-key drop room;
+(c) per-room wave phases (phase 2 spawns on phase 1 clear) + room-clear
+reward beats; (d) chest rooms + the end-of-run REWARD ROOM
+(depth-scaled tables); (e) mid-run MERCHANT room: spend gold/dust on
+run-scoped boons (absorbs the old boon-draft idea); (f) client:
+locked-door tells, room-clear fanfare, chest-open beat, merchant panel;
+(g) carried from the old brief: mid-run persistence (quit resumes, key
+not forfeited) + run summary screen; (h) BalanceSim dungeon mode =
+the difficulty/reward acceptance chart per depth.
 
 **10.8 Endless mode ("deepest stage")**
 The post-100 chase once 10.1 makes 100 reachable. (a) GameCore:
@@ -210,13 +218,11 @@ palette — item/dye swaps in `art/heroes/icemage.json`, renders to the
 user before export;
 (c) Assassin relook: red/black theme + bandana (same recipe);
 (d) audit Knight / Fire Mage / Priest silhouettes while the tables are
-open (stereotype-first: plate+shield / warm battle-robes / white-gold
+open (stereotype-first: plate+shield / warm robes / white-gold
 vestments) — renders per hero, user approves each;
-(e) skill-FX direction SPIKE (Your calls #9): prototype icebolt twice —
-(1) ripped MS2 skill-FX assets (textures/sprites via the extract; skill
-NAMES/numbers stay ours per the hard rules) vs (2) procedural
-mesh/shader FX inspired by MS2's look; screenshots side by side, user
-picks the direction;
+(e) skill-FX SPIKE (Your calls #9): prototype icebolt twice — ripped
+MS2 FX assets (textures via the extract; skill NAMES/numbers stay ours)
+vs procedural mesh/shader FX inspired by MS2; side-by-side, user picks;
 (f) roll the picked FX approach across basic attacks + the 2+2 kits,
 one hero per slice (fire → ice → holy → physical).
 
@@ -227,17 +233,15 @@ one hero per slice (fire → ice → holy → physical).
 - 2026-07-07 Balance sim (walls|sweep|farm) + wall findings (`4635483`)
 - 2026-07-07 Project audit: dead files, stale docs, clean sweep (`ed3d347`)
 - 2026-07-06 Crypt meta: keys, 3-floor runs, chest, boons (`7462d84`, `14ca7a5`)
-- 2026-07-06 Dungeon mode ×5 passes: floor → isolation → loads → linear →
-  maze → packed maze + room aggro (`ba378d7`..`a10135a`)
+- 2026-07-06 Dungeon mode ×5 passes → packed maze + room aggro (`ba378d7`..`a10135a`)
 - 2026-07-05 Terrain slices 1+2: arenas + terraces/water (`24cf528`, `839a0bc`)
 - 2026-07-05 Presentation debt: impact sounds, priest FX (`845c2b3`)
 - 2026-07-05 Ranged feel: speed, launch chain, anti-stutter (`1d67c7d`..`3b18ead`)
 - 2026-07-05 Tower floor gems + quest rework + modifier UX (`92f8588`)
 - 2026-07-04/05 SDF blend-shell: shader → gaits → swamp trio (`5f17ce1`..`ccfd9a9`)
 - 2026-07-04 Party feel batch: formation, kite/peel, leader UI (`208b435`..`8364850`)
-- 2026-07-03/04 Gacha MVP + live "Winter's Return" Ice Mage banner
-- 2026-07-03 Monster procedural animation (4 gait families)
-- 2026-07-03 Combat-feel + QoL batch (6 slices)
+- 2026-07-03/04 Gacha MVP + Ice Mage banner · monster procedural anim ·
+  combat-feel/QoL batch
 
 ## Standing rules (short — CLAUDE.md has the full set)
 GameCore-first, one verified slice per commit. Monsters faceted only (MS2 =
