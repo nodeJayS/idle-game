@@ -301,6 +301,14 @@ namespace IdleGame.GameCore
 
             SeedDungeonSpawns(s, d, trashRoster, bossId, cfg, rng, hpMult, dmgMult);
 
+            // §7.3 door/key rules: remember the boss room, and require its key only when the floor
+            // actually generated a Key room (short/legacy layouts stay key-free).
+            foreach (var r in d.Rooms)
+            {
+                if (r.Type == RoomType.Boss) s.DungeonBossRoomId = r.Id;
+                else if (r.Type == RoomType.Key) s.DungeonKeyRequired = true;
+            }
+
             s.TimeMs = 0;
             s.SpawnTimerMs = 0;
             s.Status = CombatStatus.Running;
@@ -349,6 +357,13 @@ namespace IdleGame.GameCore
                 mob.WanderTarget = pos;     // holds in place until the staggered repick
                 mob.WanderCdMs = rng.RandRange(0, cfg.Balance.WanderMaxMs); // staggered — mirrors SpawnPack
                 if (sp.Tier == 1) ApplyRank(mob, MonsterRank.Elite, cfg); // room-typed elite
+                if (sp.Tier == 3)
+                {
+                    // §7.3 KEY BEARER: its death drops the Boss Key (HandleDeath flips the state).
+                    // Elite rank gives it heft AND the existing rank tint/glow — the "marked" tell.
+                    mob.DungeonKeyBearer = true;
+                    ApplyRank(mob, MonsterRank.Elite, cfg);
+                }
                 s.Entities.Add(mob);
                 idx++;
             }
@@ -1158,6 +1173,11 @@ namespace IdleGame.GameCore
             // stall the flow-field sweep — the followers file in behind instead of shoving it back.
             ResolveCollisions(s, cfg, arena, s.Dungeon != null ? leader?.Id : null);
 
+            // §7.3 sealed-door room progression — runs LAST so it sees final step positions and can
+            // undo any crossing (movement, dash, collision push) with a deterministic clamp.
+            if (s.Kind == EncounterKind.Dungeon && s.Dungeon != null)
+                StepDungeonDoors(s, leader, events);
+
             // A downed hero has Hp 0 (Alive == false), so an all-at-once wipe makes
             // partyAlive false -> Lost.
             bool partyAlive = s.Entities.Any(e => e.Team == Team.Party && e.Alive);
@@ -1451,6 +1471,13 @@ namespace IdleGame.GameCore
             if (target.IsBoss)
                 events.Add(new CombatEvent { Type = CombatEventType.BossDefeated, Stage = s.Stage });
 
+            // §7.3 key bearer down: the Boss Key drops (sim state — the boss-door gate reads it).
+            if (target.DungeonKeyBearer && !s.DungeonBossKeyHeld)
+            {
+                s.DungeonBossKeyHeld = true;
+                events.Add(new CombatEvent { Type = CombatEventType.BossKeyDrop, EntityId = target.Id });
+            }
+
             // Tower grants NO farm income — the milestone account buffs are the reward, and a
             // grindable income source would undercut the one-clear-per-floor design.
             if (s.Kind == EncounterKind.Tower) return;
@@ -1508,6 +1535,72 @@ namespace IdleGame.GameCore
             int n = 0;
             foreach (var e in s.Entities) if (e.Team == Team.Enemy && e.Alive) n++;
             return n;
+        }
+
+        /// <summary>True when any living enemy is ATTRIBUTED to <paramref name="roomId"/> (spawn-stamped
+        /// DungeonRoomId — position-independent, so a mob nudged past the doorway still counts).</summary>
+        private static bool RoomHasLivingEnemy(CombatState s, int roomId)
+        {
+            foreach (var e in s.Entities)
+                if (e.Team == Team.Enemy && e.Alive && e.DungeonRoomId == roomId) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// The §7.3 sealed-door pass (dungeon only, end of every step). In order:
+        ///  1. CLEAR — a sealed room with no living attributed enemy unseals (RoomCleared: the
+        ///     client's open-door fanfare beat) and joins DungeonClearedRooms.
+        ///  2. SEAL — the leader standing in an uncleared room that still has living enemies slams
+        ///     its doors (RoomSealed) and WAKES the whole room (the Mabinogi committed-arena beat).
+        ///     The locked boss room never seals before the Boss Key is held — the gate below keeps
+        ///     the party out of it entirely.
+        ///  3. CONTAIN — while sealed, every living party hero AND the room's own mobs are clamped
+        ///     back inside (any crossing this step — movement, dash, collision push — is undone), so
+        ///     neither side can leave the fight and a stray mob can never soft-lock a clear. Without
+        ///     the key, heroes are also clamped OUT of the boss room.
+        /// Deterministic: clamps are pure ring searches; set iteration never drives logic.
+        /// </summary>
+        private static void StepDungeonDoors(CombatState s, CombatEntity? leader, List<CombatEvent> events)
+        {
+            var arena = s.Dungeon!;
+            bool bossLocked = s.DungeonKeyRequired && !s.DungeonBossKeyHeld && s.DungeonBossRoomId >= 0;
+
+            // 1 — clear.
+            if (s.DungeonSealedRoomId >= 0 && !RoomHasLivingEnemy(s, s.DungeonSealedRoomId))
+            {
+                s.DungeonClearedRooms.Add(s.DungeonSealedRoomId);
+                events.Add(new CombatEvent { Type = CombatEventType.RoomCleared, RoomId = s.DungeonSealedRoomId });
+                s.DungeonSealedRoomId = -1;
+            }
+
+            // 2 — seal on entry.
+            if (s.DungeonSealedRoomId < 0 && leader != null && leader.Alive)
+            {
+                int room = arena.RoomAt(leader.Pos);
+                if (room >= 0 && !(bossLocked && room == s.DungeonBossRoomId)
+                    && !s.DungeonClearedRooms.Contains(room) && RoomHasLivingEnemy(s, room))
+                {
+                    s.DungeonSealedRoomId = room;
+                    events.Add(new CombatEvent { Type = CombatEventType.RoomSealed, RoomId = room });
+                    foreach (var e in s.Entities)
+                        if (e.Team == Team.Enemy && e.Alive && e.DungeonRoomId == room) e.Aggro = true;
+                }
+            }
+
+            // 3 — contain.
+            int sealedRoom = s.DungeonSealedRoomId;
+            foreach (var e in s.Entities)
+            {
+                if (!e.Alive) continue;
+                if (e.Team == Team.Party)
+                {
+                    if (sealedRoom >= 0) e.Pos = arena.ClampToRoom(e.Pos, sealedRoom);
+                    else if (bossLocked && arena.RoomAt(e.Pos) == s.DungeonBossRoomId)
+                        e.Pos = arena.ClampOutsideRoom(e.Pos, s.DungeonBossRoomId);
+                }
+                else if (sealedRoom >= 0 && e.DungeonRoomId == sealedRoom)
+                    e.Pos = arena.ClampToRoom(e.Pos, sealedRoom);
+            }
         }
 
         /// <summary>

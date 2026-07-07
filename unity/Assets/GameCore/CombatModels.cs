@@ -113,6 +113,9 @@ namespace IdleGame.GameCore
         // room-sweep objective can attribute a mob that wandered/chased into a corridor to its home
         // room. Set at dungeon spawn seeding; heroes and every non-dungeon entity leave this -1.
         public int DungeonRoomId = -1;
+        // §7.3 key room: this mob carries the Boss Key — its death sets DungeonBossKeyHeld and
+        // fires the BossKeyDrop event. Set from a Tier-3 dungeon spawn; everything else false.
+        public bool DungeonKeyBearer;
 
         // Role axis (formation): a ranged hero (HeroDef.Role == "ranged") parks at casting
         // distance, fires at what's already in reach mid-regroup, and backpedals from anything
@@ -193,6 +196,20 @@ namespace IdleGame.GameCore
         // client from the save (Modifiers.ResolveActive). Empty in boss/encounter modes — the boss
         // gets only its own inherent modifier, applied directly at init.
         public List<ModifierInstance> ActiveModifiers = new List<ModifierInstance>();
+
+        // ---- Dungeon room progression (§7.3 sealed-door crawl; Kind == Dungeon only) ----
+        // The room the party is currently SEALED inside (-1 = none): set when the leader stands in
+        // an uncleared room that still has living attributed enemies; while set, the party AND that
+        // room's mobs are clamped inside each step (StepCombat's gate pass). Cleared on room clear.
+        public int DungeonSealedRoomId = -1;
+        // Rooms whose seal has been fought and cleared (drives the client's open-door tells +
+        // room-clear fanfare). Only Contains is ever read — iteration never drives logic.
+        public HashSet<int> DungeonClearedRooms = new HashSet<int>();
+        // Boss door state: KeyRequired = the floor generated a Key room (its bearer must die before
+        // the party may enter the boss room); BossKeyHeld flips on the bearer's death.
+        public bool DungeonKeyRequired;
+        public bool DungeonBossKeyHeld;
+        public int DungeonBossRoomId = -1; // the Boss room's id (-1 when the floor has none)
     }
 
     /// <summary>An active monster modifier handed to the sim by the client (resolved from the
@@ -205,7 +222,12 @@ namespace IdleGame.GameCore
         public double Tuning = 1.0; // shop tuning multiplier on danger+reward (1.0 = untuned)
     }
 
-    public enum CombatEventType { Hit, Death, LootDrop, LevelUp, WaveCleared, BossDefeated, Respawn, SkillCast, Heal }
+    public enum CombatEventType
+    {
+        Hit, Death, LootDrop, LevelUp, WaveCleared, BossDefeated, Respawn, SkillCast, Heal,
+        // Dungeon room progression (§7.3): doors slam shut / swing open / the Boss Key drops.
+        RoomSealed, RoomCleared, BossKeyDrop,
+    }
 
     /// <summary>Flat event the renderer reacts to (damage numbers, deaths, etc.).</summary>
     public sealed class CombatEvent
@@ -219,5 +241,6 @@ namespace IdleGame.GameCore
         public int Stage;
         public Item? Item;          // set on LootDrop; EntityId = the monster that dropped it
         public string? SkillId;     // set on SkillCast: which skill fired (renderer FX hook)
+        public int RoomId = -1;     // set on RoomSealed/RoomCleared: which dungeon room
     }
 }

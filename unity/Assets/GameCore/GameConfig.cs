@@ -127,6 +127,19 @@ namespace IdleGame.GameCore
         public StatKey Stat;
     }
 
+    /// <summary>One row of the §7.3 depth-band ENCOUNTER TABLE: the per-room mob budgets a crypt
+    /// floor uses from <see cref="MinDepth"/> down (the deepest row whose MinDepth ≤ floor wins —
+    /// see Crypt.EncounterForFloor). Content-as-data; tuned by BalanceSim's dungeon mode.</summary>
+    public sealed class CryptEncounterDef
+    {
+        public int MinDepth = 1;
+        public int CombatWaves = 1;  // waves per combat/key room
+        public int MobsPerWave = 5;
+        public int EliteCount = 1;   // elites in the Elite room
+        public int EliteEscort = 3;
+        public int BossAdds = 2;
+    }
+
     public sealed class StageDef
     {
         public int Stage;
@@ -651,6 +664,8 @@ namespace IdleGame.GameCore
         // frost, cycling); boons are the grave-dust sink. See Crypt.cs.
         public List<CryptTierDef> CryptTiers = new List<CryptTierDef>();
         public List<CryptBoonDef> CryptBoons = new List<CryptBoonDef>();
+        // §7.3 depth-band encounter table (per-room mob budgets by floor depth). MinDepth-ascending.
+        public List<CryptEncounterDef> CryptEncounters = new List<CryptEncounterDef>();
         public BalanceConstants Balance = new BalanceConstants();
 
         /// <summary>The zone a stage belongs to: one zone per StagesPerTier band (the same
@@ -1087,6 +1102,11 @@ namespace IdleGame.GameCore
             cfg.CryptBoons.Add(new CryptBoonDef { Id = "vigor", Name = "Vigor", Stat = StatKey.Hp });
             cfg.CryptBoons.Add(new CryptBoonDef { Id = "ferocity", Name = "Ferocity", Stat = StatKey.Atk });
             cfg.CryptBoons.Add(new CryptBoonDef { Id = "bulwark", Name = "Bulwark", Stat = StatKey.Def });
+            // §7.3 depth-band encounter table (starting values; BalanceSim dungeon mode tunes).
+            cfg.CryptEncounters.Add(new CryptEncounterDef { MinDepth = 1, CombatWaves = 1, MobsPerWave = 5, EliteCount = 1, EliteEscort = 3, BossAdds = 2 });
+            cfg.CryptEncounters.Add(new CryptEncounterDef { MinDepth = 11, CombatWaves = 2, MobsPerWave = 4, EliteCount = 1, EliteEscort = 4, BossAdds = 3 });
+            cfg.CryptEncounters.Add(new CryptEncounterDef { MinDepth = 21, CombatWaves = 2, MobsPerWave = 5, EliteCount = 2, EliteEscort = 3, BossAdds = 4 });
+            cfg.CryptEncounters.Add(new CryptEncounterDef { MinDepth = 41, CombatWaves = 3, MobsPerWave = 4, EliteCount = 2, EliteEscort = 4, BossAdds = 4 });
 
             // ---- Arenas (ROADMAP 8, slice 1) — one PLACE per zone, id arena_<zoneId>. Each is the
             // walkable UNION of its shapes. Every layout's tier-0 base covers the r≈32 spawn bubble

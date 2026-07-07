@@ -158,6 +158,27 @@ namespace IdleGame.GameCore
             return cfg.CryptTiers[band % cfg.CryptTiers.Count];
         }
 
+        /// <summary>The §7.3 encounter-table row for a floor — the DEEPEST configured band whose
+        /// MinDepth ≤ floor (config order scanned in full, so the list needn't be sorted) — mapped
+        /// onto the DungeonGen spec. Null when no bands are configured or none is shallow enough
+        /// (generation then falls back to its legacy area counts).</summary>
+        public static DungeonEncounterSpec? EncounterForFloor(int floor, GameConfig cfg)
+        {
+            CryptEncounterDef? best = null;
+            foreach (var e in cfg.CryptEncounters)
+                if (e.MinDepth <= floor && (best == null || e.MinDepth > best.MinDepth))
+                    best = e;
+            if (best == null) return null;
+            return new DungeonEncounterSpec
+            {
+                CombatWaves = best.CombatWaves,
+                MobsPerWave = best.MobsPerWave,
+                EliteCount = best.EliteCount,
+                EliteEscort = best.EliteEscort,
+                BossAdds = best.BossAdds,
+            };
+        }
+
         // ---- boons (the dust sink) ------------------------------------------
 
         /// <summary>Purchased rank of a boon (0 = none).</summary>

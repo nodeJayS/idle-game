@@ -71,11 +71,12 @@ namespace IdleGame.Game
             return DungeonGen.Generate(new DungeonParams
             {
                 Seed = seed,
-                RoomCount = 26,       // walkable in minutes, not the 80-room showpiece
+                RoomCount = 12,       // §7.3 grammar: ~12 purposeful rooms, every one a beat
                 LoopChance = 0.15,
                 DecorDensity = 0.6,
                 Theme = Crypt.TierForFloor(floor, cfg)?.ThemeKey ?? "crypt",
                 Linear = true,        // auto-battled runs sweep FORWARD — branches force backtracking
+                Encounter = Crypt.EncounterForFloor(floor, cfg), // depth-band mob budgets (§7.3)
             });
         }
 

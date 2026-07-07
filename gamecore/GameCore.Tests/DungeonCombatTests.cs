@@ -573,5 +573,117 @@ namespace IdleGame.GameCore.Tests
                 prev = now;
             }
         }
+
+        // ---------------- §7.3 sealed doors, key bearer, boss gate (10.7b) ----------------
+
+        private static Dungeon GenGrammarFloor(int seed) => DungeonGen.Generate(new DungeonParams
+        {
+            Seed = seed, RoomCount = 12, Linear = true,
+            Encounter = new DungeonEncounterSpec
+            { CombatWaves = 1, MobsPerWave = 4, EliteCount = 1, EliteEscort = 2, BossAdds = 2 },
+        });
+
+        [Fact]
+        public void RunSealsRoomsInChainOrderContainsTheFightAndClearsThemAll()
+        {
+            var d = GenGrammarFloor(3);
+            var s = StrongDungeon(d, rngSeed: 7);
+            var a = s.Dungeon!;
+            Assert.True(s.DungeonKeyRequired);
+            Assert.True(s.DungeonBossRoomId >= 0);
+
+            var sealedSeq = new List<int>();
+            var clearedSeq = new List<int>();
+            int steps = 0;
+            const int cap = 80000;
+            while (s.Status == CombatStatus.Running && steps < cap)
+            {
+                var events = Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(7));
+                foreach (var ev in events)
+                {
+                    if (ev.Type == CombatEventType.RoomSealed) sealedSeq.Add(ev.RoomId);
+                    if (ev.Type == CombatEventType.RoomCleared) clearedSeq.Add(ev.RoomId);
+                }
+                // Post-step containment invariant: while a room is sealed, the party AND that
+                // room's mobs are inside it.
+                if (s.DungeonSealedRoomId >= 0)
+                {
+                    int room = s.DungeonSealedRoomId;
+                    foreach (var e in s.Entities)
+                    {
+                        if (!e.Alive) continue;
+                        if (e.Team == Team.Party)
+                            Assert.True(a.RoomAt(e.Pos) == room, $"hero {e.Id} outside sealed room at step {steps}");
+                        else if (e.DungeonRoomId == room)
+                            Assert.True(a.RoomAt(e.Pos) == room, $"mob {e.Id} escaped its sealed room at step {steps}");
+                    }
+                }
+                steps++;
+            }
+
+            Assert.Equal(CombatStatus.Won, s.Status);
+            // Every mob room got a seal + a matching clear, in strictly ascending chain order
+            // (linear room ids ARE the chain order).
+            var mobRooms = d.Spawns.Select(sp => sp.RoomId).Distinct().OrderBy(id => id).ToList();
+            Assert.Equal(mobRooms, sealedSeq);
+            Assert.Equal(sealedSeq, clearedSeq);
+            Assert.True(mobRooms.All(s.DungeonClearedRooms.Contains));
+            Assert.Equal(-1, s.DungeonSealedRoomId);
+        }
+
+        [Fact]
+        public void KeyBearerDeathDropsTheBossKeyBeforeTheBossRoomOpens()
+        {
+            var d = GenGrammarFloor(4);
+            var s = StrongDungeon(d, rngSeed: 9);
+            var a = s.Dungeon!;
+            var bearer = s.Entities.Single(e => e.DungeonKeyBearer);
+            Assert.Equal(RoomOfType(d, RoomType.Key).Id, bearer.DungeonRoomId);
+            Assert.Equal(MonsterRank.Elite, bearer.Rank); // the "marked" tell rides the rank glow
+
+            bool keyDropSeen = false;
+            int steps = 0;
+            while (s.Status == CombatStatus.Running && steps < 80000)
+            {
+                var events = Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(9));
+                keyDropSeen |= events.Any(ev => ev.Type == CombatEventType.BossKeyDrop);
+                // The locked boss door holds until the bearer dies (§7.3).
+                if (!s.DungeonBossKeyHeld)
+                    foreach (var e in s.Entities.Where(e => e.Team == Team.Party && e.Alive))
+                        Assert.NotEqual(s.DungeonBossRoomId, a.RoomAt(e.Pos));
+                steps++;
+            }
+
+            Assert.Equal(CombatStatus.Won, s.Status);
+            Assert.True(keyDropSeen, "the bearer's death never fired BossKeyDrop");
+            Assert.True(s.DungeonBossKeyHeld);
+        }
+
+        [Fact]
+        public void BossDoorClampsAnUnkeyedPartyOutAndAdmitsAKeyedOne()
+        {
+            var d = GenGrammarFloor(5);
+            var s = StrongDungeon(d, rngSeed: 3);
+            var a = s.Dungeon!;
+            var boss = RoomOfType(d, RoomType.Boss);
+            var inside = new Vec2(boss.Cx + 0.5, boss.Cy + 0.5);
+            // Neuter the party's damage so the gate is observed in isolation (no mid-step boss kill).
+            foreach (var e in s.Entities.Where(e => e.Team == Team.Party)) e.Stats[StatKey.Atk] = 0;
+
+            // Drop the party INSIDE the locked boss room (the strongest possible violation — any
+            // legal crossing is milder) and step: the gate must place every hero back outside.
+            foreach (var e in s.Entities.Where(e => e.Team == Team.Party)) e.Pos = inside;
+            Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(3));
+            foreach (var e in s.Entities.Where(e => e.Team == Team.Party && e.Alive))
+                Assert.NotEqual(boss.Id, a.RoomAt(e.Pos));
+
+            // With the key in hand the same entry stands — and the boss room seals around the fight.
+            s.DungeonBossKeyHeld = true;
+            foreach (var e in s.Entities.Where(e => e.Team == Team.Party)) e.Pos = inside;
+            Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(3));
+            Assert.Equal(boss.Id, s.DungeonSealedRoomId);
+            foreach (var e in s.Entities.Where(e => e.Team == Team.Party && e.Alive))
+                Assert.Equal(boss.Id, a.RoomAt(e.Pos));
+        }
     }
 }

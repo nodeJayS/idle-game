@@ -190,6 +190,31 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void EncounterForFloorPicksTheDeepestBandAtOrBelowTheFloor()
+        {
+            // §7.3 depth-band table: 1 / 11 / 21 / 41 in Default(). The deepest MinDepth ≤ floor wins.
+            var f1 = Crypt.EncounterForFloor(1, Cfg)!;
+            Assert.Equal(1, f1.CombatWaves);
+            Assert.Equal(5, f1.MobsPerWave);
+
+            var f11 = Crypt.EncounterForFloor(11, Cfg)!;
+            Assert.Equal(2, f11.CombatWaves);
+            Assert.Equal(4, f11.MobsPerWave);
+
+            var f40 = Crypt.EncounterForFloor(40, Cfg)!;   // still the 21+ band
+            Assert.Equal(2, f40.CombatWaves);
+            Assert.Equal(2, f40.EliteCount);
+
+            var f60 = Crypt.EncounterForFloor(60, Cfg)!;   // deep band caps the table
+            Assert.Equal(3, f60.CombatWaves);
+            Assert.Equal(4, f60.BossAdds);
+
+            // No configured bands (or none shallow enough) ⇒ null: gen falls back to area counts.
+            Assert.Null(Crypt.EncounterForFloor(1, new GameConfig()));
+            Assert.Null(Crypt.EncounterForFloor(0, Cfg));
+        }
+
+        [Fact]
         public void InitDungeonMultipliersScaleMonsterStats()
         {
             var d = DungeonGen.Generate(new DungeonParams { Seed = 5, RoomCount = 14, Linear = true });

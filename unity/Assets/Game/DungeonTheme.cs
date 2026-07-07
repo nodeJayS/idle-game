@@ -86,6 +86,7 @@ namespace IdleGame.Game
             t.Tint[RoomType.Treasure] = Hex(0xd9a441);
             t.Tint[RoomType.Shrine]   = Hex(0x5a8fe8);
             t.Tint[RoomType.Boss]     = Hex(0xd8433a);
+            t.Tint[RoomType.Key]      = Hex(0xc07840); // copper — the key hunt's floor
         }
 
         /// <summary>Look up a theme by key (case-insensitive). Unknown keys fall back to crypt.</summary>

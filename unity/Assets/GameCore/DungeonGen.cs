@@ -150,7 +150,7 @@ namespace IdleGame.GameCore
 
             // 5 — Semantics (roles, depth, difficulty, critical path).
             bool semanticsOk = p.Linear
-                ? AssignLinearSemantics(rooms, edges, out var criticalRooms, out int bossId, out int entranceId)
+                ? AssignLinearSemantics(rooms, edges, rng, out var criticalRooms, out int bossId, out int entranceId)
                 : AssignSemantics(rooms, edges, adj, out criticalRooms, out bossId, out entranceId);
             if (!semanticsOk) { failStage = "semantics"; return false; }
 
@@ -172,7 +172,7 @@ namespace IdleGame.GameCore
             // 8 — Decoration (props + spawns) with a reserved mask.
             var props = new List<DungeonProp>();
             var spawns = new List<DungeonSpawn>();
-            Decorate(p, rng, rooms, grid, w, h, doorways, bossId, ox, oy, props, spawns);
+            Decorate(p, rng, rooms, grid, w, h, doorways, bossId, ox, oy, cellRoom, props, spawns);
 
             // 9 — Metadata assembly (room centres in GRID space, translated by the rasterise offset).
             var outRooms = new List<DungeonRoom>();
@@ -426,12 +426,14 @@ namespace IdleGame.GameCore
             return d;
         }
 
-        /// <summary>Semantics for a CHAIN: entrance = room 0, boss = the far end, depth = the index,
-        /// every edge critical. There are no leaves off-path, so Treasure/Shrine become BREATHER
-        /// rooms along the crawl (both spawn no enemies in Decorate — a beat of quiet between
-        /// fights): treasure = the 1–2 smallest mid-band rooms, shrines 1–2 nearest mid-depth,
-        /// elites 1–2 in the 55–85% band, difficulty ramps with the index.</summary>
-        private static bool AssignLinearSemantics(List<RoomWork> rooms, List<DungeonEdge> edges,
+        /// <summary>Semantics for a CHAIN — the §7.3 floor grammar (locked 2026-07-07): entrance =
+        /// room 0, boss = the far end, depth = the index, every edge critical. Between them exactly
+        /// one CHEST room (Treasure, the breather — no enemies) near 35% depth, one ELITE near 60%,
+        /// and one KEY room near 80% (its bearer drops the Boss Key, so it always precedes the boss
+        /// door on the path). Each target index gets ±1 seeded jitter, then dedupes by a
+        /// deterministic outward scan. Rooms too short for the grammar (n &lt; 6) stay all-Combat —
+        /// no Key room ⇒ the sim won't require a key. Shrines are a scatter-mode role only.</summary>
+        private static bool AssignLinearSemantics(List<RoomWork> rooms, List<DungeonEdge> edges, Rng rng,
             out List<int> criticalRooms, out int bossId, out int entranceId)
         {
             int n = rooms.Count;
@@ -450,46 +452,24 @@ namespace IdleGame.GameCore
             rooms[bossId].Type = RoomType.Boss;
             rooms[bossId].Difficulty = 1.0;
 
-            if (n >= 8)
+            if (n >= 6)
             {
-                // Treasure: the 1–2 smallest rooms in the 25–85% band (area, then id — deterministic).
-                var band = new List<int>();
-                for (int i = 1; i < n - 1; i++)
+                // One special per role at a jittered fraction of the chain, deduped deterministically.
+                var used = new HashSet<int>();
+                int Place(double frac)
                 {
-                    double f = i / (double)(n - 1);
-                    if (f >= 0.25 && f <= 0.85) band.Add(i);
+                    int idx = (int)Math.Round(frac * (n - 1)) + Int(rng, -1, 1);
+                    idx = Math.Max(1, Math.Min(n - 2, idx));
+                    // Outward scan (+1, -1, +2, -2…) to the nearest free interior index.
+                    for (int step = 0; step < n; step++)
+                        foreach (int cand in new[] { idx + step, idx - step })
+                            if (cand >= 1 && cand <= n - 2 && used.Add(cand)) return cand;
+                    return -1; // n >= 6 ⇒ 4+ interior slots for 3 specials — unreachable
                 }
-                band.Sort((a, b) =>
-                {
-                    int c = rooms[a].Area.CompareTo(rooms[b].Area);
-                    return c != 0 ? c : a.CompareTo(b);
-                });
-                for (int k = 0; k < Math.Min(2, band.Count); k++) rooms[band[k]].Type = RoomType.Treasure;
-
-                // Shrines: 1–2 remaining combat rooms nearest 55% depth.
-                var shrines = new List<int>();
-                for (int i = 1; i < n - 1; i++)
-                {
-                    if (rooms[i].Type != RoomType.Combat) continue;
-                    double f = i / (double)(n - 1);
-                    if (f >= 0.40 && f <= 0.70) shrines.Add(i);
-                }
-                shrines.Sort((a, b) =>
-                {
-                    double fa = Math.Abs(a / (double)(n - 1) - 0.55), fb = Math.Abs(b / (double)(n - 1) - 0.55);
-                    int c = fa.CompareTo(fb);
-                    return c != 0 ? c : a.CompareTo(b);
-                });
-                for (int k = 0; k < Math.Min(2, shrines.Count); k++) rooms[shrines[k]].Type = RoomType.Shrine;
-
-                // Elites: the first 1–2 combat rooms in the 55–85% band (the late-run spike).
-                int elites = 0;
-                for (int i = 1; i < n - 1 && elites < 2; i++)
-                {
-                    if (rooms[i].Type != RoomType.Combat) continue;
-                    double f = i / (double)(n - 1);
-                    if (f >= 0.55 && f <= 0.85) { rooms[i].Type = RoomType.Elite; elites++; }
-                }
+                // Order fixes the rng draw sequence AND collision priority: chest, elite, key.
+                rooms[Place(0.35)].Type = RoomType.Treasure;
+                rooms[Place(0.60)].Type = RoomType.Elite;
+                rooms[Place(0.80)].Type = RoomType.Key;
             }
             return true;
         }
@@ -1159,7 +1139,8 @@ namespace IdleGame.GameCore
         // --------------------------------------------------------------------
 
         private static void Decorate(DungeonParams p, Rng rng, List<RoomWork> rooms, byte[] grid, int w, int h,
-            List<GridCell> doorways, int bossId, int ox, int oy, List<DungeonProp> props, List<DungeonSpawn> spawns)
+            List<GridCell> doorways, int bossId, int ox, int oy, short[] cellRoom,
+            List<DungeonProp> props, List<DungeonSpawn> spawns)
         {
             // Reserved: true where a doorway/prop/spawn sits (never overlap).
             var reserved = new bool[w * h];
@@ -1290,30 +1271,68 @@ namespace IdleGame.GameCore
                 }
             }
 
-            // --- Enemy spawns (combat/elite rooms; boss already placed its single Tier-2 above). ---
+            // --- Enemy spawns (combat/elite/key rooms + boss adds; the boss's own Tier-2 marker is
+            // already on its centre). Cells are restricted to the room's OWN footprint (cellRoom ==
+            // r.Id): the sim's stay-in-your-room rule (sealed doors, §7.3) clamps every mob to its
+            // home room, so a corridor-tagged fringe cell would spawn a mob already "outside". ---
             for (int i = 0; i < rooms.Count; i++)
             {
                 var r = rooms[i];
                 if (r.Type == RoomType.Entrance || r.Type == RoomType.Treasure
-                    || r.Type == RoomType.Shrine || r.Type == RoomType.Boss) continue;
+                    || r.Type == RoomType.Shrine) continue;
 
-                int tier = r.Type == RoomType.Elite ? 1 : 0;
-                // Packed linear rooms are ~2× the area of scatter rooms; a larger divisor keeps the
-                // pack sizes (and total floor kill count) in the same band either way.
-                int count = (int)Math.Round(r.Area / (p.Linear ? 26.0 : 18.0) * (0.5 + r.Difficulty));
-                if (count < 1) count = 1;
                 var cells = RoomFloorCells(r, rcx[i], rcy[i], grid, w, h);
-                // Deterministic: scan cells in order, place until count reached.
-                int placed = 0;
-                foreach (var c in cells)
+                // Deterministic scan cursor: place onto free owned interior cells in row-major order.
+                int cursor = 0;
+                bool PlaceSpawn(int tier, int wave)
                 {
-                    if (placed >= count) break;
-                    if (!Free(c.X, c.Y)) continue;
-                    // Prefer cells away from doorways for spawns (keep them interior).
-                    if (doorCheby[c.Y * w + c.X] < 1) continue;
-                    spawns.Add(new DungeonSpawn { X = c.X, Y = c.Y, Tier = tier, RoomId = r.Id });
-                    Reserve(c.X, c.Y);
-                    placed++;
+                    while (cursor < cells.Count)
+                    {
+                        var c = cells[cursor++];
+                        if (!Free(c.X, c.Y)) continue;
+                        if (cellRoom[c.Y * w + c.X] != r.Id) continue;      // own footprint only
+                        if (doorCheby[c.Y * w + c.X] < 1) continue;         // keep spawns interior
+                        spawns.Add(new DungeonSpawn { X = c.X, Y = c.Y, Tier = tier, RoomId = r.Id, Wave = wave });
+                        Reserve(c.X, c.Y);
+                        return true;
+                    }
+                    return false; // room saturated — smaller fight, never an error
+                }
+
+                var spec = p.Encounter;
+                if (r.Type == RoomType.Boss)
+                {
+                    // Adds beside the boss (spec only; legacy boss arenas stay boss-solo).
+                    if (spec != null)
+                        for (int k = 0; k < spec.BossAdds; k++) PlaceSpawn(0, 0);
+                }
+                else if (spec != null)
+                {
+                    if (r.Type == RoomType.Elite)
+                    {
+                        for (int k = 0; k < spec.EliteCount; k++) PlaceSpawn(1, 0);
+                        for (int k = 0; k < spec.EliteEscort; k++) PlaceSpawn(0, 0);
+                    }
+                    else // Combat or Key: waves of trash; the Key room's FINAL wave leads with the bearer
+                    {
+                        int waves = Math.Max(1, spec.CombatWaves);
+                        for (int wv = 0; wv < waves; wv++)
+                            for (int k = 0; k < Math.Max(1, spec.MobsPerWave); k++)
+                            {
+                                int tier = r.Type == RoomType.Key && wv == waves - 1 && k == 0 ? 3 : 0;
+                                PlaceSpawn(tier, wv);
+                            }
+                    }
+                }
+                else
+                {
+                    // Legacy area formula (previews / non-spec generations). Packed linear rooms are
+                    // ~2× the area of scatter rooms; the larger divisor keeps pack sizes in one band.
+                    int tier = r.Type == RoomType.Elite ? 1 : 0;
+                    int count = (int)Math.Round(r.Area / (p.Linear ? 26.0 : 18.0) * (0.5 + r.Difficulty));
+                    if (count < 1) count = 1;
+                    for (int k = 0; k < count; k++)
+                        PlaceSpawn(r.Type == RoomType.Key && k == 0 ? 3 : tier, 0);
                 }
             }
         }
@@ -1437,7 +1456,7 @@ namespace IdleGame.GameCore
                 Mix((int)pr.Kind); Mix(pr.X); Mix(pr.Y); Mix(pr.RoomId);
                 Mix((int)Math.Round(pr.Rot * 1000)); Mix((int)Math.Round(pr.Scale * 1000));
             }
-            foreach (var sp in d.Spawns) { Mix(sp.X); Mix(sp.Y); Mix(sp.Tier); Mix(sp.RoomId); }
+            foreach (var sp in d.Spawns) { Mix(sp.X); Mix(sp.Y); Mix(sp.Tier); Mix(sp.RoomId); Mix(sp.Wave); }
             return hash;
         }
     }

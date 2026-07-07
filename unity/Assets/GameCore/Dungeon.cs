@@ -33,6 +33,26 @@ namespace IdleGame.GameCore
         // must backtrack through cleared rooms to reach the next branch, which reads as dumb
         // pathing. On a chain the party only ever advances into new rooms. LoopChance is ignored.
         public bool Linear;
+        // Per-room mob budgets (design §7.3 encounter tables). When set, spawn counts come from
+        // this spec instead of the room-area formula — the crypt resolves it per floor from
+        // GameConfig.CryptEncounters (Crypt.EncounterForFloor). Null keeps the legacy area counts
+        // (preview showpieces, hand-rolled tests).
+        public DungeonEncounterSpec? Encounter;
+    }
+
+    /// <summary>
+    /// Per-room mob budgets for one dungeon floor (game-design §7.3 depth-band encounter tables).
+    /// Waves are AUTHORED here as spawn data (<see cref="DungeonSpawn.Wave"/>); staging wave N+1
+    /// behind wave N's clear is the sim's job. The Key room uses the combat numbers with one spawn
+    /// of its final wave marked as the KEY BEARER (tier 3).
+    /// </summary>
+    public sealed class DungeonEncounterSpec
+    {
+        public int CombatWaves = 1;  // waves per combat/key room
+        public int MobsPerWave = 5;  // trash per wave
+        public int EliteCount = 1;   // elites in the Elite room
+        public int EliteEscort = 3;  // trash escorting them
+        public int BossAdds = 2;     // trash adds beside the boss
     }
 
     /// <summary>Grid cell codes packed into <see cref="Dungeon.Grid"/> (byte per cell, i = y*W + x).</summary>
@@ -44,8 +64,10 @@ namespace IdleGame.GameCore
     /// <summary>Room footprint stamped into the grid — Rectangle, Ellipse, or chamfered Octagon.</summary>
     public enum RoomShape { Rectangle, Ellipse, Octagon }
 
-    /// <summary>Semantic role assigned before carving (drives spawns, props, difficulty).</summary>
-    public enum RoomType { Entrance, Combat, Elite, Treasure, Shrine, Boss }
+    /// <summary>Semantic role assigned before carving (drives spawns, props, difficulty).
+    /// Key = the room whose marked KEY BEARER mob drops the Boss Key (§7.3 door/key rules);
+    /// linear floors always place exactly one before the boss. Appended last — never reorder.</summary>
+    public enum RoomType { Entrance, Combat, Elite, Treasure, Shrine, Boss, Key }
 
     /// <summary>Decoration/interaction markers — data only; the client picks meshes per <see cref="DungeonProp.Kind"/>.</summary>
     public enum PropKind { Pillar, Torch, Debris, Brazier, Chest, ShrineCrystal, PortalRing }
@@ -93,12 +115,16 @@ namespace IdleGame.GameCore
         public int RoomId;
     }
 
-    /// <summary>An enemy spawn point on a free floor cell. <see cref="Tier"/>: 0 normal, 1 elite, 2 boss.</summary>
+    /// <summary>An enemy spawn point on a free floor cell. <see cref="Tier"/>: 0 normal, 1 elite,
+    /// 2 boss, 3 KEY BEARER (a normal trash mob whose death drops the Boss Key — §7.3).
+    /// <see cref="Wave"/> phases a room's fight: wave 0 stands ready at entry; the sim stages
+    /// wave N+1 on wave N's clear (spawns are AUTHORED per wave here, deterministic).</summary>
     public sealed class DungeonSpawn
     {
         public int X, Y;
         public int Tier;
         public int RoomId;
+        public int Wave;
     }
 
     /// <summary>Post-generation counts (plus real generation time) — for tests, tuning, and telemetry.</summary>

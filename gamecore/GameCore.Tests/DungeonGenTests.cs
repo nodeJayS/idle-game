@@ -573,20 +573,94 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
-        public void LinearStillDressesTheRunWithRoles()
+        public void LinearGrammarPlacesExactlyOneChestEliteAndKeyRoom()
         {
-            // Breather + spike rooms survive the chain conversion: treasure/shrine/elite present,
-            // all strictly inside the ends.
-            for (int seed = 1; seed <= 8; seed++)
+            // §7.3 floor grammar (locked 2026-07-07): exactly one chest (Treasure), one Elite and
+            // one Key room per chain, all strictly interior; shrines are scatter-mode only. Holds
+            // at the shipping size (12) and larger chains alike.
+            foreach (int rooms in new[] { 12, 26 })
+                for (int seed = 1; seed <= 8; seed++)
+                {
+                    var d = GenLinear(seed, rooms);
+                    int n = d.Rooms.Count;
+                    Assert.Equal(1, d.Rooms.Count(r => r.Type == RoomType.Treasure));
+                    Assert.Equal(1, d.Rooms.Count(r => r.Type == RoomType.Elite));
+                    Assert.Equal(1, d.Rooms.Count(r => r.Type == RoomType.Key));
+                    Assert.Equal(0, d.Rooms.Count(r => r.Type == RoomType.Shrine));
+                    foreach (var r in d.Rooms)
+                        if (r.Type == RoomType.Treasure || r.Type == RoomType.Elite || r.Type == RoomType.Key)
+                            Assert.True(r.Depth > 0 && r.Depth < n - 1, $"{r.Type} at a chain end (depth {r.Depth})");
+                    // The key hunt precedes the boss door: chest ≲ elite ≲ key < boss on the chain.
+                    int chest = d.Rooms.First(r => r.Type == RoomType.Treasure).Depth;
+                    int elite = d.Rooms.First(r => r.Type == RoomType.Elite).Depth;
+                    int key = d.Rooms.First(r => r.Type == RoomType.Key).Depth;
+                    Assert.True(key > elite && elite > chest,
+                        $"grammar order broke: chest {chest}, elite {elite}, key {key} (seed {seed}, n {rooms})");
+                }
+        }
+
+        [Fact]
+        public void LinearTooShortForTheGrammarStaysAllCombat()
+        {
+            for (int seed = 1; seed <= 4; seed++)
             {
-                var d = GenLinear(seed);
-                int n = d.Rooms.Count;
-                Assert.InRange(d.Rooms.Count(r => r.Type == RoomType.Treasure), 1, 2);
-                Assert.InRange(d.Rooms.Count(r => r.Type == RoomType.Shrine), 1, 2);
-                Assert.InRange(d.Rooms.Count(r => r.Type == RoomType.Elite), 1, 2);
+                var d = GenLinear(seed, 5);
+                Assert.All(d.Rooms, r => Assert.True(
+                    r.Type == RoomType.Entrance || r.Type == RoomType.Boss || r.Type == RoomType.Combat,
+                    $"unexpected {r.Type} on a 5-room chain"));
+                Assert.DoesNotContain(d.Rooms, r => r.Type == RoomType.Key);
+            }
+        }
+
+        [Fact]
+        public void EncounterSpecDrivesSpawnCountsWavesAndTheKeyBearer()
+        {
+            // §7.3 encounter tables: spec'd budgets replace the area formula — per combat room
+            // CombatWaves×MobsPerWave trash across ascending waves; the elite room holds
+            // EliteCount elites + EliteEscort trash; the boss room gains BossAdds beside its
+            // tier-2 marker; the key room leads its FINAL wave with exactly one tier-3 bearer.
+            var spec = new DungeonEncounterSpec
+            { CombatWaves = 2, MobsPerWave = 4, EliteCount = 2, EliteEscort = 3, BossAdds = 3 };
+            for (int seed = 1; seed <= 6; seed++)
+            {
+                var d = DungeonGen.Generate(new DungeonParams
+                { Seed = seed, RoomCount = 12, Linear = true, Encounter = spec });
+
+                var byRoom = d.Spawns.GroupBy(sp => sp.RoomId).ToDictionary(g => g.Key, g => g.ToList());
                 foreach (var r in d.Rooms)
-                    if (r.Type == RoomType.Treasure || r.Type == RoomType.Shrine || r.Type == RoomType.Elite)
-                        Assert.True(r.Depth > 0 && r.Depth < n - 1, $"{r.Type} at a chain end (depth {r.Depth})");
+                {
+                    var sps = byRoom.TryGetValue(r.Id, out var list) ? list : new List<DungeonSpawn>();
+                    switch (r.Type)
+                    {
+                        case RoomType.Entrance:
+                        case RoomType.Treasure:
+                            Assert.Empty(sps);
+                            break;
+                        case RoomType.Combat:
+                            Assert.Equal(8, sps.Count);
+                            Assert.All(sps, sp => Assert.Equal(0, sp.Tier));
+                            Assert.Equal(4, sps.Count(sp => sp.Wave == 0));
+                            Assert.Equal(4, sps.Count(sp => sp.Wave == 1));
+                            break;
+                        case RoomType.Key:
+                            Assert.Equal(8, sps.Count);
+                            var bearers = sps.Where(sp => sp.Tier == 3).ToList();
+                            Assert.Single(bearers);
+                            Assert.Equal(1, bearers[0].Wave); // final wave leads with the bearer
+                            break;
+                        case RoomType.Elite:
+                            Assert.Equal(2, sps.Count(sp => sp.Tier == 1));
+                            Assert.Equal(3, sps.Count(sp => sp.Tier == 0));
+                            break;
+                        case RoomType.Boss:
+                            Assert.Equal(1, sps.Count(sp => sp.Tier == 2));
+                            Assert.Equal(3, sps.Count(sp => sp.Tier == 0));
+                            break;
+                    }
+                    // Stay-in-your-room rule: every spawn cell is tagged with its OWN room.
+                    foreach (var sp in sps)
+                        Assert.Equal(r.Id, d.CellRoom[sp.Y * d.W + sp.X]);
+                }
             }
         }
     }
