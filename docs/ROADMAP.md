@@ -44,9 +44,8 @@ before anyone acts on them:
    panic 1.8 / aggro 2.0), run-clip foot-slide at regroup-hustle 1.4×.
 8. **Housekeeping:** the live save still holds ~996 test crypt keys
    (2026-07-07 testing hack) — say when to restore the normal key economy.
-9. **Skill-FX direction (after the 10.11e spike):** rip MS2 FX assets vs
-   procedural-inspired — one icebolt prototype each, you pick. Hero
-   relooks (10.11b-d) each need your `--renders` eyeball before export.
+9. RESOLVED 2026-07-07: skill FX go PROCEDURAL (user pick after the
+   10.11e spike); hero relooks all picked and shipped the same day.
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
@@ -217,11 +216,12 @@ the wardrobe (keyword → id/name/slot/gender + manifest-ready nif path);
 Winter Fairy Tale Snowflake set; Assassin = red pirate-bandana wrap over
 red/black-tinted Shadowy Spiked set; Fire Mage = hot-tinted magician hat
 + warm Magician's Robe. Knight/Priest audited fine as-is;
-(e) skill-FX SPIKE built (Your calls #9 STILL OPEN): Tools > FX Spike >
-Icebolt Comparison — sphere vs ripped MS2 IceStrike cluster vs
-procedural crystal; receipt png in Assets/FxSpike, user picks;
-(f) roll the picked FX approach across basic attacks + the 2+2 kits,
-one hero per slice (fire → ice → holy → physical).
+(e) DONE 2026-07-07: spike ran, user picked PROCEDURAL — `FxKit`
+(code-built crystal meshes + IdleGame/FxAdditive halo shader) is the
+FX language, spike folder deleted;
+(f) roll FxKit across basic attacks + the 2+2 kits, one hero per
+slice: ICE DONE 2026-07-07 (icebolt shard, frostbolt tumbling shard,
+blizzard crystal ring — Play-verified); fire → holy → physical remain.
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 

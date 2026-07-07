@@ -1,7 +1,7 @@
-// Minimal soft-additive unlit shader for the FX spike (URP-compatible SRP-batcher-agnostic).
-// SrcAlpha/One, no ZWrite, tinted: the classic glow-quad/aura blend that URP's
-// stock Unlit can't be reliably switched to from C# at runtime.
-Shader "FxSpike/Additive"
+// Minimal soft-additive unlit shader for procedural skill FX (halos, auras, flares).
+// SrcAlpha/One, no ZWrite, tinted: the classic glow blend that URP's stock Unlit
+// can't be reliably switched to from C# at runtime. Consumed via FxKit.AdditiveMat.
+Shader "IdleGame/FxAdditive"
 {
     Properties
     {

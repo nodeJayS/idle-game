@@ -144,35 +144,30 @@ namespace IdleGame.Game
                     () => { PlayImpact(to, amount, crit, sound: "Skill_Wizard_Fireball_Destroy"); Burst(to, 1.0f, new Color(1f, 0.5f, 0.15f)); }, arc: 2.5f);
             };
 
-            // Ice Mage basic attack: a small pale-ice bolt fired straight (no arc), the frost
-            // sibling of the priest's holy bolt. Cold sphere, gentle glow; the number pops on
-            // impact. No launch sound — the manifest attack_sound (IceStrike cast) already rides
-            // the swing; the extracted IceStrike SPLASH lands on the visible hit as the impact
-            // sound (replacing the default clang). (An "IceStrike_Ball" clip does NOT exist in the
-            // extract — only Cast + Splash_01..04.)
+            // Ice Mage basic attack: a spinning crystal shard fired straight (no arc) — the
+            // procedural FX language picked in the 10.11e spike (FxKit). Long axis aligned to
+            // the flight path, slow roll, soft halo. No launch sound — the manifest
+            // attack_sound (IceStrike cast) already rides the swing; the extracted IceStrike
+            // SPLASH lands on the visible hit as the impact sound. (An "IceStrike_Ball" clip
+            // does NOT exist in the extract — only Cast + Splash_01..04.)
             _projectileFx["icebolt"] = (from, to, amount, crit) =>
             {
-                var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
+                var go = FxKit.IceShard(crit ? 1.3f : 1f);
                 go.name = "IceBolt";
-                go.transform.localScale = Vector3.one * (crit ? 0.75f : 0.55f);
-                Paint(go, new Color(0.55f, 0.85f, 1f));
-                Glow(go, new Color(0.55f, 0.85f, 1f) * 2.5f);
+                go.transform.rotation = Quaternion.LookRotation((to - from).normalized);
                 go.AddComponent<Projectile>().Launch(from, to, 15f,
                     () => PlayImpact(to, amount, crit, sound: "Skill_Wizard_IceStrike_Splash"));
             };
 
-            // Ice Mage Frostbolt skill: a fat icy orb lobbed at the target — the frost twin of
-            // the fire mage's meteor. Routed through the projectile path so its number pops on
-            // IMPACT; lands with a white-blue frost burst.
+            // Ice Mage Frostbolt skill: a fat crystal shard lobbed at the target — the frost
+            // twin of the fire mage's meteor, in the same FxKit language as the basic bolt but
+            // bigger and TUMBLING (a lob has no stable flight axis to roll around). Routed
+            // through the projectile path so its number pops on IMPACT; white-blue burst lands.
             _projectileFx["frostbolt"] = (from, to, amount, crit) =>
             {
-                var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
-                go.name = "FrostOrb";
-                go.transform.localScale = Vector3.one * 1.0f;
-                Paint(go, new Color(0.65f, 0.88f, 1f));
-                Glow(go, new Color(0.65f, 0.88f, 1f) * 3f);
+                var go = FxKit.IceShard(1.8f);
+                go.name = "FrostShard";
+                go.GetComponent<FxSpin>().Configure(new Vector3(0.7f, 0.2f, 0.7f).normalized, 300f);
                 go.AddComponent<Projectile>().Launch(from, to, 16f,
                     () => { PlayImpact(to, amount, crit, sound: "Skill_Wizard_IceStrike_Splash"); Burst(to, 0.9f, new Color(0.75f, 0.92f, 1f)); }, arc: 2.5f);
             };
@@ -210,6 +205,14 @@ namespace IdleGame.Game
             {
                 GroundRing(GroundAt(tgt), 2.6f, new Color(0.6f, 0.85f, 1f), 0.45f);
                 GroundRing(GroundAt(tgt), 1.4f, new Color(0.8f, 0.93f, 1f), 0.35f);
+                // a ring of crystals erupts with the pulse and melts away (10.11f ice kit)
+                var c = GroundAt(tgt);
+                for (int i = 0; i < 6; i++)
+                {
+                    float a = Mathf.PI * 2f * i / 6f + UnityEngine.Random.Range(-0.2f, 0.2f);
+                    FxKit.GroundCrystal(c + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * 1.6f,
+                                        0.55f, UnityEngine.Random.Range(0.8f, 1.3f));
+                }
             };
 
             // Boss quake: a big red ground wave at the boss + a shake.
