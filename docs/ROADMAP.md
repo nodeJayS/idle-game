@@ -327,6 +327,16 @@ RefreshPartyStats on buy). Play-verified end-to-end: key grant→spend,
 MaxHp +2% live. 617 tests. Run state is transient by design (quit =
 abandon). NEXT: crypt mood polish (user eyeball); balance pass on
 key cadence/ramp once the user has played a few real runs.
+ANIM FEEL PASS (2026-07-07, user-caught in crypt): winged monsters
+now FLAP (MonsterAnimator rotates wing* parts about a geometry-derived
+axis — the crypt's tier-1 roster is all Float-family, which read
+dead); hero swings/casts no longer truncate (attack takes pace to the
+hero's live cadence, a busy window refuses mid-clip re-triggers +
+flinches, Moving debounces 0.12s so formation micro-shuffles can't
+cancel, stale latched triggers cleared). Play-probed: all clip exits
+are now completions or genuine travel cancels (cutOther=0). OPEN
+VERDICT: casters still travel-cancel long casts when the sim moves
+them mid-cast — rooting casters during casts is a sim/balance call.
 (4) BFS build-reveal animation (parked).
 
 ### 8. Content & tuning pass

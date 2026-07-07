@@ -86,6 +86,11 @@ namespace IdleGame.Game
         private const float StompPitchDeg = 3f;    // body pitch on the footfall
         private const float BreatheAmp = 0.03f;    // idle breathing scale (±%)
         private const float BreatheHz = 0.5f;      // idle breathing frequency
+        private const float FlapIdleHz = 2.0f;     // wing beats/sec while hovering in place
+        private const float FlapMoveHz = 3.2f;     // wing beats/sec while flying
+        private const float FlapIdleDeg = 22f;     // flap amplitude at rest
+        private const float FlapMoveDeg = 34f;     // flap amplitude in flight
+        private const float FlapAmpLerp = 120f;    // deg/sec amplitude ease so mode changes don't pop
         private const float FlashSec = 0.12f;      // hit emission-flash duration
         private const float HitSquashSec = 0.16f;  // hit squash spring-back time
         private const float HopLandSec = 0.12f;    // final-touchdown squash spring-back (hop stop)
@@ -103,6 +108,19 @@ namespace IdleGame.Game
                                                    // rescale _t, or a speed change jumps the phase
         private float _stompPhase;                 // accumulated stomp beats (same accumulation rule)
         private float _prevRootYaw;                // to detect turn rate for Float banking
+
+        // Wing flap (crypt feedback 2026-07-07: "bats are not flapping"): any child part the
+        // Blender build named "wing*" (cave_bat membranes, crown_seraph blades — monsters.py
+        // exports parts unjoined, so they're real child transforms) beats about its REST local
+        // rotation. Axis is DERIVED from the wing's own geometry (Cross(span, up) — rotating
+        // about it sweeps the span toward +up), so FBX axis conventions can't twist the wing
+        // about its own length (Play-caught 2026-07-07: an assumed forward axis did exactly
+        // that). Mirroring is free: each wing's span points away from the body, so one shared
+        // angle lifts both tips. Purely additive to the body-pivot gait.
+        private struct Wing { public Transform T; public Quaternion Rest; public Vector3 Axis; }
+        private Wing[] _wings = System.Array.Empty<Wing>();
+        private float _flapPhase;                  // accumulated (jump-safe across speed changes)
+        private float _flapAmp;                    // current amplitude, eased toward the mode target
 
         // Attack telegraph: a crouch during the lunge's anticipation, a stretch on punch-out.
         private float _atkT, _atkDur;
@@ -148,6 +166,29 @@ namespace IdleGame.Game
             var children = new List<Transform>();
             foreach (Transform c in transform) if (c != _body) children.Add(c);
             foreach (var c in children) c.SetParent(_body, false);
+
+            // Wing parts: span = body-space direction from the wing's pivot to its geometric
+            // centre (flattened to the ground plane); flap axis = Cross(span, up), computed
+            // once at rest. Bounds are valid here — Build() placed the model at the origin.
+            var wings = new List<Wing>();
+            foreach (var t in GetComponentsInChildren<Transform>())
+            {
+                if (!t.name.StartsWith("wing", System.StringComparison.OrdinalIgnoreCase)) continue;
+                var wr = t.GetComponentInChildren<Renderer>();
+                if (wr == null) continue;
+                var span = _body.InverseTransformPoint(wr.bounds.center)
+                         - _body.InverseTransformPoint(t.position);
+                span.y = 0f;
+                if (span.sqrMagnitude < 0.0001f) span = Vector3.right;
+                wings.Add(new Wing
+                {
+                    T = t,
+                    Rest = t.localRotation,
+                    Axis = Vector3.Cross(span.normalized, Vector3.up), // (span×up)×span = up: +angle lifts the tip
+                });
+            }
+            _wings = wings.ToArray();
+            _flapAmp = FlapIdleDeg;
 
             // Cache materials + their current emission for the hit flash (see field comment).
             var mats = new List<Material>();
@@ -280,6 +321,18 @@ namespace IdleGame.Game
             _body.localPosition = new Vector3(0f, bobY, 0f);
             _body.localScale = scale;
             _body.localRotation = Quaternion.Euler(pitch, 0f, roll);
+
+            // Wing flap: a continuous beat about the rest pose (bats never stop flying), faster
+            // and wider in flight. One shared angle about each wing's own geometry-derived axis
+            // lifts both tips together. Composes with the gait — the body hovers, wings beat.
+            if (_wings.Length > 0)
+            {
+                _flapAmp = Mathf.MoveTowards(_flapAmp, _moving ? FlapMoveDeg : FlapIdleDeg, FlapAmpLerp * dt);
+                _flapPhase += dt * (_moving ? FlapMoveHz : FlapIdleHz) * Mathf.PI * 2f;
+                float ang = Mathf.Sin(_flapPhase + _phase) * _flapAmp;
+                foreach (var w in _wings)
+                    w.T.localRotation = Quaternion.AngleAxis(ang, w.Axis) * w.Rest;
+            }
         }
 
         // ---- gaits (all Time-driven, phase-offset; amplitudes deliberately subtle) ----

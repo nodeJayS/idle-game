@@ -41,7 +41,7 @@ namespace IdleGame.Game
             _moveT = Mathf.SmoothDamp(_moveT, moving ? 1f : 0f, ref _moveVel, 0.10f);
         }
 
-        public void TriggerAttack() => _attackLeft = AttackLen;
+        public bool TriggerAttack() { _attackLeft = AttackLen; return true; } // always swings (procedural)
 
         // The strike phase peaks ~0.4 through the 0.5s swing — that's when the blade lands.
         public float AttackContactSec => AttackLen * 0.4f;

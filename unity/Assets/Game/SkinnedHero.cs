@@ -12,10 +12,21 @@ namespace IdleGame.Game
     {
         void SetMoving(bool moving);
         void SetMoveSpeed(float unitsPerSec);
-        void TriggerAttack();
+
+        /// <summary>Start the basic-attack take. Returns whether the clip actually
+        /// started — false when refused (moving, downed, or a swing/cast still in
+        /// flight), so CombatView only plays the swing sound for a visible swing.</summary>
+        bool TriggerAttack();
+
         void TriggerSkill(string skillId);
         void TriggerHit();
         void SetDowned(bool downed);
+
+        /// <summary>The hero's live basic-attack cadence (seconds between swings), fed by
+        /// CombatView right before each TriggerAttack. A clip-based animator paces the take
+        /// to FIT inside it — otherwise the next swing re-triggers the state mid-clip and
+        /// every attack reads as a stutter (user-caught 2026-07-07). Default: no-op.</summary>
+        void SetAttackInterval(float seconds) { }
 
         /// <summary>Sound set for the basic attack. Default = the sword swing;
         /// skinned heroes override it from their manifest (a ranged caster
@@ -167,8 +178,20 @@ namespace IdleGame.Game
         // number/sound delay CombatView applies is a single stable value across swings/heroes.
         private const float TargetContactSec = 0.22f;
         private const float ContactFraction = 0.45f; // sword lands slightly before the clip's midpoint
+        private const float CadenceHeadroom = 0.9f;  // the take must fit inside this fraction of the attack interval
         private float _attackClipLen = 0.5f;         // length of the take last triggered
-        public float AttackContactSec => TargetContactSec;
+        private float _lastContact = TargetContactSec; // contact moment of the take last started
+        public float AttackContactSec => _lastContact;
+
+        // Busy window (stutter fix 2026-07-07): while a swing/cast clip is in flight, new
+        // triggers must not cut it — the sim keeps attacking during a cast and hits land
+        // constantly, and every no-exit-time transition restart read as a stutter. Attacks
+        // and flinches are REFUSED while busy (their projectile/impact syncs to the playing
+        // clip's end); a skill may still interrupt a basic swing (the flashy clip wins) but
+        // never another cast. Movement-cancel clears it (the controller cancels the clip).
+        private float _busyUntil;                    // Time.time when the in-flight clip completes
+        private bool _busyIsSkill;                   // what owns the window: cast (true) vs swing
+        private float _attackIntervalSec;            // live cadence, fed by SetAttackInterval
 
         // Finish times CombatView delays a ranged projectile's launch by: the real playback
         // length of the swing/cast last triggered, 0 when the trigger was refused.
@@ -240,12 +263,37 @@ namespace IdleGame.Game
                 }
         }
 
-        public void SetMoving(bool moving)
+        // Movement-cancel grace (the jarring-anims report, 2026-07-07): the sim shuffles heroes
+        // in 1–3 step micro-moves constantly (formation slots, dungeon room hops), and the
+        // controller cancels any clip on Moving with no exit time — so most swings/casts never
+        // finished. While a clip is in flight, a Moving request must PERSIST this long before
+        // it reaches the animator; the hero slides a fraction of a unit through the clip tail
+        // instead of visibly restarting. Sustained travel still cancels, as designed.
+        private const float MoveDebounceSec = 0.12f;
+        private bool _wantMoving;    // what the sim asked for this frame
+        private float _moveHeldT;    // how long the sim has been asking to move
+
+        public void SetMoving(bool moving) => _wantMoving = moving;
+
+        /// <summary>Apply the (possibly debounced) Moving flag to the animator. Instant when no
+        /// clip is in flight; during a swing/cast the request must persist MoveDebounceSec.</summary>
+        private void ApplyMoving()
         {
-            if (_animator == null || _moving == moving) return;
+            if (_animator == null) return;
+            bool moving = _wantMoving;
+            if (moving && !_moving && Time.time < _busyUntil)
+            {
+                _moveHeldT += Time.deltaTime;
+                if (_moveHeldT < MoveDebounceSec) return; // hold the clip through the shuffle
+            }
+            if (!moving) _moveHeldT = 0f;
+            if (_moving == moving) return;
             _moving = moving;
+            if (moving) _busyUntil = 0f; // the controller movement-cancels any in-flight clip
             _animator.SetBool(MovingId, moving);
         }
+
+        public void SetAttackInterval(float seconds) => _attackIntervalSec = seconds;
 
         public void SetMoveSpeed(float unitsPerSec) =>
             _speedScale = Mathf.Clamp(unitsPerSec / _nativeRunSpeed, 0.4f, 2.2f);
@@ -253,6 +301,7 @@ namespace IdleGame.Game
         private void Update()
         {
             if (_animator == null) return;
+            ApplyMoving(); // debounced — see MoveDebounceSec
             // Run cycle scales to ground speed; the basic-attack takes scale so their contact
             // moment lands at the same felt time regardless of clip length (contact-normalise);
             // everything else plays as authored.
@@ -275,19 +324,39 @@ namespace IdleGame.Game
             else _idleT = 0f;
         }
 
-        public void TriggerAttack()
+        public bool TriggerAttack()
         {
-            if (_animator == null || _moving || _downed) { _attackFinish = 0f; return; } // never swing mid-slide
+            if (_animator == null || _moving || _downed) { _attackFinish = 0f; return false; } // never swing mid-slide
+            if (Time.time < _busyUntil)
+            {
+                // A swing/cast is still playing: don't cut it — sync THIS hit's projectile/
+                // impact to the playing clip's end instead (the damage is already real).
+                _attackFinish = _busyUntil - Time.time;
+                return false;
+            }
             bool two = Random.value < 0.5f;
             float len = two ? _attack2Len : _attackLen;
             _attackClipLen = len;
+            // Trigger hygiene: a flinch/bore latched while this hero was running would fire the
+            // moment the new clip starts (AnyState transition) and cut it dead. Clear them.
+            _animator.ResetTrigger(HitId);
+            _animator.ResetTrigger(BoreId);
             // Time-scale the take so its contact frame (ContactFraction of the clip) lands at
             // TargetContactSec — both takes then feel identical and match the number/sound delay.
             float wantContact = len * ContactFraction;
-            _attackSpeed = wantContact > 0.001f
-                ? Mathf.Clamp(wantContact / TargetContactSec, 0.5f, 3f) : 1f;
+            float speed = wantContact > 0.001f ? wantContact / TargetContactSec : 1f;
+            // AND fit the whole take inside the hero's live attack cadence (with headroom) —
+            // a fast hero's next swing otherwise re-triggers the state mid-clip, and every
+            // attack reads as a stutter (the 2026-07-07 jarring-anims report).
+            if (_attackIntervalSec > 0.05f)
+                speed = Mathf.Max(speed, len / (_attackIntervalSec * CadenceHeadroom));
+            _attackSpeed = Mathf.Clamp(speed, 0.5f, 3f);
             _animator.SetTrigger(two ? Attack2Id : AttackId);
             _attackFinish = _attackClipLen / _attackSpeed; // real playback length of THIS take
+            _lastContact = wantContact / _attackSpeed;     // real contact moment of THIS take
+            _busyUntil = Time.time + _attackFinish;
+            _busyIsSkill = false;
+            return true;
         }
 
         public void TriggerSkill(string skillId)
@@ -295,11 +364,29 @@ namespace IdleGame.Game
             if (_animator == null || _downed) { _skillFinish = 0f; return; }
             if (SkillBindings != null && SkillBindings.TryGetValue(skillId, out var b))
             {
+                if (Time.time < _busyUntil && _busyIsSkill)
+                {
+                    // Another cast is mid-flight: never cut a cast with a cast — this skill's
+                    // projectile/FX rides the playing clip's end instead.
+                    _skillFinish = _busyUntil - Time.time;
+                    return;
+                }
+                float len = b.slot == 2 ? _skill2Len : _skill1Len;
+                // Trigger hygiene (see TriggerAttack): stale latched triggers cut the cast the
+                // frame it starts. Attack triggers too — a cast interrupts a swing by design,
+                // so the swing's leftover trigger must not fire back mid-cast.
+                _animator.ResetTrigger(HitId);
+                _animator.ResetTrigger(BoreId);
+                _animator.ResetTrigger(AttackId);
+                _animator.ResetTrigger(Attack2Id);
                 _animator.SetTrigger(b.slot == 2 ? Skill2Id : Skill1Id);
                 SoundFx.Play(b.sound, 0.5f);
                 // Skill states play at authored speed (Update rescales only Run/Attack), so the
-                // take length IS the launch delay.
-                _skillFinish = b.slot == 2 ? _skill2Len : _skill1Len;
+                // take length IS the launch delay. A cast may interrupt a basic SWING (the
+                // flashy clip wins) — it takes over the busy window.
+                _skillFinish = len;
+                _busyUntil = Time.time + len;
+                _busyIsSkill = true;
             }
             else { TriggerAttack(); _skillFinish = _attackFinish; } // unbound skill: fall back to a basic swing
         }
@@ -307,6 +394,8 @@ namespace IdleGame.Game
         public void TriggerHit()
         {
             if (_animator == null || _downed) return;
+            if (Time.time < _busyUntil) return; // never cut a swing/cast with the flinch
+            if (_moving) return; // no flinch state while running — it would only latch and misfire later
             _animator.SetTrigger(HitId);
         }
 

@@ -1986,8 +1986,13 @@ namespace IdleGame.Game
                 if (skillId != null) sv.Anim.TriggerSkill(skillId);
                 else
                 {
-                    sv.Anim.TriggerAttack();
-                    SoundFx.Play(sv.Anim.AttackSound, 0.4f);
+                    // Feed the live cadence first so the take is paced to fit it, and only
+                    // play the swing sound for a swing that actually started (a refused
+                    // trigger — moving, or a cast still playing — must stay silent).
+                    var ae = _combat.Entities.Find(x => x.Id == sourceId);
+                    if (ae != null) sv.Anim.SetAttackInterval((float)(ae.AttackIntervalMs / 1000.0));
+                    if (sv.Anim.TriggerAttack())
+                        SoundFx.Play(sv.Anim.AttackSound, 0.4f);
                 }
                 return;
             }
