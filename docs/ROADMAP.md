@@ -44,8 +44,14 @@ before anyone acts on them:
    panic 1.8 / aggro 2.0), run-clip foot-slide at regroup-hustle 1.4×.
 8. **Housekeeping:** the live save still holds ~996 test crypt keys
    (2026-07-07 testing hack) — say when to restore the normal key economy.
+9. **Skill-FX direction (after the 10.11e spike):** rip MS2 skill-FX
+   assets vs procedural FX inspired by them — one icebolt prototype each,
+   then you pick. Hero relooks (10.11b-d) each need your `--renders`
+   eyeball before export.
 
-## Backlog — ten majors, pre-sliced (brainstormed 2026-07-07)
+## Backlog — pre-sliced majors (brainstormed 2026-07-07)
+
+**NEXT UP (user-assigned 2026-07-07): 10.11.**
 
 Self-contained briefs for future sessions (any model). Ordering within each
 milestone = shipping order; every slice is one-verified-slice-per-commit
@@ -191,37 +197,46 @@ gate before blobs go wide in dungeon rosters;
 silhouettes suit blending (bog_horror, chaos_spawn) — faceted Tunic
 look stays the art rule; SDF is a body style, not a restyle.
 
+**10.11 Hero look & skill-FX identity (user-assigned 2026-07-07 — NEXT)**
+The shipped heroes wear arbitrary MS2 outfits ("ugly hats") instead of
+reading as their class stereotype, and projectiles/skill FX are glowing
+primitive spheres. All hero work rides the existing MS2 pipeline
+(manifest json → bake `--renders` → USER EYEBALLS → `--export` →
+Tools > Build Hero Animators; raw extracts stay outside the repo). Slices:
+(a) unpark the Xml.m2d ITEM-TABLE extraction (MS2Extract repo) so the
+wardrobe is browsable (item id → name/slot); needed to FIND hats/robes;
+(b) Ice Mage relook: classic pointy wizard hat + robes, blue/white
+palette — item/dye swaps in `art/heroes/icemage.json`, renders to the
+user before export;
+(c) Assassin relook: red/black theme + bandana (same recipe);
+(d) audit Knight / Fire Mage / Priest silhouettes while the tables are
+open (stereotype-first: plate+shield / warm battle-robes / white-gold
+vestments) — renders per hero, user approves each;
+(e) skill-FX direction SPIKE (Your calls #9): prototype icebolt twice —
+(1) ripped MS2 skill-FX assets (textures/sprites via the extract; skill
+NAMES/numbers stay ours per the hard rules) vs (2) procedural
+mesh/shader FX inspired by MS2's look; screenshots side by side, user
+picks the direction;
+(f) roll the picked FX approach across basic attacks + the 2+2 kits,
+one hero per slice (fire → ice → holy → physical).
+
 ## Shipped ledger (newest first — full receipts in `git log`)
 
-- 2026-07-07 Projectiles launch at the release frame, not clip end (`b91359d`)
-- 2026-07-07 Anim feel: wing flap for fliers + hero swing/cast stutter fix
-  (cadence pacing, busy window, Moving debounce, trigger hygiene) (`0c5e1d4`)
-- 2026-07-07 Balance sim: `dotnet run --project gamecore/BalanceSim --
-  walls|sweep|farm` over pure GameCore + first wall findings (`4635483`)
-- 2026-07-07 Project audit: dead art prototypes removed, stale docs fixed,
-  full orphan/determinism sweep clean (`ed3d347`..`db27a90`)
-- 2026-07-06 Crypt roguelite meta: daily keys, 3-floor runs, chest, dust
-  boons, themed depth tiers (`7462d84`, `14ca7a5`)
-- 2026-07-06 Dungeon mode, five feel passes in one day: playable floor →
-  full mode isolation + Modes menu → load-screen transitions → linear
-  chains → maze-in-a-square → packed maze + room-scoped aggro
-  (`ba378d7`..`a10135a`)
-- 2026-07-05 Terraced terrain slices 1+2: GameCore arena layouts
-  (collide-and-slide, height tiers) + client terraces/cliffs/water/stairs
-  (`24cf528`, `839a0bc`) — slice 3 (zone flavor) waits on Your calls #5
-- 2026-07-05 Combat presentation debt: per-source impact sounds, priest
-  skill FX, hero float fix (`845c2b3`)
-- 2026-07-05 Ranged-hero feel: base-speed bump, launch-delay chain,
-  formation anti-stutter, ranged assist (`1d67c7d`..`3b18ead`)
-- 2026-07-05 Tower per-floor gem rewards + quest-board rework + modifier
-  UX pass (`92f8588`)
-- 2026-07-04/05 SDF blend-shell monsters: shader prototype → procedural
-  gaits → swamp blob trio in Murkwater's roster (`5f17ce1`..`ccfd9a9`)
-- 2026-07-04 Party & movement feel batch: role-aware formation, panic
-  kite + peel, tank aggro, leader UI, swap guard rails (`208b435`..`8364850`)
-- 2026-07-03/04 Gem sink → gacha MVP: pity/dupes + live "Winter's Return"
-  Ice Mage banner
-- 2026-07-03 Monster procedural animation (body-pivot gaits, 4 families)
+- 2026-07-07 Projectile release-frame launch (`b91359d`)
+- 2026-07-07 Anim feel: wing flap + hero swing/cast stutter fix (`0c5e1d4`)
+- 2026-07-07 Balance sim (walls|sweep|farm) + wall findings (`4635483`)
+- 2026-07-07 Project audit: dead files, stale docs, clean sweep (`ed3d347`)
+- 2026-07-06 Crypt meta: keys, 3-floor runs, chest, boons (`7462d84`, `14ca7a5`)
+- 2026-07-06 Dungeon mode ×5 passes: floor → isolation → loads → linear →
+  maze → packed maze + room aggro (`ba378d7`..`a10135a`)
+- 2026-07-05 Terrain slices 1+2: arenas + terraces/water (`24cf528`, `839a0bc`)
+- 2026-07-05 Presentation debt: impact sounds, priest FX (`845c2b3`)
+- 2026-07-05 Ranged feel: speed, launch chain, anti-stutter (`1d67c7d`..`3b18ead`)
+- 2026-07-05 Tower floor gems + quest rework + modifier UX (`92f8588`)
+- 2026-07-04/05 SDF blend-shell: shader → gaits → swamp trio (`5f17ce1`..`ccfd9a9`)
+- 2026-07-04 Party feel batch: formation, kite/peel, leader UI (`208b435`..`8364850`)
+- 2026-07-03/04 Gacha MVP + live "Winter's Return" Ice Mage banner
+- 2026-07-03 Monster procedural animation (4 gait families)
 - 2026-07-03 Combat-feel + QoL batch (6 slices)
 
 ## Standing rules (short — CLAUDE.md has the full set)
