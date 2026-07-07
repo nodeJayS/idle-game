@@ -6,8 +6,14 @@
 > mobile release later** without a rewrite.
 >
 > Stack: **Unity (C#, URP)** client + a pure-C# **`GameCore`** simulation library.
-> (The high-level orientation + milestone status lives in [`../CLAUDE.md`](../CLAUDE.md);
-> this doc is the durable "what & why.")
+>
+> **Doc routing:** this doc is the durable "what & why" — it changes only when a
+> DESIGN DECISION changes. Execution lives in [`ROADMAP.md`](ROADMAP.md) — THE
+> priority list with pre-sliced milestones (§10 there): **start work from ROADMAP,
+> not from here.** When something ships, ROADMAP gets the receipt in the same
+> commit; this doc only changes if the shipped thing settled a design question
+> (then update the relevant section/table here too). Session orientation:
+> [`../CLAUDE.md`](../CLAUDE.md).
 
 ---
 
@@ -323,7 +329,9 @@ Priest = party heal-over-time + AoE smite, sustain + mana-flow passives.
 
 ## 8. Milestone roadmap
 
-Live status is tracked in [`../CLAUDE.md`](../CLAUDE.md). Three phases: **Core** (a fun,
+**This table is the durable milestone LEDGER (scope + eventual outcome), not the
+work queue — what to do NEXT (and its pre-sliced tasks) is [`ROADMAP.md`](ROADMAP.md),
+which wins wherever the two disagree.** Three phases: **Core** (a fun,
 single-player, local game), **Depth** (build variety + retention), **Live-service**
 (server authority + global). Each milestone is pure-`GameCore` first (tested with
 `dotnet test`), then wired into Unity.
