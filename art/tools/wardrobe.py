@@ -37,7 +37,7 @@ SLOT_WORDS = {
     "RH": "weapon-R", "LH": "weapon-L", "OH": "two-hand", "FH": "off-hand",
 }
 
-NIF_RE = re.compile(r"^(\d{8})(?:_(f|m))?_(.+)$")
+NIF_RE = re.compile(r"^(\d{8})(?:_(f|m|c))?_(.+)$")  # c = common/unisex mesh
 
 # Some ids have meshes but no item xml (tables predate them) — infer the slot
 # from the shortname's leading code, e.g. "cpsnowbell" -> CP. "op" = one-piece
@@ -111,6 +111,8 @@ def build_index():
             if not m:
                 continue
             iid, gender, short = m.group(1), m.group(2) or "", m.group(3)
+            if gender == "c":
+                gender = ""
             rel = os.path.relpath(os.path.join(base, f), EXTRACT_ROOT).replace("\\", "/")
             slot, glimit = item_xml_meta(iid)
             name, cls = names.get(iid, ("", ""))
