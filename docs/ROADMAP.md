@@ -368,6 +368,128 @@ Prestige/rebirth · manual achievement-claim UX · real-money gems (after
 gacha proves fun) · server authority (design §9) · Xml.m2d item-table
 extraction (when wardrobe grows) · zone drop-table hint in stage picker.
 
+### 10. Milestone backlog — ten majors, pre-sliced (brainstormed 2026-07-07)
+Self-contained briefs for future sessions (any model). Ordering within
+each milestone = shipping order; every slice is one-verified-slice-per-
+commit sized. Written from a UX-first lens: the game's systems are ahead
+of its presentation, and the biggest wins now are legibility, feel, and
+retention structure. Standing rules apply (GameCore-first; MS2 = heroes
+only; no MS2 music; content seeds at New Game).
+
+**10.1 The Great Rebalance (sim-driven — unblocks everything else)**
+The §8 findings make the ladder end at ~53 and thorns gates unwinnable.
+Needs user design verdicts on intent first, then:
+(a) fix thorns anti-scaling (reflect off victim EHP, or cap vs bosses,
+or exempt the boss's own modifier from reflect — pick with user);
+(b) flatten MonsterHpGrowth / raise gear-affix scaling so 55–100 is
+reachable on-curve (BalanceSim walls chart green to 100 = the acceptance
+test); (c) close the gear≫level gap (level should matter);
+(d) extend BalanceSim: model Tower buffs/crypt boons/enhance, add a
+`pace` mode (full simulated playthrough: farm→XP/drops→boss→advance,
+charts hours-to-stage); (e) re-run walls + farm charts, commit the
+tuning + updated §8 receipt together.
+
+**10.2 First-time experience (FTUE) & staged UI reveal**
+A new player today sees ~10 buttons and 100 numbers in minute one.
+(a) GameCore: `Progression.FeatureUnlocked(feature, save)` gating table
+(stage/level driven — e.g. Modifiers@S10, Modes@S15, Gacha@S20, sim-side
+so a future server agrees); (b) client: hide locked HUD buttons, reveal
+with a one-line toast ("Modifiers unlocked — risk for reward");
+(c) a 5-beat guided intro (kill pack → first drop → equip → first boss →
+first unlock) driven by the existing quest board, seeded only at New
+Game; (d) first-boss/first-hero celebration moments (existing juice,
+bigger beat); (e) "what do I do next" breadcrumb: one contextual hint
+line on the HUD fed by game state (idle claim ready / boss beatable /
+skill point unspent).
+
+**10.3 UI/UX foundation refactor (the deferred layout-group pass)**
+Hand-placed coords rot on every screen change; do the real fix in order:
+(a) a reusable uGUI panel kit (header/close/scroll/list-row prefab
+builders, one theme-token file: colors/font sizes/spacing consts);
+(b) migrate ONE screen (Heroes) to layout groups + the kit, verify at
+16:9/16:10/ultrawide, THEN (c) Inventory, (d) modals (boss result,
+idle claim, gacha reveal), (e) HUD anchoring pass (safe margins, corner
+regions), (f) glyph/font audit last (single font asset, fallbacks).
+Acceptance: no hand-placed pixel coords left in migrated screens.
+
+**10.4 Goals hub (quests + achievements + daily login, one surface)**
+Three separate reward systems = three places to forget to click.
+(a) GameCore: unify claimable state behind one `Goals.Pending(save)`
+read model (no schema change — a view over the three systems);
+(b) one Goals panel with tabs (Today / Achievements / Login), claim-all
+button (respect display-rounding rules on reward totals); (c) HUD
+notification pip when anything is claimable (the single red-dot
+pattern); (d) retire the separate quest/achievement buttons; (e) a
+"tomorrow preview" line (next login reward + quest reroll time) for the
+come-back-tomorrow pull.
+
+**10.5 Loot QoL 2.0 (legibility at scale)**
+Late-game bags are noise. (a) loot filter: per-rarity auto-salvage
+floor PER SLOT + "never salvage imprinted" toggle (GameCore reducer +
+tests, wire into the existing salvage paths); (b) compare-anywhere:
+hover any item anywhere → delta vs equipped of the fielded hero with
+best PowerScore gain; (c) bulk-select salvage UI (tap-drag multi-select,
+locked items refuse as today); (d) set bonuses (design §6.1): 3 sets
+per zone tier, 2pc/4pc bonuses as flat StatBlock adds in
+ComputeHeroStats (content-as-data, seeds at New Game); (e) per-hero
+gear loadout snapshots (save/apply, bag-integrity checked).
+
+**10.6 Combat presentation pass (juice v2)**
+The sim reads honest; make it FELT. (a) hit-stop: 30–50ms time-scale
+dip on crits/kills (client-only, cap frequency so packs don't slideshow);
+(b) per-element impact language: fire=ember burst, ice=shard ring +
+brief tint, holy=flash column — one reusable burst API keyed off
+AttackFx/skill sprite; (c) frost VFX retune (§3 receipt: reads white
+under bloom — drop glow clamps); (d) projectile trails (TrailRenderer,
+pooled); (e) kill-streak feedback: N kills in 2s → small screen pulse +
+feed line; (f) sound mix bus: SFX ducking under big moments, volume
+sliders in Settings (foundation for 10.9).
+
+**10.7 Crypt 2.0 (roguelite depth — the mode has legs)**
+The maze/aggro/meta shell shipped; add the decisions that make
+roguelites sticky. (a) mid-run persistence (CryptState.ActiveRun:
+floor/party HP/rng cursor — quit resumes instead of forfeiting the
+key; the handoff's old candidate); (b) between-floor BOON DRAFT: pick
+1 of 3 run-scoped modifiers (rides ModifierInstance machinery,
+run-only, not persisted past the run); (c) elite/cursed rooms: one
+room per floor rolls a rank-up pack guarding a bonus chest (dungeon
+gen already has room metadata); (d) depth-tier BOSS modifiers (the
+tier boss wears its tier's signature mod — telegraphed in the entry
+toast); (e) run summary screen (floors, kills, dust, drops — the
+share-able moment).
+
+**10.8 Endless mode ("deepest stage")**
+The post-100 chase once 10.1 makes 100 reachable. (a) GameCore:
+endless stage generator past MaxStage (reuse zone cycling + geometric
+scaling with a gentler exponent; EndlessBest in ProgressState, v3
+migration); (b) entry via stage nav at 100 ("Push beyond…");
+(c) reward curve: scrap/gold multiplier per depth, first-clear gems
+every 5 (mirror Tower/crypt receipts); (d) BalanceSim endless mode
+(walls chart to depth 200 = tuning acceptance); (e) depth record on
+the account panel + feed line (leaderboard seam for Phase C).
+
+**10.9 Audio identity (original, adaptive — NO MS2 music ever)**
+The game is silent between SFX. (a) pick/produce 3 original loop beds
+(overworld calm / combat sim-intensity layer / crypt dread) — royalty-
+free or commissioned, NEVER MS2; (b) client AudioDirector: crossfade
+beds on mode swap, duck under boss stingers; (c) zone ambience one-shots
+(wind, embers, frost) keyed off ZoneDef; (d) UI sound language pass
+(one family for click/claim/error/upgrade — replace defaults);
+(e) mixer panel in Settings (music/SFX/ambience sliders, persisted
+client-side).
+
+**10.10 Retention structure: Prestige/Rebirth (design doc Phase B row)**
+Only after 10.1 (curve must be sane to reset against). (a) design
+verdict with user: what resets (stage/level/gear?) vs what persists
+(achievements/tower/crypt/boons/roster?), rebirth currency + multiplier
+curve (BalanceSim pace mode = the tuning tool); (b) GameCore
+`Rebirth.Perform` reducer + tests (v3+ migration, seeded currency);
+(c) the decision UI: a full-screen "what you keep / what resets"
+ledger (display-rounding rules), long-press confirm; (d) post-rebirth
+fast-forward feel: first 10 stages should melt (multiplier visible in
+the feed); (e) rebirth milestone track (Nth rebirth = cosmetic tint /
+title — cheap prestige signalling).
+
 ## Standing rules (short — CLAUDE.md has the full set)
 GameCore-first, one verified slice per commit. Monsters faceted only (MS2 =
 heroes only). No MS2 music (SFX only); skill names/numbers ours. Raw extracts
