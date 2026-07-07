@@ -478,17 +478,33 @@ beds on mode swap, duck under boss stingers; (c) zone ambience one-shots
 (e) mixer panel in Settings (music/SFX/ambience sliders, persisted
 client-side).
 
-**10.10 Retention structure: Prestige/Rebirth (design doc Phase B row)**
-Only after 10.1 (curve must be sane to reset against). (a) design
-verdict with user: what resets (stage/level/gear?) vs what persists
-(achievements/tower/crypt/boons/roster?), rebirth currency + multiplier
-curve (BalanceSim pace mode = the tuning tool); (b) GameCore
-`Rebirth.Perform` reducer + tests (v3+ migration, seeded currency);
-(c) the decision UI: a full-screen "what you keep / what resets"
-ledger (display-rounding rules), long-press confirm; (d) post-rebirth
-fast-forward feel: first 10 stages should melt (multiplier visible in
-the feed); (e) rebirth milestone track (Nth rebirth = cosmetic tint /
-title — cheap prestige signalling).
+**10.10 SDF blend-shell monster expansion — dungeons first (user call
+2026-07-07; prestige/rebirth dropped from the goals to §9 parked)**
+The §4 pipeline (SdfBlendShell shader + SdfBlobRig + SdfBlobAnimator
+with Hop/Walk/Float gaits, seamless smin bodies under faceted normals)
+is proven on the swamp trio but reaches only 3 of 30+ monsters — and
+the crypt, where packs are densest and monsters are seen closest, uses
+none of it. Its tier rosters (bat/shade, imp/hound, sprite/wolf) are
+all rigid faceted models. Slices:
+(a) author a CRYPT-NATIVE blob family in SdfBlobDefs: grave ooze
+(Hop), bone amalgam (Walk — legs swing on the existing hip logic),
+crypt wraith (Float) — dark palettes with GENTLE glows (§4's lesson);
+each needs a GameCore MonsterDef (stats/XP/gold, content-as-data) +
+CryptTierDef roster entry; new content seeds at New Game;
+(b) molten + frost tier blobs (magma pulse-blob, frost drifter) so
+every crypt tier mixes at least one SDF critter into its roster;
+(c) ONE new gait family in SdfBlobAnimator (pick with user: Slither —
+segment sine-chain, or Pulse — radial prim breathing for oozes); keep
+the IMonsterAnim feed shape unchanged;
+(d) an SDF ELITE/BOSS: one big multi-prim creature for a deep crypt
+tier — check the 16-prim uniform budget first (raise it or compose two
+rigs if a boss silhouette needs more);
+(e) profile at packed-maze density (78+ mobs live today): per-blob
+mesh + MPB cost, subdivision level, cull distance — the acceptance
+gate before blobs go wide in dungeon rosters;
+(f) overworld backfill LAST: swap 2-3 faceted zone monsters whose
+silhouettes suit blending (bog_horror, chaos_spawn) — faceted Tunic
+look stays the art rule; SDF is a body style, not a restyle.
 
 ## Standing rules (short — CLAUDE.md has the full set)
 GameCore-first, one verified slice per commit. Monsters faceted only (MS2 =
