@@ -116,6 +116,10 @@ namespace IdleGame.GameCore
         // §7.3 key room: this mob carries the Boss Key — its death sets DungeonBossKeyHeld and
         // fires the BossKeyDrop event. Set from a Tier-3 dungeon spawn; everything else false.
         public bool DungeonKeyBearer;
+        // §7.3 wave phases: the authored wave this dungeon mob belongs to (DungeonSpawn.Wave).
+        // Wave 0 stands ready at room entry; higher waves wait in DungeonPendingWaves until the
+        // previous wave clears. 0 for everything non-dungeon.
+        public int DungeonWave;
 
         // Role axis (formation): a ranged hero (HeroDef.Role == "ranged") parks at casting
         // distance, fires at what's already in reach mid-regroup, and backpedals from anything
@@ -210,6 +214,14 @@ namespace IdleGame.GameCore
         public bool DungeonKeyRequired;
         public bool DungeonBossKeyHeld;
         public int DungeonBossRoomId = -1; // the Boss room's id (-1 when the floor has none)
+        // §7.3 wave phases: fully-built mobs (stats/positions/rng rolled AT INIT in authored spawn
+        // order, so determinism never depends on WHEN a wave fires) waiting for their room's
+        // previous wave to clear. StepDungeonDoors moves a room's next wave into Entities instead
+        // of unsealing; the run can't be Won while anything waits here.
+        public List<CombatEntity> DungeonPendingWaves = new List<CombatEntity>();
+        // §7.3 room-clear reward beat: the gold burst a cleared room pays (stage-scaled from the
+        // floor's roster at InitDungeon; 0 outside dungeons).
+        public long DungeonRoomClearGold;
     }
 
     /// <summary>An active monster modifier handed to the sim by the client (resolved from the
@@ -225,8 +237,9 @@ namespace IdleGame.GameCore
     public enum CombatEventType
     {
         Hit, Death, LootDrop, LevelUp, WaveCleared, BossDefeated, Respawn, SkillCast, Heal,
-        // Dungeon room progression (§7.3): doors slam shut / swing open / the Boss Key drops.
-        RoomSealed, RoomCleared, BossKeyDrop,
+        // Dungeon room progression (§7.3): doors slam shut / swing open / the Boss Key drops /
+        // the sealed room's next wave rises (RoomWave: Amount = the wave index that just spawned).
+        RoomSealed, RoomCleared, BossKeyDrop, RoomWave,
     }
 
     /// <summary>Flat event the renderer reacts to (damage numbers, deaths, etc.).</summary>

@@ -309,6 +309,18 @@ namespace IdleGame.GameCore
                 else if (r.Type == RoomType.Key) s.DungeonKeyRequired = true;
             }
 
+            // §7.3 room-clear reward beat: a cleared room pays a gold burst worth
+            // DungeonRoomClearMobEquiv average trash kills of THIS floor's roster, stage-scaled
+            // like every kill payout (balances floor — display rounding rule).
+            {
+                double avgGold = 0; int rosterN = 0;
+                foreach (var mid in trashRoster)
+                    if (cfg.Monsters.TryGetValue(mid, out var md)) { avgGold += md.GoldReward; rosterN++; }
+                if (rosterN > 0)
+                    s.DungeonRoomClearGold = (long)Math.Floor(
+                        avgGold / rosterN * cfg.Balance.KillRewardMult(stage) * cfg.Balance.DungeonRoomClearMobEquiv);
+            }
+
             s.TimeMs = 0;
             s.SpawnTimerMs = 0;
             s.Status = CombatStatus.Running;
@@ -364,7 +376,12 @@ namespace IdleGame.GameCore
                     mob.DungeonKeyBearer = true;
                     ApplyRank(mob, MonsterRank.Elite, cfg);
                 }
-                s.Entities.Add(mob);
+                // §7.3 wave phases: wave 0 stands ready; later waves wait fully built (stats and
+                // rng rolled HERE in authored order, so releasing them later costs no draws and
+                // determinism never depends on when a wave fires).
+                mob.DungeonWave = sp.Wave;
+                if (sp.Wave > 0) s.DungeonPendingWaves.Add(mob);
+                else s.Entities.Add(mob);
                 idx++;
             }
         }
@@ -1194,9 +1211,11 @@ namespace IdleGame.GameCore
             else if (s.Kind == EncounterKind.Dungeon)
             {
                 // FULL CLEAR: the run wins only when EVERY enemy is dead — the party sweeps the whole
-                // crypt room by room, not just the boss room. Lose on a full wipe or the failsafe timeout
-                // (a run that can't finish the sweep in DungeonMaxRunSeconds).
-                bool enemyAlive = s.Entities.Any(e => e.Team == Team.Enemy && e.Alive);
+                // crypt room by room, not just the boss room — and no wave still WAITS (§7.3 phases).
+                // Lose on a full wipe or the failsafe timeout (a run that can't finish the sweep in
+                // DungeonMaxRunSeconds).
+                bool enemyAlive = s.Entities.Any(e => e.Team == Team.Enemy && e.Alive)
+                                  || s.DungeonPendingWaves.Count > 0;
                 if (!partyAlive) s.Status = CombatStatus.Lost;
                 else if (!enemyAlive) s.Status = CombatStatus.Won;
                 else if (s.TimeMs >= cfg.Balance.DungeonMaxRunSeconds * 1000.0) s.Status = CombatStatus.Lost;
@@ -1546,6 +1565,14 @@ namespace IdleGame.GameCore
             return false;
         }
 
+        /// <summary>True when a wave of <paramref name="roomId"/> still waits in DungeonPendingWaves.</summary>
+        private static bool RoomHasPendingWave(CombatState s, int roomId)
+        {
+            foreach (var p in s.DungeonPendingWaves)
+                if (p.DungeonRoomId == roomId) return true;
+            return false;
+        }
+
         /// <summary>
         /// The §7.3 sealed-door pass (dungeon only, end of every step). In order:
         ///  1. CLEAR — a sealed room with no living attributed enemy unseals (RoomCleared: the
@@ -1565,12 +1592,38 @@ namespace IdleGame.GameCore
             var arena = s.Dungeon!;
             bool bossLocked = s.DungeonKeyRequired && !s.DungeonBossKeyHeld && s.DungeonBossRoomId >= 0;
 
-            // 1 — clear.
+            // 1 — the sealed room's fight phase ended: either the NEXT WAVE rises, or the room clears.
             if (s.DungeonSealedRoomId >= 0 && !RoomHasLivingEnemy(s, s.DungeonSealedRoomId))
             {
-                s.DungeonClearedRooms.Add(s.DungeonSealedRoomId);
-                events.Add(new CombatEvent { Type = CombatEventType.RoomCleared, RoomId = s.DungeonSealedRoomId });
-                s.DungeonSealedRoomId = -1;
+                int room = s.DungeonSealedRoomId;
+                // Lowest pending wave of this room (authored list order = deterministic scan).
+                int nextWave = int.MaxValue;
+                foreach (var p in s.DungeonPendingWaves)
+                    if (p.DungeonRoomId == room && p.DungeonWave < nextWave) nextWave = p.DungeonWave;
+
+                if (nextWave != int.MaxValue)
+                {
+                    // Release the wave: pre-built mobs enter the fight already awake (the room is
+                    // hot — the door stays sealed through the whole phase chain). Forward scan keeps
+                    // the authored entity order in the live list.
+                    foreach (var p in s.DungeonPendingWaves)
+                    {
+                        if (p.DungeonRoomId != room || p.DungeonWave != nextWave) continue;
+                        p.Aggro = true;
+                        s.Entities.Add(p);
+                    }
+                    s.DungeonPendingWaves.RemoveAll(p => p.DungeonRoomId == room && p.DungeonWave == nextWave);
+                    events.Add(new CombatEvent { Type = CombatEventType.RoomWave, RoomId = room, Amount = nextWave });
+                }
+                else
+                {
+                    // §7.3 room-clear reward beat: doors open, a small gold burst pays out.
+                    if (s.DungeonRoomClearGold > 0) s.PendingGold += s.DungeonRoomClearGold;
+                    s.DungeonClearedRooms.Add(room);
+                    events.Add(new CombatEvent
+                    { Type = CombatEventType.RoomCleared, RoomId = room, Amount = s.DungeonRoomClearGold });
+                    s.DungeonSealedRoomId = -1;
+                }
             }
 
             // 2 — seal on entry.
@@ -1578,7 +1631,10 @@ namespace IdleGame.GameCore
             {
                 int room = arena.RoomAt(leader.Pos);
                 if (room >= 0 && !(bossLocked && room == s.DungeonBossRoomId)
-                    && !s.DungeonClearedRooms.Contains(room) && RoomHasLivingEnemy(s, room))
+                    && !s.DungeonClearedRooms.Contains(room)
+                    // A pending wave alone also seals (a splash-emptied wave 0 must not strand its
+                    // successors) — the clear check above then releases the next wave immediately.
+                    && (RoomHasLivingEnemy(s, room) || RoomHasPendingWave(s, room)))
                 {
                     s.DungeonSealedRoomId = room;
                     events.Add(new CombatEvent { Type = CombatEventType.RoomSealed, RoomId = room });
@@ -1617,11 +1673,9 @@ namespace IdleGame.GameCore
             if (dungeon == null) return null;
             int? best = null;
             short bestDepth = short.MaxValue;
-            foreach (var e in s.Entities)
+            void Consider(int room)
             {
-                if (e.Team != Team.Enemy || !e.Alive) continue;
-                int room = e.DungeonRoomId;
-                if (room < 0) continue; // no home room recorded — can't route to it
+                if (room < 0) return; // no home room recorded — can't route to it
                 short depth = dungeon.RoomEntranceDepth(room);
                 if (best == null || depth < bestDepth || (depth == bestDepth && room < best.Value))
                 {
@@ -1629,6 +1683,11 @@ namespace IdleGame.GameCore
                     best = room;
                 }
             }
+            foreach (var e in s.Entities)
+                if (e.Team == Team.Enemy && e.Alive) Consider(e.DungeonRoomId);
+            // §7.3 wave phases: a room whose spawned mobs all died but whose later waves still WAIT
+            // is unfinished business — the sweep must (re)enter it so the seal can release them.
+            foreach (var p in s.DungeonPendingWaves) Consider(p.DungeonRoomId);
             return best;
         }
 

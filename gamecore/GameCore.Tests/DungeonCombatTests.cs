@@ -659,6 +659,104 @@ namespace IdleGame.GameCore.Tests
             Assert.True(s.DungeonBossKeyHeld);
         }
 
+        // ---------------- §7.3 wave phases + room-clear beats (10.7c) ----------------
+
+        private static Dungeon GenWaveFloor(int seed) => DungeonGen.Generate(new DungeonParams
+        {
+            Seed = seed, RoomCount = 12, Linear = true,
+            Encounter = new DungeonEncounterSpec
+            { CombatWaves = 2, MobsPerWave = 3, EliteCount = 1, EliteEscort = 2, BossAdds = 2 },
+        });
+
+        [Fact]
+        public void LaterWavesWaitPendingAndTheBearerArrivesInTheFinalWave()
+        {
+            var d = GenWaveFloor(6);
+            var s = StrongDungeon(d, rngSeed: 5);
+
+            // Init materialises ONLY wave 0; wave 1 waits fully built.
+            Assert.All(s.Entities.Where(e => e.Team == Team.Enemy), e => Assert.Equal(0, e.DungeonWave));
+            Assert.NotEmpty(s.DungeonPendingWaves);
+            Assert.All(s.DungeonPendingWaves, p => Assert.Equal(1, p.DungeonWave));
+            // The key room's bearer leads the FINAL wave — so it is pending, not live.
+            Assert.DoesNotContain(s.Entities, e => e.DungeonKeyBearer);
+            Assert.Single(s.DungeonPendingWaves, p => p.DungeonKeyBearer);
+
+            // Full run: every wave releases exactly once per multi-wave room, always while sealed,
+            // before that room's clear; the bearer still gates the boss; the run still wins.
+            var waveRooms = new List<int>();
+            int steps = 0;
+            while (s.Status == CombatStatus.Running && steps < 120000)
+            {
+                var events = Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(5));
+                foreach (var ev in events)
+                    if (ev.Type == CombatEventType.RoomWave)
+                    {
+                        Assert.Equal(ev.RoomId, s.DungeonSealedRoomId); // waves only rise under seal
+                        Assert.Equal(1, (int)ev.Amount);
+                        waveRooms.Add(ev.RoomId);
+                    }
+                steps++;
+            }
+            Assert.Equal(CombatStatus.Won, s.Status);
+            Assert.Empty(s.DungeonPendingWaves);
+            Assert.True(s.DungeonBossKeyHeld);
+            // One second wave per combat room + the key room (elite/boss author a single wave).
+            var multiWaveRooms = d.Spawns.Where(sp => sp.Wave > 0).Select(sp => sp.RoomId)
+                .Distinct().OrderBy(id => id).ToList();
+            Assert.Equal(multiWaveRooms, waveRooms.OrderBy(id => id).ToList());
+            Assert.Equal(waveRooms.Count, waveRooms.Distinct().Count());
+        }
+
+        [Fact]
+        public void RoomClearPaysTheStageScaledGoldBurst()
+        {
+            var d = GenGrammarFloor(8);
+            var s = StrongDungeon(d, rngSeed: 6);
+
+            // The burst is precomputed at init: avg roster gold × KillRewardMult × MobEquiv, floored.
+            double avg = (Cfg.Monsters[Roster[0]].GoldReward + Cfg.Monsters[Roster[1]].GoldReward) / 2.0;
+            long expected = (long)System.Math.Floor(
+                avg * Cfg.Balance.KillRewardMult(1) * Cfg.Balance.DungeonRoomClearMobEquiv);
+            Assert.True(expected > 0);
+            Assert.Equal(expected, s.DungeonRoomClearGold);
+
+            // Every RoomCleared event carries the burst, and the gold really lands in PendingGold.
+            long goldBefore = s.PendingGold;
+            int clears = 0, steps = 0;
+            while (s.Status == CombatStatus.Running && steps < 120000)
+            {
+                foreach (var ev in Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(6)))
+                    if (ev.Type == CombatEventType.RoomCleared)
+                    { Assert.Equal(expected, (long)ev.Amount); clears++; }
+                steps++;
+            }
+            Assert.Equal(CombatStatus.Won, s.Status);
+            Assert.True(clears >= 5, $"expected a room-by-room crawl, saw {clears} clears");
+            Assert.True(s.PendingGold >= goldBefore + clears * expected,
+                "the clear bursts never landed in PendingGold");
+        }
+
+        [Fact]
+        public void PendingWavesBlockTheWinUntilReleasedAndKilled()
+        {
+            var d = GenWaveFloor(9);
+            var s = StrongDungeon(d, rngSeed: 8);
+            Assert.NotEmpty(s.DungeonPendingWaves);
+
+            // Massacre every LIVE enemy directly: with waves still waiting the run must NOT be Won.
+            foreach (var e in s.Entities.Where(e => e.Team == Team.Enemy)) e.Hp = 0;
+            Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(8));
+            Assert.Equal(CombatStatus.Running, s.Status);
+
+            // The sweep then revisits the pending rooms, releases the waves under seal, and wins.
+            int steps = 0;
+            while (s.Status == CombatStatus.Running && steps < 120000)
+            { Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(8)); steps++; }
+            Assert.Equal(CombatStatus.Won, s.Status);
+            Assert.Empty(s.DungeonPendingWaves);
+        }
+
         [Fact]
         public void BossDoorClampsAnUnkeyedPartyOutAndAdmitsAKeyedOne()
         {

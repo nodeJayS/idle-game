@@ -372,6 +372,9 @@ namespace IdleGame.GameCore
         // Failsafe timeout for a full-clear run: the party sweeps the WHOLE crypt room by room (minutes,
         // not the ~16s a single boss room took), so this is bumped to 900 to leave headroom.
         public double DungeonMaxRunSeconds = 900;
+        // §7.3 room-clear reward beat: clearing a sealed room pays a gold burst worth this many
+        // average trash kills of the floor's roster (stage-scaled at init; floors display-floor it).
+        public double DungeonRoomClearMobEquiv = 2.0;
         // Ranged followers park this far behind the leader INSIDE a dungeon (vs FormationRangedBack 4.6
         // in the open field): corridor fights are close-quarters, and the open-field standoff left the
         // caster a full room behind the front line (user-caught).
