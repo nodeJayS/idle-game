@@ -277,6 +277,21 @@ Crypt uses Linear; preview window has a toggle (branching showpiece
 kept). 596 tests (5 new: chain shape/ends/roles/bounds + a sim-level
 forward-only sweep proof); Play-verified objective depth 289→417
 strictly forward. Sweep-tail note above is MOOT for linear runs.
+Fourth pass (user, playing live — four calls): SMOOTH TRAVEL —
+DungeonArena string-pulls the flow field (walk the downhill chain ≤8
+cells, cut straight to the farthest point with a walkable line;
+Play-measured travel ≥100% of stat speed vs visible wall-grinding
+before). NO WALL-HACKS — corridor sight now requires SegmentWalkable
+(parallel maze halls sit one wall apart) and a dash's FLIGHT LINE must
+be walkable or the skill is skipped. MAZE-IN-A-SQUARE — the linear
+chain became a randomized self-avoiding walk on a compact room lattice
+(pitch 22, jitter ±1.5, DFS+backtracking, entrance on the rim):
+up/down/left/right maze turns, dense square block, pocket voids instead
+of empty oceans; still strictly single-path. CASTER KEEPS UP —
+dungeon-only: followers home at ≥ the leader's speed and ranged
+standoff compresses 4.6→DungeonRangedBack 2.6 (Play-measured: Ice Mage
+avg 5.8 from the leader = inside cast range, vs a full room behind).
+596 tests.
 NEXT: roguelite meta (entry economy, floor progression, death rules,
 rewards — user design conversation) + mood polish.
 (4) BFS build-reveal animation (parked).

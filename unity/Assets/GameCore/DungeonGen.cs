@@ -292,76 +292,121 @@ namespace IdleGame.GameCore
         }
 
         // --------------------------------------------------------------------
-        // Stage 2–4 (LINEAR) — self-avoiding room chain.
-        // Rooms are laid one after another along a heading that drifts each
-        // step (a gentle persistent curl bounds the chain's reach so it can't
-        // run off the 256² grid); each placement scans a deterministic fan of
-        // angles until the room's padded AABB clears every earlier room. The
-        // result reads as a winding hand-dug corridor crawl, not a straight
-        // hallway — and the sweep can never backtrack on it.
+        // Stage 2–4 (LINEAR) — self-avoiding walk on a compact room LATTICE.
+        // The first cut placed the chain as a free-wandering arc, which read
+        // as "single hallways in a big empty void" (user-caught). Instead the
+        // chain is a randomized self-avoiding walk on a square-ish lattice:
+        // rooms sit at lattice cells (small jitter breaks the grid read),
+        // consecutive rooms are always lattice NEIGHBOURS (up/down/left/
+        // right turns like a maze), and the walk packs most of the square —
+        // a dense dungeon block with only pocket-sized voids, still strictly
+        // single-path.
         // --------------------------------------------------------------------
+
+        // Lattice pitch: max room dim 18 + jitter ±1.5 each side ⇒ min AABB separation 22−3−18 = 1
+        // (a doorway-thick wall between big neighbours; smaller rooms get real corridors).
+        private const double LatticePitch = 22.0;
+        private const double LatticeJitter = 1.5;
 
         private static List<RoomWork> PlaceLinearChain(DungeonParams p, Rng rng)
         {
             int n = Math.Max(3, p.RoomCount);
+
+            // Square-ish lattice with ~15% slack so the walk has room to turn without starving.
+            int cols = (int)Math.Ceiling(Math.Sqrt(n * 1.15));
+            int rows = (int)Math.Ceiling(n * 1.15 / cols);
+            if (rows * cols < n + 1) rows++;
+
+            var path = LatticeWalk(rows, cols, n, rng);
+            if (path == null) return new List<RoomWork>(); // starved — TryGenerate re-rolls a derived seed
+
             var rooms = new List<RoomWork>(n);
-
-            double heading = Float(rng, 0, Math.PI * 2);
-            // Gentle persistent curl (sign drawn once): purely aesthetic drift — the chain leans
-            // into a lazy arc instead of wandering symmetrically. Kept LIGHT: a strong curl forces
-            // an arc radius smaller than the reach guard below and the two fight until placement
-            // starves (the first cut of this used 0.10–0.22 and failed every seed).
-            double curl = (Chance(rng, 0.5) ? 1.0 : -1.0) * Float(rng, 0.03, 0.10);
-            // Hard reach guard: candidates outside this radius are rejected (the angle fan then
-            // finds an inward direction). r=110 ⇒ extent ≤ ~238 with room halves + carve margin,
-            // inside the 256 grid clamp; a 26-room chain fits in one lazy lap with room to spare.
-            const double maxReach = 110.0;
-
             for (int i = 0; i < n; i++)
             {
                 var (w, h, shape) = RollArchetype(rng);
                 if (i == n - 1) { w = Int(rng, 13, 18); h = Int(rng, 13, 18); } // the boss arena caps the run
 
-                if (i == 0)
+                double jx = Float(rng, -LatticeJitter, LatticeJitter);
+                double jy = Float(rng, -LatticeJitter, LatticeJitter);
+                rooms.Add(new RoomWork
                 {
-                    rooms.Add(new RoomWork { Id = 0, Cx = 0, Cy = 0, W = w, H = h, Shape = shape });
-                    continue;
-                }
-
-                var prev = rooms[i - 1];
-                double gap = Float(rng, 7.0, 12.0); // corridor breathing room between the two AABBs
-                double dist = (Math.Max(prev.W, prev.H) + Math.Max(w, h)) / 2.0 + gap;
-                double baseTurn = Float(rng, -0.55, 0.55) + curl; // preferred: gentle drift + the curl
-
-                bool placed = false;
-                for (int attempt = 0; attempt < 26 && !placed; attempt++)
-                {
-                    // Attempt 0 = the preferred drift; then fan out alternating left/right in 0.35rad
-                    // steps until (worst case) the scan has covered the full circle.
-                    double turn = attempt == 0
-                        ? baseTurn
-                        : baseTurn + ((attempt % 2 == 1) ? 1 : -1) * 0.35 * ((attempt + 1) / 2);
-                    double ang = heading + turn;
-                    double nx = prev.Cx + Math.Cos(ang) * dist;
-                    double ny = prev.Cy + Math.Sin(ang) * dist;
-
-                    if (Math.Sqrt(nx * nx + ny * ny) > maxReach) continue; // reach guard
-
-                    bool hit = false;
-                    foreach (var r in rooms) // padded AABB vs every earlier room = self-avoiding
-                        if (Math.Abs(nx - r.Cx) < (w + r.W) / 2.0 + 3 &&
-                            Math.Abs(ny - r.Cy) < (h + r.H) / 2.0 + 3) { hit = true; break; }
-                    if (hit) continue;
-
-                    rooms.Add(new RoomWork { Id = i, Cx = nx, Cy = ny, W = w, H = h, Shape = shape });
-                    heading = ang;
-                    placed = true;
-                }
-                if (!placed) break; // trapped — return the short chain; TryGenerate re-rolls a derived seed
+                    Id = i, Shape = shape, W = w, H = h,
+                    Cx = path[i].x * LatticePitch + jx,
+                    Cy = path[i].y * LatticePitch + jy,
+                });
             }
-
             foreach (var r in rooms) { r.Cx = Math.Round(r.Cx); r.Cy = Math.Round(r.Cy); }
             return rooms;
+        }
+
+        /// <summary>
+        /// A randomized SELF-AVOIDING WALK of exactly <paramref name="n"/> cells on a rows×cols
+        /// lattice: DFS with backtracking, neighbour order shuffled per cell by <paramref name="rng"/>
+        /// (deterministic), starting from a random EDGE cell (the entrance sits on the dungeon's rim).
+        /// Backtracking guarantees a solution is found whenever one exists; a step cap bounds the
+        /// worst case (the caller re-rolls a derived seed on null). Returns lattice coordinates.
+        /// </summary>
+        private static (int x, int y)[]? LatticeWalk(int rows, int cols, int n, Rng rng)
+        {
+            // Random edge start (deterministic pick over the ring of edge cells).
+            var edge = new List<(int x, int y)>();
+            for (int x = 0; x < cols; x++) { edge.Add((x, 0)); if (rows > 1) edge.Add((x, rows - 1)); }
+            for (int y = 1; y < rows - 1; y++) { edge.Add((0, y)); if (cols > 1) edge.Add((cols - 1, y)); }
+            var start = edge[Int(rng, 0, edge.Count - 1)];
+
+            var visited = new bool[cols * rows];
+            var path = new List<(int x, int y)>(n) { start };
+            visited[start.y * cols + start.x] = true;
+
+            // Per-depth shuffled neighbour order + a cursor, so DFS backtracking is deterministic.
+            var order = new int[n][];
+            var cursor = new int[n];
+            order[0] = ShuffledDirs(rng);
+            cursor[0] = 0;
+
+            int[] dxs = { 1, -1, 0, 0 };
+            int[] dys = { 0, 0, 1, -1 };
+            int steps = 0;
+            const int StepCap = 40000;
+
+            while (path.Count < n && steps++ < StepCap)
+            {
+                int depth = path.Count - 1;
+                var cur = path[depth];
+                bool advanced = false;
+                while (cursor[depth] < 4)
+                {
+                    int k = order[depth][cursor[depth]++];
+                    int nx = cur.x + dxs[k], ny = cur.y + dys[k];
+                    if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) continue;
+                    if (visited[ny * cols + nx]) continue;
+                    visited[ny * cols + nx] = true;
+                    path.Add((nx, ny));
+                    order[path.Count - 1] = ShuffledDirs(rng);
+                    cursor[path.Count - 1] = 0;
+                    advanced = true;
+                    break;
+                }
+                if (!advanced)
+                {
+                    if (depth == 0) return null; // even the start is exhausted
+                    visited[cur.y * cols + cur.x] = false;
+                    path.RemoveAt(depth); // backtrack
+                }
+            }
+            return path.Count == n ? path.ToArray() : null;
+        }
+
+        /// <summary>The four direction indices in a seeded shuffle (Fisher–Yates, deterministic).</summary>
+        private static int[] ShuffledDirs(Rng rng)
+        {
+            var d = new[] { 0, 1, 2, 3 };
+            for (int i = 3; i > 0; i--)
+            {
+                int j = Int(rng, 0, i);
+                (d[i], d[j]) = (d[j], d[i]);
+            }
+            return d;
         }
 
         /// <summary>Semantics for a CHAIN: entrance = room 0, boss = the far end, depth = the index,

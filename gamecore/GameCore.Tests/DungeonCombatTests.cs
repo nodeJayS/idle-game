@@ -147,14 +147,28 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void GateTargetsCorridorProximityTrueWhenClose()
         {
+            // Corridor sight now ALSO requires a walkable line (anti-wallhack for parallel maze
+            // halls), so the visible pair must be two genuinely adjacent corridor cells — a real
+            // "down the hall" sightline, not just any point within range.
             var d = Gen(7);
             var a = new DungeonArena(d);
-            var corr = d.CorridorCells[0];
-            var p = new Vec2(corr.X + 0.5, corr.Y + 0.5);
-            var near = new Vec2(corr.X + 1.5, corr.Y + 0.5);
+            Vec2? pOpt = null, nearOpt = null;
+            foreach (var c1 in d.CorridorCells)
+            {
+                foreach (var c2 in d.CorridorCells)
+                {
+                    if (Math.Abs(c1.X - c2.X) + Math.Abs(c1.Y - c2.Y) != 1) continue; // 4-adjacent pair
+                    var w1 = new Vec2(c1.X + 0.5, c1.Y + 0.5);
+                    var w2 = new Vec2(c2.X + 0.5, c2.Y + 0.5);
+                    if (a.Contains(w1) && a.Contains(w2)) { pOpt = w1; nearOpt = w2; break; }
+                }
+                if (pOpt != null) break;
+            }
+            Assert.True(pOpt.HasValue, "any generated dungeon has adjacent corridor cells");
+            var p = pOpt.Value; var near = nearOpt!.Value;
             Assert.Equal(-1, a.RoomAt(p));
-            Assert.True(a.GateTargets(p, near), "corridor pair within sight is visible");
-            var far = new Vec2(corr.X + 20.5, corr.Y + 0.5);
+            Assert.True(a.GateTargets(p, near), "adjacent corridor pair with a clear line is visible");
+            var far = new Vec2(p.X + 20.0, p.Y);
             Assert.False(a.GateTargets(p, far), "corridor sight is bounded");
         }
 

@@ -121,16 +121,38 @@ namespace IdleGame.GameCore
         /// The anti-wallhack gate: true when <paramref name="seeker"/> and <paramref name="candidate"/> MAY
         /// see each other — they're in the SAME room (equal room ids, both ≥ 0), OR (when either stands in a
         /// corridor, room id -1) they're within <see cref="BalanceConstants.DungeonCorridorSight"/> euclidean
-        /// distance. Two units in DIFFERENT rooms can never see each other (a wall between them), which is
-        /// what stops targeting through walls. Symmetric in the two arguments.
+        /// distance AND the straight segment between them is walkable (a REAL sightline down the hall — in
+        /// the compact maze layout, parallel corridors run a wall apart, and plain proximity let units see,
+        /// target, and DASH through that wall; user-caught live). Two units in DIFFERENT rooms can never see
+        /// each other. Symmetric in the two arguments.
         /// </summary>
         public bool GateTargets(Vec2 seeker, Vec2 candidate)
         {
             int ra = RoomAt(seeker), rb = RoomAt(candidate);
             if (ra >= 0 && ra == rb) return true;                 // same room: always visible
             if (ra >= 0 && rb >= 0) return false;                 // two different rooms: a wall between
-            // At least one is in a corridor — gate on proximity so a mob only "sees" down the hall a bit.
-            return Vec2.Distance(seeker, candidate) <= _corridorSight;
+            // At least one is in a corridor — proximity + a walkable line of sight down the hall.
+            return Vec2.Distance(seeker, candidate) <= _corridorSight && SegmentWalkable(seeker, candidate);
+        }
+
+        /// <summary>
+        /// True when the straight segment a→b stays on the walkable surface: sample points every
+        /// ~0.3 tiles (plus the endpoints) all pass <see cref="Contains"/>. This is the shared
+        /// "line of walkability" behind corridor sight, dash flight paths, and the string-pulled
+        /// travel step. Deterministic pure geometry.
+        /// </summary>
+        public bool SegmentWalkable(Vec2 a, Vec2 b)
+        {
+            double dx = b.X - a.X, dy = b.Y - a.Y;
+            double len = Math.Sqrt(dx * dx + dy * dy);
+            if (len < 1e-9) return Contains(a);
+            int samples = (int)Math.Ceiling(len / 0.3);
+            for (int i = 0; i <= samples; i++)
+            {
+                double t = (double)i / samples;
+                if (!Contains(new Vec2(a.X + dx * t, a.Y + dy * t))) return false;
+            }
+            return true;
         }
 
         /// <summary>
@@ -140,23 +162,60 @@ namespace IdleGame.GameCore
         /// from the boss, or off the floor), returns <paramref name="from"/>'s own cell centre so the
         /// caller simply holds. Deterministic.
         /// </summary>
-        public Vec2 DownhillStep(Vec2 from) => DownhillStep(from, _d.BossBfs);
+        public Vec2 DownhillStep(Vec2 from) => SmoothedStep(from, _d.BossBfs);
 
         /// <summary>
         /// The flow-field step toward the CENTRE of <paramref name="roomId"/> — the room-sweep router.
         /// Same downhill rule as the boss overload, but against <see cref="FieldFor"/>(roomId) so the
         /// leader is drawn to the current objective room rather than always the boss. Deterministic.
         /// </summary>
-        public Vec2 DownhillStep(Vec2 from, int roomId) => DownhillStep(from, FieldFor(roomId));
+        public Vec2 DownhillStep(Vec2 from, int roomId) => SmoothedStep(from, FieldFor(roomId));
+
+        /// <summary>How far ahead the string-pulled step may cut along the downhill chain.</summary>
+        private const int LookAheadCells = 8;
+        // Scratch for the lookahead chain (the sim is single-threaded; avoids per-step allocation).
+        private readonly double[] _chainX = new double[LookAheadCells];
+        private readonly double[] _chainY = new double[LookAheadCells];
+
+        /// <summary>
+        /// STRING-PULLED flow step: walk the downhill chain up to <see cref="LookAheadCells"/> cells
+        /// ahead and return the FARTHEST chain point reachable from <paramref name="from"/> in a
+        /// straight walkable line — so travel cuts smooth diagonals through corridors instead of
+        /// zigzagging cell-centre to cell-centre into walls (user-caught: "runs into walls a lot").
+        /// Falls back to the plain one-cell downhill step when no lookahead point has a clear line.
+        /// Deterministic — the chain and the segment test are pure functions of the grid.
+        /// </summary>
+        private Vec2 SmoothedStep(Vec2 from, short[] field)
+        {
+            var first = RawDownhillStep(from, field);
+            // Collect the downhill chain (cell centres) beyond the first step.
+            int count = 0;
+            var cur = first;
+            _chainX[count] = first.X; _chainY[count] = first.Y; count++;
+            while (count < LookAheadCells)
+            {
+                var next = RawDownhillStep(cur, field);
+                if (next.X == cur.X && next.Y == cur.Y) break; // reached the seed
+                _chainX[count] = next.X; _chainY[count] = next.Y; count++;
+                cur = next;
+            }
+            // Farthest-first: the longest straight cut wins.
+            for (int i = count - 1; i >= 1; i--)
+            {
+                var p = new Vec2(_chainX[i], _chainY[i]);
+                if (SegmentWalkable(from, p)) return p;
+            }
+            return first;
+        }
 
         /// <summary>
         /// The centre of the 4-neighbour FLOOR cell with the LOWEST <paramref name="field"/> value that is
-        /// STRICTLY lower than the current cell's — the flow-field step toward that field's seed. Fixed
-        /// neighbour scan order (+x, -x, +y, -y) breaks ties. When no neighbour is strictly lower (at or one
-        /// cell from the seed, or off the floor), returns <paramref name="from"/>'s own cell centre so the
-        /// caller simply holds. Deterministic.
+        /// STRICTLY lower than the current cell's — the raw single-cell flow step (the string-pulled
+        /// <see cref="SmoothedStep"/> chains + shortcuts these). Fixed neighbour scan order (+x, -x, +y, -y)
+        /// breaks ties. When no neighbour is strictly lower (at or one cell from the seed, or off the
+        /// floor), returns <paramref name="from"/>'s own cell centre so the caller simply holds.
         /// </summary>
-        private Vec2 DownhillStep(Vec2 from, short[] field)
+        private Vec2 RawDownhillStep(Vec2 from, short[] field)
         {
             int cx = (int)Math.Floor(from.X), cy = (int)Math.Floor(from.Y);
             var here = CellCentreOf(from.X, from.Y);
@@ -215,7 +274,7 @@ namespace IdleGame.GameCore
                 field = BfsFieldFromCell(cellX, cellY);
                 _cellFields[key] = field;
             }
-            return DownhillStep(from, field);
+            return SmoothedStep(from, field);
         }
 
         /// <summary>4-connected BFS distance field over FLOOR seeded from cell (cx,cy) (-1 for non-floor

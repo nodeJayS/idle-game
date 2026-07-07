@@ -483,11 +483,12 @@ namespace IdleGame.GameCore
         /// further pair steps another <see cref="Balance.FormationBack"/> row back. <paramref
         /// name="heading"/> is the unit vector the leader faces (toward the pack), so the wing
         /// always trails behind it.</summary>
-        private static Vec2 FormationHome(CombatEntity leader, Vec2 heading, bool ranged, int roleRank, GameConfig cfg)
+        private static Vec2 FormationHome(CombatEntity leader, Vec2 heading, bool ranged, int roleRank, GameConfig cfg,
+                                          double? rangedBackOverride = null)
         {
             var perp = new Vec2(-heading.Y, heading.X);         // 90° to the heading = the wing axis
             double sideSign = (roleRank % 2 == 0) ? 1.0 : -1.0; // alternate left / right within the role
-            double baseBack = ranged ? cfg.Balance.FormationRangedBack : cfg.Balance.FormationMeleeBack;
+            double baseBack = ranged ? (rangedBackOverride ?? cfg.Balance.FormationRangedBack) : cfg.Balance.FormationMeleeBack;
             double back = baseBack + cfg.Balance.FormationBack * (roleRank / 2);
             double side = cfg.Balance.FormationSide;
             return new Vec2(
@@ -945,7 +946,11 @@ namespace IdleGame.GameCore
                         int roleRank = 0;
                         if (followerRank != null && followerRank.TryGetValue(e.Id, out var fr))
                         { ranged = fr.ranged; roleRank = fr.roleRank; }
-                        Vec2 home = FormationHome(leader!, heading, ranged, roleRank, cfg);
+                        Vec2 home = FormationHome(leader!, heading, ranged, roleRank, cfg,
+                            // Dungeon corridors compress the ranged standoff: 4.6 behind the leader
+                            // parks a caster in the PREVIOUS room, out of every fight (user-caught:
+                            // "the ice mage is lagging behind too often to be of any use").
+                            ranged && s.Dungeon != null ? cfg.Balance.DungeonRangedBack : (double?)null);
                         // An arena can place a slot off the walkable region (e.g. behind a leader on a
                         // shore) — degrade the home to the nearest walkable point so the deadzone/hustle
                         // logic terminates at a reachable spot instead of running in place at a cliff.
@@ -975,6 +980,16 @@ namespace IdleGame.GameCore
                             {
                                 double ms = e.EffectiveStat(StatKey.MoveSpd);
                                 if (ms <= 0) ms = MoveSpeedTilesPerSec;
+                                // Dungeon follow floor: homing followers move AT LEAST at the leader's
+                                // speed — corridor marches are long and walled, so a slower caster
+                                // falls a room behind and contributes nothing (user-caught). Overworld
+                                // keeps per-hero speeds (an open feel verdict) — this is dungeon-only.
+                                if (s.Dungeon != null)
+                                {
+                                    double flms = leader!.EffectiveStat(StatKey.MoveSpd);
+                                    if (flms <= 0) flms = MoveSpeedTilesPerSec;
+                                    ms = Math.Max(ms, flms);
+                                }
                                 // Regroup hustle: a follower stranded past the break radius sprints
                                 // at max(own, leader) × RegroupHustleMult so a geared leader can't
                                 // outrun an ungeared follower between packs. Within the radius it
@@ -1286,10 +1301,14 @@ namespace IdleGame.GameCore
                         double gap = Vec2.Distance(e.Pos, target.Pos);
                         double contact = e.BodyRadius + target.BodyRadius + 0.15;
                         if (gap <= contact + 0.5) continue;
-                        CastStart(e, sk, target.Id, events);
                         double inv = contact / gap; // land on the approach side, just touching
                         var landing = new Vec2(target.Pos.X - (target.Pos.X - e.Pos.X) * inv,
                                                target.Pos.Y - (target.Pos.Y - e.Pos.Y) * inv);
+                        // Dungeon: the FLIGHT LINE must be walkable — a dash may never cut through a
+                        // wall into a parallel corridor (user-caught in the maze layout). Blocked ⇒
+                        // skip the skill this step (walk there like everyone else).
+                        if (s.Dungeon != null && !s.Dungeon.SegmentWalkable(e.Pos, landing)) continue;
+                        CastStart(e, sk, target.Id, events);
                         e.Pos = arena != null ? arena.Clamp(landing) : landing; // never dash off the walkable region
                         ApplyHit(s, e, target, cfg, rng, events, sk.DamageMult * rankFactor);
                         return true;

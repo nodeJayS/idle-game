@@ -339,6 +339,10 @@ namespace IdleGame.GameCore
         // Failsafe timeout for a full-clear run: the party sweeps the WHOLE crypt room by room (minutes,
         // not the ~16s a single boss room took), so this is bumped to 900 to leave headroom.
         public double DungeonMaxRunSeconds = 900;
+        // Ranged followers park this far behind the leader INSIDE a dungeon (vs FormationRangedBack 4.6
+        // in the open field): corridor fights are close-quarters, and the open-field standoff left the
+        // caster a full room behind the front line (user-caught).
+        public double DungeonRangedBack = 2.6;
         // Boss challenge (C1): pressing Challenge despawns the trash and the boss appears this far
         // ahead of the party on the SAME map (a step or two away — not a separate arena). After a
         // flee/fail, trash stays gone for BossFleeCooldownMs before repopulating, so spamming
