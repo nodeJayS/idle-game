@@ -385,6 +385,10 @@ namespace IdleGame.GameCore
         public double DungeonRoomClearMobEquiv = 2.0;
         // §7.3 chests: a hero within this range of an unopened chest pops it (auto-open beat).
         public double DungeonChestOpenRadius = 1.6;
+        // §7.3 floor guardian: base HP scale for the MINI-BOSS capping floors 1–2 of a run. Its
+        // Elite rank stacks EliteHpMult (×3) on top ⇒ net ×1.5 a trash mob — a real wall, but
+        // under the final floor's true boss (BossHpMult ×2).
+        public double DungeonMiniBossHpMult = 0.5;
         // Per-tier chest payouts (index = ChestTier wooden/iron/golden): gold = the room-clear
         // burst × mult; items = count range (first item's rarity floors at Normal/Rare/Unique);
         // grave dust = range (wooden pays none). Mimics pay their chest + one bonus item.

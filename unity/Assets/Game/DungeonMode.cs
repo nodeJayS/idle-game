@@ -31,6 +31,13 @@ namespace IdleGame.Game
         // Root of the built dungeon visual (DungeonRenderer output), destroyed on Exit.
         private static GameObject? _worldRoot;
 
+        // §7.3 client tells: the live floor's data + theme (for door seals/chest beats), the
+        // per-room door-seal roots, all cleared on Exit with the world.
+        private static Dungeon? _dungeon;
+        private static DungeonTheme? _theme;
+        private static readonly System.Collections.Generic.Dictionary<int, GameObject> _doorSeals =
+            new System.Collections.Generic.Dictionary<int, GameObject>();
+
         // Overworld roots we deactivated on Enter, remembered so Exit only re-activates what WAS active
         // (a zone with no arena has no ArenaTerrain/ArenaWater, so we must not blindly turn them on).
         private static readonly System.Collections.Generic.List<GameObject> _hidden =
@@ -105,7 +112,10 @@ namespace IdleGame.Game
             if (!cfg.Monsters.ContainsKey(boss)) boss = "";
 
             var state = Combat.InitDungeon(party, save.Progress.CurrentStage, dungeon, roster, boss, cfg, rng,
-                hpMult: Crypt.FloorHpMult(floor, cfg), dmgMult: Crypt.FloorDmgMult(floor, cfg));
+                hpMult: Crypt.FloorHpMult(floor, cfg), dmgMult: Crypt.FloorDmgMult(floor, cfg),
+                // §7.3: only the run's FINAL floor (the one with the reward vault) fields the true
+                // boss; earlier floors get the elite-rank floor guardian.
+                miniBoss: !dungeon.Params.RewardRoom);
 
             SwapWorldIn(dungeon, tier?.ThemeKey ?? "crypt");
             Active = true;
@@ -120,6 +130,9 @@ namespace IdleGame.Game
 
             if (_worldRoot != null) Object.Destroy(_worldRoot);
             _worldRoot = null;
+            _doorSeals.Clear(); // children of the world root — already gone with it
+            _dungeon = null;
+            _theme = null;
 
             RestoreStash();
 
@@ -146,8 +159,59 @@ namespace IdleGame.Game
             // Build the dungeon geometry/props/lights/flicker under a fresh root.
             _worldRoot = DungeonRenderer.Build(d, themeKey, null, showSpawns: false);
             _worldRoot.name = "DungeonWorld";
+            _dungeon = d;
+            _theme = theme;
+            _doorSeals.Clear();
 
             StashAndStage(theme);
+        }
+
+        // ---- §7.3 room-progression tells (driven by CombatView's sim events) -----------------
+
+        /// <summary>Drop portcullis bars on every doorway of <paramref name="roomId"/> (RoomSealed).</summary>
+        public static void SealRoom(int roomId)
+        {
+            if (!Active || _worldRoot == null || _dungeon == null || _theme == null) return;
+            if (_doorSeals.ContainsKey(roomId)) return;
+            _doorSeals[roomId] = DungeonRenderer.BuildDoorSeal(_dungeon, roomId, _theme, _worldRoot.transform);
+        }
+
+        /// <summary>Lift the bars again (RoomCleared).</summary>
+        public static void UnsealRoom(int roomId)
+        {
+            if (_doorSeals.TryGetValue(roomId, out var go) && go != null) Object.Destroy(go);
+            _doorSeals.Remove(roomId);
+        }
+
+        /// <summary>Chest-open beat: tilt the lid back and kill the glow (ChestOpen).</summary>
+        public static void ReactChestOpen(int chestIndex)
+        {
+            var chest = FindChest(chestIndex);
+            if (chest == null) return;
+            var lid = chest.transform.Find("lid");
+            if (lid != null)
+            {
+                lid.localRotation = Quaternion.Euler(-55f, 0f, 0f);
+                lid.localPosition += new Vector3(0f, 0.06f, -0.18f);
+            }
+            var glow = chest.transform.Find("glow");
+            if (glow != null) glow.gameObject.SetActive(false);
+        }
+
+        /// <summary>Mimic beat: the "chest" crumples away as the ambusher bursts out (MimicReveal).</summary>
+        public static void ReactMimicReveal(int chestIndex)
+        {
+            var chest = FindChest(chestIndex);
+            if (chest == null) return;
+            chest.AddComponent<DeathFx>()
+                .Configure(0.35f, chest.transform.localScale, Vector3.up * 0.4f, sink: 0.1f);
+        }
+
+        private static GameObject? FindChest(int chestIndex)
+        {
+            if (!Active || _worldRoot == null) return null;
+            var t = _worldRoot.transform.Find("Chests/DungeonChest_" + chestIndex);
+            return t != null ? t.gameObject : null;
         }
 
         // Stash the current fog/ambient/sun/camera-clear, then restage them for the crypt look. We do

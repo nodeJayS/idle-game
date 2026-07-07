@@ -1774,6 +1774,44 @@ namespace IdleGame.Game
                     case CombatEventType.BossDefeated:
                         if (Settings.ScreenShake) _rig?.Shake(0.4f);
                         break;
+                    // ---- §7.3 crypt room progression beats ----
+                    case CombatEventType.RoomSealed:
+                        DungeonMode.SealRoom(ev.RoomId);
+                        SoundFx.Play("Skill_Knight_ShieldRush_Cast", 0.45f);
+                        _chat?.AddFeed("The doors slam shut!", new Color(0.85f, 0.45f, 0.35f));
+                        break;
+                    case CombatEventType.RoomCleared:
+                        DungeonMode.UnsealRoom(ev.RoomId);
+                        SoundFx.Play("Skill_Priest_GreaterHeal_Cast", 0.4f);
+                        _chat?.AddFeed(ev.Amount > 0
+                                ? $"Room clear! +{Num.CompactFloor((long)ev.Amount)} gold"
+                                : "Room clear!",
+                            new Color(0.65f, 0.9f, 0.6f));
+                        break;
+                    case CombatEventType.RoomWave:
+                        SoundFx.Play("Skill_Assassin_ShadeSplit_Cast", 0.5f);
+                        _chat?.AddFeed("Another wave rises!", new Color(0.85f, 0.6f, 0.9f));
+                        break;
+                    case CombatEventType.BossKeyDrop:
+                        SoundFx.Play("Skill_Priest_AngelRay_Cast", 0.5f);
+                        if (Settings.ScreenShake) _rig?.Shake(0.15f);
+                        _chat?.AddFeed("The Boss Key clatters free — the boss door will open!",
+                            new Color(1f, 0.85f, 0.4f));
+                        break;
+                    case CombatEventType.ChestOpen:
+                        DungeonMode.ReactChestOpen(ev.ChestIndex);
+                        SoundFx.Play("CH_Levelup", 0.22f);
+                        _chat?.AddFeed(ev.Amount > 0
+                                ? $"The chest creaks open: +{Num.CompactFloor((long)ev.Amount)} gold"
+                                : "The chest creaks open…",
+                            new Color(1f, 0.8f, 0.45f));
+                        break;
+                    case CombatEventType.MimicReveal:
+                        DungeonMode.ReactMimicReveal(ev.ChestIndex);
+                        SoundFx.Play("BadWood_Dead", 0.7f);
+                        if (Settings.ScreenShake) _rig?.Shake(0.2f);
+                        _chat?.AddFeed("That chest has TEETH!", new Color(1f, 0.4f, 0.4f));
+                        break;
                     case CombatEventType.LootDrop:
                         if (ev.Item != null && Settings.LootFeed)
                         {

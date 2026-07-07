@@ -139,19 +139,18 @@ sliders in Settings (foundation for 10.9).
 
 **10.7 Crypt overhaul — Mabinogi-style dungeons (user call 2026-07-07:
 "huge update")**
-(a) DONE 2026-07-07: design locked with the user → game-design §7.3
-(12-room floor grammar, sealed-door fights, key bearer → boss door,
-goofy mimics, end-of-run reward room, depth-band encounter tables;
-mid-run merchant CUT). Remaining slices build exactly that:
-(b) GameCore: DungeonGen assigns the §7.3 room roles + encounter specs;
-doors SEAL until room clear (rides room-scoped aggro); key-bearer room;
-(c) per-room wave phases (wave 2 spawns on wave 1 clear) + room-clear
-reward beats; (d) chest rooms + mimics + the end-of-run REWARD ROOM
-(depth-scaled tables); (e) client: sealed-door tells, room-clear
-fanfare, chest-open beat, mini-boss/boss gate moments;
+Design locked in game-design §7.3 (`325a2cd`). SHIPPED 2026-07-07:
+(a) design session; (b) room roles + sealed doors + key bearer/boss
+gate (`54dba8a`); (c) staged wave phases + room-clear gold beat
+(`b2e604d`); (d) chest rooms, goofy mimics, end-of-run reward vault
+(`ac30ce0`); (e) client tells — portcullis door seals, room/wave/key
+feed+SFX beats, chest-lid pops, mimic reveal, elite floor-guardian
+mini-bosses on non-final floors. Remaining:
 (f) mid-run persistence (quit resumes, key not forfeited) + run
-summary screen; (g) BalanceSim dungeon mode = the difficulty/reward
-acceptance chart per depth.
+summary screen — also fold the legacy end-of-run GrantChest popup
+into the vault (today BOTH pay dust; make the urn diegetic);
+(g) BalanceSim dungeon mode = the difficulty/reward acceptance
+chart per depth.
 
 **10.8 Endless mode ("deepest stage")**
 The post-100 chase once 10.1 makes 100 reachable. (a) GameCore:

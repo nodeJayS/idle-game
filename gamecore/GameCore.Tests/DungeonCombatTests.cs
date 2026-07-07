@@ -840,6 +840,25 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void MiniBossFloorsFieldAnEliteGuardianNotTheTrueBoss()
+        {
+            // §7.3: floors 1–2 of a run cap at a floor-guardian (elite-rank boss body, gentler HP);
+            // only the final floor fields the true IsBoss + BossHpMult wall.
+            var d = GenGrammarFloor(2);
+            var mini = Combat.InitDungeon(new List<HeroInstance>(), 1, d, Roster, BossId, Cfg, new Rng(1), miniBoss: true);
+            var guard = mini.Entities.First(e => e.Id == "EBOSS");
+            Assert.False(guard.IsBoss);
+            Assert.Equal(MonsterRank.Elite, guard.Rank);
+
+            var full = Combat.InitDungeon(new List<HeroInstance>(), 1, d, Roster, BossId, Cfg, new Rng(1));
+            var boss = full.Entities.First(e => e.Id == "EBOSS");
+            Assert.True(boss.IsBoss);
+            Assert.Equal(MonsterRank.Normal, boss.Rank);
+            Assert.True(boss.MaxHp > guard.MaxHp,
+                $"true boss ({boss.MaxHp}) should out-wall the guardian ({guard.MaxHp})");
+        }
+
+        [Fact]
         public void BossDoorClampsAnUnkeyedPartyOutAndAdmitsAKeyedOne()
         {
             var d = GenGrammarFloor(5);

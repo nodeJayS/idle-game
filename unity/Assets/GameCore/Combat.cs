@@ -281,7 +281,7 @@ namespace IdleGame.GameCore
         /// </summary>
         public static CombatState InitDungeon(IReadOnlyList<HeroInstance> party, int stage, Dungeon d,
                                               IReadOnlyList<string> trashRoster, string bossId, GameConfig cfg, Rng rng,
-                                              double hpMult = 1.0, double dmgMult = 1.0)
+                                              double hpMult = 1.0, double dmgMult = 1.0, bool miniBoss = false)
         {
             var s = new CombatState { Stage = stage, Kind = EncounterKind.Dungeon };
             var arena = new DungeonArena(d, cfg.Balance.DungeonCorridorSight);
@@ -299,7 +299,7 @@ namespace IdleGame.GameCore
                     e.Pos = arena.Clamp(new Vec2(entrance.X + off.X, entrance.Y + off.Y));
                 }
 
-            SeedDungeonSpawns(s, d, trashRoster, bossId, cfg, rng, hpMult, dmgMult);
+            SeedDungeonSpawns(s, d, trashRoster, bossId, cfg, rng, hpMult, dmgMult, miniBoss);
 
             // §7.3 door/key rules: remember the boss room, and require its key only when the floor
             // actually generated a Key room (short/legacy layouts stay key-free).
@@ -332,7 +332,7 @@ namespace IdleGame.GameCore
         /// index, and stamps each enemy's DungeonRoomId from its spawn.</summary>
         private static void SeedDungeonSpawns(CombatState s, Dungeon d, IReadOnlyList<string> trashRoster,
                                               string bossId, GameConfig cfg, Rng rng,
-                                              double hpMult = 1.0, double dmgMult = 1.0)
+                                              double hpMult = 1.0, double dmgMult = 1.0, bool miniBoss = false)
         {
             // Stat scale mirrors a stage fight at the current stage — deeper players face tougher
             // floors. The optional multipliers stack the crypt's per-floor depth ramp on top
@@ -349,8 +349,15 @@ namespace IdleGame.GameCore
                 {
                     if (cfg.Monsters.TryGetValue(bossId, out var bossDef))
                     {
-                        var bossMob = MakeMonster(cfg, bossDef, "EBOSS", pos, atkScale, true,
-                            hpScale * cfg.Balance.BossHpMult);
+                        // §7.3 floors 1–2 of a run end at a FLOOR GUARDIAN mini-boss: the tier's boss
+                        // body at elite rank (elite bundle, no BossDefeated fanfare) and a gentler HP
+                        // wall — the run's real boss (IsBoss + BossHpMult) caps the final floor only.
+                        var bossMob = miniBoss
+                            ? MakeMonster(cfg, bossDef, "EBOSS", pos, atkScale, false,
+                                hpScale * cfg.Balance.DungeonMiniBossHpMult)
+                            : MakeMonster(cfg, bossDef, "EBOSS", pos, atkScale, true,
+                                hpScale * cfg.Balance.BossHpMult);
+                        if (miniBoss) ApplyRank(bossMob, MonsterRank.Elite, cfg);
                         bossMob.DungeonRoomId = sp.RoomId;
                         s.Entities.Add(bossMob);
                     }
