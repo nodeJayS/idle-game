@@ -824,10 +824,12 @@ namespace IdleGame.Game
                     // LOADING back to camp — StartFarm rebuilds the campaign from scratch behind
                     // the loading screen. Mode isolation: the old in-place ResumeFarm clamped
                     // dungeon grid positions onto the campaign arena's rim and every farm pack
-                    // ringed there (user-caught live).
+                    // ringed there (user-caught live). A crypt WIN mid-run instead DESCENDS to
+                    // the next floor of the same run (ResolveOutcome set _cryptDescend).
                     if (dungeonDone || towerDone)
                     {
-                        ReturnToCampThroughLoad();
+                        if (dungeonDone && _cryptDescend) DescendToNextFloor();
+                        else ReturnToCampThroughLoad();
                         return;
                     }
                     // A boss challenge stays a CAMPAIGN event on the same map (no load): a win
@@ -1120,18 +1122,35 @@ namespace IdleGame.Game
                     _chat?.AddFeed($"Tower floor {floor} failed — train up and try again.", new Color(1f, 0.6f, 0.4f));
                 }
             }
-            // Crypt dungeon run (roguelite slice 3b): a win clears the floor (boss down), a loss ends the
-            // attempt. No roguelite meta yet — the world swap unwinds in the Update resume block below.
+            // Crypt run (roguelite meta): a win banks the floor — record +1, first-clear gems — and
+            // either DESCENDS (floors left) or grants the end-of-run CHEST (grave dust). A wipe ends
+            // the run and forfeits the chest; drops/kills so far were already committed. The Update
+            // resume block reads _cryptDescend to pick descend-vs-return.
             else if (_combat.Kind == EncounterKind.Dungeon)
             {
                 if (_combat.Status == CombatStatus.Won)
                 {
-                    _chat?.AddFeed("Crypt cleared! The party returns to the surface.", new Color(0.6f, 0.85f, 1f));
+                    long now = NowMs();
+                    int floor = Crypt.NextFloor(_save);
+                    _save = Crypt.RecordFloorClear(_save, floor, _cfg);
+                    _chat?.AddFeed($"Depth {floor} cleared!  +{_cfg.Balance.CryptGemsPerFloor} gems",
+                                   new Color(0.6f, 0.85f, 1f));
                     Award(AchievementMetric.BossesKilled, 1); // the floor boss went down
+
+                    _cryptDescend = _cryptRunFloorsLeft > 0 && !Crypt.IsComplete(_save, _cfg);
+                    if (!_cryptDescend)
+                    {
+                        var (next, dust) = Crypt.GrantChest(_save, _cfg);
+                        _save = next;
+                        _chat?.AddFeed($"The crypt chest opens: +{Num.CompactFloor(dust)} grave dust. " +
+                                       "Spend it on Boons in the Modes menu.", new Color(1f, 0.85f, 0.4f));
+                    }
+                    SaveStore.Save(Save.Touch(_save, now)); // gems/dust/record — flush like the daily claim
                 }
                 else
                 {
-                    _chat?.AddFeed("The crypt claims this attempt…", new Color(1f, 0.6f, 0.4f));
+                    _cryptDescend = false;
+                    _chat?.AddFeed("The crypt claims this run — the chest is forfeit.", new Color(1f, 0.6f, 0.4f));
                 }
             }
         }
@@ -1201,32 +1220,71 @@ namespace IdleGame.Game
             ReconcileViews();
         }
 
-        /// <summary>Start a crypt run (Modes menu): generate first (so the loading screen carries the
-        /// seeded name), then LOAD in — the world swap, the fresh dungeon CombatState, and the camera
-        /// snap all run at full black. The campaign state is simply dropped (mode isolation — no
-        /// in-place mutation, so nothing leaks between the maps in either direction).</summary>
+        // ---- crypt run state (transient — a run lives one sitting by design; quitting = abandoning,
+        // the key is spent, the chest is forfeit, everything already dropped is already banked) ----
+        private int _cryptRunFloorsLeft;  // floors still to attempt AFTER the current one
+        private bool _cryptDescend;       // set by ResolveOutcome: this win continues the run
+
+        private static long NowMs() => System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+        /// <summary>Start a crypt RUN (Modes menu): tick the daily key recharge, consume a key, and
+        /// LOAD into floor DepthRecord+1 — the world swap, the fresh dungeon CombatState, and the
+        /// camera snap all run at full black. The campaign state is simply dropped (mode isolation).
+        /// Refuses (with a feed line, no key spent) when no key is banked or the crypt is complete.</summary>
         private void EnterDungeonRun()
         {
             if (_combat.Kind != EncounterKind.Farm || _combat.Status != CombatStatus.Running) return;
             if (LoadingScreen.Busy) return;
+
+            long now = NowMs();
+            _save = Crypt.TickKeys(_save, _cfg, now);
+            if (!Crypt.CanStart(_save, _cfg))
+            {
+                _chat?.AddFeed(Crypt.IsComplete(_save, _cfg)
+                        ? "The crypt lies silent — every depth is cleared."
+                        : "No crypt keys — the next one arrives at the daily reset.",
+                    new Color(1f, 0.72f, 0.5f));
+                return;
+            }
+            (_save, _) = Crypt.StartRun(_save, _cfg);
+            SaveStore.Save(Save.Touch(_save, now)); // a key is spent — never lose that to a crash
+
             CommitPending(); // bank campaign loot/xp before the state is dropped
             _modesOpen = false;
-            var d = DungeonMode.Generate(_save);
-            _chat?.AddFeed($"Entering {d.Name}… ", new Color(0.72f, 0.55f, 0.95f));
-            LoadingScreen.Run($"Entering {d.Name}", () =>
+            _cryptRunFloorsLeft = _cfg.Balance.CryptFloorsPerRun - 1;
+            int floor = Crypt.NextFloor(_save);
+            var d = DungeonMode.Generate(_save, _cfg, floor);
+            _chat?.AddFeed($"Depth {floor} — entering {d.Name}…", new Color(0.72f, 0.55f, 0.95f));
+            LoadingScreen.Run($"Depth {floor} — {d.Name}", () =>
             {
-                Begin(DungeonMode.Enter(_cfg, BuildParty(), _save, NewRng(), d)); // Begin refreshes gear
+                Begin(DungeonMode.Enter(_cfg, BuildParty(), _save, NewRng(), d, floor)); // Begin refreshes gear
+                SnapCameraToParty();
+            });
+        }
+
+        /// <summary>The descend beat between run floors: the NEXT floor of the same run, through the
+        /// loading screen (world torn down and rebuilt at full black — same isolation as entry).</summary>
+        private void DescendToNextFloor()
+        {
+            _cryptRunFloorsLeft--;
+            int floor = Crypt.NextFloor(_save);
+            var d = DungeonMode.Generate(_save, _cfg, floor);
+            _chat?.AddFeed($"Descending… Depth {floor} — {d.Name}", new Color(0.72f, 0.55f, 0.95f));
+            LoadingScreen.Run($"Descending — Depth {floor}", () =>
+            {
+                DungeonMode.Exit(); // unwind this floor's world (at full black; Enter re-swaps)
+                Begin(DungeonMode.Enter(_cfg, BuildParty(), _save, NewRng(), d, floor));
                 SnapCameraToParty();
             });
         }
 
         /// <summary>Leave a crypt run early (top-centre Exit / Modes menu): LOAD back to camp —
-        /// unwind the world swap and rebuild the campaign from scratch at full black. Kills so far
-        /// already banked via CommitPending each frame; the rest of the run is forfeited.</summary>
+        /// unwind the world swap and rebuild the campaign from scratch at full black. Kills/drops so
+        /// far are already banked; the spent key and the end-of-run chest are forfeited.</summary>
         private void AbandonDungeonRun()
         {
             if (_combat.Kind != EncounterKind.Dungeon || LoadingScreen.Busy) return;
-            _chat?.AddFeed("Crypt run abandoned.", new Color(1f, 0.72f, 0.5f));
+            _chat?.AddFeed("Crypt run abandoned — the chest is forfeit.", new Color(1f, 0.72f, 0.5f));
             _modesOpen = false;
             ReturnToCampThroughLoad();
         }
@@ -2171,8 +2229,18 @@ namespace IdleGame.Game
             if (!_modesOpen) return;
             if (AnyPanelOpen) { _modesOpen = false; return; } // a uGUI panel takes the screen — yield
 
+            // Key recharge ticks whenever the menu is on screen (a no-op ref-share on most frames;
+            // flush the save only when a key actually landed, like the daily claim).
+            long now = NowMs();
+            var ticked = Crypt.TickKeys(_save, _cfg, now);
+            if (!ReferenceEquals(ticked, _save))
+            {
+                _save = ticked;
+                SaveStore.Save(Save.Touch(_save, now));
+            }
+
             float sw = Screen.width / s, sh = Screen.height / s;
-            float w = 620f, h = 436f, x = sw / 2f - w / 2f, y = sh / 2f - h / 2f;
+            float w = 620f, h = 620f, x = sw / 2f - w / 2f, y = sh / 2f - h / 2f;
             DrawRect(x - 2, y - 2, w + 4, h + 4, new Color(0.55f, 0.48f, 0.75f, 0.95f)); // violet frame
             DrawRect(x, y, w, h, new Color(0.09f, 0.09f, 0.13f, 0.98f));
 
@@ -2195,13 +2263,89 @@ namespace IdleGame.Game
                 active: inTower,
                 buttonLabel: inCampaign ? "Choose Floor" : null,
                 onClick: () => { _modesOpen = false; _towerView?.Toggle(); });
-            DrawModeRow(x + 20, y + 278, w - 40, "Crypt",
-                "Delve a generated crypt. The run ends when every monster is dead.",
+
+            int keys = Crypt.Keys(_save), bank = _cfg.Balance.CryptKeyBank;
+            string cryptDesc;
+            if (inDungeon)
+                cryptDesc = $"Depth {Crypt.NextFloor(_save)} — clear every monster, " +
+                            $"{_cryptRunFloorsLeft} floor{(_cryptRunFloorsLeft == 1 ? "" : "s")} beyond this one.";
+            else
+            {
+                cryptDesc = $"Keys {keys}/{bank}";
+                if (keys < bank)
+                {
+                    // Countdown to the next daily key — display-ceil (a countdown never under-promises).
+                    long hrs = (Crypt.NextKeyAtMs(_save) - now + 3_599_999) / 3_600_000;
+                    cryptDesc += $" (next in {hrs}h)";
+                }
+                cryptDesc += $"  ·  {_cfg.Balance.CryptFloorsPerRun}-floor runs  ·  wipe = no chest";
+            }
+            DrawModeRow(x + 20, y + 278, w - 40, $"Crypt  (Depth {Crypt.DepthRecord(_save)})",
+                cryptDesc,
                 active: inDungeon,
-                buttonLabel: inCampaign ? "Enter the Crypt" : null,
+                buttonLabel: !inCampaign ? null
+                           : Crypt.IsComplete(_save, _cfg) ? "Cleared!"
+                           : keys > 0 ? "Enter  (1 Key)" : "No Keys",
                 onClick: EnterDungeonRun);
 
+            DrawCryptBoons(x + 20, y + 384, w - 40);
+
             if (Button(x + w / 2f - 70, y + h - 48, 140, 36, "Close", BtnStyleSm)) _modesOpen = false;
+        }
+
+        /// <summary>The crypt Boon shop (inside the Modes panel): one line per boon track — rank,
+        /// effect, and a Buy button priced from the geometric curve. Grave dust comes only from the
+        /// end-of-run chest, so this is the crypt's own progression lane. A purchase applies to the
+        /// live party immediately (RefreshPartyStats folds boons in beside the Tower buffs).</summary>
+        private void DrawCryptBoons(float x, float y, float w)
+        {
+            DrawRect(x, y, w, 176f, new Color(0.13f, 0.13f, 0.18f, 0.95f));
+
+            var head = new GUIStyle(GUI.skin.label) { fontSize = 17, fontStyle = FontStyle.Bold };
+            head.normal.textColor = new Color(1f, 0.85f, 0.4f);
+            GUI.Label(new Rect(x + 16, y + 8, w - 220, 24),
+                $"Crypt Boons — Grave Dust: {Num.CompactFloor(Crypt.Dust(_save, _cfg))}", head);
+
+            var lbl = new GUIStyle(GUI.skin.label) { fontSize = 15 };
+            lbl.normal.textColor = new Color(0.85f, 0.87f, 0.92f);
+            var dim = new GUIStyle(lbl);
+            dim.normal.textColor = new Color(0.55f, 0.57f, 0.62f);
+
+            float ry = y + 38;
+            foreach (var boon in _cfg.CryptBoons)
+            {
+                int rank = Crypt.BoonRank(_save, boon.Id);
+                bool maxed = rank >= _cfg.Balance.CryptBoonMaxRank;
+                double pct = rank * _cfg.Balance.CryptBoonStatPct * 100;
+                GUI.Label(new Rect(x + 16, ry + 7, w - 260, 24),
+                    $"{boon.Name}  (+{pct:0}% {boon.Stat})   rank {rank}/{_cfg.Balance.CryptBoonMaxRank}", lbl);
+
+                if (maxed)
+                    GUI.Label(new Rect(x + w - 200, ry + 7, 184, 24), "MAX", dim);
+                else
+                {
+                    long cost = Crypt.BoonCost(rank, _cfg);
+                    bool afford = Crypt.Dust(_save, _cfg) >= cost;
+                    if (afford)
+                    {
+                        if (Button(x + w - 200, ry + 2, 184, 34, $"Buy  ({Num.CompactCeil(cost)} dust)", BtnStyleSm))
+                        {
+                            var (next, bought) = Crypt.BuyBoon(_save, boon.Id, _cfg);
+                            if (bought)
+                            {
+                                _save = next;
+                                SaveStore.Save(Save.Touch(_save, NowMs()));
+                                Combat.RefreshPartyStats(_combat, _save, _cfg); // boons bite immediately
+                                _chat?.AddFeed($"Boon bought: {boon.Name} rank {rank + 1}.",
+                                               new Color(1f, 0.85f, 0.4f));
+                            }
+                        }
+                    }
+                    else
+                        GUI.Label(new Rect(x + w - 200, ry + 7, 184, 24), $"{Num.CompactCeil(cost)} dust", dim);
+                }
+                ry += 44;
+            }
         }
 
         /// <summary>One Modes row: name + green "● Active" marker (or the switch button), and a
@@ -2249,14 +2393,15 @@ namespace IdleGame.Game
 
                 var t = new GUIStyle(GUI.skin.label) { fontSize = 30, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
                 t.normal.textColor = new Color(0.6f, 0.95f, 0.6f);
-                string title = dungeonWin ? "Crypt cleared!"
+                string title = dungeonWin ? $"Depth {Crypt.DepthRecord(_save)} cleared!"
                              : towerWin ? $"Tower floor {_combat.TowerFloor} cleared!"
                              : $"Stage {_combat.Stage} cleared!";
                 GUI.Label(new Rect(x, y + 24, w, 40), title, t);
                 var sub = new GUIStyle(GUI.skin.label) { fontSize = 15, alignment = TextAnchor.MiddleCenter };
                 sub.normal.textColor = new Color(0.8f, 0.85f, 0.8f);
                 GUI.Label(new Rect(x, y + 70, w, 24),
-                    (towerWin || dungeonWin) ? "Returning to camp…" : "Advancing to the next stage…", sub);
+                    dungeonWin ? (_cryptDescend ? "Descending deeper…" : "Returning to camp…")
+                    : towerWin ? "Returning to camp…" : "Advancing to the next stage…", sub);
 
                 if (Button(x + w / 2f - 80, y + h - 60, 160, 44, "OK")) _outcomeTimer = 9999f; // fast-forward
             }

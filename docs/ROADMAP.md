@@ -308,8 +308,25 @@ soloed); a follower whose straight segment to slot is wall-blocked now
 descends the flow field toward the leader. Play-verified live: gate
 violations 0/177 sampled pairs, follower avg 3.8 tiles off the leader,
 full 147-kill clear + auto-return. 599 tests.
-NEXT: roguelite meta (entry economy, floor progression, death rules,
-rewards — user design conversation) + mood polish.
+ROGUELITE META SHIPPED (user-approved design 2026-07-06, two
+commits): GameCore `Crypt.cs` + `CryptState` under ProgressState —
+KEYS (1/UTC day, DailyLogin day-index, bank 2, StartRun consumes),
+3-floor RUNS from DepthRecord+1 (RecordFloorClear mirrors
+Tower.RecordClear: sequential first clears only, 5 gems each, cap 60),
+end-of-run CHEST (grave dust 25+5×depth; wipe forfeits, drops keep),
+BOON tracks (Vigor/Ferocity/Bulwark +2%/rank, ceil(20×1.5^r), max 10,
+folded beside Tower.ApplyAccountBuffs), themed depth TIERS (10-floor
+bands crypt→molten→frost cycling zone casts), floor difficulty
+ramp (1.06 HP / 1.04 dmg per floor) into InitDungeon hp/dmg mults.
+Client: key-gated entry (refusal feed), descend-beat loading screens
+between floors, chest/gems feed lines, Modes panel Crypt row (keys +
+next-key countdown + depth record) + Boons shop (live
+RefreshPartyStats on buy). Play-verified end-to-end: key grant→spend,
+3-floor run → record 3 / +15 gems / 40 dust chest → auto-return;
+0-key refusal; wipe = no chest/record; boon buy 40→20 dust, Knight
+MaxHp +2% live. 617 tests. Run state is transient by design (quit =
+abandon). NEXT: crypt mood polish (user eyeball); balance pass on
+key cadence/ramp once the user has played a few real runs.
 (4) BFS build-reveal animation (parked).
 
 ### 8. Content & tuning pass

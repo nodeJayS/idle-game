@@ -51,30 +51,30 @@ namespace IdleGame.Game
         // The overworld root names we swap out. Null-safe: any that don't exist this zone are skipped.
         private static readonly string[] OverworldRoots = { "Ground", "ArenaTerrain", "ArenaWater", "Scenery" };
 
-        // Gloom Hollow cast — the crypt test floor's roster (ids confirmed present in GameConfig; the
-        // trash roster falls back inside Combat.InitDungeon if a config drops one).
+        // Fallback cast (the original crypt test floor's roster) — used only when the config
+        // defines no crypt tiers; normal runs pull the FLOOR's tier cast from Crypt.TierForFloor.
         private static readonly string[] TrashRoster = { "cave_bat", "gloom_shade" };
         private const string BossId = "nightmare_maw";
 
         /// <summary>
-        /// Generate the run's dungeon (pure data; the caller shows its seeded name on the loading
-        /// screen BEFORE any world change happens). Deterministic seed from farm depth, salted, then
-        /// advanced by the session entry counter so the FIRST dungeon at a given stage is reproducible
-        /// while re-entries re-roll the layout.
+        /// Generate a run FLOOR's dungeon (pure data; the caller shows its seeded name on the loading
+        /// screen BEFORE any world change happens). Theme = the floor's depth tier (crypt → molten →
+        /// frost bands). Deterministic seed from floor + farm depth, salted, then advanced by the
+        /// session entry counter so re-entries/re-runs re-roll the layout.
         /// </summary>
-        public static Dungeon Generate(SaveState save, string themeKey = "crypt")
+        public static Dungeon Generate(SaveState save, GameConfig cfg, int floor)
         {
             int stage = save.Progress.CurrentStage;
-            int seed = unchecked((stage * (int)2654435761u ^ 0x5EED) + _entryCounter);
+            int seed = unchecked((stage * (int)2654435761u ^ 0x5EED) + floor * 92821 + _entryCounter);
             _entryCounter++;
 
             return DungeonGen.Generate(new DungeonParams
             {
                 Seed = seed,
-                RoomCount = 26,       // a test floor — walkable in minutes, not the 80-room showpiece
+                RoomCount = 26,       // walkable in minutes, not the 80-room showpiece
                 LoopChance = 0.15,
                 DecorDensity = 0.6,
-                Theme = themeKey,
+                Theme = Crypt.TierForFloor(floor, cfg)?.ThemeKey ?? "crypt",
                 Linear = true,        // auto-battled runs sweep FORWARD — branches force backtracking
             });
         }
@@ -87,17 +87,24 @@ namespace IdleGame.Game
         /// state is built from scratch on entry and dropped wholesale on exit — nothing CAN leak.
         /// Runs AT FULL BLACK behind the LoadingScreen (the caller orchestrates), so neither the
         /// teardown nor the camera snap is ever on screen.
+        /// The FLOOR picks the depth tier's cast + theme and stacks the crypt difficulty ramp
+        /// (Crypt.FloorHpMult/FloorDmgMult) on the usual current-stage scaling.
         /// <paramref name="rng"/> is threaded to the sim for the spawn stagger (never UnityEngine.Random).
         /// </summary>
         public static CombatState Enter(GameConfig cfg, System.Collections.Generic.IReadOnlyList<HeroInstance> party,
-                                        SaveState save, Rng rng, Dungeon dungeon, string themeKey = "crypt")
+                                        SaveState save, Rng rng, Dungeon dungeon, int floor)
         {
-            // Fresh sim state (party at the entrance, authored spawns materialised). Guard the boss id
-            // against a config that dropped it (the sim tolerates "" and just spawns no boss).
-            string boss = cfg.Monsters.ContainsKey(BossId) ? BossId : "";
-            var state = Combat.InitDungeon(party, save.Progress.CurrentStage, dungeon, TrashRoster, boss, cfg, rng);
+            var tier = Crypt.TierForFloor(floor, cfg);
+            System.Collections.Generic.IReadOnlyList<string> roster =
+                tier != null && tier.TrashRoster.Count > 0 ? tier.TrashRoster : TrashRoster;
+            // Guard the boss id against a config that dropped it (the sim tolerates "" = no boss).
+            string boss = tier?.BossId ?? BossId;
+            if (!cfg.Monsters.ContainsKey(boss)) boss = "";
 
-            SwapWorldIn(dungeon, themeKey);
+            var state = Combat.InitDungeon(party, save.Progress.CurrentStage, dungeon, roster, boss, cfg, rng,
+                hpMult: Crypt.FloorHpMult(floor, cfg), dmgMult: Crypt.FloorDmgMult(floor, cfg));
+
+            SwapWorldIn(dungeon, tier?.ThemeKey ?? "crypt");
             Active = true;
             return state;
         }
