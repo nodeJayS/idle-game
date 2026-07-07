@@ -150,7 +150,7 @@ namespace IdleGame.GameCore
 
             // 5 — Semantics (roles, depth, difficulty, critical path).
             bool semanticsOk = p.Linear
-                ? AssignLinearSemantics(rooms, edges, rng, out var criticalRooms, out int bossId, out int entranceId)
+                ? AssignLinearSemantics(rooms, edges, rng, p.RewardRoom, out var criticalRooms, out int bossId, out int entranceId)
                 : AssignSemantics(rooms, edges, adj, out criticalRooms, out bossId, out entranceId);
             if (!semanticsOk) { failStage = "semantics"; return false; }
 
@@ -169,10 +169,11 @@ namespace IdleGame.GameCore
             foreach (var r in rooms) if (r.Depth > maxDepth) maxDepth = r.Depth;
             if (maxDepth > 0 && rooms[bossId].Depth < 0.6 * maxDepth) { failStage = "boss-depth"; return false; }
 
-            // 8 — Decoration (props + spawns) with a reserved mask.
+            // 8 — Decoration (props + spawns + chests) with a reserved mask.
             var props = new List<DungeonProp>();
             var spawns = new List<DungeonSpawn>();
-            Decorate(p, rng, rooms, grid, w, h, doorways, bossId, ox, oy, cellRoom, props, spawns);
+            var chests = new List<DungeonChest>();
+            Decorate(p, rng, rooms, grid, w, h, doorways, bossId, ox, oy, cellRoom, props, spawns, chests);
 
             // 9 — Metadata assembly (room centres in GRID space, translated by the rasterise offset).
             var outRooms = new List<DungeonRoom>();
@@ -205,6 +206,7 @@ namespace IdleGame.GameCore
             dungeon.CorridorCells = corridorCells;
             dungeon.Props = props;
             dungeon.Spawns = spawns;
+            dungeon.Chests = chests;
             dungeon.Stats = new DungeonStats
             {
                 Rooms = outRooms.Count,
@@ -312,7 +314,9 @@ namespace IdleGame.GameCore
 
         private static List<RoomWork> PlaceLinearChain(DungeonParams p, Rng rng)
         {
-            int n = Math.Max(3, p.RoomCount);
+            // §7.3 reward room: one extra chain cell BEHIND the boss on the run's final floor.
+            int n = Math.Max(3, p.RoomCount) + (p.RewardRoom ? 1 : 0);
+            int bossAt = p.RewardRoom ? n - 2 : n - 1;
 
             // Square-ish lattice with ~15% slack so the walk has room to turn without starving.
             int cols = (int)Math.Ceiling(Math.Sqrt(n * 1.15));
@@ -326,7 +330,8 @@ namespace IdleGame.GameCore
             for (int i = 0; i < n; i++)
             {
                 var (w, h, shape) = RollPackedArchetype(rng);
-                if (i == n - 1) { w = 15; h = 15; shape = RoomShape.Rectangle; } // boss arena fills its cell
+                if (i == bossAt) { w = 15; h = 15; shape = RoomShape.Rectangle; }      // boss arena fills its cell
+                else if (p.RewardRoom && i == n - 1) { w = 11; h = 11; shape = RoomShape.Rectangle; } // reward vault
 
                 rooms.Add(new RoomWork
                 {
@@ -434,11 +439,11 @@ namespace IdleGame.GameCore
         /// deterministic outward scan. Rooms too short for the grammar (n &lt; 6) stay all-Combat —
         /// no Key room ⇒ the sim won't require a key. Shrines are a scatter-mode role only.</summary>
         private static bool AssignLinearSemantics(List<RoomWork> rooms, List<DungeonEdge> edges, Rng rng,
-            out List<int> criticalRooms, out int bossId, out int entranceId)
+            bool rewardRoom, out List<int> criticalRooms, out int bossId, out int entranceId)
         {
             int n = rooms.Count;
             entranceId = 0;
-            bossId = n - 1;
+            bossId = rewardRoom ? n - 2 : n - 1; // the reward vault sits BEHIND the boss (§7.3)
             criticalRooms = new List<int>(n);
             for (int i = 0; i < n; i++)
             {
@@ -451,20 +456,24 @@ namespace IdleGame.GameCore
             rooms[entranceId].Type = RoomType.Entrance;
             rooms[bossId].Type = RoomType.Boss;
             rooms[bossId].Difficulty = 1.0;
+            if (rewardRoom) { rooms[n - 1].Type = RoomType.Reward; rooms[n - 1].Difficulty = 0; }
 
-            if (n >= 6)
+            int bossIdx = bossId; // local copy — an out param can't be captured by Place below
+            int lastInterior = bossIdx - 1; // grammar rooms live strictly between entrance and boss
+            if (lastInterior >= 4)
             {
-                // One special per role at a jittered fraction of the chain, deduped deterministically.
+                // One special per role at a jittered fraction of the entrance→boss span, deduped
+                // deterministically.
                 var used = new HashSet<int>();
                 int Place(double frac)
                 {
-                    int idx = (int)Math.Round(frac * (n - 1)) + Int(rng, -1, 1);
-                    idx = Math.Max(1, Math.Min(n - 2, idx));
+                    int idx = (int)Math.Round(frac * bossIdx) + Int(rng, -1, 1);
+                    idx = Math.Max(1, Math.Min(lastInterior, idx));
                     // Outward scan (+1, -1, +2, -2…) to the nearest free interior index.
                     for (int step = 0; step < n; step++)
                         foreach (int cand in new[] { idx + step, idx - step })
-                            if (cand >= 1 && cand <= n - 2 && used.Add(cand)) return cand;
-                    return -1; // n >= 6 ⇒ 4+ interior slots for 3 specials — unreachable
+                            if (cand >= 1 && cand <= lastInterior && used.Add(cand)) return cand;
+                    return -1; // 4+ interior slots for 3 specials — unreachable
                 }
                 // Order fixes the rng draw sequence AND collision priority: chest, elite, key.
                 rooms[Place(0.35)].Type = RoomType.Treasure;
@@ -1140,7 +1149,7 @@ namespace IdleGame.GameCore
 
         private static void Decorate(DungeonParams p, Rng rng, List<RoomWork> rooms, byte[] grid, int w, int h,
             List<GridCell> doorways, int bossId, int ox, int oy, short[] cellRoom,
-            List<DungeonProp> props, List<DungeonSpawn> spawns)
+            List<DungeonProp> props, List<DungeonSpawn> spawns, List<DungeonChest> chests)
         {
             // Reserved: true where a doorway/prop/spawn sits (never overlap).
             var reserved = new bool[w * h];
@@ -1172,7 +1181,8 @@ namespace IdleGame.GameCore
                 var r = rooms[i];
                 switch (r.Type)
                 {
-                    case RoomType.Treasure when Free(rcx[i], rcy[i]):
+                    // Spec'd runs author REAL chests below; the lone centre prop is the legacy look.
+                    case RoomType.Treasure when p.Encounter == null && Free(rcx[i], rcy[i]):
                         props.Add(new DungeonProp { Kind = PropKind.Chest, X = rcx[i], Y = rcy[i], Rot = 0, Scale = 1, RoomId = r.Id });
                         Reserve(rcx[i], rcy[i]);
                         break;
@@ -1188,6 +1198,51 @@ namespace IdleGame.GameCore
                         spawns.Add(new DungeonSpawn { X = rcx[i], Y = rcy[i], Tier = 2, RoomId = r.Id });
                         Reserve(rcx[i], rcy[i]);
                         break;
+                }
+            }
+
+            // --- §7.3 chests: authored right after the centre markers so nothing steals their
+            // cells. Chest rooms (spec'd runs) roll count/tier/mimic from the encounter spec; the
+            // REWARD room always holds the fixed end-of-run spread (1 golden + 2 iron, no mimics).
+            // Cells spiral out from the room centre on the 2-cell lattice, own-footprint only. ---
+            for (int i = 0; i < rooms.Count; i++)
+            {
+                var r = rooms[i];
+                bool chestRoom = r.Type == RoomType.Treasure && p.Encounter != null;
+                bool rewardRoom = r.Type == RoomType.Reward;
+                if (!chestRoom && !rewardRoom) continue;
+
+                int count = rewardRoom ? 3 : Math.Max(1, p.Encounter!.ChestCount);
+                int placedChests = 0;
+                var offsets = new (int dx, int dy)[]
+                { (0, 0), (-2, 0), (2, 0), (0, -2), (0, 2), (-2, -2), (2, 2), (-2, 2), (2, -2) };
+                foreach (var (dx, dy) in offsets)
+                {
+                    if (placedChests >= count) break;
+                    int x = rcx[i] + dx, y = rcy[i] + dy;
+                    if (!Free(x, y)) continue;
+                    if (cellRoom[y * w + x] != r.Id) continue;
+
+                    int tier;
+                    bool mimic;
+                    if (rewardRoom)
+                    {
+                        tier = placedChests == 0 ? ChestTier.Golden : ChestTier.Iron;
+                        mimic = false;
+                    }
+                    else
+                    {
+                        var spec = p.Encounter!;
+                        int total = Math.Max(1, spec.ChestWeightWooden + spec.ChestWeightIron + spec.ChestWeightGolden);
+                        double roll = rng.Next() * total;
+                        tier = roll < spec.ChestWeightWooden ? ChestTier.Wooden
+                             : roll < spec.ChestWeightWooden + spec.ChestWeightIron ? ChestTier.Iron
+                             : ChestTier.Golden;
+                        mimic = Chance(rng, spec.MimicChance);
+                    }
+                    chests.Add(new DungeonChest { X = x, Y = y, RoomId = r.Id, Tier = tier, Mimic = mimic });
+                    Reserve(x, y);
+                    placedChests++;
                 }
             }
 
@@ -1279,7 +1334,7 @@ namespace IdleGame.GameCore
             {
                 var r = rooms[i];
                 if (r.Type == RoomType.Entrance || r.Type == RoomType.Treasure
-                    || r.Type == RoomType.Shrine) continue;
+                    || r.Type == RoomType.Shrine || r.Type == RoomType.Reward) continue;
 
                 var cells = RoomFloorCells(r, rcx[i], rcy[i], grid, w, h);
                 // Deterministic scan cursor: place onto free owned interior cells in row-major order.
@@ -1457,6 +1512,7 @@ namespace IdleGame.GameCore
                 Mix((int)Math.Round(pr.Rot * 1000)); Mix((int)Math.Round(pr.Scale * 1000));
             }
             foreach (var sp in d.Spawns) { Mix(sp.X); Mix(sp.Y); Mix(sp.Tier); Mix(sp.RoomId); Mix(sp.Wave); }
+            foreach (var ch in d.Chests) { Mix(ch.X); Mix(ch.Y); Mix(ch.RoomId); Mix(ch.Tier); Mix(ch.Mimic ? 1 : 0); }
             return hash;
         }
     }

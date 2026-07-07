@@ -138,6 +138,14 @@ namespace IdleGame.GameCore
         public int EliteCount = 1;   // elites in the Elite room
         public int EliteEscort = 3;
         public int BossAdds = 2;
+        // §7.3 chest room: chest count, wooden/iron/golden tier weights, per-chest mimic odds,
+        // and the deep-band chance a golden chest's first item goes Mythic.
+        public int ChestCount = 1;
+        public int ChestWeightWooden = 70;
+        public int ChestWeightIron = 25;
+        public int ChestWeightGolden = 5;
+        public double MimicChance = 0.15;
+        public double GoldenMythicChance;
     }
 
     public sealed class StageDef
@@ -375,6 +383,14 @@ namespace IdleGame.GameCore
         // §7.3 room-clear reward beat: clearing a sealed room pays a gold burst worth this many
         // average trash kills of the floor's roster (stage-scaled at init; floors display-floor it).
         public double DungeonRoomClearMobEquiv = 2.0;
+        // §7.3 chests: a hero within this range of an unopened chest pops it (auto-open beat).
+        public double DungeonChestOpenRadius = 1.6;
+        // Per-tier chest payouts (index = ChestTier wooden/iron/golden): gold = the room-clear
+        // burst × mult; items = count range (first item's rarity floors at Normal/Rare/Unique);
+        // grave dust = range (wooden pays none). Mimics pay their chest + one bonus item.
+        public double[] DungeonChestGoldMult = { 1.0, 2.0, 4.0 };
+        public (int min, int max)[] DungeonChestItems = { (1, 2), (2, 3), (3, 3) };
+        public (int min, int max)[] DungeonChestDust = { (0, 0), (5, 10), (15, 25) };
         // Ranged followers park this far behind the leader INSIDE a dungeon (vs FormationRangedBack 4.6
         // in the open field): corridor fights are close-quarters, and the open-field standoff left the
         // caster a full room behind the front line (user-caught).
@@ -1106,10 +1122,27 @@ namespace IdleGame.GameCore
             cfg.CryptBoons.Add(new CryptBoonDef { Id = "ferocity", Name = "Ferocity", Stat = StatKey.Atk });
             cfg.CryptBoons.Add(new CryptBoonDef { Id = "bulwark", Name = "Bulwark", Stat = StatKey.Def });
             // §7.3 depth-band encounter table (starting values; BalanceSim dungeon mode tunes).
-            cfg.CryptEncounters.Add(new CryptEncounterDef { MinDepth = 1, CombatWaves = 1, MobsPerWave = 5, EliteCount = 1, EliteEscort = 3, BossAdds = 2 });
-            cfg.CryptEncounters.Add(new CryptEncounterDef { MinDepth = 11, CombatWaves = 2, MobsPerWave = 4, EliteCount = 1, EliteEscort = 4, BossAdds = 3 });
-            cfg.CryptEncounters.Add(new CryptEncounterDef { MinDepth = 21, CombatWaves = 2, MobsPerWave = 5, EliteCount = 2, EliteEscort = 3, BossAdds = 4 });
-            cfg.CryptEncounters.Add(new CryptEncounterDef { MinDepth = 41, CombatWaves = 3, MobsPerWave = 4, EliteCount = 2, EliteEscort = 4, BossAdds = 4 });
+            cfg.CryptEncounters.Add(new CryptEncounterDef
+            {
+                MinDepth = 1, CombatWaves = 1, MobsPerWave = 5, EliteCount = 1, EliteEscort = 3, BossAdds = 2,
+                ChestCount = 1, ChestWeightWooden = 70, ChestWeightIron = 25, ChestWeightGolden = 5,
+            });
+            cfg.CryptEncounters.Add(new CryptEncounterDef
+            {
+                MinDepth = 11, CombatWaves = 2, MobsPerWave = 4, EliteCount = 1, EliteEscort = 4, BossAdds = 3,
+                ChestCount = 2, ChestWeightWooden = 45, ChestWeightIron = 40, ChestWeightGolden = 15,
+            });
+            cfg.CryptEncounters.Add(new CryptEncounterDef
+            {
+                MinDepth = 21, CombatWaves = 2, MobsPerWave = 5, EliteCount = 2, EliteEscort = 3, BossAdds = 4,
+                ChestCount = 2, ChestWeightWooden = 30, ChestWeightIron = 45, ChestWeightGolden = 25,
+            });
+            cfg.CryptEncounters.Add(new CryptEncounterDef
+            {
+                MinDepth = 41, CombatWaves = 3, MobsPerWave = 4, EliteCount = 2, EliteEscort = 4, BossAdds = 4,
+                ChestCount = 3, ChestWeightWooden = 15, ChestWeightIron = 45, ChestWeightGolden = 40,
+                GoldenMythicChance = 0.10,
+            });
 
             // ---- Arenas (ROADMAP 8, slice 1) — one PLACE per zone, id arena_<zoneId>. Each is the
             // walkable UNION of its shapes. Every layout's tier-0 base covers the r≈32 spawn bubble

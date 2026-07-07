@@ -757,6 +757,88 @@ namespace IdleGame.GameCore.Tests
             Assert.Empty(s.DungeonPendingWaves);
         }
 
+        // ---------------- §7.3 chests, mimics, reward room (10.7d) ----------------
+
+        private static Dungeon GenChestFloor(int seed, double mimicChance, bool rewardRoom = false)
+            => DungeonGen.Generate(new DungeonParams
+            {
+                Seed = seed, RoomCount = 12, Linear = true, RewardRoom = rewardRoom,
+                Encounter = new DungeonEncounterSpec
+                {
+                    CombatWaves = 1, MobsPerWave = 3, EliteCount = 1, EliteEscort = 2, BossAdds = 2,
+                    ChestCount = 2, ChestWeightWooden = 0, ChestWeightIron = 100, ChestWeightGolden = 0,
+                    MimicChance = mimicChance,
+                },
+            });
+
+        [Fact]
+        public void ChestsPopOnApproachPayDustAndGateTheWin()
+        {
+            var d = GenChestFloor(3, mimicChance: 0, rewardRoom: true);
+            var s = StrongDungeon(d, rngSeed: 4);
+            Assert.True(d.Chests.Count >= 5); // 2 iron (chest room) + 3 vault
+            long expectedGold = s.DungeonRoomClearGold; // iron mult 2× applies per chest
+
+            // Win guard: massacre everything — with lids still shut the run must stay Running.
+            foreach (var e in s.Entities.Where(e => e.Team == Team.Enemy)) e.Hp = 0;
+            s.DungeonBossKeyHeld = true; // the direct massacre bypassed HandleDeath's key drop
+            Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(4));
+            Assert.Equal(CombatStatus.Running, s.Status);
+
+            // The sweep now walks lid to lid: every chest pops, dust lands, and the run wins.
+            var opened = new List<int>();
+            int steps = 0;
+            while (s.Status == CombatStatus.Running && steps < 120000)
+            {
+                foreach (var ev in Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(4)))
+                    if (ev.Type == CombatEventType.ChestOpen)
+                    {
+                        opened.Add(ev.ChestIndex);
+                        Assert.True((long)ev.Amount > 0, "chest paid no gold");
+                    }
+                steps++;
+            }
+            Assert.Equal(CombatStatus.Won, s.Status);
+            Assert.Equal(d.Chests.Count, opened.Count);
+            Assert.Equal(d.Chests.Count, opened.Distinct().Count());
+            Assert.True(s.PendingDust > 0, "iron/golden chests must drop grave dust");
+            Assert.True(expectedGold > 0);
+        }
+
+        [Fact]
+        public void MimicChestsAmbushSealTheRoomAndPayOnDeath()
+        {
+            var d = GenChestFloor(7, mimicChance: 1.0);
+            var s = StrongDungeon(d, rngSeed: 9);
+            var chestRoom = RoomOfType(d, RoomType.Treasure);
+            int mimicChests = d.Chests.Count(c => c.Mimic);
+            Assert.Equal(d.Chests.Count, mimicChests); // forced odds: every chest bites
+            Assert.Equal(mimicChests, s.DungeonMimics.Count); // pre-built ambushers wait dormant
+
+            var reveals = new List<int>();
+            var opens = new List<int>();
+            int steps = 0;
+            while (s.Status == CombatStatus.Running && steps < 120000)
+            {
+                foreach (var ev in Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(9)))
+                {
+                    if (ev.Type == CombatEventType.MimicReveal)
+                    {
+                        reveals.Add(ev.ChestIndex);
+                        Assert.Equal(chestRoom.Id, ev.RoomId);
+                    }
+                    if (ev.Type == CombatEventType.ChestOpen) opens.Add(ev.ChestIndex);
+                }
+                steps++;
+            }
+            Assert.Equal(CombatStatus.Won, s.Status);
+            Assert.Equal(mimicChests, reveals.Count);
+            // Every revealed mimic died and paid its chest through HandleDeath.
+            Assert.Equal(reveals.OrderBy(i => i).ToList(), opens.OrderBy(i => i).ToList());
+            Assert.Empty(s.DungeonMimics);
+            Assert.DoesNotContain(s.Entities, e => e.DungeonChestIndex >= 0 && e.Alive);
+        }
+
         [Fact]
         public void BossDoorClampsAnUnkeyedPartyOutAndAdmitsAKeyedOne()
         {

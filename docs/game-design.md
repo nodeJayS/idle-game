@@ -359,7 +359,7 @@ rising from floor tells at the room edges. Specs are content-as-data keyed off
 `CryptTierDef` + depth band; new content seeds at New Game.
 
 **Chest tiers** (contents ride the normal drop tables): **Wooden** gold + 1–2 items ·
-**Iron** gold + 2–3 items (≥1 rare) + 5–10 dust · **Golden** 3 items (≥1 epic) +
+**Iron** gold + 2–3 items (≥1 rare) + 5–10 dust · **Golden** 3 items (≥1 unique) +
 15–25 dust, mythic chance at depth 40+. Chest-room count and tier weights scale with
 depth.
 

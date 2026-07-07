@@ -42,6 +42,7 @@ namespace IdleGame.Game
             var mat = LitMaterial();
             BuildGeometry(d, theme, root.transform, mat);
             BuildProps(d, theme, root.transform);
+            BuildChests(d, theme, root.transform);
             if (showSpawns) BuildSpawnMarkers(d, theme, root.transform);
             var lights = BuildLights(d, theme, root.transform);
 
@@ -373,6 +374,32 @@ namespace IdleGame.Game
             SolidBox(root.transform, new Vector3(0f, 0f, 0f), new Vector3(0.7f, 0.45f, 0.5f), DungeonTheme.ChestBody, "body");
             SolidBox(root.transform, new Vector3(0f, 0.45f, 0f), new Vector3(0.74f, 0.12f, 0.54f), DungeonTheme.ChestTrim, "lid");
             EmissiveQuad(root.transform, new Vector3(0f, 0.5f, 0f), 0.5f, DungeonTheme.ChestGlow, 0.9f, "glow");
+        }
+
+        // ---- §7.3 authored chests (tiered wooden/iron/golden; a mimic looks IDENTICAL — that's
+        // the joke; its reveal beat is the client tell slice). Named DungeonChest_<index> so the
+        // open/reveal reactions can find them by Dungeon.Chests index. ----
+        private static void BuildChests(Dungeon d, DungeonTheme th, Transform parent)
+        {
+            if (d.Chests.Count == 0) return;
+            var root = new GameObject("Chests");
+            root.transform.SetParent(parent, false);
+            for (int i = 0; i < d.Chests.Count; i++)
+            {
+                var ch = d.Chests[i];
+                var go = new GameObject("DungeonChest_" + i);
+                go.transform.SetParent(root.transform, false);
+                go.transform.localPosition = new Vector3(ch.X + 0.5f, 0f, ch.Y + 0.5f);
+                Color body = ch.Tier == ChestTier.Golden ? DungeonTheme.Hex(0xd9a441)
+                           : ch.Tier == ChestTier.Iron   ? DungeonTheme.Hex(0x9aa3ad)
+                           : DungeonTheme.ChestBody;
+                Color trim = ch.Tier == ChestTier.Golden ? DungeonTheme.Hex(0xf2d071) : DungeonTheme.ChestTrim;
+                float s = ch.Tier == ChestTier.Golden ? 1.15f : 1f;
+                SolidBox(go.transform, Vector3.zero, new Vector3(0.7f * s, 0.45f * s, 0.5f * s), body, "body");
+                SolidBox(go.transform, new Vector3(0f, 0.45f * s, 0f), new Vector3(0.74f * s, 0.12f * s, 0.54f * s), trim, "lid");
+                EmissiveQuad(go.transform, new Vector3(0f, 0.5f * s, 0f), 0.5f * s, DungeonTheme.ChestGlow,
+                    ch.Tier == ChestTier.Golden ? 1.3f : 0.9f, "glow");
+            }
         }
 
         private static void BuildCrystal(Transform parent, DungeonTheme th, DungeonProp p)

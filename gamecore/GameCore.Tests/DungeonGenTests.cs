@@ -613,6 +613,65 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void RewardRoomGrowsBehindTheBossWithTheFixedChestSpread()
+        {
+            // §7.3 reward room (final floor): one extra chain room BEHIND the boss holding exactly
+            // 1 golden + 2 iron chests, never mimics, and no enemy spawns.
+            for (int seed = 1; seed <= 6; seed++)
+            {
+                var d = DungeonGen.Generate(new DungeonParams
+                {
+                    Seed = seed, RoomCount = 12, Linear = true, RewardRoom = true,
+                    Encounter = new DungeonEncounterSpec(),
+                });
+                int n = d.Rooms.Count;
+                Assert.Equal(13, n); // 12 + the vault
+                var boss = d.Rooms.First(r => r.Type == RoomType.Boss);
+                var reward = d.Rooms.First(r => r.Type == RoomType.Reward);
+                Assert.Equal(n - 2, boss.Depth);
+                Assert.Equal(n - 1, reward.Depth); // the vault caps the chain, boss right before it
+
+                var vaultChests = d.Chests.Where(c => c.RoomId == reward.Id).ToList();
+                Assert.Equal(3, vaultChests.Count);
+                Assert.Equal(1, vaultChests.Count(c => c.Tier == ChestTier.Golden));
+                Assert.Equal(2, vaultChests.Count(c => c.Tier == ChestTier.Iron));
+                Assert.All(vaultChests, c => Assert.False(c.Mimic));
+                Assert.DoesNotContain(d.Spawns, sp => sp.RoomId == reward.Id);
+                // The grammar trio still sits between entrance and boss.
+                Assert.Equal(1, d.Rooms.Count(r => r.Type == RoomType.Key));
+                Assert.True(d.Rooms.First(r => r.Type == RoomType.Key).Depth < boss.Depth);
+            }
+        }
+
+        [Fact]
+        public void ChestRoomAuthorsSpecCountTiersAndMimics()
+        {
+            // Forced weights/odds pin the authored data: all-golden all-mimic chest rooms.
+            for (int seed = 1; seed <= 6; seed++)
+            {
+                var d = DungeonGen.Generate(new DungeonParams
+                {
+                    Seed = seed, RoomCount = 12, Linear = true,
+                    Encounter = new DungeonEncounterSpec
+                    {
+                        ChestCount = 2, ChestWeightWooden = 0, ChestWeightIron = 0,
+                        ChestWeightGolden = 100, MimicChance = 1.0,
+                    },
+                });
+                var chestRoom = d.Rooms.First(r => r.Type == RoomType.Treasure);
+                var chests = d.Chests.Where(c => c.RoomId == chestRoom.Id).ToList();
+                Assert.Equal(2, chests.Count);
+                Assert.All(chests, c => Assert.Equal(ChestTier.Golden, c.Tier));
+                Assert.All(chests, c => Assert.True(c.Mimic));
+                // Own-footprint cells only (the stay-in-your-room rule extends to mimic ambushes).
+                foreach (var c in chests)
+                    Assert.Equal(chestRoom.Id, d.CellRoom[c.Y * d.W + c.X]);
+                // Spec'd runs author real chests — the legacy lone centre prop is gone.
+                Assert.DoesNotContain(d.Props, p => p.Kind == PropKind.Chest && p.RoomId == chestRoom.Id);
+            }
+        }
+
+        [Fact]
         public void EncounterSpecDrivesSpawnCountsWavesAndTheKeyBearer()
         {
             // §7.3 encounter tables: spec'd budgets replace the area formula — per combat room

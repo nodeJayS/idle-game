@@ -59,6 +59,34 @@ namespace IdleGame.GameCore
             };
         }
 
+        /// <summary>Credit any currency (gold, scrap, grave dust, gems…) to the account balance.
+        /// Pure; no-op share for amount ≤ 0. The generic reducer behind GrantGold/GrantScrap —
+        /// §7.3 dungeon-chest dust banks through this.</summary>
+        public static SaveState GrantCurrency(SaveState save, string key, long amount)
+        {
+            if (amount <= 0) return save;
+
+            var currencies = new Dictionary<string, long>(save.Currencies);
+            currencies[key] = (currencies.TryGetValue(key, out var v) ? v : 0) + amount;
+
+            return new SaveState
+            {
+                Version = save.Version,
+                RngSeed = save.RngSeed,
+                RngCursor = save.RngCursor,
+                Heroes = save.Heroes,
+                Party = save.Party,
+                LeaderHeroId = save.LeaderHeroId,
+                Inventory = save.Inventory,
+                Currencies = currencies,
+                Progress = save.Progress,
+                Quests = save.Quests,
+                Modifiers = save.Modifiers,
+                GachaPity = save.GachaPity,
+                LastClaimAt = save.LastClaimAt,
+            };
+        }
+
         /// <summary>Credit gold to the account balance (Currencies["gold"]). Pure.</summary>
         public static SaveState GrantGold(SaveState save, long amount)
         {

@@ -38,6 +38,9 @@ namespace IdleGame.GameCore
         // GameConfig.CryptEncounters (Crypt.EncounterForFloor). Null keeps the legacy area counts
         // (preview showpieces, hand-rolled tests).
         public DungeonEncounterSpec? Encounter;
+        // §7.3 REWARD ROOM: append one extra room BEHIND the boss on the chain (the run's final
+        // floor only) holding the fixed end-of-run chest spread (1 golden + 2 iron, never mimics).
+        public bool RewardRoom;
     }
 
     /// <summary>
@@ -53,6 +56,32 @@ namespace IdleGame.GameCore
         public int EliteCount = 1;   // elites in the Elite room
         public int EliteEscort = 3;  // trash escorting them
         public int BossAdds = 2;     // trash adds beside the boss
+        // §7.3 chest room: chest count + wooden/iron/golden tier weights + per-chest mimic odds.
+        public int ChestCount = 1;
+        public int ChestWeightWooden = 70;
+        public int ChestWeightIron = 25;
+        public int ChestWeightGolden = 5;
+        public double MimicChance = 0.15;
+        // Open-side extra: a golden chest's first item goes Mythic with this chance (deep bands).
+        public double GoldenMythicChance;
+    }
+
+    /// <summary>Chest tier index into the §7.3 tables: wooden / iron / golden.</summary>
+    public static class ChestTier
+    {
+        public const int Wooden = 0, Iron = 1, Golden = 2;
+    }
+
+    /// <summary>An authored chest on a floor cell (§7.3 reward economy). <see cref="Tier"/> is a
+    /// <see cref="ChestTier"/>; <see cref="Mimic"/> chests spawn an elite ambush on open instead of
+    /// paying out (the mimic's death then pays the contents + a bonus). Chest CONTENTS are rolled
+    /// by the sim at open time — only tier/mimic are pinned at generation.</summary>
+    public sealed class DungeonChest
+    {
+        public int X, Y;
+        public int RoomId;
+        public int Tier;
+        public bool Mimic;
     }
 
     /// <summary>Grid cell codes packed into <see cref="Dungeon.Grid"/> (byte per cell, i = y*W + x).</summary>
@@ -66,8 +95,10 @@ namespace IdleGame.GameCore
 
     /// <summary>Semantic role assigned before carving (drives spawns, props, difficulty).
     /// Key = the room whose marked KEY BEARER mob drops the Boss Key (§7.3 door/key rules);
-    /// linear floors always place exactly one before the boss. Appended last — never reorder.</summary>
-    public enum RoomType { Entrance, Combat, Elite, Treasure, Shrine, Boss, Key }
+    /// linear floors always place exactly one before the boss. Reward = the end-of-run chest
+    /// room BEHIND the boss (final floor only, DungeonParams.RewardRoom). Appended in shipping
+    /// order — never reorder.</summary>
+    public enum RoomType { Entrance, Combat, Elite, Treasure, Shrine, Boss, Key, Reward }
 
     /// <summary>Decoration/interaction markers — data only; the client picks meshes per <see cref="DungeonProp.Kind"/>.</summary>
     public enum PropKind { Pillar, Torch, Debris, Brazier, Chest, ShrineCrystal, PortalRing }
@@ -161,6 +192,7 @@ namespace IdleGame.GameCore
         public List<GridCell> CorridorCells = new List<GridCell>();
         public List<DungeonProp> Props = new List<DungeonProp>();
         public List<DungeonSpawn> Spawns = new List<DungeonSpawn>();
+        public List<DungeonChest> Chests = new List<DungeonChest>(); // §7.3 chest/reward rooms
         public DungeonStats Stats = new DungeonStats();
         public uint Checksum; // FNV-1a 32 over grid + rooms + props + spawns, deterministic serialization order
     }

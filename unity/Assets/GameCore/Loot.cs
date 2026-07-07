@@ -186,6 +186,37 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>
+        /// A §7.3 dungeon chest's item bundle: <see cref="BalanceConstants.DungeonChestItems"/>[tier]
+        /// items. The FIRST item is the headline — iron floors it at Rare; golden floors it at
+        /// Unique (lifting the trash Rare cap for that one roll) and may jump straight to Mythic
+        /// with <paramref name="goldenMythicChance"/> (deep bands). The rest roll the plain
+        /// context. Deterministic via <paramref name="rng"/>.
+        /// </summary>
+        public static List<Item> RollChestDrops(Rng rng, LootContext ctx, GameConfig cfg, int tier,
+                                                double goldenMythicChance)
+        {
+            var table = cfg.Balance.DungeonChestItems;
+            var (cmin, cmax) = table[Math.Max(0, Math.Min(tier, table.Length - 1))];
+            int count = rng.RandInt(cmin, cmax);
+            var items = new List<Item>(Math.Max(0, count));
+            for (int i = 0; i < count; i++)
+            {
+                if (i == 0 && tier >= ChestTier.Iron)
+                {
+                    Rarity floor = tier >= ChestTier.Golden ? Rarity.Unique : Rarity.Rare;
+                    var headline = ctx;
+                    if (tier >= ChestTier.Golden) headline.MaxRarity = null; // may exceed the trash cap
+                    Rarity rarity = tier >= ChestTier.Golden && rng.Next() < goldenMythicChance
+                        ? Rarity.Mythic
+                        : (Rarity)Math.Max((int)RollRarity(rng, headline, cfg), (int)floor);
+                    items.Add(RollItem(rng, PickBaseId(rng, ctx, cfg), ctx.ItemLevel, rarity, cfg));
+                }
+                else items.Add(RollContextItem(rng, ctx, cfg));
+            }
+            return items;
+        }
+
+        /// <summary>
         /// An elite/rare trash mob's loot bundle (Lever 1): <paramref name="count"/> guaranteed
         /// items rolled at a boosted drop rate (<paramref name="rateMult"/> × the context's
         /// DropRateMult) so rarities skew richer. Still bounded by the context's MaxRarity

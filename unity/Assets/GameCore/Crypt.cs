@@ -176,6 +176,12 @@ namespace IdleGame.GameCore
                 EliteCount = best.EliteCount,
                 EliteEscort = best.EliteEscort,
                 BossAdds = best.BossAdds,
+                ChestCount = best.ChestCount,
+                ChestWeightWooden = best.ChestWeightWooden,
+                ChestWeightIron = best.ChestWeightIron,
+                ChestWeightGolden = best.ChestWeightGolden,
+                MimicChance = best.MimicChance,
+                GoldenMythicChance = best.GoldenMythicChance,
             };
         }
 

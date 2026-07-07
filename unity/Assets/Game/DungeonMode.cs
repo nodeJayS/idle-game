@@ -60,9 +60,10 @@ namespace IdleGame.Game
         /// Generate a run FLOOR's dungeon (pure data; the caller shows its seeded name on the loading
         /// screen BEFORE any world change happens). Theme = the floor's depth tier (crypt → molten →
         /// frost bands). Deterministic seed from floor + farm depth, salted, then advanced by the
-        /// session entry counter so re-entries/re-runs re-roll the layout.
+        /// session entry counter so re-entries/re-runs re-roll the layout. The run's FINAL floor
+        /// grows the §7.3 REWARD ROOM behind its boss.
         /// </summary>
-        public static Dungeon Generate(SaveState save, GameConfig cfg, int floor)
+        public static Dungeon Generate(SaveState save, GameConfig cfg, int floor, bool finalFloor)
         {
             int stage = save.Progress.CurrentStage;
             int seed = unchecked((stage * (int)2654435761u ^ 0x5EED) + floor * 92821 + _entryCounter);
@@ -77,6 +78,7 @@ namespace IdleGame.Game
                 Theme = Crypt.TierForFloor(floor, cfg)?.ThemeKey ?? "crypt",
                 Linear = true,        // auto-battled runs sweep FORWARD — branches force backtracking
                 Encounter = Crypt.EncounterForFloor(floor, cfg), // depth-band mob budgets (§7.3)
+                RewardRoom = finalFloor,
             });
         }
 

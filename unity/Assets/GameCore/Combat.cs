@@ -384,6 +384,24 @@ namespace IdleGame.GameCore
                 else s.Entities.Add(mob);
                 idx++;
             }
+
+            // §7.3 mimics: pre-build each mimic chest's ambusher (rng in chest order — the
+            // DungeonPendingWaves trick) so disturbing one later costs no draws. Roster-cycled
+            // def promoted Elite, attributed to the chest's room so the door seals around it.
+            for (int ci = 0; ci < d.Chests.Count; ci++)
+            {
+                var ch = d.Chests[ci];
+                if (!ch.Mimic) continue;
+                MonsterDef mimicDef = trashRoster.Count > 0
+                        && cfg.Monsters.TryGetValue(trashRoster[ci % trashRoster.Count], out var mm)
+                    ? mm : TrashDef(cfg, s.Stage, ci);
+                var mimic = MakeMonster(cfg, mimicDef, "EMIMIC" + ci,
+                    new Vec2(ch.X + 0.5, ch.Y + 0.5), atkScale, false, hpScale);
+                mimic.DungeonRoomId = ch.RoomId;
+                mimic.DungeonChestIndex = ci;
+                ApplyRank(mimic, MonsterRank.Elite, cfg);
+                s.DungeonMimics.Add(mimic);
+            }
         }
 
         /// <summary>Heal the party to full and clear downed / cooldown / buff state — a phase
@@ -965,9 +983,14 @@ namespace IdleGame.GameCore
                                 if (dungeonObjective is int objRoom)
                                 {
                                     var goal = NearestEnemyOfRoom(s, e, objRoom);
-                                    var next = goal != null
-                                        ? s.Dungeon.DownhillStepToCell(e.Pos, (int)Math.Floor(goal.Pos.X), (int)Math.Floor(goal.Pos.Y))
-                                        : s.Dungeon.DownhillStep(e.Pos, objRoom);
+                                    Vec2 next;
+                                    if (goal != null)
+                                        next = s.Dungeon.DownhillStepToCell(e.Pos, (int)Math.Floor(goal.Pos.X), (int)Math.Floor(goal.Pos.Y));
+                                    else if (NearestUnopenedChestCell(s, objRoom, e.Pos) is (int chx, int chy))
+                                        // §7.3 chests: no pack to walk onto — the objective is a lid.
+                                        next = s.Dungeon.DownhillStepToCell(e.Pos, chx, chy);
+                                    else
+                                        next = s.Dungeon.DownhillStep(e.Pos, objRoom);
                                     MoveToward(e, next, ms * dtMs / 1000.0, arena);
                                 }
                                 continue;
@@ -1193,7 +1216,7 @@ namespace IdleGame.GameCore
             // §7.3 sealed-door room progression — runs LAST so it sees final step positions and can
             // undo any crossing (movement, dash, collision push) with a deterministic clamp.
             if (s.Kind == EncounterKind.Dungeon && s.Dungeon != null)
-                StepDungeonDoors(s, leader, events);
+                StepDungeonDoors(s, leader, cfg, rng, events);
 
             // A downed hero has Hp 0 (Alive == false), so an all-at-once wipe makes
             // partyAlive false -> Lost.
@@ -1211,13 +1234,14 @@ namespace IdleGame.GameCore
             else if (s.Kind == EncounterKind.Dungeon)
             {
                 // FULL CLEAR: the run wins only when EVERY enemy is dead — the party sweeps the whole
-                // crypt room by room, not just the boss room — and no wave still WAITS (§7.3 phases).
-                // Lose on a full wipe or the failsafe timeout (a run that can't finish the sweep in
-                // DungeonMaxRunSeconds).
-                bool enemyAlive = s.Entities.Any(e => e.Team == Team.Enemy && e.Alive)
-                                  || s.DungeonPendingWaves.Count > 0;
+                // crypt room by room, not just the boss room — no wave still WAITS, and every chest
+                // is popped (§7.3: the reward room is walked, not skipped). Lose on a full wipe or
+                // the failsafe timeout (a run that can't finish the sweep in DungeonMaxRunSeconds).
+                bool unfinished = s.Entities.Any(e => e.Team == Team.Enemy && e.Alive)
+                                  || s.DungeonPendingWaves.Count > 0
+                                  || (s.Dungeon != null && s.DungeonChestsOpened.Count < s.Dungeon.Dungeon.Chests.Count);
                 if (!partyAlive) s.Status = CombatStatus.Lost;
-                else if (!enemyAlive) s.Status = CombatStatus.Won;
+                else if (!unfinished) s.Status = CombatStatus.Won;
                 else if (s.TimeMs >= cfg.Balance.DungeonMaxRunSeconds * 1000.0) s.Status = CombatStatus.Lost;
                 // Prune dead trash (same rationale as farm; keeps the entity list from growing).
                 s.Entities.RemoveAll(e => e.Team == Team.Enemy && !e.Alive && !e.IsBoss);
@@ -1497,6 +1521,12 @@ namespace IdleGame.GameCore
                 events.Add(new CombatEvent { Type = CombatEventType.BossKeyDrop, EntityId = target.Id });
             }
 
+            // §7.3 mimic down: the chest it guarded finally pays, plus a bonus item for the scare.
+            if (target.DungeonChestIndex >= 0 && s.Dungeon != null
+                && target.DungeonChestIndex < s.Dungeon.Dungeon.Chests.Count)
+                PayChest(s, s.Dungeon.Dungeon.Chests[target.DungeonChestIndex], target.DungeonChestIndex,
+                    cfg, rng, events, mimicBonus: true);
+
             // Tower grants NO farm income — the milestone account buffs are the reward, and a
             // grindable income source would undercut the one-clear-per-floor design.
             if (s.Kind == EncounterKind.Tower) return;
@@ -1574,6 +1604,39 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>
+        /// Pay a chest out (§7.3 tables): gold = the room-clear burst × the tier's mult, grave dust
+        /// from the tier's range (into <see cref="CombatState.PendingDust"/>), and the tier's item
+        /// bundle (<see cref="Loot.RollChestDrops"/> — iron headlines ≥Rare, golden ≥Unique with a
+        /// deep-band Mythic chance). A slain mimic pays its chest THROUGH here plus one bonus item
+        /// for the scare. Emits LootDrop per item then one ChestOpen (Amount = gold).
+        /// </summary>
+        private static void PayChest(CombatState s, DungeonChest ch, int chestIndex, GameConfig cfg, Rng rng,
+                                     List<CombatEvent> events, bool mimicBonus)
+        {
+            var b = cfg.Balance;
+            int tier = Math.Max(0, Math.Min(ch.Tier, b.DungeonChestGoldMult.Length - 1));
+            long gold = (long)Math.Floor(s.DungeonRoomClearGold * b.DungeonChestGoldMult[tier]);
+            if (gold > 0) s.PendingGold += gold;
+            var (dmin, dmax) = b.DungeonChestDust[Math.Min(tier, b.DungeonChestDust.Length - 1)];
+            if (dmax > 0) s.PendingDust += rng.RandInt(dmin, dmax);
+
+            double mythic = s.Dungeon?.Dungeon.Params.Encounter?.GoldenMythicChance ?? 0;
+            foreach (var item in Loot.RollChestDrops(rng, s.Loot, cfg, ch.Tier, mythic))
+            {
+                s.PendingLoot.Add(item);
+                events.Add(new CombatEvent { Type = CombatEventType.LootDrop, Item = item });
+            }
+            if (mimicBonus)
+            {
+                var bonus = Loot.RollContextItem(rng, s.Loot, cfg);
+                s.PendingLoot.Add(bonus);
+                events.Add(new CombatEvent { Type = CombatEventType.LootDrop, Item = bonus });
+            }
+            events.Add(new CombatEvent
+            { Type = CombatEventType.ChestOpen, RoomId = ch.RoomId, ChestIndex = chestIndex, Amount = gold });
+        }
+
+        /// <summary>
         /// The §7.3 sealed-door pass (dungeon only, end of every step). In order:
         ///  1. CLEAR — a sealed room with no living attributed enemy unseals (RoomCleared: the
         ///     client's open-door fanfare beat) and joins DungeonClearedRooms.
@@ -1587,10 +1650,44 @@ namespace IdleGame.GameCore
         ///     the key, heroes are also clamped OUT of the boss room.
         /// Deterministic: clamps are pure ring searches; set iteration never drives logic.
         /// </summary>
-        private static void StepDungeonDoors(CombatState s, CombatEntity? leader, List<CombatEvent> events)
+        private static void StepDungeonDoors(CombatState s, CombatEntity? leader, GameConfig cfg, Rng rng,
+                                             List<CombatEvent> events)
         {
             var arena = s.Dungeon!;
             bool bossLocked = s.DungeonKeyRequired && !s.DungeonBossKeyHeld && s.DungeonBossRoomId >= 0;
+
+            // 0 — chests: a living hero near an unopened chest pops it — loot, or teeth (mimic).
+            // Runs before the seal check so a revealed mimic seals its room this same step.
+            var chestList = arena.Dungeon.Chests;
+            for (int ci = 0; ci < chestList.Count; ci++)
+            {
+                if (s.DungeonChestsOpened.Contains(ci)) continue;
+                var ch = chestList[ci];
+                var cpos = new Vec2(ch.X + 0.5, ch.Y + 0.5);
+                bool near = false;
+                foreach (var e in s.Entities)
+                    if (e.Team == Team.Party && e.Alive
+                        && Vec2.Distance(e.Pos, cpos) <= cfg.Balance.DungeonChestOpenRadius)
+                    { near = true; break; }
+                if (!near) continue;
+
+                s.DungeonChestsOpened.Add(ci);
+                if (ch.Mimic)
+                {
+                    for (int m = 0; m < s.DungeonMimics.Count; m++)
+                        if (s.DungeonMimics[m].DungeonChestIndex == ci)
+                        {
+                            var mob = s.DungeonMimics[m];
+                            s.DungeonMimics.RemoveAt(m);
+                            mob.Aggro = true;
+                            s.Entities.Add(mob);
+                            break;
+                        }
+                    events.Add(new CombatEvent { Type = CombatEventType.MimicReveal, RoomId = ch.RoomId, ChestIndex = ci });
+                }
+                else
+                    PayChest(s, ch, ci, cfg, rng, events, mimicBonus: false);
+            }
 
             // 1 — the sealed room's fight phase ended: either the NEXT WAVE rises, or the room clears.
             if (s.DungeonSealedRoomId >= 0 && !RoomHasLivingEnemy(s, s.DungeonSealedRoomId))
@@ -1688,6 +1785,33 @@ namespace IdleGame.GameCore
             // §7.3 wave phases: a room whose spawned mobs all died but whose later waves still WAIT
             // is unfinished business — the sweep must (re)enter it so the seal can release them.
             foreach (var p in s.DungeonPendingWaves) Consider(p.DungeonRoomId);
+            // §7.3 chests: unopened chests (chest room, reward room, a passed-by mimic) pull the
+            // sweep too — the crawl pops every lid before the run can end.
+            var chests = dungeon.Dungeon.Chests;
+            for (int ci = 0; ci < chests.Count; ci++)
+                if (!s.DungeonChestsOpened.Contains(ci)) Consider(chests[ci].RoomId);
+            return best;
+        }
+
+        /// <summary>The cell of the unopened chest in <paramref name="roomId"/> nearest
+        /// <paramref name="from"/> — the sweep's walk target when a room holds lids instead of
+        /// packs (chest room, reward room). Stable cell-index tie-break; null when none.</summary>
+        private static (int x, int y)? NearestUnopenedChestCell(CombatState s, int roomId, Vec2 from)
+        {
+            var d = s.Dungeon?.Dungeon;
+            if (d == null) return null;
+            (int x, int y)? best = null;
+            double bestD = double.MaxValue;
+            for (int ci = 0; ci < d.Chests.Count; ci++)
+            {
+                if (s.DungeonChestsOpened.Contains(ci)) continue;
+                var ch = d.Chests[ci];
+                if (ch.RoomId != roomId) continue;
+                double dist = Vec2.Distance(from, new Vec2(ch.X + 0.5, ch.Y + 0.5));
+                if (dist < bestD || (dist == bestD && best != null
+                                     && ch.Y * d.W + ch.X < best.Value.y * d.W + best.Value.x))
+                { bestD = dist; best = (ch.X, ch.Y); }
+            }
             return best;
         }
 

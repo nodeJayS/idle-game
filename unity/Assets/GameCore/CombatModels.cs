@@ -120,6 +120,9 @@ namespace IdleGame.GameCore
         // Wave 0 stands ready at room entry; higher waves wait in DungeonPendingWaves until the
         // previous wave clears. 0 for everything non-dungeon.
         public int DungeonWave;
+        // §7.3 mimic: the chest (index into Dungeon.Chests) this mob burst out of — its death pays
+        // that chest's contents + a bonus item (HandleDeath). -1 for everything else.
+        public int DungeonChestIndex = -1;
 
         // Role axis (formation): a ranged hero (HeroDef.Role == "ranged") parks at casting
         // distance, fires at what's already in reach mid-regroup, and backpedals from anything
@@ -222,6 +225,13 @@ namespace IdleGame.GameCore
         // §7.3 room-clear reward beat: the gold burst a cleared room pays (stage-scaled from the
         // floor's roster at InitDungeon; 0 outside dungeons).
         public long DungeonRoomClearGold;
+        // §7.3 chests: opened chest indices (into Dungeon.Chests — includes revealed mimics), the
+        // pre-built mimic ambushers waiting for their chest to be disturbed (the DungeonPendingWaves
+        // trick: stats/rng rolled at init), and grave dust accrued this run (client banks it like
+        // PendingGold). A run can't be Won while a chest stands unopened.
+        public HashSet<int> DungeonChestsOpened = new HashSet<int>();
+        public List<CombatEntity> DungeonMimics = new List<CombatEntity>();
+        public long PendingDust;
     }
 
     /// <summary>An active monster modifier handed to the sim by the client (resolved from the
@@ -238,8 +248,9 @@ namespace IdleGame.GameCore
     {
         Hit, Death, LootDrop, LevelUp, WaveCleared, BossDefeated, Respawn, SkillCast, Heal,
         // Dungeon room progression (§7.3): doors slam shut / swing open / the Boss Key drops /
-        // the sealed room's next wave rises (RoomWave: Amount = the wave index that just spawned).
-        RoomSealed, RoomCleared, BossKeyDrop, RoomWave,
+        // the sealed room's next wave rises (RoomWave: Amount = the wave index that just spawned) /
+        // a chest pops (ChestOpen: ChestIndex + Amount = gold) / a chest bites (MimicReveal).
+        RoomSealed, RoomCleared, BossKeyDrop, RoomWave, ChestOpen, MimicReveal,
     }
 
     /// <summary>Flat event the renderer reacts to (damage numbers, deaths, etc.).</summary>
@@ -254,6 +265,7 @@ namespace IdleGame.GameCore
         public int Stage;
         public Item? Item;          // set on LootDrop; EntityId = the monster that dropped it
         public string? SkillId;     // set on SkillCast: which skill fired (renderer FX hook)
-        public int RoomId = -1;     // set on RoomSealed/RoomCleared: which dungeon room
+        public int RoomId = -1;     // set on RoomSealed/RoomCleared/RoomWave/ChestOpen/MimicReveal
+        public int ChestIndex = -1; // set on ChestOpen/MimicReveal: index into Dungeon.Chests
     }
 }

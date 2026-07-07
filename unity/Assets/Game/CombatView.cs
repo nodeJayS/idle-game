@@ -1051,6 +1051,12 @@ namespace IdleGame.Game
                 AdvanceQuest(QuestKind.EarnGold, earned);
                 Award(AchievementMetric.GoldEarned, earned); // lifetime ladder (Lever 4)
             }
+            if (_combat.PendingDust > 0)
+            {
+                // §7.3 chest dust: bank straight into the grave-dust currency (the boon wallet).
+                _save = Progression.GrantCurrency(_save, _cfg.Balance.CryptDustCurrency, _combat.PendingDust);
+                _combat.PendingDust = 0;
+            }
             if (xp) Award(AchievementMetric.HeroLevel, MaxHeroLevel()); // a level-up may complete a milestone
             return xp;
         }
@@ -1251,7 +1257,7 @@ namespace IdleGame.Game
             _modesOpen = false;
             _cryptRunFloorsLeft = _cfg.Balance.CryptFloorsPerRun - 1;
             int floor = Crypt.NextFloor(_save);
-            var d = DungeonMode.Generate(_save, _cfg, floor);
+            var d = DungeonMode.Generate(_save, _cfg, floor, IsFinalRunFloor(floor));
             _chat?.AddFeed($"Depth {floor} — entering {d.Name}…", new Color(0.72f, 0.55f, 0.95f));
             LoadingScreen.Run($"Depth {floor} — {d.Name}", () =>
             {
@@ -1260,13 +1266,19 @@ namespace IdleGame.Game
             });
         }
 
+        /// <summary>True when <paramref name="floor"/> ends the current run — the last of its
+        /// CryptFloorsPerRun attempts OR the crypt's content ceiling. That floor grows the §7.3
+        /// REWARD ROOM behind its boss.</summary>
+        private bool IsFinalRunFloor(int floor) =>
+            _cryptRunFloorsLeft == 0 || floor >= _cfg.Balance.CryptMaxDepth;
+
         /// <summary>The descend beat between run floors: the NEXT floor of the same run, through the
         /// loading screen (world torn down and rebuilt at full black — same isolation as entry).</summary>
         private void DescendToNextFloor()
         {
             _cryptRunFloorsLeft--;
             int floor = Crypt.NextFloor(_save);
-            var d = DungeonMode.Generate(_save, _cfg, floor);
+            var d = DungeonMode.Generate(_save, _cfg, floor, IsFinalRunFloor(floor));
             _chat?.AddFeed($"Descending… Depth {floor} — {d.Name}", new Color(0.72f, 0.55f, 0.95f));
             LoadingScreen.Run($"Descending — Depth {floor}", () =>
             {
