@@ -211,8 +211,8 @@ reading as their class stereotype, and projectiles/skill FX are glowing
 primitive spheres. All hero work rides the existing MS2 pipeline
 (manifest json → bake `--renders` → USER EYEBALLS → `--export` →
 Tools > Build Hero Animators; raw extracts stay outside the repo). Slices:
-(a) unpark the Xml.m2d ITEM-TABLE extraction (MS2Extract repo) so the
-wardrobe is browsable (item id → name/slot); needed to FIND hats/robes;
+(a) DONE 2026-07-07: Xml.m2d extracted; `art/tools/wardrobe.py` browses
+the wardrobe (keyword → id/name/slot/gender + manifest-ready nif path);
 (b) Ice Mage relook: classic pointy wizard hat + robes, blue/white
 palette — item/dye swaps in `art/heroes/icemage.json`, renders to the
 user before export;

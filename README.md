@@ -70,3 +70,8 @@ All baked assets are committed; skip this unless making new heroes/clips.
   `art/motion/<defId>/` → bake with `--renders` (EYEBALL them — item transforms
   and dyes lie) → `--export` → Unity menu `Tools > Build Hero Animators`.
   The four shipped heroes are worked examples.
+- Shop for outfit items with `python art/tools/wardrobe.py <keywords>`
+  (`--slot CP --gender f`, `--json`) — joins the extracted item NIFs with the
+  Xml.m2d name/slot tables and prints manifest-ready paths. Index caches at
+  `Extracted\wardrobe_index.json` (outside the repo); `--rebuild` after
+  re-extracting.
