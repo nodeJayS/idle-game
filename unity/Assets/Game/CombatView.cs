@@ -723,7 +723,11 @@ namespace IdleGame.Game
                 _rig = Camera.main.GetComponent<CameraRig>() ?? Camera.main.gameObject.AddComponent<CameraRig>();
                 _rig.Init(Camera.main);
             }
-            StartFarm();
+            // §7.3 persistence: a run left in progress by a previous quit resumes straight into its
+            // floor (the key was already spent); otherwise start the campaign farm as usual.
+            var pendingRun = Crypt.ActiveRun(_save);
+            if (pendingRun != null) ResumeDungeonRun(pendingRun);
+            else StartFarm();
         }
 
         // ---- run lifecycle ----
@@ -1127,36 +1131,65 @@ namespace IdleGame.Game
                 }
             }
             // Crypt run (roguelite meta): a win banks the floor — record +1, first-clear gems — and
-            // either DESCENDS (floors left) or grants the end-of-run CHEST (grave dust). A wipe ends
-            // the run and forfeits the chest; drops/kills so far were already committed. The Update
+            // either DESCENDS (floors left) or ENDS the run. The end-of-run reward is the diegetic
+            // REWARD VAULT walked on the final floor (§7.3) — its chests already paid gold/dust/loot
+            // during the sweep, so there's no separate chest grant here (the old GrantChest urn was a
+            // double-pay). A wipe ends the run too; drops/kills so far were already committed. Either
+            // ending clears ActiveRun so it can't be resumed, and shows the run summary. The Update
             // resume block reads _cryptDescend to pick descend-vs-return.
             else if (_combat.Kind == EncounterKind.Dungeon)
             {
+                long now = NowMs();
                 if (_combat.Status == CombatStatus.Won)
                 {
-                    long now = NowMs();
                     int floor = Crypt.NextFloor(_save);
                     _save = Crypt.RecordFloorClear(_save, floor, _cfg);
+                    _cryptRunFloorsCleared++;
                     _chat?.AddFeed($"Depth {floor} cleared!  +{_cfg.Balance.CryptGemsPerFloor} gems",
                                    new Color(0.6f, 0.85f, 1f));
                     Award(AchievementMetric.BossesKilled, 1); // the floor boss went down
 
                     _cryptDescend = _cryptRunFloorsLeft > 0 && !Crypt.IsComplete(_save, _cfg);
-                    if (!_cryptDescend)
-                    {
-                        var (next, dust) = Crypt.GrantChest(_save, _cfg);
-                        _save = next;
-                        _chat?.AddFeed($"The crypt chest opens: +{Num.CompactFloor(dust)} grave dust. " +
-                                       "Spend it on Boons in the Modes menu.", new Color(1f, 0.85f, 0.4f));
-                    }
-                    SaveStore.Save(Save.Touch(_save, now)); // gems/dust/record — flush like the daily claim
+                    if (!_cryptDescend) EndCryptRun(won: true);
                 }
                 else
                 {
                     _cryptDescend = false;
-                    _chat?.AddFeed("The crypt claims this run — the chest is forfeit.", new Color(1f, 0.6f, 0.4f));
+                    EndCryptRun(won: false);
                 }
+                SaveStore.Save(Save.Touch(_save, now)); // gems/record/run-end — flush like the daily claim
             }
+        }
+
+        /// <summary>Close out a crypt run (§7.3): clear the persisted ActiveRun (so it can't resume)
+        /// and post the run SUMMARY — floors cleared this sitting plus the gem / dust / gold it earned
+        /// (diffed from the snapshots taken at run start). Does not save; the ResolveOutcome caller
+        /// flushes.</summary>
+        private void EndCryptRun(bool won)
+        {
+            _save = Crypt.EndRun(_save, _cfg);
+            long dust = Crypt.Dust(_save, _cfg) - _runStartDust;
+            long gems = CurrencyNow(_cfg.Balance.PremiumCurrency) - _runStartGems;
+            long gold = CurrencyNow("gold") - _runStartGold;
+            _runSummary = $"{_cryptRunFloorsCleared} floor{(_cryptRunFloorsCleared == 1 ? "" : "s")} cleared" +
+                          $"  ·  +{Num.CompactFloor(gems)} gems  ·  +{Num.CompactFloor(dust)} dust" +
+                          $"  ·  +{Num.CompactFloor(gold)} gold";
+            _chat?.AddFeed(won ? $"Crypt run complete!  {_runSummary}"
+                               : $"The crypt claims this run.  {_runSummary}",
+                           won ? new Color(1f, 0.85f, 0.4f) : new Color(1f, 0.6f, 0.4f));
+        }
+
+        private long CurrencyNow(string key) => _save.Currencies.TryGetValue(key, out var v) ? v : 0;
+
+        /// <summary>Snapshot the currency balances at run start so EndCryptRun can diff them into the
+        /// run summary; reset the floors-cleared tally.</summary>
+        private void ResetRunSummary()
+        {
+            _cryptRunFloorsCleared = 0;
+            _runSummary = "";
+            _runStartDust = Crypt.Dust(_save, _cfg);
+            _runStartGems = CurrencyNow(_cfg.Balance.PremiumCurrency);
+            _runStartGold = CurrencyNow("gold");
         }
 
         // All owned modifiers share the same stage-derived strength; read the max (0 if none owned).
@@ -1224,10 +1257,16 @@ namespace IdleGame.Game
             ReconcileViews();
         }
 
-        // ---- crypt run state (transient — a run lives one sitting by design; quitting = abandoning,
-        // the key is spent, the chest is forfeit, everything already dropped is already banked) ----
+        // ---- crypt run state ----
+        // §7.3 persistence: a run now SURVIVES a quit (Crypt.ActiveRun persists floor/seed/floors-left;
+        // Init resumes it, no key re-spent). These mirror the persisted run for the live session.
         private int _cryptRunFloorsLeft;  // floors still to attempt AFTER the current one
         private bool _cryptDescend;       // set by ResolveOutcome: this win continues the run
+        // Run summary (§7.3): floors cleared this sitting + currency snapshots at run start, diffed
+        // into the end-of-run recap line shown in the outcome modal + feed.
+        private int _cryptRunFloorsCleared;
+        private long _runStartDust, _runStartGems, _runStartGold;
+        private string _runSummary = "";
 
         private static long NowMs() => System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
@@ -1250,20 +1289,43 @@ namespace IdleGame.Game
                     new Color(1f, 0.72f, 0.5f));
                 return;
             }
-            (_save, _) = Crypt.StartRun(_save, _cfg);
-            SaveStore.Save(Save.Touch(_save, now)); // a key is spent — never lose that to a crash
+            (_save, _) = Crypt.StartRun(_save, _cfg); // consume a key
 
             CommitPending(); // bank campaign loot/xp before the state is dropped
             _modesOpen = false;
             _cryptRunFloorsLeft = _cfg.Balance.CryptFloorsPerRun - 1;
+            ResetRunSummary();
             int floor = Crypt.NextFloor(_save);
-            var d = DungeonMode.Generate(_save, _cfg, floor, IsFinalRunFloor(floor));
+            bool final = IsFinalRunFloor(floor);
+            // §7.3 persistence: pin THIS floor's seed so a quit-then-resume replays the same layout.
+            // The key spend AND the resumable run land in ONE save write — a crash can't eat a key
+            // without leaving a run to resume.
+            int seed = DungeonMode.NextSeed(_save, floor);
+            _save = Crypt.BeginRunFloor(_save, floor, _cryptRunFloorsLeft, seed, final, _cfg);
+            SaveStore.Save(Save.Touch(_save, now));
+
+            var d = DungeonMode.Generate(_cfg, floor, final, seed);
             _chat?.AddFeed($"Depth {floor} — entering {d.Name}…", new Color(0.72f, 0.55f, 0.95f));
             LoadingScreen.Run($"Depth {floor} — {d.Name}", () =>
             {
                 Begin(DungeonMode.Enter(_cfg, BuildParty(), _save, NewRng(), d, floor)); // Begin refreshes gear
                 SnapCameraToParty();
             });
+        }
+
+        /// <summary>Resume a crypt run suspended by a previous quit (§7.3 persistence): rebuild the
+        /// SAME floor from its persisted seed and drop straight in — no key spent, no black-screen
+        /// load (we're at boot, nothing on screen but the menu). The floor restarts from its entrance
+        /// (transient combat state isn't persisted, by architecture); floors already descended stay
+        /// banked in DepthRecord, and the key was already spent when the run began.</summary>
+        private void ResumeDungeonRun(CryptRunState run)
+        {
+            _cryptRunFloorsLeft = run.FloorsLeft;
+            ResetRunSummary();
+            var d = DungeonMode.Generate(_cfg, run.Floor, run.FinalFloor, run.Seed);
+            Begin(DungeonMode.Enter(_cfg, BuildParty(), _save, NewRng(), d, run.Floor));
+            SnapCameraToParty();
+            _chat?.AddFeed($"Resuming your crypt run — Depth {run.Floor}.", new Color(0.72f, 0.55f, 0.95f));
         }
 
         /// <summary>True when <paramref name="floor"/> ends the current run — the last of its
@@ -1278,7 +1340,14 @@ namespace IdleGame.Game
         {
             _cryptRunFloorsLeft--;
             int floor = Crypt.NextFloor(_save);
-            var d = DungeonMode.Generate(_save, _cfg, floor, IsFinalRunFloor(floor));
+            bool final = IsFinalRunFloor(floor);
+            // §7.3 persistence: re-point the run at the next floor (its own seed) and flush — a quit
+            // between floors resumes on THIS floor, not the one just cleared.
+            int seed = DungeonMode.NextSeed(_save, floor);
+            _save = Crypt.BeginRunFloor(_save, floor, _cryptRunFloorsLeft, seed, final, _cfg);
+            SaveStore.Save(Save.Touch(_save, NowMs()));
+
+            var d = DungeonMode.Generate(_cfg, floor, final, seed);
             _chat?.AddFeed($"Descending… Depth {floor} — {d.Name}", new Color(0.72f, 0.55f, 0.95f));
             LoadingScreen.Run($"Descending — Depth {floor}", () =>
             {
@@ -1296,6 +1365,8 @@ namespace IdleGame.Game
             if (_combat.Kind != EncounterKind.Dungeon || LoadingScreen.Busy) return;
             _chat?.AddFeed("Crypt run abandoned — the chest is forfeit.", new Color(1f, 0.72f, 0.5f));
             _modesOpen = false;
+            _save = Crypt.EndRun(_save, _cfg); // §7.3: an explicit abandon ends the run (no resume)
+            SaveStore.Save(Save.Touch(_save, NowMs()));
             ReturnToCampThroughLoad();
         }
 
@@ -2446,28 +2517,40 @@ namespace IdleGame.Game
                 DrawRect(x - 2, y - 2, w + 4, h + 4, new Color(0.40f, 0.70f, 0.45f, 0.95f));
                 DrawRect(x, y, w, h, new Color(0.10f, 0.13f, 0.11f, 0.98f));
 
+                // §7.3: a dungeon win that ENDS the run (no descend) reads as a run-summary card.
+                bool runComplete = dungeonWin && !_cryptDescend;
                 var t = new GUIStyle(GUI.skin.label) { fontSize = 30, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
                 t.normal.textColor = new Color(0.6f, 0.95f, 0.6f);
-                string title = dungeonWin ? $"Depth {Crypt.DepthRecord(_save)} cleared!"
+                string title = runComplete ? "Crypt run complete!"
+                             : dungeonWin ? $"Depth {Crypt.DepthRecord(_save)} cleared!"
                              : towerWin ? $"Tower floor {_combat.TowerFloor} cleared!"
                              : $"Stage {_combat.Stage} cleared!";
                 GUI.Label(new Rect(x, y + 24, w, 40), title, t);
-                var sub = new GUIStyle(GUI.skin.label) { fontSize = 15, alignment = TextAnchor.MiddleCenter };
+                var sub = new GUIStyle(GUI.skin.label) { fontSize = 15, alignment = TextAnchor.MiddleCenter, wordWrap = true };
                 sub.normal.textColor = new Color(0.8f, 0.85f, 0.8f);
-                GUI.Label(new Rect(x, y + 70, w, 24),
-                    dungeonWin ? (_cryptDescend ? "Descending deeper…" : "Returning to camp…")
-                    : towerWin ? "Returning to camp…" : "Advancing to the next stage…", sub);
+                string subText = runComplete ? _runSummary
+                    : dungeonWin ? "Descending deeper…"
+                    : towerWin ? "Returning to camp…" : "Advancing to the next stage…";
+                GUI.Label(new Rect(x + 20, y + 70, w - 40, 44), subText, sub);
 
                 if (Button(x + w / 2f - 80, y + h - 60, 160, 44, "OK")) _outcomeTimer = 9999f; // fast-forward
             }
             else
             {
+                bool cryptWipe = _combat.Kind == EncounterKind.Dungeon;
                 string banner = _combat.Kind == EncounterKind.BossChallenge ? "BOSS FAILED"
                               : _combat.Kind == EncounterKind.Tower ? $"FLOOR {_combat.TowerFloor} FAILED"
-                              : _combat.Kind == EncounterKind.Dungeon ? "CRYPT FAILED"
+                              : cryptWipe ? "CRYPT FAILED"
                               : "PARTY WIPED";
                 var bs = new GUIStyle(GUI.skin.label) { fontSize = 34, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
                 GUI.Label(new Rect(0, sh / 2f - 60, sw, 44), banner, bs);
+                // §7.3: a wiped run still gets its summary (floors banked before the wipe count).
+                if (cryptWipe && _runSummary.Length > 0)
+                {
+                    var rs = new GUIStyle(GUI.skin.label) { fontSize = 16, alignment = TextAnchor.MiddleCenter };
+                    rs.normal.textColor = new Color(0.85f, 0.8f, 0.75f);
+                    GUI.Label(new Rect(0, sh / 2f - 12, sw, 24), _runSummary, rs);
+                }
             }
         }
 

@@ -64,18 +64,27 @@ namespace IdleGame.Game
         private const string BossId = "nightmare_maw";
 
         /// <summary>
-        /// Generate a run FLOOR's dungeon (pure data; the caller shows its seeded name on the loading
-        /// screen BEFORE any world change happens). Theme = the floor's depth tier (crypt → molten →
-        /// frost bands). Deterministic seed from floor + farm depth, salted, then advanced by the
-        /// session entry counter so re-entries/re-runs re-roll the layout. The run's FINAL floor
-        /// grows the §7.3 REWARD ROOM behind its boss.
+        /// A fresh deterministic seed for <paramref name="floor"/> (farm depth + floor, salted, then
+        /// advanced by the session entry counter so re-entries re-roll). The caller persists this in
+        /// the ActiveRun so a resume replays the same layout without the session-local counter (which
+        /// resets every launch). §7.3 mid-run persistence.
         /// </summary>
-        public static Dungeon Generate(SaveState save, GameConfig cfg, int floor, bool finalFloor)
+        public static int NextSeed(SaveState save, int floor)
         {
             int stage = save.Progress.CurrentStage;
             int seed = unchecked((stage * (int)2654435761u ^ 0x5EED) + floor * 92821 + _entryCounter);
             _entryCounter++;
+            return seed;
+        }
 
+        /// <summary>
+        /// Generate a run FLOOR's dungeon (pure data; the caller shows its seeded name on the loading
+        /// screen BEFORE any world change happens) from an explicit <paramref name="seed"/> — the one
+        /// the ActiveRun persisted, so entry and resume produce the SAME floor. Theme = the floor's
+        /// depth tier (crypt → molten → frost bands). The run's FINAL floor grows the §7.3 REWARD ROOM.
+        /// </summary>
+        public static Dungeon Generate(GameConfig cfg, int floor, bool finalFloor, int seed)
+        {
             return DungeonGen.Generate(new DungeonParams
             {
                 Seed = seed,

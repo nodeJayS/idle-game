@@ -145,12 +145,12 @@ gate (`54dba8a`); (c) staged wave phases + room-clear gold beat
 (`b2e604d`); (d) chest rooms, goofy mimics, end-of-run reward vault
 (`ac30ce0`); (e) client tells — portcullis door seals, room/wave/key
 feed+SFX beats, chest-lid pops, mimic reveal, elite floor-guardian
-mini-bosses on non-final floors. Remaining:
-(f) mid-run persistence (quit resumes, key not forfeited) + run
-summary screen — also fold the legacy end-of-run GrantChest popup
-into the vault (today BOTH pay dust; make the urn diegetic);
+mini-bosses (`346e481`); (f) mid-run persistence (CryptState.ActiveRun
+holds floor/seed/floors-left; a quit resumes the same floor, no key
+forfeited — additive field, no save bump) + run-summary card + the
+GrantChest urn folded into the vault (no more double-dust). Remaining:
 (g) BalanceSim dungeon mode = the difficulty/reward acceptance
-chart per depth.
+chart per depth (the encounter/chest starting values become tuned).
 
 **10.8 Endless mode ("deepest stage")**
 The post-100 chase once 10.1 makes 100 reachable. (a) GameCore:
