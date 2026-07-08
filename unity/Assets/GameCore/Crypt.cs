@@ -62,6 +62,7 @@ namespace IdleGame.GameCore
                 LastKeyDay = today,
                 DepthRecord = c.DepthRecord,
                 Boons = c.Boons,
+                ActiveRun = c.ActiveRun,
             }, cfg);
         }
 
@@ -98,8 +99,58 @@ namespace IdleGame.GameCore
                 LastKeyDay = c.LastKeyDay,
                 DepthRecord = c.DepthRecord,
                 Boons = c.Boons,
+                ActiveRun = c.ActiveRun, // BeginRunFloor sets it in the SAME save write (no lost-key window)
             }, cfg);
             return (next, true);
+        }
+
+        // ---- mid-run persistence (§7.3) ------------------------------------
+
+        /// <summary>The suspended run, or null when idle.</summary>
+        public static CryptRunState? ActiveRun(SaveState save) => save.Progress.Crypt.ActiveRun;
+
+        /// <summary>True when a run is in progress (a quit left it resumable).</summary>
+        public static bool HasActiveRun(SaveState save) => save.Progress.Crypt.ActiveRun != null;
+
+        /// <summary>
+        /// Record the floor now being attempted (the run's first floor at start, or the next floor on
+        /// a descend): persists its <paramref name="seed"/> so a resume reproduces the exact layout,
+        /// plus how many descends remain. Meant to share the SAME save write as <see cref="StartRun"/>
+        /// so a crash can't spend a key without leaving a resumable run. Pure.
+        /// </summary>
+        public static SaveState BeginRunFloor(SaveState save, int floor, int floorsLeft, int seed,
+                                              bool finalFloor, GameConfig cfg)
+        {
+            var c = save.Progress.Crypt;
+            return WithCrypt(save, new CryptState
+            {
+                Keys = c.Keys,
+                LastKeyDay = c.LastKeyDay,
+                DepthRecord = c.DepthRecord,
+                Boons = c.Boons,
+                ActiveRun = new CryptRunState
+                {
+                    Floor = floor,
+                    FloorsLeft = Math.Max(0, floorsLeft),
+                    Seed = seed,
+                    FinalFloor = finalFloor,
+                },
+            }, cfg);
+        }
+
+        /// <summary>Clear the suspended run (completed, abandoned, or wiped). No-op share when idle.</summary>
+        public static SaveState EndRun(SaveState save, GameConfig cfg)
+        {
+            var c = save.Progress.Crypt;
+            if (c.ActiveRun == null) return save;
+            return WithCrypt(save, new CryptState
+            {
+                Keys = c.Keys,
+                LastKeyDay = c.LastKeyDay,
+                DepthRecord = c.DepthRecord,
+                Boons = c.Boons,
+                ActiveRun = null,
+            }, cfg);
         }
 
         /// <summary>
@@ -118,6 +169,7 @@ namespace IdleGame.GameCore
                 LastKeyDay = c.LastKeyDay,
                 DepthRecord = floor,
                 Boons = c.Boons,
+                ActiveRun = c.ActiveRun, // a mid-run clear keeps the run alive (descend/end updates it)
             }, cfg, gems: cfg.Balance.CryptGemsPerFloor);
         }
 
@@ -217,6 +269,7 @@ namespace IdleGame.GameCore
                 LastKeyDay = c.LastKeyDay,
                 DepthRecord = c.DepthRecord,
                 Boons = boons,
+                ActiveRun = c.ActiveRun,
             }, cfg, dustDelta: -cost);
             return (next, true);
         }

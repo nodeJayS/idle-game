@@ -148,6 +148,87 @@ namespace IdleGame.GameCore.Tests
             Assert.Same(s, Crypt.RecordFloorClear(s, Crypt.NextFloor(s), Cfg));
         }
 
+        // ---------------- mid-run persistence (§7.3, 10.7f) ----------------
+
+        [Fact]
+        public void FreshSaveHasNoActiveRun()
+        {
+            var s = Fresh();
+            Assert.False(Crypt.HasActiveRun(s));
+            Assert.Null(Crypt.ActiveRun(s));
+        }
+
+        [Fact]
+        public void BeginRunFloorPersistsTheFloorSeedAndDescendsThenEndRunClears()
+        {
+            var s = Fresh();
+            var t = Crypt.BeginRunFloor(s, floor: 4, floorsLeft: 2, seed: 12345, finalFloor: false, Cfg);
+            var run = Crypt.ActiveRun(t);
+            Assert.NotNull(run);
+            Assert.Equal(4, run!.Floor);
+            Assert.Equal(2, run.FloorsLeft);
+            Assert.Equal(12345, run.Seed);
+            Assert.False(run.FinalFloor);
+            Assert.False(Crypt.HasActiveRun(s)); // original untouched (pure)
+
+            // Descend: same reducer re-points ActiveRun at the next floor.
+            var u = Crypt.BeginRunFloor(t, floor: 5, floorsLeft: 1, seed: 999, finalFloor: false, Cfg);
+            Assert.Equal(5, Crypt.ActiveRun(u)!.Floor);
+            Assert.Equal(999, Crypt.ActiveRun(u)!.Seed);
+
+            var v = Crypt.EndRun(u, Cfg);
+            Assert.False(Crypt.HasActiveRun(v));
+            Assert.Same(v, Crypt.EndRun(v, Cfg)); // idle EndRun is a no-op share
+        }
+
+        [Fact]
+        public void KeySpendAndRunStartCanShareOneStateSoNoKeyIsLostOnCrash()
+        {
+            // The client sequences StartRun (key−1) then BeginRunFloor (ActiveRun set) and writes
+            // ONCE — so the persisted save always has BOTH the spent key and a resumable run.
+            var s = Crypt.TickKeys(Fresh(), Cfg, Now);
+            int keys0 = Crypt.Keys(s);
+            var (t, started) = Crypt.StartRun(s, Cfg);
+            Assert.True(started);
+            int floor = Crypt.NextFloor(t);
+            var persisted = Crypt.BeginRunFloor(t, floor, Cfg.Balance.CryptFloorsPerRun - 1, 777,
+                Cfg.Balance.CryptFloorsPerRun == 1, Cfg);
+            Assert.Equal(keys0 - 1, Crypt.Keys(persisted));
+            Assert.True(Crypt.HasActiveRun(persisted));
+            Assert.Equal(floor, Crypt.ActiveRun(persisted)!.Floor);
+        }
+
+        [Fact]
+        public void MidRunReducersPreserveTheActiveRun()
+        {
+            // TickKeys, RecordFloorClear and BuyBoon must not clobber a run in progress.
+            var s = Crypt.BeginRunFloor(Fresh(), floor: 1, floorsLeft: 2, seed: 42, finalFloor: false, Cfg);
+
+            var afterTick = Crypt.TickKeys(s, Cfg, Now + Day); // a key recharges mid-run
+            Assert.True(Crypt.HasActiveRun(afterTick));
+            Assert.Equal(42, Crypt.ActiveRun(afterTick)!.Seed);
+
+            var afterClear = Crypt.RecordFloorClear(s, Crypt.NextFloor(s), Cfg);
+            Assert.True(Crypt.HasActiveRun(afterClear)); // descend/end updates it next, not this
+
+            var rich = WithDust(s, 100000);
+            rich = Crypt.BeginRunFloor(rich, 1, 2, 42, false, Cfg); // WithDust ticked keys; re-arm the run
+            var (afterBuy, bought) = Crypt.BuyBoon(rich, "vigor", Cfg);
+            Assert.True(bought);
+            Assert.True(Crypt.HasActiveRun(afterBuy));
+        }
+
+        [Fact]
+        public void MigrateBackfillsOlderSavesWithNoActiveRun()
+        {
+            // Additive field: an older save's CryptState has ActiveRun default null — no bump, no NRE.
+            var s = Fresh();
+            s.Progress.Crypt.ActiveRun = null;
+            var migrated = Save.Migrate(s);
+            Assert.False(Crypt.HasActiveRun(migrated));
+            Assert.Equal(Save.SaveVersion, migrated.Version); // still v2 — ActiveRun needs no bump
+        }
+
         [Fact]
         public void ChestGrantsDustScaledByDepth()
         {

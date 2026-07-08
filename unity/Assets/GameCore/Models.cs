@@ -213,6 +213,24 @@ namespace IdleGame.GameCore
         public long LastKeyDay; // UTC day-index of the last key grant; 0 = never ticked (first tick grants)
         public int DepthRecord; // deepest floor cleared (0 = none); the next run starts at DepthRecord+1
         public Dictionary<string, int> Boons = new Dictionary<string, int>(); // boonId -> rank purchased
+        // §7.3 mid-run persistence: the run in progress, or null when idle. Set at run start / on
+        // each descend, cleared when the run completes, is abandoned, or wipes. Purely additive —
+        // absent in older saves deserializes to null ("no run"), so NO SaveVersion bump (the same
+        // precedent as GachaPity / Modifiers.Tuning). The persisted SEED lets a resume reproduce the
+        // current floor's exact layout without the session-local DungeonMode counter.
+        public CryptRunState? ActiveRun;
+    }
+
+    /// <summary>A crypt RUN suspended across sessions (§7.3 persistence). Quitting mid-run keeps this
+    /// (and the already-spent key), so a resume drops back into the SAME floor — regenerated from
+    /// <see cref="Seed"/> — rather than forfeiting the key. Floors already descended stay banked in
+    /// <see cref="CryptState.DepthRecord"/>; this only tracks the floor currently in progress.</summary>
+    public sealed class CryptRunState
+    {
+        public int Floor;       // the floor being attempted right now
+        public int FloorsLeft;  // descends remaining AFTER this floor (0 ⇒ this is the final floor)
+        public int Seed;        // exact DungeonGen seed for this floor's layout (resume reproduces it)
+        public bool FinalFloor; // this floor grows the end-of-run reward vault
     }
 
     /// <summary>Which reward channel a monster modifier boosts (thematic per type — see
