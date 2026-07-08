@@ -31,12 +31,6 @@ namespace IdleGame.Game
         // Root of the built dungeon visual (DungeonRenderer output), destroyed on Exit.
         private static GameObject? _worldRoot;
 
-        // §7.3 client tells: the live floor's data + theme (for door seals/chest beats), the
-        // per-room door-seal roots, all cleared on Exit with the world.
-        private static Dungeon? _dungeon;
-        private static DungeonTheme? _theme;
-        private static readonly System.Collections.Generic.Dictionary<int, GameObject> _doorSeals =
-            new System.Collections.Generic.Dictionary<int, GameObject>();
 
         // Overworld roots we deactivated on Enter, remembered so Exit only re-activates what WAS active
         // (a zone with no arena has no ArenaTerrain/ArenaWater, so we must not blindly turn them on).
@@ -139,9 +133,6 @@ namespace IdleGame.Game
 
             if (_worldRoot != null) Object.Destroy(_worldRoot);
             _worldRoot = null;
-            _doorSeals.Clear(); // children of the world root — already gone with it
-            _dungeon = null;
-            _theme = null;
 
             RestoreStash();
 
@@ -168,29 +159,11 @@ namespace IdleGame.Game
             // Build the dungeon geometry/props/lights/flicker under a fresh root.
             _worldRoot = DungeonRenderer.Build(d, themeKey, null, showSpawns: false);
             _worldRoot.name = "DungeonWorld";
-            _dungeon = d;
-            _theme = theme;
-            _doorSeals.Clear();
 
             StashAndStage(theme);
         }
 
         // ---- §7.3 room-progression tells (driven by CombatView's sim events) -----------------
-
-        /// <summary>Drop portcullis bars on every doorway of <paramref name="roomId"/> (RoomSealed).</summary>
-        public static void SealRoom(int roomId)
-        {
-            if (!Active || _worldRoot == null || _dungeon == null || _theme == null) return;
-            if (_doorSeals.ContainsKey(roomId)) return;
-            _doorSeals[roomId] = DungeonRenderer.BuildDoorSeal(_dungeon, roomId, _theme, _worldRoot.transform);
-        }
-
-        /// <summary>Lift the bars again (RoomCleared).</summary>
-        public static void UnsealRoom(int roomId)
-        {
-            if (_doorSeals.TryGetValue(roomId, out var go) && go != null) Object.Destroy(go);
-            _doorSeals.Remove(roomId);
-        }
 
         /// <summary>Chest-open beat: tilt the lid back and kill the glow (ChestOpen).</summary>
         public static void ReactChestOpen(int chestIndex)

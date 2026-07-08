@@ -376,46 +376,6 @@ namespace IdleGame.Game
             EmissiveQuad(root.transform, new Vector3(0f, 0.5f, 0f), 0.5f, DungeonTheme.ChestGlow, 0.9f, "glow");
         }
 
-        // ---- §7.3 sealed-door tell: emissive portcullis rods on every doorway cell touching the
-        // room. Built when the sim seals a room (CombatView → DungeonMode.SealRoom), destroyed on
-        // the clear. Rods run PERPENDICULAR to the door's axis so they read as bars across it. ----
-        public static GameObject BuildDoorSeal(Dungeon d, int roomId, DungeonTheme th, Transform parent)
-        {
-            var root = new GameObject("DoorSeal_" + roomId);
-            root.transform.SetParent(parent, false);
-            var rodMat = EmissiveMaterial(th.Flame, 1.4f);
-
-            foreach (var door in d.Doorways)
-            {
-                // Which 4-neighbour belongs to the sealed room? (None ⇒ not this room's door.)
-                bool xAxis = false, mine = false;
-                int[] dx = { 1, -1, 0, 0 };
-                int[] dy = { 0, 0, 1, -1 };
-                for (int k = 0; k < 4; k++)
-                {
-                    int nx = door.X + dx[k], ny = door.Y + dy[k];
-                    if (nx < 0 || nx >= d.W || ny < 0 || ny >= d.H) continue;
-                    if (d.CellRoom[ny * d.W + nx] != roomId) continue;
-                    mine = true;
-                    xAxis = dx[k] != 0; // room lies along ±x ⇒ the door faces x ⇒ bars span z
-                    break;
-                }
-                if (!mine) continue;
-
-                var buf = new MeshBuf();
-                for (int r = 0; r < 3; r++)
-                {
-                    float off = -0.28f + r * 0.28f;
-                    float x0 = xAxis ? -0.07f : off - 0.07f, x1 = xAxis ? 0.07f : off + 0.07f;
-                    float z0 = xAxis ? off - 0.07f : -0.07f, z1 = xAxis ? off + 0.07f : 0.07f;
-                    EmitBox(buf, x0, x1, 0f, 1.7f, z0, z1, Color.white, true, true, true, true, true, false);
-                }
-                var go = MakeMeshGo(buf, root.transform, rodMat, "bars");
-                go.transform.localPosition = new Vector3(door.X + 0.5f, 0f, door.Y + 0.5f);
-            }
-            return root;
-        }
-
         // ---- §7.3 authored chests (tiered wooden/iron/golden; a mimic looks IDENTICAL — that's
         // the joke; its reveal beat is the client tell slice). Named DungeonChest_<index> so the
         // open/reveal reactions can find them by Dungeon.Chests index. ----

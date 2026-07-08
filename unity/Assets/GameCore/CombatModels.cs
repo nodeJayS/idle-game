@@ -204,23 +204,24 @@ namespace IdleGame.GameCore
         // gets only its own inherent modifier, applied directly at init.
         public List<ModifierInstance> ActiveModifiers = new List<ModifierInstance>();
 
-        // ---- Dungeon room progression (§7.3 sealed-door crawl; Kind == Dungeon only) ----
-        // The room the party is currently SEALED inside (-1 = none): set when the leader stands in
-        // an uncleared room that still has living attributed enemies; while set, the party AND that
-        // room's mobs are clamped inside each step (StepCombat's gate pass). Cleared on room clear.
-        public int DungeonSealedRoomId = -1;
-        // Rooms whose seal has been fought and cleared (drives the client's open-door tells +
-        // room-clear fanfare). Only Contains is ever read — iteration never drives logic.
+        // ---- Dungeon room progression (§7.3 room crawl; Kind == Dungeon only) ----
+        // Sealed doors were REMOVED 2026-07-07 (the containment clamp teleported units and read as
+        // buggy — user call). The crawl is now clamp-free: the sweep AI fights the shallowest room
+        // with living mobs, so rooms clear in order without a physical trap.
+        // Rooms the party has ENGAGED (entered with the pack woken) but not yet cleared — the set
+        // StepDungeonRooms watches to release waves / pay the clear beat. Position-independent.
+        public HashSet<int> DungeonEngagedRooms = new HashSet<int>();
+        // Rooms whose fight has been cleared (drives the client's room-clear fanfare + reward beat).
+        // Only Contains is ever read — iteration never drives logic.
         public HashSet<int> DungeonClearedRooms = new HashSet<int>();
-        // Boss door state: KeyRequired = the floor generated a Key room (its bearer must die before
-        // the party may enter the boss room); BossKeyHeld flips on the bearer's death.
-        public bool DungeonKeyRequired;
+        // The Boss Key: flips true when the marked key-bearer dies (fires BossKeyDrop). No longer a
+        // physical gate — the sweep reaches the deep boss room only after the shallower key room is
+        // cleared, so the key is always in hand first; it's kept as the tell/record of that beat.
         public bool DungeonBossKeyHeld;
-        public int DungeonBossRoomId = -1; // the Boss room's id (-1 when the floor has none)
         // §7.3 wave phases: fully-built mobs (stats/positions/rng rolled AT INIT in authored spawn
         // order, so determinism never depends on WHEN a wave fires) waiting for their room's
-        // previous wave to clear. StepDungeonDoors moves a room's next wave into Entities instead
-        // of unsealing; the run can't be Won while anything waits here.
+        // previous wave to clear. StepDungeonRooms moves a room's next wave into Entities when the
+        // room empties; the run can't be Won while anything waits here.
         public List<CombatEntity> DungeonPendingWaves = new List<CombatEntity>();
         // §7.3 room-clear reward beat: the gold burst a cleared room pays (stage-scaled from the
         // floor's roster at InitDungeon; 0 outside dungeons).
@@ -247,10 +248,10 @@ namespace IdleGame.GameCore
     public enum CombatEventType
     {
         Hit, Death, LootDrop, LevelUp, WaveCleared, BossDefeated, Respawn, SkillCast, Heal,
-        // Dungeon room progression (§7.3): doors slam shut / swing open / the Boss Key drops /
-        // the sealed room's next wave rises (RoomWave: Amount = the wave index that just spawned) /
+        // Dungeon room progression (§7.3): a room clears (RoomCleared: Amount = gold) / the Boss Key
+        // drops / the room's next wave rises (RoomWave: Amount = the wave index that just spawned) /
         // a chest pops (ChestOpen: ChestIndex + Amount = gold) / a chest bites (MimicReveal).
-        RoomSealed, RoomCleared, BossKeyDrop, RoomWave, ChestOpen, MimicReveal,
+        RoomCleared, BossKeyDrop, RoomWave, ChestOpen, MimicReveal,
     }
 
     /// <summary>Flat event the renderer reacts to (damage numbers, deaths, etc.).</summary>
@@ -265,7 +266,7 @@ namespace IdleGame.GameCore
         public int Stage;
         public Item? Item;          // set on LootDrop; EntityId = the monster that dropped it
         public string? SkillId;     // set on SkillCast: which skill fired (renderer FX hook)
-        public int RoomId = -1;     // set on RoomSealed/RoomCleared/RoomWave/ChestOpen/MimicReveal
+        public int RoomId = -1;     // set on RoomCleared/RoomWave/ChestOpen/MimicReveal
         public int ChestIndex = -1; // set on ChestOpen/MimicReveal: index into Dungeon.Chests
     }
 }

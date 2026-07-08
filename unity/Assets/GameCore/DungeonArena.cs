@@ -326,55 +326,6 @@ namespace IdleGame.GameCore
             return short.MaxValue;
         }
 
-        /// <summary>
-        /// The nearest walkable cell centre INSIDE room <paramref name="roomId"/> — the sealed-door
-        /// containment clamp (§7.3): a party hero (or the room's own mob) that crossed the doorway
-        /// mid-fight is placed back just inside it. Same deterministic ring search as
-        /// <see cref="Clamp"/> but the candidate must ALSO sit in the room. <paramref name="p"/> is
-        /// returned unchanged when it already qualifies. Ring cap 16 (rooms are ≤15 wide + a short
-        /// hall); the room's centre cell is the guaranteed fallback.
-        /// </summary>
-        public Vec2 ClampToRoom(Vec2 p, int roomId)
-        {
-            if (RoomAt(p) == roomId && Contains(p)) return p;
-            var found = RingSearch(p, c => RoomAt(c) == roomId, 16);
-            if (found != null) return found.Value;
-            foreach (var r in _d.Rooms)
-                if (r.Id == roomId) return new Vec2(r.Cx + 0.5, r.Cy + 0.5);
-            return Clamp(p);
-        }
-
-        /// <summary>
-        /// The nearest walkable cell centre OUTSIDE room <paramref name="roomId"/> — the locked
-        /// boss-door gate (§7.3): a hero stepping into the boss room without the Boss Key is placed
-        /// back at the threshold. <paramref name="p"/> returns unchanged when already outside.
-        /// </summary>
-        public Vec2 ClampOutsideRoom(Vec2 p, int roomId)
-        {
-            if (RoomAt(p) != roomId && Contains(p)) return p;
-            var found = RingSearch(p, c => RoomAt(c) != roomId, 16);
-            return found ?? EntranceCentre();
-        }
-
-        /// <summary>Deterministic Chebyshev ring search (the <see cref="Clamp"/> scan) for the first
-        /// walkable cell centre that also passes <paramref name="ok"/>; null when none within
-        /// <paramref name="maxRing"/> rings. Ring 0 checks p's own cell centre.</summary>
-        private Vec2? RingSearch(Vec2 p, Func<Vec2, bool> ok, int maxRing)
-        {
-            int cx = (int)Math.Floor(p.X), cy = (int)Math.Floor(p.Y);
-            for (int ring = 0; ring <= maxRing; ring++)
-                for (int dy = -ring; dy <= ring; dy++)
-                    for (int dx = -ring; dx <= ring; dx++)
-                    {
-                        if (Math.Max(Math.Abs(dx), Math.Abs(dy)) != ring) continue;
-                        int nx = cx + dx, ny = cy + dy;
-                        if (nx < 0 || nx >= _w || ny < 0 || ny >= _h) continue;
-                        var c = new Vec2(nx + 0.5, ny + 0.5);
-                        if (Contains(c) && ok(c)) return c;
-                    }
-            return null;
-        }
-
         /// <summary>The entrance room's centre-cell world point — the Clamp fallback and party spawn anchor.
         /// Falls back to the grid centre if no entrance room is tagged (never happens for a valid dungeon).</summary>
         public Vec2 EntranceCentre()

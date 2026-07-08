@@ -301,13 +301,9 @@ namespace IdleGame.GameCore
 
             SeedDungeonSpawns(s, d, trashRoster, bossId, cfg, rng, hpMult, dmgMult, miniBoss);
 
-            // §7.3 door/key rules: remember the boss room, and require its key only when the floor
-            // actually generated a Key room (short/legacy layouts stay key-free).
-            foreach (var r in d.Rooms)
-            {
-                if (r.Type == RoomType.Boss) s.DungeonBossRoomId = r.Id;
-                else if (r.Type == RoomType.Key) s.DungeonKeyRequired = true;
-            }
+            // §7.3 key rule (clamp-free): the key bearer drops the Boss Key on death (a tell/beat).
+            // No floor state needed — the sweep reaches the deep boss room only after clearing the
+            // shallower key room, so the key is always in hand first (the physical gate was removed).
 
             // §7.3 room-clear reward beat: a cleared room pays a gold burst worth
             // DungeonRoomClearMobEquiv average trash kills of THIS floor's roster, stage-scaled
@@ -1220,10 +1216,10 @@ namespace IdleGame.GameCore
             // stall the flow-field sweep — the followers file in behind instead of shoving it back.
             ResolveCollisions(s, cfg, arena, s.Dungeon != null ? leader?.Id : null);
 
-            // §7.3 sealed-door room progression — runs LAST so it sees final step positions and can
-            // undo any crossing (movement, dash, collision push) with a deterministic clamp.
+            // §7.3 room-crawl progression (chests, engage/wake, waves, room-clear beats) — runs LAST
+            // so it sees final step positions. Clamp-free: no seal, no teleport.
             if (s.Kind == EncounterKind.Dungeon && s.Dungeon != null)
-                StepDungeonDoors(s, leader, cfg, rng, events);
+                StepDungeonRooms(s, leader, cfg, rng, events);
 
             // A downed hero has Hp 0 (Alive == false), so an all-at-once wipe makes
             // partyAlive false -> Lost.
@@ -1644,27 +1640,25 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>
-        /// The §7.3 sealed-door pass (dungeon only, end of every step). In order:
-        ///  1. CLEAR — a sealed room with no living attributed enemy unseals (RoomCleared: the
-        ///     client's open-door fanfare beat) and joins DungeonClearedRooms.
-        ///  2. SEAL — the leader standing in an uncleared room that still has living enemies slams
-        ///     its doors (RoomSealed) and WAKES the whole room (the Mabinogi committed-arena beat).
-        ///     The locked boss room never seals before the Boss Key is held — the gate below keeps
-        ///     the party out of it entirely.
-        ///  3. CONTAIN — while sealed, every living party hero AND the room's own mobs are clamped
-        ///     back inside (any crossing this step — movement, dash, collision push — is undone), so
-        ///     neither side can leave the fight and a stray mob can never soft-lock a clear. Without
-        ///     the key, heroes are also clamped OUT of the boss room.
-        /// Deterministic: clamps are pure ring searches; set iteration never drives logic.
+        /// The §7.3 room-crawl pass (dungeon only, end of every step) — CLAMP-FREE (sealed doors were
+        /// removed 2026-07-07: the containment clamp teleported units and read as buggy). In order:
+        ///  0. CHESTS — a living hero near an unopened chest pops it (loot, or a mimic's teeth).
+        ///  1. ENGAGE — the room the leader stands in, if it still holds living/pending mobs, is
+        ///     marked engaged and its idle pack wakes (the pack fights together on entry — the
+        ///     committed-arena FEEL, minus the physical trap).
+        ///  2. WAVES + CLEAR — for each ENGAGED room now empty of living mobs: release its next
+        ///     pending wave, or (none pending) pay the room-clear beat and mark it cleared.
+        /// No position is ever rewritten — the sweep AI keeps the party fighting the shallowest
+        /// living room in order, so nothing is skipped without a clamp. Deterministic: rooms are
+        /// processed via the engaged set snapshotted to a sorted list; set membership never varies by
+        /// iteration order.
         /// </summary>
-        private static void StepDungeonDoors(CombatState s, CombatEntity? leader, GameConfig cfg, Rng rng,
+        private static void StepDungeonRooms(CombatState s, CombatEntity? leader, GameConfig cfg, Rng rng,
                                              List<CombatEvent> events)
         {
             var arena = s.Dungeon!;
-            bool bossLocked = s.DungeonKeyRequired && !s.DungeonBossKeyHeld && s.DungeonBossRoomId >= 0;
 
             // 0 — chests: a living hero near an unopened chest pops it — loot, or teeth (mimic).
-            // Runs before the seal check so a revealed mimic seals its room this same step.
             var chestList = arena.Dungeon.Chests;
             for (int ci = 0; ci < chestList.Count; ci++)
             {
@@ -1688,6 +1682,7 @@ namespace IdleGame.GameCore
                             s.DungeonMimics.RemoveAt(m);
                             mob.Aggro = true;
                             s.Entities.Add(mob);
+                            s.DungeonEngagedRooms.Add(ch.RoomId); // the ambush is a fight to clear
                             break;
                         }
                     events.Add(new CombatEvent { Type = CombatEventType.MimicReveal, RoomId = ch.RoomId, ChestIndex = ci });
@@ -1696,70 +1691,52 @@ namespace IdleGame.GameCore
                     PayChest(s, ch, ci, cfg, rng, events, mimicBonus: false);
             }
 
-            // 1 — the sealed room's fight phase ended: either the NEXT WAVE rises, or the room clears.
-            if (s.DungeonSealedRoomId >= 0 && !RoomHasLivingEnemy(s, s.DungeonSealedRoomId))
-            {
-                int room = s.DungeonSealedRoomId;
-                // Lowest pending wave of this room (authored list order = deterministic scan).
-                int nextWave = int.MaxValue;
-                foreach (var p in s.DungeonPendingWaves)
-                    if (p.DungeonRoomId == room && p.DungeonWave < nextWave) nextWave = p.DungeonWave;
-
-                if (nextWave != int.MaxValue)
-                {
-                    // Release the wave: pre-built mobs enter the fight already awake (the room is
-                    // hot — the door stays sealed through the whole phase chain). Forward scan keeps
-                    // the authored entity order in the live list.
-                    foreach (var p in s.DungeonPendingWaves)
-                    {
-                        if (p.DungeonRoomId != room || p.DungeonWave != nextWave) continue;
-                        p.Aggro = true;
-                        s.Entities.Add(p);
-                    }
-                    s.DungeonPendingWaves.RemoveAll(p => p.DungeonRoomId == room && p.DungeonWave == nextWave);
-                    events.Add(new CombatEvent { Type = CombatEventType.RoomWave, RoomId = room, Amount = nextWave });
-                }
-                else
-                {
-                    // §7.3 room-clear reward beat: doors open, a small gold burst pays out.
-                    if (s.DungeonRoomClearGold > 0) s.PendingGold += s.DungeonRoomClearGold;
-                    s.DungeonClearedRooms.Add(room);
-                    events.Add(new CombatEvent
-                    { Type = CombatEventType.RoomCleared, RoomId = room, Amount = s.DungeonRoomClearGold });
-                    s.DungeonSealedRoomId = -1;
-                }
-            }
-
-            // 2 — seal on entry.
-            if (s.DungeonSealedRoomId < 0 && leader != null && leader.Alive)
+            // 1 — engage the leader's current room (wake its pack, mark it a fight to finish).
+            if (leader != null && leader.Alive)
             {
                 int room = arena.RoomAt(leader.Pos);
-                if (room >= 0 && !(bossLocked && room == s.DungeonBossRoomId)
-                    && !s.DungeonClearedRooms.Contains(room)
-                    // A pending wave alone also seals (a splash-emptied wave 0 must not strand its
-                    // successors) — the clear check above then releases the next wave immediately.
+                if (room >= 0 && !s.DungeonClearedRooms.Contains(room)
                     && (RoomHasLivingEnemy(s, room) || RoomHasPendingWave(s, room)))
                 {
-                    s.DungeonSealedRoomId = room;
-                    events.Add(new CombatEvent { Type = CombatEventType.RoomSealed, RoomId = room });
-                    foreach (var e in s.Entities)
-                        if (e.Team == Team.Enemy && e.Alive && e.DungeonRoomId == room) e.Aggro = true;
+                    if (s.DungeonEngagedRooms.Add(room))
+                        foreach (var e in s.Entities)
+                            if (e.Team == Team.Enemy && e.Alive && e.DungeonRoomId == room) e.Aggro = true;
                 }
             }
 
-            // 3 — contain.
-            int sealedRoom = s.DungeonSealedRoomId;
-            foreach (var e in s.Entities)
+            // 2 — waves + clear, for every engaged room that has emptied of living mobs. Snapshot the
+            // set to a sorted list so we can mutate DungeonEngagedRooms while iterating, deterministically.
+            if (s.DungeonEngagedRooms.Count > 0)
             {
-                if (!e.Alive) continue;
-                if (e.Team == Team.Party)
+                var scan = new List<int>(s.DungeonEngagedRooms);
+                scan.Sort();
+                foreach (int room in scan)
                 {
-                    if (sealedRoom >= 0) e.Pos = arena.ClampToRoom(e.Pos, sealedRoom);
-                    else if (bossLocked && arena.RoomAt(e.Pos) == s.DungeonBossRoomId)
-                        e.Pos = arena.ClampOutsideRoom(e.Pos, s.DungeonBossRoomId);
+                    if (RoomHasLivingEnemy(s, room)) continue; // still fighting this room
+
+                    int nextWave = int.MaxValue;
+                    foreach (var p in s.DungeonPendingWaves)
+                        if (p.DungeonRoomId == room && p.DungeonWave < nextWave) nextWave = p.DungeonWave;
+
+                    if (nextWave != int.MaxValue)
+                    {
+                        // Release the next wave: pre-built mobs enter awake (forward scan keeps the
+                        // authored entity order in the live list).
+                        foreach (var p in s.DungeonPendingWaves)
+                            if (p.DungeonRoomId == room && p.DungeonWave == nextWave) { p.Aggro = true; s.Entities.Add(p); }
+                        s.DungeonPendingWaves.RemoveAll(p => p.DungeonRoomId == room && p.DungeonWave == nextWave);
+                        events.Add(new CombatEvent { Type = CombatEventType.RoomWave, RoomId = room, Amount = nextWave });
+                    }
+                    else
+                    {
+                        // §7.3 room-clear reward beat: a small gold burst pays out.
+                        if (s.DungeonRoomClearGold > 0) s.PendingGold += s.DungeonRoomClearGold;
+                        s.DungeonEngagedRooms.Remove(room);
+                        s.DungeonClearedRooms.Add(room);
+                        events.Add(new CombatEvent
+                        { Type = CombatEventType.RoomCleared, RoomId = room, Amount = s.DungeonRoomClearGold });
+                    }
                 }
-                else if (sealedRoom >= 0 && e.DungeonRoomId == sealedRoom)
-                    e.Pos = arena.ClampToRoom(e.Pos, sealedRoom);
             }
         }
 

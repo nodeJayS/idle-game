@@ -584,59 +584,38 @@ namespace IdleGame.GameCore.Tests
         });
 
         [Fact]
-        public void RunSealsRoomsInChainOrderContainsTheFightAndClearsThemAll()
+        public void RunClearsEveryMobRoomInChainOrderClampFree()
         {
+            // Sealed doors were removed (the containment clamp teleported units). The sweep still
+            // clears every mob room, in ascending chain order (linear room ids ARE the chain order),
+            // paying the room-clear beat — no seal, no containment invariant.
             var d = GenGrammarFloor(3);
             var s = StrongDungeon(d, rngSeed: 7);
-            var a = s.Dungeon!;
-            Assert.True(s.DungeonKeyRequired);
-            Assert.True(s.DungeonBossRoomId >= 0);
 
-            var sealedSeq = new List<int>();
             var clearedSeq = new List<int>();
             int steps = 0;
             const int cap = 80000;
             while (s.Status == CombatStatus.Running && steps < cap)
             {
-                var events = Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(7));
-                foreach (var ev in events)
-                {
-                    if (ev.Type == CombatEventType.RoomSealed) sealedSeq.Add(ev.RoomId);
+                foreach (var ev in Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(7)))
                     if (ev.Type == CombatEventType.RoomCleared) clearedSeq.Add(ev.RoomId);
-                }
-                // Post-step containment invariant: while a room is sealed, the party AND that
-                // room's mobs are inside it.
-                if (s.DungeonSealedRoomId >= 0)
-                {
-                    int room = s.DungeonSealedRoomId;
-                    foreach (var e in s.Entities)
-                    {
-                        if (!e.Alive) continue;
-                        if (e.Team == Team.Party)
-                            Assert.True(a.RoomAt(e.Pos) == room, $"hero {e.Id} outside sealed room at step {steps}");
-                        else if (e.DungeonRoomId == room)
-                            Assert.True(a.RoomAt(e.Pos) == room, $"mob {e.Id} escaped its sealed room at step {steps}");
-                    }
-                }
                 steps++;
             }
 
             Assert.Equal(CombatStatus.Won, s.Status);
-            // Every mob room got a seal + a matching clear, in strictly ascending chain order
-            // (linear room ids ARE the chain order).
             var mobRooms = d.Spawns.Select(sp => sp.RoomId).Distinct().OrderBy(id => id).ToList();
-            Assert.Equal(mobRooms, sealedSeq);
-            Assert.Equal(sealedSeq, clearedSeq);
-            Assert.True(mobRooms.All(s.DungeonClearedRooms.Contains));
-            Assert.Equal(-1, s.DungeonSealedRoomId);
+            Assert.Equal(mobRooms, clearedSeq);                        // each cleared once, in order
+            Assert.True(mobRooms.All(s.DungeonClearedRooms.Contains)); // and recorded
+            Assert.Empty(s.DungeonEngagedRooms);                        // nothing left mid-fight
         }
 
         [Fact]
-        public void KeyBearerDeathDropsTheBossKeyBeforeTheBossRoomOpens()
+        public void KeyBearerDeathDropsTheBossKey()
         {
+            // The bearer is a marked elite in the key room; its death fires BossKeyDrop and flips the
+            // held flag (a tell/beat now — the physical boss-door gate was removed with the seals).
             var d = GenGrammarFloor(4);
             var s = StrongDungeon(d, rngSeed: 9);
-            var a = s.Dungeon!;
             var bearer = s.Entities.Single(e => e.DungeonKeyBearer);
             Assert.Equal(RoomOfType(d, RoomType.Key).Id, bearer.DungeonRoomId);
             Assert.Equal(MonsterRank.Elite, bearer.Rank); // the "marked" tell rides the rank glow
@@ -645,12 +624,8 @@ namespace IdleGame.GameCore.Tests
             int steps = 0;
             while (s.Status == CombatStatus.Running && steps < 80000)
             {
-                var events = Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(9));
-                keyDropSeen |= events.Any(ev => ev.Type == CombatEventType.BossKeyDrop);
-                // The locked boss door holds until the bearer dies (§7.3).
-                if (!s.DungeonBossKeyHeld)
-                    foreach (var e in s.Entities.Where(e => e.Team == Team.Party && e.Alive))
-                        Assert.NotEqual(s.DungeonBossRoomId, a.RoomAt(e.Pos));
+                keyDropSeen |= Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(9))
+                    .Any(ev => ev.Type == CombatEventType.BossKeyDrop);
                 steps++;
             }
 
@@ -682,17 +657,15 @@ namespace IdleGame.GameCore.Tests
             Assert.DoesNotContain(s.Entities, e => e.DungeonKeyBearer);
             Assert.Single(s.DungeonPendingWaves, p => p.DungeonKeyBearer);
 
-            // Full run: every wave releases exactly once per multi-wave room, always while sealed,
-            // before that room's clear; the bearer still gates the boss; the run still wins.
+            // Full run: every multi-wave room releases its wave-1 exactly once (after its wave-0
+            // clears); the bearer arrives in that wave; the run still wins.
             var waveRooms = new List<int>();
             int steps = 0;
             while (s.Status == CombatStatus.Running && steps < 120000)
             {
-                var events = Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(5));
-                foreach (var ev in events)
+                foreach (var ev in Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(5)))
                     if (ev.Type == CombatEventType.RoomWave)
                     {
-                        Assert.Equal(ev.RoomId, s.DungeonSealedRoomId); // waves only rise under seal
                         Assert.Equal(1, (int)ev.Amount);
                         waveRooms.Add(ev.RoomId);
                     }
@@ -749,7 +722,7 @@ namespace IdleGame.GameCore.Tests
             Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(8));
             Assert.Equal(CombatStatus.Running, s.Status);
 
-            // The sweep then revisits the pending rooms, releases the waves under seal, and wins.
+            // The sweep then revisits the pending rooms, releases the waves, and wins.
             int steps = 0;
             while (s.Status == CombatStatus.Running && steps < 120000)
             { Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(8)); steps++; }
@@ -806,7 +779,7 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
-        public void MimicChestsAmbushSealTheRoomAndPayOnDeath()
+        public void MimicChestsAmbushAndPayOnDeath()
         {
             var d = GenChestFloor(7, mimicChance: 1.0);
             var s = StrongDungeon(d, rngSeed: 9);
@@ -859,30 +832,30 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
-        public void BossDoorClampsAnUnkeyedPartyOutAndAdmitsAKeyedOne()
+        public void PartyIsNeverTeleportedInADungeonRun()
         {
+            // Regression for the removed sealed-door clamp (which snapped units back into a room each
+            // step — the "teleport" glitch): across a whole run, no living party hero ever jumps more
+            // than a plausible single step between frames. MoveSpd 6 t/s × ~0.1 s ≈ 0.6 t/step; the
+            // dash skill covers more but is bounded, so 6 tiles is a generous ceiling a clamp would
+            // blow straight past.
             var d = GenGrammarFloor(5);
             var s = StrongDungeon(d, rngSeed: 3);
-            var a = s.Dungeon!;
-            var boss = RoomOfType(d, RoomType.Boss);
-            var inside = new Vec2(boss.Cx + 0.5, boss.Cy + 0.5);
-            // Neuter the party's damage so the gate is observed in isolation (no mid-step boss kill).
-            foreach (var e in s.Entities.Where(e => e.Team == Team.Party)) e.Stats[StatKey.Atk] = 0;
-
-            // Drop the party INSIDE the locked boss room (the strongest possible violation — any
-            // legal crossing is milder) and step: the gate must place every hero back outside.
-            foreach (var e in s.Entities.Where(e => e.Team == Team.Party)) e.Pos = inside;
-            Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(3));
-            foreach (var e in s.Entities.Where(e => e.Team == Team.Party && e.Alive))
-                Assert.NotEqual(boss.Id, a.RoomAt(e.Pos));
-
-            // With the key in hand the same entry stands — and the boss room seals around the fight.
-            s.DungeonBossKeyHeld = true;
-            foreach (var e in s.Entities.Where(e => e.Team == Team.Party)) e.Pos = inside;
-            Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(3));
-            Assert.Equal(boss.Id, s.DungeonSealedRoomId);
-            foreach (var e in s.Entities.Where(e => e.Team == Team.Party && e.Alive))
-                Assert.Equal(boss.Id, a.RoomAt(e.Pos));
+            var prev = s.Entities.Where(e => e.Team == Team.Party).ToDictionary(e => e.Id, e => e.Pos);
+            int steps = 0;
+            while (s.Status == CombatStatus.Running && steps < 80000)
+            {
+                Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(3));
+                foreach (var e in s.Entities.Where(e => e.Team == Team.Party && e.Alive))
+                {
+                    if (prev.TryGetValue(e.Id, out var was))
+                        Assert.True(Vec2.Distance(was, e.Pos) <= 6.0,
+                            $"hero {e.Id} jumped {Vec2.Distance(was, e.Pos):F1} tiles in one step (teleport) at step {steps}");
+                    prev[e.Id] = e.Pos;
+                }
+                steps++;
+            }
+            Assert.Equal(CombatStatus.Won, s.Status);
         }
     }
 }

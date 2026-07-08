@@ -1845,14 +1845,8 @@ namespace IdleGame.Game
                     case CombatEventType.BossDefeated:
                         if (Settings.ScreenShake) _rig?.Shake(0.4f);
                         break;
-                    // ---- §7.3 crypt room progression beats ----
-                    case CombatEventType.RoomSealed:
-                        DungeonMode.SealRoom(ev.RoomId);
-                        SoundFx.Play("Skill_Knight_ShieldRush_Cast", 0.45f);
-                        _chat?.AddFeed("The doors slam shut!", new Color(0.85f, 0.45f, 0.35f));
-                        break;
+                    // ---- §7.3 crypt room progression beats (clamp-free; no door visuals) ----
                     case CombatEventType.RoomCleared:
-                        DungeonMode.UnsealRoom(ev.RoomId);
                         SoundFx.Play("Skill_Priest_GreaterHeal_Cast", 0.4f);
                         _chat?.AddFeed(ev.Amount > 0
                                 ? $"Room clear! +{Num.CompactFloor((long)ev.Amount)} gold"
