@@ -35,6 +35,16 @@ namespace IdleGame.Game
         private readonly List<Text> _counts = new();
         private readonly List<RectTransform> _fills = new();
 
+        // FTUE guided-intro strip (§7.4): a warm "Getting started" header + one row per beat, above the
+        // rolling board. Pre-built hidden and driven by CombatView.UpdateIntro; _introOffset is the body
+        // space the active strip reserves, which pushes the rolling rows down (0 when it's inactive/retired).
+        private const float IntroRowH = 22f;
+        private const float IntroHeaderH = 22f;
+        private GameObject? _introHeaderGo;
+        private readonly List<GameObject> _introRows = new();
+        private readonly List<Text> _introLabels = new();
+        private float _introOffset;
+
         public void Open()
         {
             _canvas = UiKit.CreateCanvas("QuestCanvas", transform, sortOrder: 83);
@@ -45,6 +55,30 @@ namespace IdleGame.Game
             _collapsed = Settings.QuestCollapsed;
             _locked = Settings.QuestLocked;
             Build();
+        }
+
+        /// <summary>Push the live guided-intro strip in (§7.4): show/label the beats above the rolling
+        /// board and set the offset that pushes those rows down. <paramref name="active"/> false (or null
+        /// rows) hides the whole strip — the state a fresh save reaches once all five beats are claimed,
+        /// and the state every unarmed save is always in (so it renders nothing). Safe every frame.</summary>
+        public void UpdateIntro(List<IntroQuestStatus>? rows, bool active)
+        {
+            if (_collapsed || _introHeaderGo == null) { _introOffset = 0f; return; }
+            bool show = active && rows != null && rows.Count > 0;
+            _introHeaderGo.SetActive(show);
+            int shown = 0;
+            for (int i = 0; i < _introRows.Count; i++)
+            {
+                bool use = show && rows != null && i < rows.Count;
+                _introRows[i].SetActive(use);
+                if (!use) continue;
+                var r = rows![i];
+                bool done = r.Claimed;
+                _introLabels[i].text = (done ? "✔ " : "• ") + r.Quest.Title;
+                _introLabels[i].color = done ? new Color(0.55f, 0.85f, 0.55f) : new Color(0.82f, 0.86f, 0.92f);
+                shown++;
+            }
+            _introOffset = show ? IntroHeaderH + shown * IntroRowH + 6f : 0f;
         }
 
         /// <summary>Push the live board in: refresh each row's label, count, and bar fill. Cheap —
@@ -58,6 +92,8 @@ namespace IdleGame.Game
                 _rows[i].SetActive(used);
                 if (!used) continue;
                 var q = board.Active[i];
+                // Slide the rolling rows below the guided-intro strip (offset 0 when it's inactive).
+                ((RectTransform)_rows[i].transform).anchoredPosition = new Vector2(0f, -_introOffset - i * RowH);
                 _names[i].text = QuestLabel(q);
                 // progress floors, the goal ceils (game-design §7 — never show a goal as met early)
                 _counts[i].text = $"{Num.CompactFloor(q.Progress)} / {Num.CompactCeil(q.Target)}";
@@ -83,6 +119,7 @@ namespace IdleGame.Game
         {
             ClearCanvas();
             _rows.Clear(); _names.Clear(); _counts.Clear(); _fills.Clear();
+            _introRows.Clear(); _introLabels.Clear(); _introHeaderGo = null; _introOffset = 0f;
 
             float h = _collapsed ? HeaderH : _size.y;
             var panel = UiKit.Panel(_canvas.transform, new Vector2(_size.x, h), new Color(0.08f, 0.08f, 0.11f, 0.92f));
@@ -140,7 +177,49 @@ namespace IdleGame.Game
             _body.offsetMin = new Vector2(8f, 8f);
             _body.offsetMax = new Vector2(-8f, -RowTop);
 
+            BuildIntro();                                    // guided-intro strip (hidden until pushed)
             for (int i = 0; i < MaxRows; i++) BuildRow(i);
+        }
+
+        // Guided-intro widgets (§7.4): a header + one label per beat, anchored from the top of the body
+        // (above the rolling rows). Built hidden; UpdateIntro shows/labels them and sets _introOffset.
+        private void BuildIntro()
+        {
+            var hgo = new GameObject("IntroHeader", typeof(RectTransform));
+            hgo.transform.SetParent(_body, false);
+            var hrt = (RectTransform)hgo.transform;
+            hrt.anchorMin = new Vector2(0f, 1f); hrt.anchorMax = new Vector2(1f, 1f);
+            hrt.pivot = new Vector2(0.5f, 1f);
+            hrt.sizeDelta = new Vector2(0f, IntroHeaderH);
+            hrt.anchoredPosition = Vector2.zero;
+            var htext = UiKit.Label(hgo.transform, "Getting started", 14, TextAnchor.LowerLeft, Vector2.zero, Vector2.zero);
+            htext.color = new Color(0.98f, 0.80f, 0.42f);
+            var hlrt = (RectTransform)htext.transform;
+            hlrt.anchorMin = new Vector2(0f, 0f); hlrt.anchorMax = new Vector2(1f, 1f);
+            hlrt.offsetMin = Vector2.zero; hlrt.offsetMax = Vector2.zero;
+            hgo.SetActive(false);
+            _introHeaderGo = hgo;
+
+            for (int i = 0; i < IntroQuests.All.Count; i++)
+            {
+                var rgo = new GameObject("IntroRow" + i, typeof(RectTransform));
+                rgo.transform.SetParent(_body, false);
+                var rrt = (RectTransform)rgo.transform;
+                rrt.anchorMin = new Vector2(0f, 1f); rrt.anchorMax = new Vector2(1f, 1f);
+                rrt.pivot = new Vector2(0.5f, 1f);
+                rrt.sizeDelta = new Vector2(0f, IntroRowH - 2f);
+                rrt.anchoredPosition = new Vector2(0f, -(IntroHeaderH + i * IntroRowH));
+
+                var lbl = UiKit.Label(rgo.transform, "", 13, TextAnchor.LowerLeft, Vector2.zero, Vector2.zero);
+                lbl.horizontalOverflow = HorizontalWrapMode.Overflow;
+                lbl.color = new Color(0.82f, 0.86f, 0.92f);
+                var lrt = (RectTransform)lbl.transform;
+                lrt.anchorMin = new Vector2(0f, 0f); lrt.anchorMax = new Vector2(1f, 1f);
+                lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
+
+                rgo.SetActive(false);
+                _introRows.Add(rgo); _introLabels.Add(lbl);
+            }
         }
 
         private void BuildRow(int i)

@@ -709,6 +709,7 @@ namespace IdleGame.Game
             _save = save;
             _cfg = cfg;
             _save = Quests.EnsureBoard(_save, _cfg); // backfill the goal board (new field on older saves)
+            SyncIntro(); // FTUE: pay any guided-intro beat already earned at load (no-op on unarmed saves)
             BuildSpawnEffects();
             BuildProjectileEffects();
             BuildSkillEffects();
@@ -781,6 +782,13 @@ namespace IdleGame.Game
             // dungeon mobs converge under the shroud and entry reads as "pre-aggroed", user-caught).
             if (LoadingScreen.Busy) { _steppedThisFrame = false; return; }
             _steppedThisFrame = false;
+            // FTUE guided intro (§7.4): poll-pay any beat whose deed just landed (loot/kills bank via
+            // CommitPending earlier this frame), then push the strip. Both self-guard on the armed flag,
+            // so unarmed saves allocate nothing and never render it. `Active` is re-read post-Sync in case
+            // the final beat retired the intro this frame.
+            if (IntroQuests.Active(_save)) SyncIntro();
+            bool introActive = IntroQuests.Active(_save);
+            _questPanel?.UpdateIntro(introActive ? IntroQuests.Board(_save) : null, introActive);
             _questPanel?.UpdateBoard(_save.Quests, _cfg); // reflect live goal progress
 
             if (_combat.Status == CombatStatus.Running)
@@ -950,6 +958,53 @@ namespace IdleGame.Game
             if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg); // milestone XP may have leveled a hero
         }
 
+        /// <summary>FTUE guided intro (§7.4): pay any intro beat whose deed has already happened
+        /// (IntroQuests.Sync is idempotent + a no-op on unarmed saves), announcing each newly-paid beat in
+        /// the feed with a small chime. Called on load, after commits, and after a stage clear — the beats
+        /// retro-complete, so a late poll just pays them the moment their evidence lands in the save.</summary>
+        private void SyncIntro()
+        {
+            var (next, completed) = IntroQuests.Sync(_save, _cfg);
+            _save = next;
+            if (completed.Count == 0) return;
+            foreach (var q in completed)
+                _chat?.AddFeed($"✔ {q.Title} — +{Num.CompactFloor(q.RewardGold)} gold", new Color(0.98f, 0.80f, 0.42f));
+            SoundFx.Play("CH_Levelup", 0.28f);
+            if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg); // beat XP may have leveled a fielded hero
+        }
+
+        /// <summary>The one-line reveal toast for a feature crossing its staged-reveal stage (§7.4).
+        /// Null = no toast (AutoAdvance is shelved — no visible control to announce).</summary>
+        private static string? FeatureRevealToast(Feature f) => f switch
+        {
+            Feature.IdleClaim    => "Idle rewards unlocked — progress banks while you're away.",
+            Feature.DailyLogin   => "Daily login unlocked — check in each day for gems.",
+            Feature.Achievements => "Achievements unlocked — lifetime milestones now pay out.",
+            Feature.Modifiers    => "Modifiers unlocked — risk for reward.",
+            Feature.Modes        => "The Tower and the Crypt have opened — Modes menu.",
+            Feature.Gacha        => "Summoning unlocked — spend gems on new heroes.",
+            _ => null,
+        };
+
+        /// <summary>The FTUE breadcrumb (§7.4): a single muted, contextual hint (first match wins), or null
+        /// for none. Armed saves only (the caller gates on Intro.Armed). Guidance that persists past the
+        /// intro — the next intro beat, then a waiting idle claim, then an unspent skill point.</summary>
+        private string? BreadcrumbHint()
+        {
+            // (i) the next guided-intro beat while the intro is still active
+            if (IntroQuests.Active(_save))
+                foreach (var q in IntroQuests.All)
+                    if (!IntroQuests.IsClaimed(q.Id, _save)) return "Next: " + q.Title;
+            // (ii) idle rewards waiting to be claimed (revealed at S3)
+            if (Progression.FeatureUnlocked(Feature.IdleClaim, _save)
+                && !Idle.Preview(_save, _cfg, NowMs()).IsEmpty)
+                return "Idle rewards ready to claim";
+            // (iii) a hero sitting on an unspent skill point
+            foreach (var h in _save.Heroes)
+                if (Skills.UnspentPoints(h, _cfg) > 0) return "A hero has an unspent skill point";
+            return null;
+        }
+
         /// <summary>Highest level across all owned heroes (fielded or benched) — the source for the
         /// HeroLevel achievement (a MAX metric, so feeding it redundantly is a harmless no-op).</summary>
         private int MaxHeroLevel()
@@ -1076,6 +1131,11 @@ namespace IdleGame.Game
                 // Snapshot modifiers before the clear so we can feed any stage-driven unlock/upgrade.
                 var ownedBefore = new HashSet<string>(_save.Modifiers.Owned.Keys);
                 int strBefore = MaxModifierStrength(_save);
+                // FTUE snapshots (§7.4): the highest-stage crossing drives reveal toasts + the first-boss
+                // beat; the roster diff catches heroes granted by OnStageCleared's SyncHeroUnlocks path.
+                int highestBefore = _save.Progress.HighestStage;
+                var heroesBefore = new HashSet<string>();
+                foreach (var hb in _save.Heroes) heroesBefore.Add(hb.Id);
 
                 _save = Progression.OnStageCleared(_save, cleared, _cfg); // also syncs modifiers to depth
                 _chat?.AddFeed($"Stage {cleared} cleared!", new Color(0.55f, 0.9f, 0.55f));
@@ -1093,6 +1153,43 @@ namespace IdleGame.Game
                 int strAfter = MaxModifierStrength(_save);
                 if (ownedBefore.Count > 0 && strAfter > strBefore)
                     _chat?.AddFeed($"Modifiers upgraded → strength {strAfter}", unlock);
+
+                // FTUE (§7.4), armed saves only — everything below is a no-op for unarmed saves.
+                if (_save.Progress.Intro.Armed)
+                {
+                    int highestAfter = _save.Progress.HighestStage;
+                    var reveal = new Color(1f, 0.85f, 0.4f);
+
+                    // Reveal toast: any feature whose reveal stage was crossed by THIS clear (stateless —
+                    // fires exactly on the crossing, never on a replay of an already-cleared stage).
+                    foreach (var kv in Progression.FeatureRevealStage)
+                        if (kv.Value > highestBefore && kv.Value <= highestAfter)
+                        {
+                            string? toast = FeatureRevealToast(kv.Key);
+                            if (toast != null) { _chat?.AddFeed(toast, reveal); SoundFx.Play("CH_Levelup", 0.3f); }
+                        }
+
+                    // First-boss beat (0 → 1): the existing juice, one size bigger.
+                    if (highestBefore == 0 && highestAfter >= 1)
+                    {
+                        _chat?.AddFeed("Your first boss falls — the road ahead opens!", reveal);
+                        if (Settings.ScreenShake) _rig?.Shake(0.6f);
+                        SoundFx.Play("CH_Levelup", 0.6f);
+                    }
+
+                    // First-hero beat: OnStageCleared's SyncHeroUnlocks may have granted a hero (silent
+                    // until now on the campaign path) — welcome each new roster member with a bolder beat.
+                    foreach (var h in _save.Heroes)
+                        if (!heroesBefore.Contains(h.Id))
+                        {
+                            _chat?.AddFeed($"{HeroDisplayName(h.Id)} joins your party!", new Color(1f, 0.82f, 0.32f));
+                            if (Settings.ScreenShake) _rig?.Shake(0.5f);
+                            SoundFx.Play("CH_Levelup", 0.55f);
+                        }
+                }
+
+                // Pay any intro beats this clear completed (intro_boss @S1, intro_reach @S2) with their feed.
+                SyncIntro();
             }
             // A failed boss run (timeout or wipe) ends an auto-push: drop back to manual farming.
             else if (_autoAdvance && _combat.Kind == EncounterKind.BossChallenge && _combat.Status == CombatStatus.Lost)
@@ -2279,6 +2376,14 @@ namespace IdleGame.Game
             DrawWalletLine(16f, ref y, $"Gold   {Num.CompactFloor(gold)}", new Color(1f, 0.84f, 0.35f));
             DrawWalletLine(16f, ref y, $"Scrap  {Num.CompactFloor(scrap)}", new Color(0.75f, 0.78f, 0.85f));
             DrawWalletLine(16f, ref y, $"Gems   {Num.CompactFloor(gems)}", new Color(0.65f, 0.85f, 1f));
+
+            // FTUE breadcrumb (§7.4): one muted contextual hint under the wallet — the least-cluttered HUD
+            // anchor (top-centre already carries the stage nav + Challenge). Armed saves only, first-match.
+            if (_save.Progress.Intro.Armed)
+            {
+                string? hint = BreadcrumbHint();
+                if (hint != null) { y += 4f; DrawWalletLine(16f, ref y, hint, new Color(0.70f, 0.73f, 0.80f)); }
+            }
         }
 
         private GUIStyle? _walletStyle;
@@ -2326,8 +2431,9 @@ namespace IdleGame.Game
 
             // Auto-push toggle — always available while running so it can be armed or cancelled
             // mid-fight. When on it chains boss challenges automatically until one fails.
-            // (Shelved: hidden unless AutoAdvanceEnabled — see the field's note.)
-            if (AutoAdvanceEnabled)
+            // (Shelved: hidden unless AutoAdvanceEnabled — see the field's note.) Also FTUE-gated (§7.4):
+            // revealed at S2 for armed saves (a no-op today since the toggle is shelved, correct when re-enabled).
+            if (AutoAdvanceEnabled && Progression.FeatureUnlocked(Feature.AutoAdvance, _save))
             {
                 var autoStyle = new GUIStyle(BtnStyleSm);
                 if (_autoAdvance) autoStyle.normal.textColor = new Color(0.55f, 0.9f, 0.6f);
@@ -2699,30 +2805,41 @@ namespace IdleGame.Game
             if (Button(x, y, 170, h, "Heroes")) _equipment?.ToggleDefault();
             x += 170 + gap * 4; // wider gap: everyday pair (bag/heroes) | system panels
 
+            // The gated buttons below are HIDDEN (absent, not greyed) until their FTUE reveal stage
+            // (§7.4, Progression.FeatureUnlocked) — unarmed saves are unlocked for everything, so this is
+            // a no-op for them. Each hidden button skips its own `x` advance, so the row reflows with no gap.
+
             // Monster modifiers (Lever 1): the risk/reward knob. Shows a count when any are active.
-            int activeMods = _save.Modifiers.Active.Count;
-            string modLabel = activeMods > 0 ? $"Modifiers ({activeMods})" : "Modifiers";
-            if (Button(x, y, 230, h, modLabel)) _modifierPanel?.Toggle();
-            x += 230 + gap;
+            if (Progression.FeatureUnlocked(Feature.Modifiers, _save))
+            {
+                int activeMods = _save.Modifiers.Active.Count;
+                string modLabel = activeMods > 0 ? $"Modifiers ({activeMods})" : "Modifiers";
+                if (Button(x, y, 230, h, modLabel)) _modifierPanel?.Toggle();
+                x += 230 + gap;
+            }
 
             // Game modes (campaign / tower / crypt): the mode-select menu — the Tower's standalone
             // button folded in here (user call 2026-07-06). Violet label while an alt-mode run is
             // live so the way home is obvious.
-            bool altMode = _combat.Kind == EncounterKind.Dungeon || _combat.Kind == EncounterKind.Tower;
-            if (Button(x, y, 170, h, "Modes", altMode ? ModesActiveStyle : BtnStyle))
-                _modesOpen = !_modesOpen;
-            x += 170 + gap;
+            if (Progression.FeatureUnlocked(Feature.Modes, _save))
+            {
+                bool altMode = _combat.Kind == EncounterKind.Dungeon || _combat.Kind == EncounterKind.Tower;
+                if (Button(x, y, 170, h, "Modes", altMode ? ModesActiveStyle : BtnStyle))
+                    _modesOpen = !_modesOpen;
+                x += 170 + gap;
+            }
 
-            // Hero gacha (roadmap 3): only surfaces once a banner with a real pool exists. cfg.Banners is
-            // empty until slice 3 seeds the Ice Mage banner, so this button HIDES itself until then.
-            if (AnyLiveBanner)
+            // Hero gacha (roadmap 3): only surfaces once a banner with a real pool exists AND its FTUE
+            // reveal stage (S12) is reached. cfg.Banners is empty until slice 3 seeds the Ice Mage banner.
+            if (AnyLiveBanner && Progression.FeatureUnlocked(Feature.Gacha, _save))
             {
                 if (Button(x, y, 190, h, "Summon")) _gachaPanel?.Toggle();
                 x += 190 + gap;
             }
 
             // Achievements (Lever 4): the permanent milestone ladder.
-            if (Button(x, y, 240, h, "Achievements")) _achievements?.Toggle();
+            if (Progression.FeatureUnlocked(Feature.Achievements, _save))
+                if (Button(x, y, 240, h, "Achievements")) _achievements?.Toggle();
             // (The party always moves as a group now; stage nav + Challenge live in the
             // top-centre HUD — see DrawTopControls.)
         }

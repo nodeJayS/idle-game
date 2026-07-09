@@ -118,7 +118,11 @@ namespace IdleGame.Game
             quests.Open();
             view.BindQuests(quests);
 
-            if (!idleReport.IsEmpty)
+            // FTUE (§7.4): the idle-claim popup is hidden until its reveal stage (S3). The offline
+            // rewards were ALREADY banked into `save` by Idle.Claim in Continue — this modal is only the
+            // "while you were away" REPORT, so suppressing it pre-reveal loses nothing (armed saves only;
+            // unarmed saves are unlocked for everything and keep today's behavior).
+            if (!idleReport.IsEmpty && Progression.FeatureUnlocked(Feature.IdleClaim, save))
             {
                 var modal = new GameObject("IdleClaimModal");
                 modal.transform.SetParent(session.transform);
@@ -130,7 +134,11 @@ namespace IdleGame.Game
             // Daily-login reward (Lever 4 — premium currency): if a claim is available today, greet the
             // player with the streak modal (renders above the idle-claim modal via a higher sort order).
             long now = NowMs();
-            if (DailyLogin.CanClaim(save, now))
+            // FTUE (§7.4): hide the daily-login popup until its reveal stage (S3). Unlike idle claim, the
+            // reward is granted by the modal's Collect, not at load — so this gates ONLY the popup:
+            // DailyLogin.CanClaim stays true, so the day isn't consumed and the modal simply greets the
+            // player on a later launch once DailyLogin is revealed (streaks still start when first claimed).
+            if (DailyLogin.CanClaim(save, now) && Progression.FeatureUnlocked(Feature.DailyLogin, save))
             {
                 var daily = new GameObject("DailyLoginModal");
                 daily.transform.SetParent(session.transform);
