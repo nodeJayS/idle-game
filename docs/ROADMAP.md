@@ -49,7 +49,8 @@ before anyone acts on them:
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
-**NEXT UP: 10.7 crypt overhaul — starts with a USER design session.**
+**NEXT UP: 10.1 The Great Rebalance — awaiting the user's rebalance intents
+(Your calls #1) before any tuning constant moves.**
 
 Self-contained briefs for future sessions (any model); slice order =
 shipping order, each one-verified-slice-per-commit sized. Standing rules
@@ -137,21 +138,6 @@ pooled); (e) kill-streak feedback: N kills in 2s → small screen pulse +
 feed line; (f) sound mix bus: SFX ducking under big moments, volume
 sliders in Settings (foundation for 10.9).
 
-**10.7 Crypt overhaul — Mabinogi-style dungeons (user call 2026-07-07:
-"huge update")**
-Design locked in game-design §7.3 (`325a2cd`). SHIPPED 2026-07-07:
-(a) design session; (b) room roles + sealed doors + key bearer/boss
-gate (`54dba8a`); (c) staged wave phases + room-clear gold beat
-(`b2e604d`); (d) chest rooms, goofy mimics, end-of-run reward vault
-(`ac30ce0`); (e) client tells — portcullis door seals, room/wave/key
-feed+SFX beats, chest-lid pops, mimic reveal, elite floor-guardian
-mini-bosses (`346e481`); (f) mid-run persistence (CryptState.ActiveRun
-holds floor/seed/floors-left; a quit resumes the same floor, no key
-forfeited — additive field, no save bump) + run-summary card + the
-GrantChest urn folded into the vault (no more double-dust). Remaining:
-(g) BalanceSim dungeon mode = the difficulty/reward acceptance
-chart per depth (the encounter/chest starting values become tuned).
-
 **10.8 Endless mode ("deepest stage")**
 The post-100 chase once 10.1 makes 100 reachable. (a) GameCore:
 endless stage generator past MaxStage (reuse zone cycling + geometric
@@ -219,6 +205,9 @@ impact language belongs to 10.6b). 10.11 COMPLETE.
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-07-09 10.7 crypt overhaul COMPLETE: room roles/keys, wave phases,
+  chests/mimics/reward vault, client tells, mid-run persistence+resume+summary,
+  BalanceSim `crypt` depth difficulty/reward chart (10.7a–g)
 - 2026-07-07 10.11 complete: wardrobe browser, hero relooks
   (user-picked), FxKit procedural FX for all projectiles (`638d356`..)
 - 2026-07-07 Projectile release-frame launch (`b91359d`)

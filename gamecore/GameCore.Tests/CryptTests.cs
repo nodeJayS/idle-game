@@ -229,19 +229,6 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(Save.SaveVersion, migrated.Version); // still v2 — ActiveRun needs no bump
         }
 
-        [Fact]
-        public void ChestGrantsDustScaledByDepth()
-        {
-            var s = Fresh();
-            s = Crypt.RecordFloorClear(s, 1, Cfg);
-            s = Crypt.RecordFloorClear(s, 2, Cfg);
-            s = Crypt.RecordFloorClear(s, 3, Cfg);
-            var (t, dust) = Crypt.GrantChest(s, Cfg);
-            long expected = Cfg.Balance.CryptChestBaseDust + Cfg.Balance.CryptChestDustPerDepth * 3;
-            Assert.Equal(expected, dust);
-            Assert.Equal(expected, Crypt.Dust(t, Cfg));
-        }
-
         // ---------------- difficulty + tiers ----------------
 
         [Fact]

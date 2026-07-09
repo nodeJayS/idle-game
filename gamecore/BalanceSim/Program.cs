@@ -21,6 +21,11 @@ namespace IdleGame.BalanceSim
     ///   farm   --stage S --level L [--gear rare] [--window 120] [--seed 1]
     ///          Farm-throughput detail for one point: kills/min, hits-per-kill (≈1 = one-shot),
     ///          XP/gold rates, downs.
+    ///   crypt  [--depths 1-60] [--stage 25] [--level 50] [--gear rare] [--trials 1] [--seed 1] [--csv path]
+    ///          Crypt depth chart (§7.3): one floor per depth on a PINNED-power party, difficulty vs
+    ///          reward as the depth ramp climbs — result, sweep seconds, rooms/chests, gold/dust/xp/
+    ///          items/downs; then the crypt wall (first depth the party fails) and the reward-vs-ramp
+    ///          trend. --stage/--level/--gear pin the party; depth is the only variable.
     /// </summary>
     public static class Program
     {
@@ -32,7 +37,7 @@ namespace IdleGame.BalanceSim
 
             if (opts.ContainsKey("help") || mode == "help")
             {
-                Console.WriteLine("modes: walls (default) | sweep | farm — see Program.cs header for options.");
+                Console.WriteLine("modes: walls (default) | sweep | farm | crypt — see Program.cs header for options.");
                 return 0;
             }
 
@@ -42,8 +47,9 @@ namespace IdleGame.BalanceSim
                 case "walls": return Walls(cfg, opts, seed);
                 case "sweep": return Sweep(cfg, opts, seed);
                 case "farm": return Farm(cfg, opts, seed);
+                case "crypt": return CryptChart(cfg, opts, seed);
                 default:
-                    Console.Error.WriteLine($"unknown mode \"{mode}\" (walls | sweep | farm)");
+                    Console.Error.WriteLine($"unknown mode \"{mode}\" (walls | sweep | farm | crypt)");
                     return 2;
             }
         }
@@ -178,6 +184,166 @@ namespace IdleGame.BalanceSim
             Console.WriteLine($"  gold/min       {r.GoldPerMinute:0}");
             Console.WriteLine($"  drops          {r.Drops}");
             Console.WriteLine($"  boss gate      {(boss.Won ? $"WIN in {boss.Seconds:0.0}s" : boss.Wiped ? "LOSS (wipe)" : "LOSS (timer)")}");
+            return 0;
+        }
+
+        // ---- crypt -------------------------------------------------------------------
+
+        private sealed class CryptRow
+        {
+            public int Depth;
+            public double WinRate;    // fraction of trials cleared
+            public double TimeoutRate; // fraction of trials that failed to the run-timer (party alive)
+            public double Seconds, Rooms, Chests, Gold, Dust, Xp, Items, Downs, Keys;
+            public bool Final;         // a run's final floor (reward vault + true boss)
+            public double GoldPerMin => Seconds > 0 ? Gold * 60.0 / Seconds : 0;
+            public double DustPerMin => Seconds > 0 ? Dust * 60.0 / Seconds : 0;
+        }
+
+        private static int CryptChart(GameConfig cfg, Dictionary<string, string> opts, uint seed)
+        {
+            var (dFrom, dTo, dStep) = GetRange(opts, "depths", 1, cfg.Balance.CryptMaxDepth, 1);
+            int stage = GetInt(opts, "stage", 25);
+            int level = GetInt(opts, "level", 50);
+            var gear = GetGears(opts, defaults: new Rarity?[] { Rarity.Rare })[0];
+            int gearIndex = Array.IndexOf(Scenarios.GearPolicies, gear);
+            int trials = Math.Max(1, GetInt(opts, "trials", 1));
+
+            // Party is PINNED across depths: build one save per trial (stage/level/gear fix the power;
+            // only the depth ramps). The cell seed is trial-varied but depth-independent — GenSeed folds
+            // the depth in for the layout, so each floor still differs.
+            var saves = new SaveState[trials];
+            var cellSeeds = new uint[trials];
+            for (int t = 0; t < trials; t++)
+            {
+                cellSeeds[t] = Scenarios.CellSeed(seed, stage, level, gearIndex, t);
+                saves[t] = Scenarios.BuildSave(cfg, stage, level, gear, cellSeeds[t]);
+            }
+            double partyPower = Stats.ComputePartyPower(saves[0], cfg);
+            int heroCount = Scenarios.FieldedParty(saves[0]).Count;
+
+            var rows = new List<CryptRow>();
+            for (int d = dFrom; d <= dTo; d += dStep)
+            {
+                var row = new CryptRow { Depth = d, Final = d % Math.Max(1, cfg.Balance.CryptFloorsPerRun) == 0 };
+                for (int t = 0; t < trials; t++)
+                {
+                    var r = CryptScenarios.RunFloor(cfg, saves[t], stage, d, cellSeeds[t]);
+                    if (r.Won) row.WinRate++;
+                    if (r.TimedOut) row.TimeoutRate++;
+                    if (r.KeyHeld) row.Keys++;
+                    row.Seconds += r.Seconds; row.Rooms += r.RoomsCleared; row.Chests += r.ChestsOpened;
+                    row.Gold += r.Gold; row.Dust += r.Dust; row.Xp += r.Xp; row.Items += r.Items;
+                    row.Downs += r.HeroDowns;
+                }
+                row.WinRate /= trials; row.TimeoutRate /= trials; row.Keys /= trials;
+                row.Seconds /= trials; row.Rooms /= trials; row.Chests /= trials; row.Gold /= trials;
+                row.Dust /= trials; row.Xp /= trials; row.Items /= trials; row.Downs /= trials;
+                rows.Add(row);
+                Console.Error.Write($"\rcrypt: depth {d}/{dTo}   ");
+            }
+            Console.Error.WriteLine();
+
+            var ci = CultureInfo.InvariantCulture;
+            string Result(CryptRow r)
+            {
+                if (trials == 1)
+                    return r.WinRate >= 1 ? "WIN" : r.TimeoutRate >= 1 ? "LOSS*" : "LOSS";
+                return (r.WinRate * trials).ToString("0", ci) + "/" + trials;
+            }
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"Crypt depth chart — party pinned at stage {stage}, level {level}, gear {Scenarios.GearName(gear)} "
+                          + $"(power {partyPower:0}, {heroCount} heroes; trials={trials}, seed={seed})");
+            sb.AppendLine("depth marks a run's FINAL floor with '*' (reward vault + true boss); others field the mini-boss guardian.");
+            if (trials == 1) sb.AppendLine("result LOSS* = lost to the run-timer failsafe with the party still standing (a slog, not a wipe).");
+            sb.AppendLine();
+            sb.Append("depth".PadLeft(6));
+            sb.Append("result".PadLeft(8));
+            sb.Append("secs".PadLeft(8));
+            sb.Append("rooms".PadLeft(7));
+            sb.Append("chests".PadLeft(8));
+            sb.Append("gold".PadLeft(9));
+            sb.Append("dust".PadLeft(7));
+            sb.Append("xp".PadLeft(11));
+            sb.Append("items".PadLeft(7));
+            sb.Append("downs".PadLeft(7));
+            sb.AppendLine();
+            foreach (var r in rows)
+            {
+                sb.Append(((r.Final ? "*" : "") + r.Depth).PadLeft(6));
+                sb.Append(Result(r).PadLeft(8));
+                sb.Append(r.Seconds.ToString("0.0", ci).PadLeft(8));
+                sb.Append(r.Rooms.ToString("0.0", ci).PadLeft(7));
+                sb.Append(r.Chests.ToString("0.0", ci).PadLeft(8));
+                sb.Append(r.Gold.ToString("0", ci).PadLeft(9));
+                sb.Append(r.Dust.ToString("0", ci).PadLeft(7));
+                sb.Append(r.Xp.ToString("0", ci).PadLeft(11));
+                sb.Append(r.Items.ToString("0.0", ci).PadLeft(7));
+                sb.Append(r.Downs.ToString("0.0", ci).PadLeft(7));
+                sb.AppendLine();
+            }
+
+            // ---- findings --------------------------------------------------------
+            sb.AppendLine();
+
+            // The wall: first depth whose win rate drops below a majority.
+            CryptRow? wall = rows.FirstOrDefault(r => r.WinRate < 0.5);
+            if (wall == null)
+            {
+                var last = rows[rows.Count - 1];
+                sb.AppendLine($"crypt wall: none — the party clears every charted depth through {last.Depth} "
+                              + $"(deepest sweep {last.Seconds:0.0}s, {last.Downs:0.0} downs).");
+                bool trivialDeep = last.Downs < 0.5 && last.Seconds < cfg.Balance.DungeonMaxRunSeconds * 0.5;
+                if (trivialDeep)
+                    sb.AppendLine("  DEGENERATE: the deepest floor still clears with ~no downs well inside the timer — "
+                                  + "the depth ramp is too shallow for this party (no meaningful ceiling in range).");
+            }
+            else
+            {
+                string how = wall.TimeoutRate >= 0.5 ? "run-timer failsafe (slog — party outlasts the clock, floor unfinished)"
+                                                     : "party wipe";
+                sb.AppendLine($"crypt wall: depth {(wall.Final ? "*" : "")}{wall.Depth} — first depth the party fails "
+                              + $"({how}; sweep {wall.Seconds:0.0}s, {wall.Downs:0.0} downs).");
+                var lastWin = rows.LastOrDefault(r => r.WinRate >= 0.5);
+                if (lastWin != null && lastWin.Depth < wall.Depth)
+                    sb.AppendLine($"  deepest reliable clear: depth {lastWin.Depth} ({lastWin.Seconds:0.0}s, {lastWin.Downs:0.0} downs).");
+            }
+
+            // Reward-vs-ramp trend: does gold/dust per minute keep pace as HP ramps and sweeps lengthen?
+            var cleared = rows.Where(r => r.WinRate >= 0.5).ToList();
+            if (cleared.Count >= 2)
+            {
+                var first = cleared[0];
+                var lastC = cleared[cleared.Count - 1];
+                double hpRamp = Crypt.FloorHpMult(lastC.Depth, cfg) / Crypt.FloorHpMult(first.Depth, cfg);
+                sb.AppendLine();
+                sb.AppendLine($"reward vs ramp (depth {first.Depth}→{lastC.Depth}, monster HP ×{hpRamp:0.0} over that span):");
+                sb.AppendLine($"  sweep seconds {first.Seconds:0.0} → {lastC.Seconds:0.0}   "
+                              + $"(×{(first.Seconds > 0 ? lastC.Seconds / first.Seconds : 0):0.00})");
+                sb.AppendLine($"  gold/min      {first.GoldPerMin:0} → {lastC.GoldPerMin:0}   "
+                              + $"(×{(first.GoldPerMin > 0 ? lastC.GoldPerMin / first.GoldPerMin : 0):0.00})");
+                sb.AppendLine($"  dust/min      {first.DustPerMin:0} → {lastC.DustPerMin:0}   "
+                              + $"(×{(first.DustPerMin > 0 ? lastC.DustPerMin / first.DustPerMin : 0):0.00})");
+                double dustPace = first.DustPerMin > 0 ? lastC.DustPerMin / first.DustPerMin : 0;
+                sb.AppendLine(dustPace >= 0.9
+                    ? "  → dust rate holds up as floors lengthen — reward keeps pace with the HP ramp."
+                    : "  → dust/min DECAYS as floors lengthen — reward falls behind the HP ramp (deeper = worse dust/hour).");
+            }
+            Console.Write(sb.ToString());
+
+            WriteCsv(opts, "depth,final,win_rate,timeout_rate,seconds,rooms,chests,gold,dust,xp,items,downs,keys", w =>
+            {
+                foreach (var r in rows)
+                    w.WriteLine(string.Join(",", new[]
+                    {
+                        r.Depth.ToString(ci), r.Final ? "1" : "0",
+                        r.WinRate.ToString("0.###", ci), r.TimeoutRate.ToString("0.###", ci),
+                        r.Seconds.ToString("0.0", ci), r.Rooms.ToString("0.0", ci), r.Chests.ToString("0.0", ci),
+                        r.Gold.ToString("0", ci), r.Dust.ToString("0", ci), r.Xp.ToString("0", ci),
+                        r.Items.ToString("0.0", ci), r.Downs.ToString("0.0", ci), r.Keys.ToString("0.0", ci),
+                    }));
+            });
             return 0;
         }
 

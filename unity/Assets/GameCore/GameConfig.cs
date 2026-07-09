@@ -404,9 +404,9 @@ namespace IdleGame.GameCore
         // recharges per UTC day, banked to CryptKeyBank); a run = CryptFloorsPerRun floors back-to-back
         // starting at DepthRecord+1. Floors ramp geometrically ON TOP of current-stage monster scaling
         // (gentler than Tower — a floor is a 100+-mob crawl, not one fight). Every FIRST clear of a
-        // floor pays CryptGemsPerFloor gems (Tower-style drip); completing the whole run grants the
-        // chest: CryptChestBaseDust + CryptChestDustPerDepth × final depth of GRAVE DUST (the crypt-only
-        // currency, key CryptDustCurrency) — a wipe forfeits the chest but keeps everything dropped.
+        // floor pays CryptGemsPerFloor gems (Tower-style drip); the §7.3 reward vault's chests pay
+        // GRAVE DUST (the crypt-only currency, key CryptDustCurrency) into the run as it's walked — a
+        // wipe forfeits whatever's still unwalked but keeps everything already dropped.
         // Dust buys permanent account boons: rank r of a boon costs ceil(Base × Growth^r), each rank
         // adds CryptBoonStatPct to its stat, capped at CryptBoonMaxRank.
         public int CryptKeyBank = 2;              // max banked keys
@@ -416,8 +416,6 @@ namespace IdleGame.GameCore
         public int CryptGemsPerFloor = 5;         // first-clear gem pay per NEW depth floor
         public double CryptHpGrowth = 1.06;       // per-floor monster HP ramp (on top of stage scaling)
         public double CryptDmgGrowth = 1.04;      // per-floor monster atk ramp
-        public long CryptChestBaseDust = 25;      // end-of-run chest: base grave dust…
-        public long CryptChestDustPerDepth = 5;   // …plus this per final depth reached
         public string CryptDustCurrency = "grave_dust";
         public long CryptBoonBaseCost = 20;       // rank-0→1 boon cost (grave dust)
         public double CryptBoonCostGrowth = 1.5;  // geometric cost growth per rank

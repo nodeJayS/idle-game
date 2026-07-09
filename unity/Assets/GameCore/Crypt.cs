@@ -15,10 +15,10 @@ namespace IdleGame.GameCore
     ///    starting at <see cref="CryptState.DepthRecord"/>+1. Because <see cref="RecordFloorClear"/>
     ///    advances the record behind the party, every floor of a run is a FIRST clear — each pays
     ///    <see cref="BalanceConstants.CryptGemsPerFloor"/> gems, Tower-style.
-    ///  - Completing the whole run grants the CHEST (<see cref="GrantChest"/>): grave dust — the
-    ///    crypt-only currency (<see cref="BalanceConstants.CryptDustCurrency"/> in Currencies) —
-    ///    scaled by the final depth. A wipe forfeits the chest; loot dropped mid-run is already
-    ///    granted and stays (the design's death rule).
+    ///  - REWARDS accrue DURING the sweep: the §7.3 reward vault's chests pay gold/grave dust — the
+    ///    crypt-only currency (<see cref="BalanceConstants.CryptDustCurrency"/> in Currencies) — and
+    ///    loot into the run's pending totals as the party walks them. A wipe forfeits whatever is
+    ///    still unwalked; anything already dropped stays (the design's death rule).
     ///  - Dust buys BOONS (<see cref="BuyBoon"/>): permanent account-wide stat buffs with a
     ///    geometric cost curve, folded into hero stats via <see cref="ApplyBoons"/> exactly where
     ///    Tower's milestone buffs fold in.
@@ -171,19 +171,6 @@ namespace IdleGame.GameCore
                 Boons = c.Boons,
                 ActiveRun = c.ActiveRun, // a mid-run clear keeps the run alive (descend/end updates it)
             }, cfg, gems: cfg.Balance.CryptGemsPerFloor);
-        }
-
-        /// <summary>
-        /// The end-of-run CHEST, granted only when the run completed all its floors (the caller
-        /// decides; a wipe never calls this): grave dust = ChestBase + ChestPerDepth × the current
-        /// depth record (the just-finished frontier). Returns the new save + the dust granted.
-        /// </summary>
-        public static (SaveState save, long dust) GrantChest(SaveState save, GameConfig cfg)
-        {
-            long dust = cfg.Balance.CryptChestBaseDust
-                        + cfg.Balance.CryptChestDustPerDepth * DepthRecord(save);
-            if (dust <= 0) return (save, 0);
-            return (WithCrypt(save, save.Progress.Crypt, cfg, dustDelta: dust), dust);
         }
 
         /// <summary>Grave-dust balance (the chest currency).</summary>
