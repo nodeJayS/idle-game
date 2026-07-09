@@ -31,9 +31,9 @@ namespace IdleGame.GameCore.Tests
         public void GrowthScalesWithLevel()
         {
             var st = Stats.ComputeHeroStats(Warrior(5), Cfg); // +4 levels of growth
-            Assert.Equal(120 + 18 * 4, st.Get(StatKey.Hp)); // 192
-            Assert.Equal(14 + 3 * 4, st.Get(StatKey.Atk));  // 26
-            Assert.Equal(8 + 1.5 * 4, st.Get(StatKey.Def));  // 14
+            Assert.Equal(120 + 38 * 4, st.Get(StatKey.Hp)); // 272 (Warrior Hp growth 38, rebased 10.1b)
+            Assert.Equal(14 + 6.5 * 4, st.Get(StatKey.Atk));  // 40 (Atk growth 6.5)
+            Assert.Equal(8 + 3.2 * 4, st.Get(StatKey.Def));  // 20.8 (Def growth 3.2)
         }
 
         [Fact]

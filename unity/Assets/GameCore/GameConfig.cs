@@ -849,7 +849,7 @@ namespace IdleGame.GameCore
                                (StatKey.HpRegen, 1.5),
                                (StatKey.AttackRange, 1.2),
                                (StatKey.SplashRadius, 1.0)),           // wide cleave (melee perk)
-                GrowthPerLevel = SB((StatKey.Hp, 18), (StatKey.Atk, 3), (StatKey.Def, 1.5)),
+                GrowthPerLevel = SB((StatKey.Hp, 38), (StatKey.Atk, 6.5), (StatKey.Def, 3.2)),
                 PassivePool = new List<string> { "toughness", "vitality" },
             };
             var rogue = cfg.Archetypes["rogue"] = new ArchetypeDef
@@ -861,7 +861,7 @@ namespace IdleGame.GameCore
                                (StatKey.HpRegen, 1.0),
                                (StatKey.AttackRange, 1.2),
                                (StatKey.SplashRadius, 0.5)),           // duelists, not cleavers
-                GrowthPerLevel = SB((StatKey.Hp, 10), (StatKey.Atk, 4), (StatKey.Def, 1)),
+                GrowthPerLevel = SB((StatKey.Hp, 22), (StatKey.Atk, 9), (StatKey.Def, 2.2)),
                 PassivePool = new List<string> { "precision", "killerinstinct" },
             };
             var magician = cfg.Archetypes["magician"] = new ArchetypeDef
@@ -876,7 +876,7 @@ namespace IdleGame.GameCore
                                (StatKey.HpRegen, 1.0),
                                (StatKey.AttackRange, 6.0),             // max reach; still fine point-blank
                                (StatKey.SplashRadius, 0.75)),
-                GrowthPerLevel = SB((StatKey.Hp, 11), (StatKey.Atk, 4), (StatKey.Def, 1)),
+                GrowthPerLevel = SB((StatKey.Hp, 23), (StatKey.Atk, 9), (StatKey.Def, 2.2)),
                 PassivePool = new List<string> { "pyromancy", "attunement", "permafrost", "frostflow", "devotion", "benediction" },
             };
 
@@ -921,7 +921,7 @@ namespace IdleGame.GameCore
                 BaseStats = SB((StatKey.Hp, 82), (StatKey.Atk, 15), (StatKey.Def, 6),
                                (StatKey.AtkSpd, 1.0), (StatKey.CritChance, 0.05),
                                (StatKey.HpRegen, 1.2), (StatKey.SplashRadius, 0.8)),
-                GrowthPerLevel = SB((StatKey.Hp, 13), (StatKey.Atk, 3.5), (StatKey.Def, 1.3)),
+                GrowthPerLevel = SB((StatKey.Hp, 28), (StatKey.Atk, 8), (StatKey.Def, 2.8)),
                 // 2+2 kit (§7.2): frost nuke + AoE blizzard; armor + cadence passives.
                 Skills = new List<string> { "frostbolt", "permafrost", "blizzard", "frostflow" },
                 Sprite = "icemage", AttackFx = "icebolt",
@@ -936,7 +936,7 @@ namespace IdleGame.GameCore
                 BaseStats = SB((StatKey.Hp, 90), (StatKey.Atk, 12), (StatKey.Def, 5),
                                (StatKey.AtkSpd, 0.95), (StatKey.CritChance, 0.04),
                                (StatKey.HpRegen, 1.2), (StatKey.SplashRadius, 0.7)),
-                GrowthPerLevel = SB((StatKey.Hp, 12), (StatKey.Atk, 3), (StatKey.Def, 1.2)),
+                GrowthPerLevel = SB((StatKey.Hp, 26), (StatKey.Atk, 6.5), (StatKey.Def, 2.6)),
                 // 2+2 kit (§7.2): party HoT + AoE smite; sustain + grace passives.
                 Skills = new List<string> { "sanctify", "devotion", "holysmite", "benediction" },
                 Sprite = "priest", AttackFx = "holybolt",
@@ -983,13 +983,13 @@ namespace IdleGame.GameCore
 
             // All floors sit at Rare (Normal rolls nothing, Rare+ rolls everything) — the
             // old Magic-tier "basic stats only" split left with the Magic rarity itself.
-            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.Hp, Weight = 30, ValueMinPerItemLevel = 4, ValueMaxPerItemLevel = 8, RarityFloor = Rarity.Rare });
-            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.Atk, Weight = 25, ValueMinPerItemLevel = 1, ValueMaxPerItemLevel = 2, RarityFloor = Rarity.Rare });
-            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.Def, Weight = 20, ValueMinPerItemLevel = 1, ValueMaxPerItemLevel = 2, RarityFloor = Rarity.Rare });
-            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.AtkSpd, Weight = 8, ValueMinPerItemLevel = 0.01, ValueMaxPerItemLevel = 0.03, RarityFloor = Rarity.Rare });
-            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.MoveSpd, Weight = 6, ValueMinPerItemLevel = 0.02, ValueMaxPerItemLevel = 0.05, RarityFloor = Rarity.Rare });
-            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.CritChance, Weight = 8, ValueMinPerItemLevel = 0.005, ValueMaxPerItemLevel = 0.015, RarityFloor = Rarity.Rare });
-            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.CritDmg, Weight = 9, ValueMinPerItemLevel = 0.03, ValueMaxPerItemLevel = 0.08, RarityFloor = Rarity.Rare });
+            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.Hp, Weight = 30, ValueMinPerItemLevel = 1.2, ValueMaxPerItemLevel = 2.4, RarityFloor = Rarity.Rare });
+            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.Atk, Weight = 25, ValueMinPerItemLevel = 0.3, ValueMaxPerItemLevel = 0.6, RarityFloor = Rarity.Rare });
+            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.Def, Weight = 20, ValueMinPerItemLevel = 0.3, ValueMaxPerItemLevel = 0.6, RarityFloor = Rarity.Rare });
+            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.AtkSpd, Weight = 8, ValueMinPerItemLevel = 0.004, ValueMaxPerItemLevel = 0.012, RarityFloor = Rarity.Rare });
+            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.MoveSpd, Weight = 6, ValueMinPerItemLevel = 0.012, ValueMaxPerItemLevel = 0.03, RarityFloor = Rarity.Rare });
+            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.CritChance, Weight = 8, ValueMinPerItemLevel = 0.002, ValueMaxPerItemLevel = 0.006, RarityFloor = Rarity.Rare });
+            cfg.AffixPool.Add(new AffixDef { Stat = StatKey.CritDmg, Weight = 9, ValueMinPerItemLevel = 0.012, ValueMaxPerItemLevel = 0.03, RarityFloor = Rarity.Rare });
 
             cfg.Monsters["slime"] = new MonsterDef
             {
