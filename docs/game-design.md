@@ -201,6 +201,30 @@ special affixes" for true uniques come later.)*
 - **Loot filter** (later) for high stages. Implemented as **seeded, testable pure functions**;
   the weighted-roll engine (`Rng.WeightedPick`) is reused verbatim for gacha later.
 
+### 5.3 Difficulty-curve intents (locked 2026-07-09)
+
+**Why:** BalanceSim's first run proved the ladder's math dies near stage 53 — geometric
+monster HP (`MonsterHpGrowth 1.18^stage`) vs strictly linear player power (level growth +
+`value × ItemLevel` affixes) — with thorns bosses anti-scaling into unwinnable walls and gear
+utterly dominating level. These are the durable fix targets (ROADMAP 10.1 implements; the
+walls chart is the acceptance):
+
+- **Thorns — capped mirror.** Reflect stays damage-proportional but is capped per hit at a
+  small fraction of the **attacker's** MaxHp (~2–3%), for every thorns source (boss self-mod,
+  farm mod, gear imprints). It can never one-shot; **sustain (lifesteal, Priest) is the
+  intended counter-build**, so thorns bosses become a build check instead of a math wall.
+- **Curve pacing — soft wall at ~80.** The per-stage growth exponent tapers by tier so
+  on-curve play (level + reasonable gear) reaches ~stage 80; **81–100 is the prestige band**,
+  expecting near-mythic gear plus the account-wide stacks (tower buffs, crypt boons, enhance).
+  Endless mode's stage-100 entry is therefore an elite unlock by design. Two-tier acceptance:
+  on-curve gear columns green to ~80, the mythic column green to 100 (the sim must first
+  learn the account stacks — 10.1's sim slice — since it under-counts live players today).
+- **Gear vs level — ~50/50.** On-curve power contribution rebalances to roughly equal parts
+  hero level and gear (`GrowthPerLevel` up, `ValueMin/MaxPerItemLevel` down). Acceptance:
+  the bare-hero and full-rare walls columns land within ~15 levels of each other (pre-fix:
+  a full rare set at hero level 1 cleared stages 1–27). No gear level-gates — that friction
+  fights the idle loop; the split is corrected in the numbers, not with locks.
+
 ---
 
 ## 6. Depth roadmap (post-MVP, roughly by value)

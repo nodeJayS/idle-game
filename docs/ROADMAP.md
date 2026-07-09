@@ -15,23 +15,28 @@ push), 10 themed zones with terraced arenas, Tower, Crypt roguelite
 gems, gacha (live Ice Mage banner), and a balance simulator over pure
 GameCore. Roster: Knight / Fire Mage / Assassin / Priest (+ banner Ice
 Mage) on the MS2 skinned pipeline; monsters are faceted or SDF blend-shell.
-**625 GameCore tests green.** Headline problem (sim-proven): the 100-stage
-ladder mathematically ends near stage 53 — see backlog 10.1.
+**645 GameCore tests green.** Headline problem (sim-proven): the 100-stage
+ladder mathematically ends near stage 53 — see backlog 10.1 (intents
+locked 2026-07-09 → game-design §5.3; implementation in flight).
 
 ## Your calls — decisions waiting on the USER
 
 Nothing here blocks autonomous work elsewhere, but these need your verdict
 before anyone acts on them:
 
-1. **Rebalance intents (gates backlog 10.1):** how thorns should scale
-   (reflect off victim EHP / cap vs bosses / exempt boss self-mod?), how
-   deep the ladder curve flattens (55–100 reachable on-curve), and how much
-   gear should dominate level.
+1. RESOLVED 2026-07-09: rebalance intents locked (thorns capped at ~2–3%
+   of the ATTACKER's MaxHp per hit; curve tapers to a soft wall at ~80
+   with 81–100 the near-mythic prestige band; gear/level rebased ~50/50)
+   → game-design §5.3; backlog 10.1 implements.
 2. **Root casters during casts?** The last cast-cancel source: the sim
    moves a caster mid-cast and the clip travel-cancels. Rooting them is a
    sim/balance change (kiting implications).
 3. **Crypt tuning:** key cadence (1/UTC day too stingy?) and depth-ramp
-   steepness — both single Balance constants; play a few real runs first.
+   steepness — both single Balance constants. New input, `crypt` sim
+   chart 2026-07-09: a stage-25/L50/rare party walls at depth 50, and
+   dust/hour DECAYS ~9× from depth 1→49 (floors lengthen ×12 while
+   floor rewards barely grow) — deeper runs pay strictly worse, so the
+   reward-growth constants want a look alongside the ramp.
 4. **Crypt mood/brightness polish:** play & eyeball, then direct.
 5. **Terrain slice 3** (zone water/lava/void flavor + camera composition):
    wants your island-look eyeball before building.
@@ -49,8 +54,8 @@ before anyone acts on them:
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
-**NEXT UP: 10.1 The Great Rebalance — awaiting the user's rebalance intents
-(Your calls #1) before any tuning constant moves.**
+**NEXT UP: 10.1 The Great Rebalance — intents LOCKED (game-design §5.3);
+implementation delegated 2026-07-09.**
 
 Self-contained briefs for future sessions (any model); slice order =
 shipping order, each one-verified-slice-per-commit sized. Standing rules
@@ -62,25 +67,25 @@ band-blur · SDF jiggle-rope tail · crypt mid-run merchant/boon-draft
 (user cut 2026-07-07; must never dilute dust's permanent-boon role).
 
 **10.1 The Great Rebalance (sim-driven — unblocks everything else)**
-The balance sim's first run (2026-07-07) found the walls; these findings
-are THE inputs, and the fix intents are user-gated (Your calls #1):
-- thorns boss gates anti-scale: every 4th stage's boss wears Thorns
-  (ModifierCycle[(stage-1)%4]) and reflect scales with attacker damage —
-  stages 32/36/44/48/52 are unwinnable even at L100 full-mythic while
-  their neighbors fall at L1; 20/40 stack thorns × MajorBossMult.
-- the ladder's math ends near stage 53: no level/gear combo clears 55+
-  inside the 30s boss timer (MonsterHpGrowth 1.18^stage vs ilvl-linear
-  gear). Stages 55–100 are currently decorative.
-- gear rarity dominates level: a full rare set clears stages 1–27 at
-  hero level 1; bare heroes need L37 by 25 and L75 by 28.
-(Sim excludes tower buffs/boons/enhance/imprints — the real frontier sits
-a bit deeper, but not 45 stages deeper. Caster pacing lever if ever
-needed: per-skill CooldownMs.) Slices: (a) fix thorns anti-scaling;
-(b) flatten the curve so 55–100 is reachable (BalanceSim walls chart
-green to 100 = the acceptance test); (c) close the gear≫level gap;
-(d) extend BalanceSim: model tower buffs/crypt boons/enhance, add a
-`pace` mode (full simulated playthrough, charts hours-to-stage);
-(e) re-run walls + farm charts, commit tuning + updated findings together.
+Intents LOCKED 2026-07-09 → game-design §5.3: thorns reflect capped per
+hit at ~2–3% of the ATTACKER's MaxHp (sustain = the counter-build);
+curve tapers to a SOFT WALL at ~80 (81–100 = near-mythic + account
+stacks, the prestige band); gear/level rebased to ~50/50. Sim-proven
+inputs (2026-07-07 run): thorns bosses 32/36/44/48/52 unwinnable at any
+power (reflect ∝ attacker damage); the 1.18^stage ladder math dies near
+53 vs ilvl-linear gear; a full rare set at hero L1 clears stages 1–27.
+Slices (TUNING ORDER MATTERS — rebase player power before tapering the
+monster curve against it):
+(a) thorns per-hit cap in ApplyHit, all sources (walls acceptance:
+32/36/44/48/52 dissolve into their neighbors' levels);
+(b) gear/level rebase ~50/50 (GrowthPerLevel up, ValuePerItemLevel
+down; acceptance: bare vs full-rare walls columns within ~15 levels);
+(c) taper MonsterHpGrowth per tier against the REBASED power
+(acceptance, two-tier: on-curve columns green to ~80, mythic to 100);
+(d) extend BalanceSim first if (c) needs it: model tower buffs/crypt
+boons/enhance + a `pace` mode (hours-to-stage) — required to verify
+the 81–100 prestige band is truly reachable with stacks;
+(e) re-run walls/sweep/farm/crypt charts, commit tuning + findings.
 
 **10.2 First-time experience (FTUE) & staged UI reveal**
 A new player today sees ~10 buttons and 100 numbers in minute one.
