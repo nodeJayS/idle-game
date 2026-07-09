@@ -52,6 +52,11 @@ then wire them into Unity. If the tests pass, the sim half is set up correctly.
 Saves are per-machine at `%USERPROFILE%\AppData\LocalLow\DefaultCompany\unity\save.json`
 (not in the repo). **Back it up before Play-mode testing** (CLAUDE.md verify loop).
 
+**UI font (per-machine, never committed):** the UI loads
+`unity/Assets/Resources/Fonts/UIFont.ttf` and falls back to Unity's built-in
+font if it's missing. The file is proprietary and gitignored — copy it over
+from an existing machine by hand (create the `Fonts/` folder if needed).
+
 ### 4. (Optional) Unity MCP — drive the Editor from Claude
 Committed with the repo: `.mcp.json` (points at `http://127.0.0.1:8080/mcp`) and the
 bridge package pinned in `unity/Packages/manifest.json`. Per-machine: install
