@@ -70,17 +70,20 @@ band-blur · SDF jiggle-rope tail · crypt mid-run merchant/boon-draft
 (user cut 2026-07-07; must never dilute dust's permanent-boon role).
 
 **10.2 First-time experience (FTUE) & staged UI reveal**
-A new player today sees ~10 buttons and 100 numbers in minute one.
+Design LOCKED 2026-07-09 → game-design §7.4 (quest-board-only intro,
+FAST reveal schedule — everything by ~S12; fresh-games-only gating via
+a New-Game flag, additive field, no save bump). Slices:
 (a) GameCore: `Progression.FeatureUnlocked(feature, save)` gating table
-(stage/level driven — e.g. Modifiers@S10, Modes@S15, Gacha@S20, sim-side
-so a future server agrees); (b) client: hide locked HUD buttons, reveal
-with a one-line toast ("Modifiers unlocked — risk for reward");
-(c) a 5-beat guided intro (kill pack → first drop → equip → first boss →
-first unlock) driven by the existing quest board, seeded only at New
-Game; (d) first-boss/first-hero celebration moments (existing juice,
-bigger beat); (e) "what do I do next" breadcrumb: one contextual hint
-line on the HUD fed by game state (idle claim ready / boss beatable /
-skill point unspent).
+per §7.4's schedule + the New-Game arming flag + tests;
+(b) GameCore: the five intro quests seeded at New Game ahead of the
+rolling board, imperative wording, retro-completion (never wedges) +
+tests; — (a)+(b) delegated 2026-07-09 (pure sim, no bridge needed);
+(c) client: hide unarmed/locked HUD buttons, reveal with the one-line
+toast; suppress the idle/login launch popups pre-S3;
+(d) client: first-boss/first-hero celebration beats (existing juice,
+bigger) + the contextual breadcrumb hint line;
+(e) Play-verified New Game walkthrough end-to-end. — (c)-(e) NEED the
+Unity bridge (attaches at session start only; was down 2026-07-09).
 
 **10.3 UI/UX foundation refactor (the deferred layout-group pass)**
 Hand-placed coords rot on every screen change; do the real fix in order:

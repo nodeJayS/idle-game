@@ -358,14 +358,16 @@ locked boss gate, a reward room. The 2026-07-06 meta lock is UNCHANGED (1 key/UT
 bank 2 · 3-floor runs from depth record+1 · gems per first clear · dust chest · permanent
 boons · wipe keeps drops, forfeits the chest).
 
-**Floor grammar** (~12 rooms on the existing linear chain; user picks 2026-07-07):
+**Floor grammar** (~12 rooms on the existing linear chain; user picks 2026-07-07;
+AMENDED 2026-07-09 — physical door seals REMOVED, user call: the containment clamp
+teleported units. The crawl is clamp-free: entering a mob room wakes its whole pack
+and marks it ENGAGED; waves and the room-clear beat ride that, and the sweep AI's
+shallowest-living-room order keeps the room-by-room rhythm without a trap):
 - **Entrance** (safe) · **6–7 Combat** · **1 Elite** · **1 Key room** · **1 Chest room**
-  · **Boss**. Combat/Elite/Key rooms **seal both doors** on entry, spawn mobs in waves,
-  and unseal on room clear (rides the room-scoped aggro attribution) + pay a small
-  gold/loot burst. Chest/Entrance/Reward rooms never seal.
+  · **Boss**. Mob rooms spawn in waves; a cleared room pays a small gold/loot burst.
 - **Key room** = a combat room with a marked, glowing **key bearer** mob that drops the
-  Boss Key on death (the room must still clear). Every floor has its own key + locked
-  boss door: the per-floor rhythm is *fight → find the bearer → boss*.
+  Boss Key on death — a tell/beat (the sweep clears it before the deeper boss room
+  anyway, so no physical gate is needed): *fight → find the bearer → boss*.
 - **Chest room**: 1–3 chests by depth; **~15% of chest-room chests are GOOFY mimics**
   (googly-eyed elite-rank fight paying the chest contents + a bonus; never in the
   reward room).
@@ -390,6 +392,33 @@ depth.
 **Cut for now (user call 2026-07-07): the mid-run MERCHANT** (run-scoped boon shop,
 which had absorbed the old boon-draft idea) — parked, not designed in. If it ever
 returns, it must not dilute grave dust's permanent-boon role.
+
+### 7.4 FTUE & staged reveal (locked 2026-07-09)
+
+**Why:** a new player meets ~10 buttons and 100 numbers in minute one. The fix is a
+staged reveal + a quest-driven intro — no tutorial system, no overlays (user pick:
+**quest board only**, cozy over hand-holdy).
+
+- **Minute one shows only the intro's surface**: the fight, Inventory, Heroes, the
+  quest board, stage nav + boss challenge, Settings, chat/feed. Everything else is
+  HIDDEN (not greyed) until earned.
+- **Reveal schedule (user pick: FAST — everything by ~stage 12)**: auto-advance @S2
+  (after the first boss) · idle claim + daily login @S3 (kills both launch popups in
+  minute one; streaks still start same session) · achievements @S5 · modifiers @S10
+  (= where the first real modifier unlocks) · Modes menu (Tower+Crypt) @S10 ·
+  gacha @S12. Each reveal = a one-line toast ("Modifiers unlocked — risk for reward").
+- **Gating is sim-side** (`Progression.FeatureUnlocked(feature, save)`) so a future
+  server agrees with the client. **Fresh games only**: gating arms via a flag set at
+  New Game (additive save field, no version bump) — existing saves deserialize
+  unarmed and see everything, forever.
+- **Guided intro = the first five quests**, seeded only at New Game ahead of the
+  rolling board, worded imperatively: kill a pack → collect your first drop → equip
+  it → beat the stage-1 boss → reach the first reveal. Each retro-completes if its
+  deed already happened (the `SyncHeroUnlocks` pattern) — the intro can never wedge.
+- **Celebration beats**: first boss kill and first hero unlock reuse the existing
+  juice, one size bigger. **Breadcrumb**: one contextual HUD hint line fed by game
+  state (idle claim ready / boss looks beatable / unspent skill point), lowest-key
+  guidance that persists after the intro ends.
 
 ---
 
