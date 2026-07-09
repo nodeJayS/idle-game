@@ -37,7 +37,10 @@ namespace IdleGame.GameCore
                 Party = party,
                 Inventory = new List<Item>(),
                 Currencies = new Dictionary<string, long> { ["gold"] = 0 },
-                Progress = new ProgressState { HighestStage = 0, CurrentStage = 1, AccountLevel = 1 },
+                // Intro.Armed = true is set ONLY here: a fresh game opts into the §7.4 staged reveal
+                // (features hidden until earned) + guided intro. Every existing save deserializes
+                // Armed=false and stays fully unlocked, forever.
+                Progress = new ProgressState { HighestStage = 0, CurrentStage = 1, AccountLevel = 1, Intro = new IntroState { Armed = true } },
                 LastClaimAt = now,
             };
             return Quests.EnsureBoard(save, cfg); // start with a full goal board
@@ -123,6 +126,7 @@ namespace IdleGame.GameCore
             save.Progress.Daily ??= new DailyLoginState(); // older saves predate the daily-login streak
             save.Progress.Crypt ??= new CryptState(); // older saves predate the crypt meta (keys/boons)
             save.Progress.Crypt.Boons ??= new Dictionary<string, int>();
+            save.Progress.Intro ??= new IntroState(); // older saves predate FTUE arming (Armed=false => all unlocked)
             save.Quests ??= new QuestBoard(); // EnsureBoard (client, needs cfg) backfills the goals
             save.Modifiers ??= new MonsterModifiers(); // none owned on older saves until a boss grants one
             save.Modifiers.Tuning ??= new Dictionary<string, double>(); // modifier-shop tuning (new field)

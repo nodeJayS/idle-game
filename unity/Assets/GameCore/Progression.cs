@@ -13,6 +13,37 @@ namespace IdleGame.GameCore
     /// </summary>
     public static class Progression
     {
+        /// <summary>
+        /// FTUE staged-reveal schedule (§7.4, user pick FAST — everything by ~S12): the highest
+        /// CLEARED stage a feature is revealed at. Schedule-as-data (this table), not a switch of magic
+        /// numbers, so the client and a future server read the same gate. A feature not in the table is
+        /// treated as always-on (need = 0).
+        /// </summary>
+        public static readonly IReadOnlyDictionary<Feature, int> FeatureRevealStage = new Dictionary<Feature, int>
+        {
+            [Feature.AutoAdvance]  = 2,   // after the first boss
+            [Feature.IdleClaim]    = 3,   // kills the offline-accrual launch popup in minute one
+            [Feature.DailyLogin]   = 3,   // kills the login popup in minute one; streaks still start same session
+            [Feature.Achievements] = 5,
+            [Feature.Modifiers]    = 10,  // = where the first real modifier unlocks
+            [Feature.Modes]        = 10,  // Tower + Crypt menu
+            [Feature.Gacha]        = 12,
+        };
+
+        /// <summary>
+        /// Is a HUD feature/panel revealed for this save yet (§7.4 staged reveal)? Gates by the save's
+        /// highest CLEARED stage against <see cref="FeatureRevealStage"/> — reveals fire on clears.
+        /// FRESH GAMES ONLY: an UNARMED save (every save that existed before FTUE, plus any save not
+        /// created via New Game) returns true for everything, forever — the reveal is opt-in via the
+        /// New-Game arming flag, so no existing player ever loses access. Pure; no clock, no rng.
+        /// </summary>
+        public static bool FeatureUnlocked(Feature feature, SaveState save)
+        {
+            if (!save.Progress.Intro.Armed) return true; // unarmed (pre-FTUE / non-New-Game) saves see all
+            int need = FeatureRevealStage.TryGetValue(feature, out var s) ? s : 0;
+            return save.Progress.HighestStage >= need;
+        }
+
         /// <summary>Grant XP to a single hero, applying any level-ups (capped at Balance.MaxLevel).</summary>
         public static HeroInstance GrantXp(HeroInstance hero, long amount, GameConfig cfg)
         {
@@ -159,6 +190,7 @@ namespace IdleGame.GameCore
                 Achievements = save.Progress.Achievements,
                 Daily = save.Progress.Daily,
                 Crypt = save.Progress.Crypt,
+                Intro = save.Progress.Intro,
             });
 
             next = SyncHeroUnlocks(next, cfg);
@@ -257,6 +289,7 @@ namespace IdleGame.GameCore
                 Achievements = save.Progress.Achievements,
                 Daily = save.Progress.Daily,
                 Crypt = save.Progress.Crypt,
+                Intro = save.Progress.Intro,
             });
         }
 

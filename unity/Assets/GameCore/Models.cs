@@ -123,6 +123,32 @@ namespace IdleGame.GameCore
         public DailyLoginState Daily = new DailyLoginState();
         // Crypt (roguelite dungeon) meta. Nested here for the same threading reason.
         public CryptState Crypt = new CryptState();
+        // FTUE staged-reveal arming + guided-intro track (§7.4). Nested here for the same
+        // threading reason as Tower/Achievements/Daily/Crypt. Absent on older saves =>
+        // deserializes to a fresh IntroState with Armed=false, so Progression.FeatureUnlocked
+        // treats every existing save as fully unlocked, forever (fresh games only gate).
+        public IntroState Intro = new IntroState();
+    }
+
+    /// <summary>Which HUD feature/panel the staged reveal gates (§7.4). A player meets only the
+    /// intro's surface in minute one; each of these is HIDDEN until the schedule reveals it, keyed
+    /// off the save's highest CLEARED stage via <see cref="Progression.FeatureUnlocked"/>. Names are
+    /// client-obvious: AutoAdvance = the auto-push-to-next-stage toggle; IdleClaim = the offline-accrual
+    /// claim + its launch popup; DailyLogin = the login-streak claim + its popup; Achievements = the
+    /// lifetime ladder panel; Modifiers = the risk/reward modifier shop+loadout; Modes = the Tower+Crypt
+    /// menu; Gacha = the banner/summon screen.</summary>
+    public enum Feature { AutoAdvance, IdleClaim, DailyLogin, Achievements, Modifiers, Modes, Gacha }
+
+    /// <summary>
+    /// FTUE staged-reveal state (§7.4). <see cref="Armed"/> is set ONLY by <see cref="Save.NewGame"/> —
+    /// existing saves deserialize it false and see every feature/panel unlocked forever (the
+    /// fresh-games-only rule; additive field, NO SaveVersion bump, same precedent as GachaPity /
+    /// Modifiers.Tuning / CryptState.ActiveRun). Read via <see cref="Progression.FeatureUnlocked"/>.
+    /// Nested under <see cref="ProgressState"/> so it rides the existing Progress reference-threading.
+    /// </summary>
+    public sealed class IntroState
+    {
+        public bool Armed; // set true at New Game only; false on every existing save (unarmed = all unlocked)
     }
 
     /// <summary>Tower of Ascension progress (a separate one-clear-per-floor track, distinct from the
