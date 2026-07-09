@@ -23,6 +23,44 @@ namespace IdleGame.BalanceSim
 
         public static string GearName(Rarity? gear) => gear?.ToString().ToLowerInvariant() ?? "none";
 
+        /// <summary>Endgame ACCOUNT STACKS the sim can layer onto a built save (10.1d) — the
+        /// account-wide power the walls chart under-counts for live players. All three flow through
+        /// the exact combat stat build the client uses (RefreshPartyStats → Tower.ApplyAccountBuffs +
+        /// Crypt.ApplyBoons; ComputeHeroStats → item.Enhance), so a stacked verdict stays honest.</summary>
+        public struct AccountStacks
+        {
+            public int TowerMilestones;  // Tower.HighestFloor = this × TowerMilestoneEvery (each = +TowerMilestoneStatPct Hp/Atk/Def)
+            public int BoonRank;         // every crypt boon (vigor/ferocity/bulwark) set to this rank (+CryptBoonStatPct/rank)
+            public int EnhanceLevel;     // every equipped item enhanced to this level (+EnhanceBasePctPerLevel/level on its base+affixes)
+            public static readonly AccountStacks None = new AccountStacks();
+            public bool Any => TowerMilestones > 0 || BoonRank > 0 || EnhanceLevel > 0;
+
+            public string Label => !Any ? "none"
+                : $"tower×{TowerMilestones}/boon r{BoonRank}/enh +{EnhanceLevel}";
+        }
+
+        /// <summary>Layer the account stacks onto a built save by writing the SAME save fields the
+        /// client's progression writes (Tower.HighestFloor, Crypt.Boons, Item.Enhance) — the combat
+        /// path then folds them in unchanged. Clamped to each system's cap. Mutates and returns the save.</summary>
+        public static SaveState ApplyStacks(SaveState save, GameConfig cfg, AccountStacks st)
+        {
+            if (!st.Any) return save;
+            if (st.TowerMilestones > 0)
+                save.Progress.Tower.HighestFloor = Math.Max(save.Progress.Tower.HighestFloor,
+                    st.TowerMilestones * Math.Max(1, cfg.Balance.TowerMilestoneEvery));
+            if (st.BoonRank > 0)
+            {
+                int rank = Math.Min(st.BoonRank, cfg.Balance.CryptBoonMaxRank);
+                foreach (var b in cfg.CryptBoons) save.Progress.Crypt.Boons[b.Id] = rank;
+            }
+            if (st.EnhanceLevel > 0)
+            {
+                int enh = Math.Min(st.EnhanceLevel, cfg.Balance.EnhanceMax);
+                foreach (var item in save.Inventory) item.Enhance = enh;
+            }
+            return save;
+        }
+
         /// <summary>Deterministic per-cell seed so any single result can be reproduced from
         /// (baseSeed, stage, level, gear, trial) alone. Plain xorshift-multiply mix.</summary>
         public static uint CellSeed(uint baseSeed, int stage, int level, int gearIndex, int trial)
@@ -48,7 +86,8 @@ namespace IdleGame.BalanceSim
         /// round-robin across each hero's kit, and — if <paramref name="gear"/> is set — a
         /// full active-slot set of that rarity rolled at the stage's item level and equipped.
         /// </summary>
-        public static SaveState BuildSave(GameConfig cfg, int stage, int level, Rarity? gear, uint seed)
+        public static SaveState BuildSave(GameConfig cfg, int stage, int level, Rarity? gear, uint seed,
+                                          AccountStacks stacks = default)
         {
             var save = Save.NewGame(seed, cfg, 0);
             for (int st = 1; st < stage; st++)
@@ -69,6 +108,7 @@ namespace IdleGame.BalanceSim
 
             save = AutoInvestSkills(save, cfg);
             if (gear is Rarity rarity) save = EquipFullSet(save, cfg, stage, rarity, seed);
+            save = ApplyStacks(save, cfg, stacks);
             return save;
         }
 
@@ -215,14 +255,15 @@ namespace IdleGame.BalanceSim
         }
 
         /// <summary>Majority-of-trials verdict for "a level-L party with this gear clears stage S".</summary>
-        public static bool ClearsBoss(GameConfig cfg, int stage, int level, Rarity? gear, int trials, uint baseSeed)
+        public static bool ClearsBoss(GameConfig cfg, int stage, int level, Rarity? gear, int trials, uint baseSeed,
+                                      AccountStacks stacks = default)
         {
             int gearIndex = Array.IndexOf(GearPolicies, gear);
             int wins = 0;
             for (int t = 0; t < trials; t++)
             {
                 uint seed = CellSeed(baseSeed, stage, level, gearIndex, t);
-                var save = BuildSave(cfg, stage, level, gear, seed);
+                var save = BuildSave(cfg, stage, level, gear, seed, stacks);
                 if (RunBoss(cfg, save, stage, seed).Won) wins++;
                 if (wins * 2 > trials) return true;                    // majority already decided
                 if ((wins + (trials - 1 - t)) * 2 <= trials) return false;
@@ -235,15 +276,16 @@ namespace IdleGame.BalanceSim
         /// policy, or null if even the level cap fails. Binary search — power is monotone in
         /// level (base growth, skill points, and kit reveals all only ever increase).
         /// </summary>
-        public static int? MinLevelToClear(GameConfig cfg, int stage, Rarity? gear, int trials, uint baseSeed)
+        public static int? MinLevelToClear(GameConfig cfg, int stage, Rarity? gear, int trials, uint baseSeed,
+                                           AccountStacks stacks = default)
         {
             int lo = 1, hi = cfg.Balance.MaxLevel;
-            if (ClearsBoss(cfg, stage, lo, gear, trials, baseSeed)) return lo;
-            if (!ClearsBoss(cfg, stage, hi, gear, trials, baseSeed)) return null;
+            if (ClearsBoss(cfg, stage, lo, gear, trials, baseSeed, stacks)) return lo;
+            if (!ClearsBoss(cfg, stage, hi, gear, trials, baseSeed, stacks)) return null;
             while (hi - lo > 1)
             {
                 int mid = lo + (hi - lo) / 2;
-                if (ClearsBoss(cfg, stage, mid, gear, trials, baseSeed)) hi = mid; else lo = mid;
+                if (ClearsBoss(cfg, stage, mid, gear, trials, baseSeed, stacks)) hi = mid; else lo = mid;
             }
             return hi;
         }

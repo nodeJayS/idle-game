@@ -26,6 +26,15 @@ namespace IdleGame.BalanceSim
     ///          reward as the depth ramp climbs — result, sweep seconds, rooms/chests, gold/dust/xp/
     ///          items/downs; then the crypt wall (first depth the party fails) and the reward-vs-ramp
     ///          trend. --stage/--level/--gear pin the party; depth is the only variable.
+    ///   pace   [--target 100] [--gear rare] [--seed 1] [--window 120] [--stacks …] [--csv path]
+    ///          Simulated playthrough (10.1d): farm each stage's trash at the current level, spend the
+    ///          measured XP/min to level up until the boss gate clears, then advance — charting the
+    ///          cumulative ACTIVE hours to reach each stage (and gold banked). The hours-to-80 read.
+    ///
+    /// ACCOUNT STACKS (10.1d) — every mode above takes optional endgame stacks the live player has but
+    /// the bare walls chart under-counts (§5.3). --stacks none|mid|max sets a bundle; the granular
+    /// --tower-milestones N / --boons N / --enhance N override individual axes. They fold through the
+    /// real client stat build (Tower buffs, crypt boons, item enhance).
     /// </summary>
     public static class Program
     {
@@ -37,7 +46,7 @@ namespace IdleGame.BalanceSim
 
             if (opts.ContainsKey("help") || mode == "help")
             {
-                Console.WriteLine("modes: walls (default) | sweep | farm | crypt — see Program.cs header for options.");
+                Console.WriteLine("modes: walls (default) | sweep | farm | crypt | pace — see Program.cs header for options.");
                 return 0;
             }
 
@@ -48,8 +57,9 @@ namespace IdleGame.BalanceSim
                 case "sweep": return Sweep(cfg, opts, seed);
                 case "farm": return Farm(cfg, opts, seed);
                 case "crypt": return CryptChart(cfg, opts, seed);
+                case "pace": return Pace(cfg, opts, seed);
                 default:
-                    Console.Error.WriteLine($"unknown mode \"{mode}\" (walls | sweep | farm | crypt)");
+                    Console.Error.WriteLine($"unknown mode \"{mode}\" (walls | sweep | farm | crypt | pace)");
                     return 2;
             }
         }
@@ -61,20 +71,21 @@ namespace IdleGame.BalanceSim
             var (sFrom, sTo, sStep) = GetRange(opts, "stages", 1, cfg.Stages.Count, 1);
             int trials = GetInt(opts, "trials", 3);
             var gears = GetGears(opts, defaults: new Rarity?[] { null, Rarity.Normal, Rarity.Rare, Rarity.Legendary });
+            var stacks = ParseStacks(opts, cfg);
 
             var rows = new List<(int Stage, int?[] MinLevel)>();
             for (int stage = sFrom; stage <= sTo; stage += sStep)
             {
                 var row = new int?[gears.Length];
                 for (int g = 0; g < gears.Length; g++)
-                    row[g] = Scenarios.MinLevelToClear(cfg, stage, gears[g], trials, seed);
+                    row[g] = Scenarios.MinLevelToClear(cfg, stage, gears[g], trials, seed, stacks);
                 rows.Add((stage, row));
                 Console.Error.Write($"\rwalls: stage {stage}/{sTo}   ");
             }
             Console.Error.WriteLine();
 
             var sb = new StringBuilder();
-            sb.AppendLine($"Min hero level to clear the boss gate (trials={trials}, seed={seed}; \"--\" = fails even at the level cap)");
+            sb.AppendLine($"Min hero level to clear the boss gate (trials={trials}, seed={seed}, stacks={stacks.Label}; \"--\" = fails even at the level cap)");
             sb.Append("stage".PadLeft(5));
             foreach (var g in gears) sb.Append(Scenarios.GearName(g).PadLeft(11));
             sb.AppendLine();
@@ -119,13 +130,14 @@ namespace IdleGame.BalanceSim
             int trials = GetInt(opts, "trials", 1);
             var gear = GetGears(opts, defaults: new Rarity?[] { Rarity.Rare })[0];
             int gearIndex = Array.IndexOf(Scenarios.GearPolicies, gear);
+            var stacks = ParseStacks(opts, cfg);
 
             var levels = new List<int>();
             for (int l = lFrom; l <= lTo; l += lStep) levels.Add(l);
 
             var results = new List<(int Stage, int Level, bool Won, double Seconds)>();
             var sb = new StringBuilder();
-            sb.AppendLine($"Boss-gate outcomes, gear={Scenarios.GearName(gear)} (rows=stage, cols=level; '#'=win '.'=loss; trials={trials}, seed={seed})");
+            sb.AppendLine($"Boss-gate outcomes, gear={Scenarios.GearName(gear)}, stacks={stacks.Label} (rows=stage, cols=level; '#'=win '.'=loss; trials={trials}, seed={seed})");
             sb.Append("     ");
             foreach (var l in levels) sb.Append(l.ToString().PadLeft(4));
             sb.AppendLine();
@@ -135,9 +147,9 @@ namespace IdleGame.BalanceSim
                 sb.Append(stage.ToString().PadLeft(5));
                 foreach (var level in levels)
                 {
-                    bool won = Scenarios.ClearsBoss(cfg, stage, level, gear, trials, seed);
+                    bool won = Scenarios.ClearsBoss(cfg, stage, level, gear, trials, seed, stacks);
                     uint cellSeed = Scenarios.CellSeed(seed, stage, level, gearIndex, 0);
-                    var one = Scenarios.RunBoss(cfg, Scenarios.BuildSave(cfg, stage, level, gear, cellSeed), stage, cellSeed);
+                    var one = Scenarios.RunBoss(cfg, Scenarios.BuildSave(cfg, stage, level, gear, cellSeed, stacks), stage, cellSeed);
                     results.Add((stage, level, won, one.Seconds));
                     sb.Append((won ? "#" : ".").PadLeft(4));
                 }
@@ -164,9 +176,10 @@ namespace IdleGame.BalanceSim
             double window = GetInt(opts, "window", 120);
             var gear = GetGears(opts, defaults: new Rarity?[] { Rarity.Rare })[0];
             int gearIndex = Array.IndexOf(Scenarios.GearPolicies, gear);
+            var stacks = ParseStacks(opts, cfg);
 
             uint cellSeed = Scenarios.CellSeed(seed, stage, level, gearIndex, 0);
-            var save = Scenarios.BuildSave(cfg, stage, level, gear, cellSeed);
+            var save = Scenarios.BuildSave(cfg, stage, level, gear, cellSeed, stacks);
             var r = Scenarios.RunFarm(cfg, save, stage, window, cellSeed);
             var boss = Scenarios.RunBoss(cfg, save, stage, cellSeed);
 
@@ -208,6 +221,7 @@ namespace IdleGame.BalanceSim
             var gear = GetGears(opts, defaults: new Rarity?[] { Rarity.Rare })[0];
             int gearIndex = Array.IndexOf(Scenarios.GearPolicies, gear);
             int trials = Math.Max(1, GetInt(opts, "trials", 1));
+            var stacks = ParseStacks(opts, cfg);
 
             // Party is PINNED across depths: build one save per trial (stage/level/gear fix the power;
             // only the depth ramps). The cell seed is trial-varied but depth-independent — GenSeed folds
@@ -217,7 +231,7 @@ namespace IdleGame.BalanceSim
             for (int t = 0; t < trials; t++)
             {
                 cellSeeds[t] = Scenarios.CellSeed(seed, stage, level, gearIndex, t);
-                saves[t] = Scenarios.BuildSave(cfg, stage, level, gear, cellSeeds[t]);
+                saves[t] = Scenarios.BuildSave(cfg, stage, level, gear, cellSeeds[t], stacks);
             }
             double partyPower = Stats.ComputePartyPower(saves[0], cfg);
             int heroCount = Scenarios.FieldedParty(saves[0]).Count;
@@ -253,7 +267,7 @@ namespace IdleGame.BalanceSim
             }
 
             var sb = new StringBuilder();
-            sb.AppendLine($"Crypt depth chart — party pinned at stage {stage}, level {level}, gear {Scenarios.GearName(gear)} "
+            sb.AppendLine($"Crypt depth chart — party pinned at stage {stage}, level {level}, gear {Scenarios.GearName(gear)}, stacks {stacks.Label} "
                           + $"(power {partyPower:0}, {heroCount} heroes; trials={trials}, seed={seed})");
             sb.AppendLine("depth marks a run's FINAL floor with '*' (reward vault + true boss); others field the mini-boss guardian.");
             if (trials == 1) sb.AppendLine("result LOSS* = lost to the run-timer failsafe with the party still standing (a slog, not a wipe).");
@@ -347,7 +361,132 @@ namespace IdleGame.BalanceSim
             return 0;
         }
 
+        // ---- pace (simulated playthrough, hours-to-stage) ----------------------------
+
+        private static int Pace(GameConfig cfg, Dictionary<string, string> opts, uint seed)
+        {
+            int target = Math.Min(GetInt(opts, "target", cfg.Stages.Count), cfg.Stages.Count);
+            var gear = GetGears(opts, defaults: new Rarity?[] { Rarity.Rare })[0];
+            int gearIndex = Array.IndexOf(Scenarios.GearPolicies, gear);
+            double window = GetInt(opts, "window", 120);
+            var stacks = ParseStacks(opts, cfg);
+            var ci = CultureInfo.InvariantCulture;
+
+            // A player pushes stage by stage: to advance past a boss gate you need MinLevelToClear;
+            // you reach that level by farming the deepest CLEARED stage's trash for XP. We charge the
+            // farming time per level-up (re-measuring XP/min at each new level so the rate tracks power)
+            // and bank the gold earned along the way. Boss fights are ~instant vs the farm grind, so the
+            // hours are dominated by leveling. Deterministic: every farm run flows from a cell seed.
+            var rows = new List<(int Stage, int Req, int Level, double Hours, double Gold)>();
+            double hours = 0, gold = 0;
+            int level = 1;
+            int wallStage = -1;
+
+            for (int stage = 1; stage <= target; stage++)
+            {
+                int? req = Scenarios.MinLevelToClear(cfg, stage, gear, 1, seed, stacks);
+                if (req == null) { wallStage = stage; break; }
+
+                // Grind XP up to the gate. Farm the deepest cleared stage (stage-1) — the trash you can
+                // actually mow — falling back a stage if that field wipes or pays no XP.
+                while (level < req.Value)
+                {
+                    int farmStage = Math.Max(1, stage - 1);
+                    var farm = FarmAt(cfg, farmStage, level, gear, gearIndex, window, seed, stacks);
+                    if ((farm.XpPerMinute <= 0 || farm.Wiped) && farmStage > 1)
+                        farm = FarmAt(cfg, farmStage - 1, level, gear, gearIndex, window, seed, stacks);
+                    if (farm.XpPerMinute <= 0) { wallStage = stage; break; }
+
+                    double minutes = cfg.Balance.XpCurve(level) / farm.XpPerMinute;
+                    hours += minutes / 60.0;
+                    gold += farm.GoldPerMinute * minutes;
+                    level++;
+                }
+                if (wallStage >= 0) break;
+                rows.Add((stage, req.Value, level, hours, gold));
+                Console.Error.Write($"\rpace: stage {stage}/{target} (L{level}, {hours:0.0}h)   ");
+            }
+            Console.Error.WriteLine();
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"Simulated playthrough — gear {Scenarios.GearName(gear)}, stacks {stacks.Label}, farm window {window:0}s, seed {seed}");
+            sb.AppendLine("cumulative ACTIVE hours to reach each stage's boss gate (req = min level to clear it; level = level when cleared).");
+            sb.AppendLine();
+            sb.Append("stage".PadLeft(6)); sb.Append("req".PadLeft(6)); sb.Append("level".PadLeft(7));
+            sb.Append("hours".PadLeft(9)); sb.Append("gold".PadLeft(12)); sb.AppendLine();
+            foreach (var r in rows)
+            {
+                // Chart every 5th stage plus the last, to keep the table readable.
+                if (r.Stage % 5 != 0 && r.Stage != rows[rows.Count - 1].Stage) continue;
+                sb.Append(r.Stage.ToString(ci).PadLeft(6));
+                sb.Append(r.Req.ToString(ci).PadLeft(6));
+                sb.Append(r.Level.ToString(ci).PadLeft(7));
+                sb.Append(r.Hours.ToString("0.0", ci).PadLeft(9));
+                sb.Append(r.Gold.ToString("0", ci).PadLeft(12));
+                sb.AppendLine();
+            }
+
+            sb.AppendLine();
+            (int, double) Milestone(int s)
+            {
+                foreach (var r in rows) if (r.Stage >= s) return (r.Stage, r.Hours);
+                return (-1, 0);
+            }
+            foreach (int m in new[] { 30, 50, 80, 100 })
+            {
+                if (m > target) continue;
+                var (hit, h) = Milestone(m);
+                sb.AppendLine(hit >= 0
+                    ? $"hours to stage {m}: {h:0.0}h (active farming)"
+                    : $"hours to stage {m}: not reached in range");
+            }
+            if (wallStage >= 0)
+                sb.AppendLine($"PACE WALL: stage {wallStage} is unclearable even at the level cap with this gear+stacks — the push ends here.");
+            else if (rows.Count > 0)
+                sb.AppendLine($"reached stage {rows[rows.Count - 1].Stage} at level {rows[rows.Count - 1].Level} in {rows[rows.Count - 1].Hours:0.0}h.");
+            Console.Write(sb.ToString());
+
+            WriteCsv(opts, "stage,req_level,level,hours,gold", w =>
+            {
+                foreach (var r in rows)
+                    w.WriteLine($"{r.Stage},{r.Req},{r.Level},{r.Hours.ToString("0.00", ci)},{r.Gold.ToString("0", ci)}");
+            });
+            return 0;
+        }
+
+        /// <summary>One farm-throughput measurement at a point, stacks folded in (pace helper).</summary>
+        private static Scenarios.FarmResult FarmAt(GameConfig cfg, int stage, int level, Rarity? gear,
+            int gearIndex, double window, uint seed, Scenarios.AccountStacks stacks)
+        {
+            uint cellSeed = Scenarios.CellSeed(seed, stage, level, gearIndex, 0);
+            var save = Scenarios.BuildSave(cfg, stage, level, gear, cellSeed, stacks);
+            return Scenarios.RunFarm(cfg, save, stage, window, cellSeed);
+        }
+
         // ---- option helpers ----------------------------------------------------------
+
+        /// <summary>Parse endgame account stacks (10.1d): --stacks none|mid|max sets a bundle, then the
+        /// granular --tower-milestones / --boons / --enhance override individual axes. "max" = every
+        /// achievable stack at today's caps (all Tower milestones, boon MaxRank, EnhanceMax).</summary>
+        private static Scenarios.AccountStacks ParseStacks(Dictionary<string, string> opts, GameConfig cfg)
+        {
+            int maxMilestones = cfg.Balance.TowerFloors / Math.Max(1, cfg.Balance.TowerMilestoneEvery);
+            var st = Scenarios.AccountStacks.None;
+            if (opts.TryGetValue("stacks", out var preset))
+            {
+                switch (preset)
+                {
+                    case "max": st = new Scenarios.AccountStacks { TowerMilestones = maxMilestones, BoonRank = cfg.Balance.CryptBoonMaxRank, EnhanceLevel = cfg.Balance.EnhanceMax }; break;
+                    case "mid": st = new Scenarios.AccountStacks { TowerMilestones = Math.Max(1, maxMilestones / 2), BoonRank = cfg.Balance.CryptBoonMaxRank / 2, EnhanceLevel = cfg.Balance.EnhanceMax / 2 }; break;
+                    case "none": case "": break;
+                    default: Console.Error.WriteLine($"unknown --stacks \"{preset}\" (none|mid|max)"); break;
+                }
+            }
+            if (opts.ContainsKey("tower-milestones")) st.TowerMilestones = GetInt(opts, "tower-milestones", st.TowerMilestones);
+            if (opts.ContainsKey("boons")) st.BoonRank = GetInt(opts, "boons", st.BoonRank);
+            if (opts.ContainsKey("enhance")) st.EnhanceLevel = GetInt(opts, "enhance", st.EnhanceLevel);
+            return st;
+        }
 
         private static Dictionary<string, string> ParseOptions(string[] args)
         {
