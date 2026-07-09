@@ -471,6 +471,71 @@ namespace IdleGame.GameCore.Tests
             Assert.True(s.Entities.First(e => e.Id == "P").Hp < 1000); // took reflected damage
         }
 
+        // --- thorns per-hit cap (§5.3, slice 10.1a) ---
+        // Reflect is proportional to the hit BUT capped at ThornsReflectHpCap × the ATTACKER's MaxHp per
+        // hit, so a thorns boss can't one-shot a heavy hitter (sustain is the intended counter). Direct
+        // ApplyHit probes via reflection keep the cap arithmetic honest, independent of AI/targeting.
+
+        private static readonly System.Reflection.MethodInfo ApplyHitMethod =
+            typeof(Combat).GetMethod("ApplyHit", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+
+        // One attacker→victim basic hit through the real ApplyHit; returns the attacker's HP loss.
+        private static double ReflectFromOneHit(CombatEntity attacker, CombatEntity victim)
+        {
+            var s = State(attacker, victim);
+            double before = attacker.Hp;
+            var events = new List<CombatEvent>();
+            // ApplyHit(CombatState, attacker, victim, GameConfig, Rng, List<CombatEvent>, double mult=1)
+            ApplyHitMethod.Invoke(null, new object[] { s, attacker, victim, Cfg, new Rng(1), events, 1.0 });
+            return before - attacker.Hp;
+        }
+
+        [Fact]
+        public void ThornsReflectIsCappedAtFractionOfAttackerMaxHp()
+        {
+            // A huge hitter (Atk 100000, MaxHp 1000) swings into 60% thorns. Uncapped the mirror would
+            // be ~0.6 × its damage = tens of thousands — an instant kill. The cap holds it to
+            // ThornsReflectHpCap × attacker MaxHp.
+            var attacker = Ent("P", Team.Party, hp: 1000, atk: 100000, def: 0, x: 0);
+            var victim = Ent("E", Team.Enemy, hp: 100_000_000, atk: 0, def: 0, x: 0.4);
+            victim.ThornsReflect = 0.6;
+
+            double reflect = ReflectFromOneHit(attacker, victim);
+            double capAmount = attacker.MaxHp * Cfg.Balance.ThornsReflectHpCap;
+            Assert.True(reflect <= capAmount + 1e-6, $"reflect {reflect} exceeded cap {capAmount}");
+            Assert.True(reflect > capAmount - 1e-6, $"a huge hit should reflect right up to the cap, got {reflect}");
+        }
+
+        [Fact]
+        public void ThornsReflectSmallHitUnchangedByCap()
+        {
+            // A small hit's proportional reflect is far under the HP cap, so the cap doesn't touch it:
+            // reflect == dmg × thorns exactly. Attacker MaxHp is large so the cap can't bind.
+            var attacker = Ent("P", Team.Party, hp: 1_000_000, atk: 20, def: 0, x: 0);
+            var victim = Ent("E", Team.Enemy, hp: 100_000_000, atk: 0, def: 0, x: 0.4);
+            victim.ThornsReflect = 0.5;
+
+            double reflect = ReflectFromOneHit(attacker, victim);
+            double capAmount = attacker.MaxHp * Cfg.Balance.ThornsReflectHpCap;
+            Assert.True(reflect < capAmount, "a small hit must stay well under the HP cap");
+            // The whole hit reflects at the fraction (dmg = 20 with def 0), uncapped: 20 × 0.5 = 10.
+            Assert.Equal(20 * 0.5, reflect, 3);
+        }
+
+        [Fact]
+        public void ThornsFractionCapStillApplies()
+        {
+            // ModifierBehaviorCap still caps the FRACTION before the HP cap: thorns 5.0 clamps to 0.6.
+            // Pick an attacker MaxHp so large the HP cap can't bind, and read the fraction back out.
+            var attacker = Ent("P", Team.Party, hp: 100_000_000, atk: 1000, def: 0, x: 0);
+            var victim = Ent("E", Team.Enemy, hp: 100_000_000, atk: 0, def: 0, x: 0.4);
+            victim.ThornsReflect = 5.0; // way over the fraction cap
+
+            double reflect = ReflectFromOneHit(attacker, victim);
+            // dmg = 1000 (def 0); fraction clamps to ModifierBehaviorCap, so reflect = 1000 × 0.6.
+            Assert.Equal(1000 * Cfg.Balance.ModifierBehaviorCap, reflect, 3);
+        }
+
         [Fact]
         public void ModifierGoldBuffMultipliesKillPayout()
         {

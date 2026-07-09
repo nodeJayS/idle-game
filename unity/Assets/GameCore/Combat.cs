@@ -1314,7 +1314,11 @@ namespace IdleGame.GameCore
             double thorns = Math.Min(cap, victim.ThornsReflect + victim.Stats.Get(StatKey.ThornsReflect));
             if (thorns > 0)
             {
-                double reflect = dmg * thorns;
+                // Capped mirror (§5.3): the reflect is damage-proportional but can never exceed a small
+                // fraction of the ATTACKER's MaxHp per hit, so a thorns boss can't one-shot a big hitter
+                // (sustain is the counter-build, not raw damage). Covers every source — this is the one
+                // line both the mob self-mod field and the gear ThornsReflect stat flow through.
+                double reflect = Math.Min(dmg * thorns, attacker.MaxHp * cfg.Balance.ThornsReflectHpCap);
                 attacker.Hp -= reflect;
                 events.Add(new CombatEvent { Type = CombatEventType.Hit, SourceId = victim.Id, TargetId = attacker.Id, Amount = reflect });
                 if (attacker.Hp <= 0) HandleDeath(s, attacker, cfg, rng, events);

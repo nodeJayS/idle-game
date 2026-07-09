@@ -301,6 +301,13 @@ namespace IdleGame.GameCore
         // so a very deep modifier can't reach 100%+ sustain/reflect.
         public double ModifierBehaviorCap = 0.6;
 
+        // Thorns — capped mirror (§5.3, locked 2026-07-09). Reflect stays damage-proportional (the
+        // ModifierBehaviorCap fraction of the hit) but is ALSO capped per hit at this fraction of the
+        // ATTACKER's MaxHp, so a thorns boss can never one-shot a heavy hitter no matter how hard it
+        // swings — sustain (lifesteal, Priest) is the intended counter-build. One site in ApplyHit
+        // covers every source (mob self-mod field + gear imprint stat).
+        public double ThornsReflectHpCap = 0.025;
+
         // Loot legibility (Lever 2): a candidate item's power swap (Upgrades.PowerScore) within
         // ±this fraction reads as a Sidegrade, not an up/down-grade — so a 0.1% wiggle doesn't flash
         // a green ▲ and auto-equip doesn't churn on noise. 0.005 = 0.5%.
