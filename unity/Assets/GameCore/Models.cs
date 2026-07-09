@@ -140,15 +140,20 @@ namespace IdleGame.GameCore
     public enum Feature { AutoAdvance, IdleClaim, DailyLogin, Achievements, Modifiers, Modes, Gacha }
 
     /// <summary>
-    /// FTUE staged-reveal state (§7.4). <see cref="Armed"/> is set ONLY by <see cref="Save.NewGame"/> —
-    /// existing saves deserialize it false and see every feature/panel unlocked forever (the
-    /// fresh-games-only rule; additive field, NO SaveVersion bump, same precedent as GachaPity /
-    /// Modifiers.Tuning / CryptState.ActiveRun). Read via <see cref="Progression.FeatureUnlocked"/>.
-    /// Nested under <see cref="ProgressState"/> so it rides the existing Progress reference-threading.
+    /// FTUE state (§7.4): the staged-reveal arm plus the guided-intro quest track. <see cref="Armed"/>
+    /// is set ONLY by <see cref="Save.NewGame"/> — existing saves deserialize it false and see every
+    /// feature/panel unlocked forever (the fresh-games-only rule; additive field, NO SaveVersion bump,
+    /// same precedent as GachaPity / Modifiers.Tuning / CryptState.ActiveRun). Read via
+    /// <see cref="Progression.FeatureUnlocked"/>. <see cref="IntroClaimed"/> records which of the five
+    /// one-shot intro quests have paid out (id -> true), so a reward mints exactly once; completion
+    /// itself is a pure predicate over the save (see <see cref="IntroQuests"/>), so the intro
+    /// retro-completes and can never wedge. Nested under <see cref="ProgressState"/> so it rides the
+    /// existing Progress reference-threading.
     /// </summary>
     public sealed class IntroState
     {
         public bool Armed; // set true at New Game only; false on every existing save (unarmed = all unlocked)
+        public Dictionary<string, bool> IntroClaimed = new Dictionary<string, bool>(); // intro quest id -> reward paid
     }
 
     /// <summary>Tower of Ascension progress (a separate one-clear-per-floor track, distinct from the

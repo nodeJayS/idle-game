@@ -73,13 +73,16 @@ band-blur · SDF jiggle-rope tail · crypt mid-run merchant/boon-draft
 Design LOCKED 2026-07-09 → game-design §7.4 (quest-board-only intro,
 FAST reveal schedule — everything by ~S12; fresh-games-only gating via
 a New-Game flag, additive field, no save bump). Slices:
-(a) GameCore: `Progression.FeatureUnlocked(feature, save)` gating table
-per §7.4's schedule + the New-Game arming flag + tests;
-(b) GameCore: the five intro quests seeded at New Game ahead of the
-rolling board, imperative wording, retro-completion (never wedges) +
-tests; — (a)+(b) delegated 2026-07-09 (pure sim, no bridge needed);
-(c) client: hide unarmed/locked HUD buttons, reveal with the one-line
-toast; suppress the idle/login launch popups pre-S3;
+(a) SHIPPED `2dd332c` — `Progression.FeatureUnlocked(feature, save)` +
+`FeatureRevealStage` table + New-Game arming (`IntroState.Armed` under
+ProgressState, unarmed saves see all);
+(b) SHIPPED — the five intro quests (`IntroQuests`): predicate-driven,
+retro-completing via `IntroQuests.Sync`, own sim track (not the rolling
+board — kinds there reroll/dedupe); read model `Board`/`Active`/`IsComplete`;
+(c) client: hide unarmed/locked HUD buttons via `FeatureUnlocked`, reveal
+with the one-line toast; suppress the idle/login launch popups pre-S3;
+render the intro strip from `IntroQuests.Board` + call `Sync` on load/
+loot/stage-clear (no new counter hooks needed);
 (d) client: first-boss/first-hero celebration beats (existing juice,
 bigger) + the contextual breadcrumb hint line;
 (e) Play-verified New Game walkthrough end-to-end. — (c)-(e) NEED the
@@ -195,6 +198,10 @@ impact language belongs to 10.6b). 10.11 COMPLETE.
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-07-09 10.2 FTUE sim half (a+b): `FeatureUnlocked` staged-reveal
+  gating table + New-Game arming flag (`IntroState`, additive, no bump),
+  five predicate-driven retro-completing intro quests (`IntroQuests`);
+  (c)-(e) client + Play-verify still open (`2dd332c`..)
 - 2026-07-09 10.1 The Great Rebalance COMPLETE: thorns capped mirror
   (ThornsReflectHpCap), gear/level ~50/50, per-tier HP+damage taper
   (Monster{Hp,Dmg}GrowthByTier), major-boss taper (MajorBossMultByTier:
