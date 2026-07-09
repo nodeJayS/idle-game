@@ -509,12 +509,12 @@ namespace IdleGame.GameCore
 
         /// <summary>Geometric per-stage atk/def scale (gentle, so trash stays survivable).</summary>
         private static double StageScale(StageDef rt, GameConfig cfg) =>
-            Math.Pow(cfg.Balance.MonsterDmgGrowth, rt.MonsterLevel - 1);
+            cfg.Balance.MonsterDmgMult(rt.MonsterLevel);
 
         /// <summary>Geometric per-stage HP scale (steep, the DPS-check gate). Bosses layer
         /// BossHpMult (and major bosses MajorBossMult) on top of this.</summary>
         private static double HpScale(StageDef rt, GameConfig cfg) =>
-            Math.Pow(cfg.Balance.MonsterHpGrowth, rt.MonsterLevel - 1);
+            cfg.Balance.MonsterHpMult(rt.MonsterLevel);
 
         /// <summary>Centre of the living party — the focus that trash spawning and culling
         /// (and the client camera) track. Falls back to the origin when all are down.</summary>

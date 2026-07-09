@@ -64,7 +64,7 @@ namespace IdleGame.GameCore
         {
             var rt = cfg.Stages.Find(r => r.Stage == stage) ?? (cfg.Stages.Count > 0 ? cfg.Stages[0] : null);
             if (rt == null) return 1.0;
-            double scale = Math.Pow(cfg.Balance.MonsterDmgGrowth, Math.Max(0, rt.MonsterLevel - 1));
+            double scale = cfg.Balance.MonsterDmgMult(rt.MonsterLevel);
             double baseAtk = cfg.Monsters.TryGetValue(rt.BossId, out var boss) ? boss.BaseStats.Get(StatKey.Atk) : 1.0;
             return baseAtk * scale;
         }

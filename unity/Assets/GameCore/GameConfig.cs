@@ -493,9 +493,48 @@ namespace IdleGame.GameCore
         // real gate and the climb to stage 100 stays long. HP grows steeply (the DPS-check
         // gate); damage grows gently so trash doesn't one-shot the party. Bosses multiply
         // HP by BossHpMult on top, and major bosses (every 10th) by MajorBossMult again.
-        public double MonsterHpGrowth = 1.18;  // +18% HP per stage level (×~4.4 by 10, ×~1.3M by 100)
+        public double MonsterHpGrowth = 1.18;  // tier-0 HP growth anchor; deep tiers TAPER below (§5.3, 10.1c)
         public double MonsterDmgGrowth = 1.08; // +8% atk/def per stage level (survivable)
         public double BossHpMult = 2.0;        // a boss is ~2x a same-stage trash mob (cut again for the 3-hero party cap)
+
+        // Curve taper (§5.3, locked 2026-07-09 — 10.1c). A FLAT 1.18^stage HP curve mathematically
+        // ends the ladder near stage 53 vs linear player power. Instead the per-stage HP growth EASES
+        // down by 10-stage difficulty tier: early tiers keep ~1.18 (stages 1-30 play nearly unchanged),
+        // deep tiers decline toward ~1.07 so ON-CURVE gear reaches a SOFT WALL at ~stage 80 and 81-100
+        // becomes the prestige band (near-mythic gear + account stacks). Index = Tier(stage), clamped
+        // to the last entry. Tune this table against the REBASED player power (10.1b), not the old one.
+        public double[] MonsterHpGrowthByTier = { 1.18, 1.18, 1.175, 1.12, 1.09, 1.05, 1.025, 1.017, 1.013, 1.009 };
+
+        /// <summary>Cumulative monster-HP multiplier at a monster level (=stage) — the tapered
+        /// replacement for the flat MonsterHpGrowth^(level-1). Pure/deterministic: the growth used to
+        /// REACH each level is that level's tier rate, accumulated from level 1 (=×1.0). Bosses layer
+        /// BossHpMult/MajorBossMult on top of this, unchanged.</summary>
+        public double MonsterHpMult(int monsterLevel)
+        {
+            double mult = 1.0;
+            int last = MonsterHpGrowthByTier.Length - 1;
+            for (int lvl = 2; lvl <= monsterLevel; lvl++)
+                mult *= MonsterHpGrowthByTier[Math.Min(last, Tier(lvl))];
+            return mult;
+        }
+
+        // Damage taper (§5.3, 10.1c). At deep stages the flat 1.08^stage atk/def growth WIPES the
+        // party (a survival wall) before HP even becomes the DPS wall — so damage eases by tier too,
+        // on the same model as MonsterHpGrowthByTier. Tier-0 stays MonsterDmgGrowth (1.08) so stages
+        // 1-30 are unchanged and DerivedStats' survival read is unaffected there.
+        public double[] MonsterDmgGrowthByTier = { 1.08, 1.08, 1.08, 1.055, 1.04, 1.025, 1.017, 1.013, 1.011, 1.008 };
+
+        /// <summary>Cumulative monster atk/def multiplier at a monster level (=stage) — the tapered
+        /// replacement for the flat MonsterDmgGrowth^(level-1). Pure/deterministic, same shape as
+        /// <see cref="MonsterHpMult"/>. Major bosses layer MajorBossMult on top, unchanged.</summary>
+        public double MonsterDmgMult(int monsterLevel)
+        {
+            double mult = 1.0;
+            int last = MonsterDmgGrowthByTier.Length - 1;
+            for (int lvl = 2; lvl <= monsterLevel; lvl++)
+                mult *= MonsterDmgGrowthByTier[Math.Min(last, Tier(lvl))];
+            return mult;
+        }
 
         // Tower of Ascension (alt mode): a ONE-CLEAR-PER-FLOOR track, distinct from the farmable
         // ladder. STEEPER than the ladder on BOTH axes (HP and damage), so it gates on built power
