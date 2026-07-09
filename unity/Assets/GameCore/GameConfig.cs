@@ -356,6 +356,21 @@ namespace IdleGame.GameCore
         // headroom under the 30s challenge cap. Tune against that wipe cliff.
         public double MajorBossMult = 2.0;
 
+        // Major-boss taper (§5.3, 10.1 follow-up). With the tapered stage curve the every-10th
+        // major's flat ×2 (HP AND damage — ×4 HP with BossHpMult) became THE wall: on-curve play
+        // (legendary + mid stacks) cleared every non-major to 88 but walled dead at the stage-50
+        // major. Same per-tier table pattern as Monster{Hp,Dmg}GrowthByTier: early tiers keep the
+        // full ×2 (stages ≤40 unchanged — their cheap absolute scale already makes those majors
+        // fair), mid tiers ease so the on-curve soft wall lands ~70-85, and the LAST tier restores
+        // the full ×2 — stage 100 stays the prestige capstone (~L100 mythic + max stacks).
+        public double[] MajorBossMultByTier = { 2.0, 2.0, 2.0, 2.0, 1.45, 1.5, 1.55, 1.7, 1.8, 2.0 };
+
+        /// <summary>The major-boss multiplier for a stage's tier (clamped to the last entry).
+        /// Callers still gate on StageDef.IsMajorBoss; this only picks the magnitude.
+        /// MajorBossMult stays the ≤40 anchor (the early-tier table entries).</summary>
+        public double MajorBossMultAt(int stage) =>
+            MajorBossMultByTier[Math.Min(MajorBossMultByTier.Length - 1, Tier(stage))];
+
         // Hero downing/respawn (M4.3). A downed party hero respawns after
         // RespawnBaseMs + RespawnPerLevelMs * level. A run that can't clear within
         // MaxRunSeconds is a loss (stuck/under-geared).

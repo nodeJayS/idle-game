@@ -29,10 +29,8 @@ Nothing here blocks autonomous work elsewhere, but these need your verdict
 before anyone acts on them:
 
 1. SHIPPED 2026-07-09: 10.1 The Great Rebalance (intents §5.3) — thorns
-   capped mirror, per-tier HP+damage taper, gear/level ~50/50; sim-proven
-   mythic+stacks → stage 100. One open follow-up (not blocking): the
-   smooth "walls-at-exactly-80" band would want a finer power gradient
-   (deeper Tower/enhance tiers or a tapered MajorBossMult) — see ledger.
+   capped mirror; per-tier HP + damage + major-boss taper; gear/level
+   ~50/50. Sim-proven: on-curve soft wall ~80-90, mythic+stacks → 100.
 2. **Root casters during casts?** The last cast-cancel source: the sim
    moves a caster mid-cast and the clip travel-cancels. Rooting them is a
    sim/balance change (kiting implications).
@@ -196,10 +194,10 @@ impact language belongs to 10.6b). 10.11 COMPLETE.
 
 - 2026-07-09 10.1 The Great Rebalance COMPLETE: thorns capped mirror
   (ThornsReflectHpCap), gear/level ~50/50, per-tier HP+damage taper
-  (Monster{Hp,Dmg}GrowthByTier → soft wall ~80, mythic+stacks→100),
-  BalanceSim account stacks + `pace` mode (10.1a–e). Open: finer power
-  gradient for a smooth 80/100 band (deeper Tower/enhance tiers or
-  tapered MajorBossMult) — every-10 major bosses gate the 50-100 climb.
+  (Monster{Hp,Dmg}GrowthByTier), major-boss taper (MajorBossMultByTier:
+  mid majors ease so on-curve legendary+mid clears 50-80 at L76-85 and
+  soft-walls ~80-90; tier 9 keeps ×2 so stage 100 stays the ~L100
+  mythic+max-stacks capstone), BalanceSim account stacks + `pace` mode.
 - 2026-07-09 10.7 crypt overhaul COMPLETE: room roles/keys, wave phases,
   chests/mimics/reward vault, client tells, mid-run persistence+resume+summary,
   BalanceSim `crypt` depth difficulty/reward chart (10.7a–g)

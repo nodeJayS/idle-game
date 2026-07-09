@@ -81,7 +81,7 @@ namespace IdleGame.GameCore
 
             if (cfg.Monsters.TryGetValue(rt.BossId, out var boss))
             {
-                double major = rt.IsMajorBoss ? cfg.Balance.MajorBossMult : 1.0;
+                double major = rt.IsMajorBoss ? cfg.Balance.MajorBossMultAt(rt.Stage) : 1.0;
                 s.Entities.Add(MakeMonster(cfg, boss, "EBOSS", new Vec2(5, rt.PackCount * 0.75),
                     scale * major, true, HpScale(rt, cfg) * cfg.Balance.BossHpMult * major));
             }
@@ -130,7 +130,7 @@ namespace IdleGame.GameCore
 
             if (cfg.Monsters.TryGetValue(rt.BossId, out var boss))
             {
-                double major = rt.IsMajorBoss ? cfg.Balance.MajorBossMult : 1.0;
+                double major = rt.IsMajorBoss ? cfg.Balance.MajorBossMultAt(rt.Stage) : 1.0;
                 s.Entities.Add(MakeMonster(cfg, boss, "EBOSS", new Vec2(4, 0),
                     StageScale(rt, cfg) * major, true, HpScale(rt, cfg) * cfg.Balance.BossHpMult * major));
             }
@@ -154,7 +154,7 @@ namespace IdleGame.GameCore
             s.Loot = LootContext.ForStage(rt, cfg);
             if (cfg.Monsters.TryGetValue(rt.BossId, out var boss))
             {
-                double major = rt.IsMajorBoss ? cfg.Balance.MajorBossMult : 1.0;
+                double major = rt.IsMajorBoss ? cfg.Balance.MajorBossMultAt(rt.Stage) : 1.0;
                 var c = PartyCentroid(s);
                 double w = cfg.Balance.MapHalfWidth - 1.0, d = cfg.Balance.MapHalfDepth - 1.0;
                 var pos = new Vec2(Math.Clamp(c.X + cfg.Balance.BossSpawnDistance, -w, w), Math.Clamp(c.Y, -d, d));

@@ -71,5 +71,39 @@ namespace IdleGame.GameCore.Tests
             Assert.True(B.MonsterDmgMult(100) > B.MonsterDmgMult(99));
             Assert.True(B.MonsterDmgMult(100) / B.MonsterDmgMult(99) < B.MonsterDmgMult(2) / B.MonsterDmgMult(1));
         }
+
+        // --- major-boss taper (10.1 follow-up): the every-10th multiplier eases by tier too ---
+
+        [Fact]
+        public void MajorBossMultKeepsTheFullAnchorThroughStage40()
+        {
+            // Tiers 0-3 (majors 10/20/30/40) keep the flat MajorBossMult — early game unchanged.
+            foreach (int stage in new[] { 10, 20, 30, 40 })
+                Assert.Equal(B.MajorBossMult, B.MajorBossMultAt(stage), 12);
+        }
+
+        [Fact]
+        public void MajorBossMultTapersInTheMidBand()
+        {
+            // Majors 50-90 sit BELOW the anchor (the on-curve soft-wall fix): with the tapered stage
+            // curve the flat x2 major was the wall that stopped legendary+mid play dead at stage 50.
+            foreach (int stage in new[] { 50, 60, 70, 80, 90 })
+                Assert.True(B.MajorBossMultAt(stage) < B.MajorBossMult,
+                    $"major at stage {stage} should taper below the anchor (got {B.MajorBossMultAt(stage)})");
+            // ...and rises monotonically back toward the capstone (difficulty keeps climbing).
+            for (int stage = 60; stage <= 100; stage += 10)
+                Assert.True(B.MajorBossMultAt(stage) >= B.MajorBossMultAt(stage - 10),
+                    $"major mult must not decline from {stage - 10} to {stage}");
+        }
+
+        [Fact]
+        public void MajorBossMultRestoresTheCapstoneAtStage100()
+        {
+            // The last tier restores the full x2 — stage 100 stays the prestige gate (~L100
+            // mythic + max stacks), bit-identical to the pre-taper fight.
+            Assert.Equal(B.MajorBossMult, B.MajorBossMultAt(100), 12);
+            // Beyond-100 stages (future endless mode) clamp to the last entry.
+            Assert.Equal(B.MajorBossMultAt(100), B.MajorBossMultAt(150), 12);
+        }
     }
 }
