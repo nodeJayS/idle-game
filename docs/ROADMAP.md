@@ -79,14 +79,14 @@ ProgressState, unarmed saves see all);
 (b) SHIPPED — the five intro quests (`IntroQuests`): predicate-driven,
 retro-completing via `IntroQuests.Sync`, own sim track (not the rolling
 board — kinds there reroll/dedupe); read model `Board`/`Active`/`IsComplete`;
-(c) client: hide unarmed/locked HUD buttons via `FeatureUnlocked`, reveal
-with the one-line toast; suppress the idle/login launch popups pre-S3;
-render the intro strip from `IntroQuests.Board` + call `Sync` on load/
-loot/stage-clear (no new counter hooks needed);
-(d) client: first-boss/first-hero celebration beats (existing juice,
-bigger) + the contextual breadcrumb hint line;
-(e) Play-verified New Game walkthrough end-to-end. — (c)-(e) NEED the
-Unity bridge (attaches at session start only; was down 2026-07-09).
+(c)+(d) SHIPPED `d30211d` — staged button reveal (gapless reflow),
+launch popups gated pre-S3 (no rewards lost), stateless reveal toasts,
+"Getting started" strip above the rolling board, first-boss/first-hero
+celebration beats (campaign hero joins were silent before — fixed),
+wallet breadcrumb. Editor-compile verified; Play NOT yet (bridge down);
+(e) REMAINING: Play-verified New Game walkthrough end-to-end — NEEDS
+the bridge (attaches at session start only). Eyeball there: quest-panel
+clipping with the intro strip up (bump QuestH if needed).
 
 **10.3 UI/UX foundation refactor (the deferred layout-group pass)**
 Hand-placed coords rot on every screen change; do the real fix in order:
