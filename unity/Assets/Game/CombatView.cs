@@ -2340,10 +2340,11 @@ namespace IdleGame.Game
 
         private bool _modesOpen;
 
-        /// <summary>The mode-select menu (control-bar "Modes"): one row per game mode with an
-        /// active marker and the switch action. Every mode is a FULLY SEPARATE state reached
-        /// through the loading screen — switching always builds the destination fresh (see
-        /// EnterDungeonRun / EnterTowerFloor / the Abandon* returns).</summary>
+        /// <summary>The mode-select menu (control-bar "Modes"): one row per ALT mode (Tower, Crypt)
+        /// with an active marker and the entry action, plus the crypt boon shop. No Campaign row
+        /// (user call 2026-07-09: redundant — leaving a mode is the top-centre Exit button's job).
+        /// Every mode is a FULLY SEPARATE state reached through the loading screen — switching
+        /// always builds the destination fresh (see EnterDungeonRun / the Abandon* returns).</summary>
         private void DrawModesPanel(float s)
         {
             if (!_modesOpen) return;
@@ -2360,7 +2361,7 @@ namespace IdleGame.Game
             }
 
             float sw = Screen.width / s, sh = Screen.height / s;
-            float w = 620f, h = 620f, x = sw / 2f - w / 2f, y = sh / 2f - h / 2f;
+            float w = 620f, h = 514f, x = sw / 2f - w / 2f, y = sh / 2f - h / 2f;
             DrawRect(x - 2, y - 2, w + 4, h + 4, new Color(0.55f, 0.48f, 0.75f, 0.95f)); // violet frame
             DrawRect(x, y, w, h, new Color(0.09f, 0.09f, 0.13f, 0.98f));
 
@@ -2372,12 +2373,7 @@ namespace IdleGame.Game
             bool inTower = _combat.Kind == EncounterKind.Tower;
             bool inCampaign = !inDungeon && !inTower;
 
-            DrawModeRow(x + 20, y + 66, w - 40, "Campaign",
-                "The endless ladder — farm stages, challenge bosses, push deeper.",
-                active: inCampaign,
-                buttonLabel: inCampaign ? null : "Abandon & Return",
-                onClick: inDungeon ? AbandonDungeonRun : AbandonTowerRun);
-            DrawModeRow(x + 20, y + 172, w - 40, $"Tower of Ascension  (F{Tower.HighestFloor(_save)})",
+            DrawModeRow(x + 20, y + 66, w - 40, $"Tower of Ascension  (F{Tower.HighestFloor(_save)})",
                 inTower ? $"Climbing floor {_combat.TowerFloor} — clear it or exit up top."
                         : "One-clear floors on a brutal curve; milestones pay permanent buffs.",
                 active: inTower,
@@ -2400,7 +2396,7 @@ namespace IdleGame.Game
                 }
                 cryptDesc += $"  ·  {_cfg.Balance.CryptFloorsPerRun}-floor runs  ·  wipe = no chest";
             }
-            DrawModeRow(x + 20, y + 278, w - 40, $"Crypt  (Depth {Crypt.DepthRecord(_save)})",
+            DrawModeRow(x + 20, y + 172, w - 40, $"Crypt  (Depth {Crypt.DepthRecord(_save)})",
                 cryptDesc,
                 active: inDungeon,
                 buttonLabel: !inCampaign ? null
@@ -2408,7 +2404,7 @@ namespace IdleGame.Game
                            : keys > 0 ? "Enter  (1 Key)" : "No Keys",
                 onClick: EnterDungeonRun);
 
-            DrawCryptBoons(x + 20, y + 384, w - 40);
+            DrawCryptBoons(x + 20, y + 278, w - 40);
 
             if (Button(x + w / 2f - 70, y + h - 48, 140, 36, "Close", BtnStyleSm)) _modesOpen = false;
         }
