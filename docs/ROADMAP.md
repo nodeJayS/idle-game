@@ -15,19 +15,24 @@ push), 10 themed zones with terraced arenas, Tower, Crypt roguelite
 gems, gacha (live Ice Mage banner), and a balance simulator over pure
 GameCore. Roster: Knight / Fire Mage / Assassin / Priest (+ banner Ice
 Mage) on the MS2 skinned pipeline; monsters are faceted or SDF blend-shell.
-**645 GameCore tests green.** Headline problem (sim-proven): the 100-stage
-ladder mathematically ends near stage 53 — see backlog 10.1 (intents
-locked 2026-07-09 → game-design §5.3; implementation in flight).
+**653 GameCore tests green.** The 100-stage ladder is FIXED (10.1 shipped
+2026-07-09): thorns is a capped mirror, monster HP+damage taper per tier,
+gear/level rebased ~50/50. Stage 100 is now a reachable prestige gate —
+its every-10 major bosses demand near-mythic gear PLUS maxed account
+stacks (Tower buffs + crypt boons + gear enhance), verified in the sim.
+Headline problem now: a new player still meets ~10 buttons and 100 numbers
+in minute one — see backlog 10.2 (FTUE).
 
 ## Your calls — decisions waiting on the USER
 
 Nothing here blocks autonomous work elsewhere, but these need your verdict
 before anyone acts on them:
 
-1. RESOLVED 2026-07-09: rebalance intents locked (thorns capped at ~2–3%
-   of the ATTACKER's MaxHp per hit; curve tapers to a soft wall at ~80
-   with 81–100 the near-mythic prestige band; gear/level rebased ~50/50)
-   → game-design §5.3; backlog 10.1 implements.
+1. SHIPPED 2026-07-09: 10.1 The Great Rebalance (intents §5.3) — thorns
+   capped mirror, per-tier HP+damage taper, gear/level ~50/50; sim-proven
+   mythic+stacks → stage 100. One open follow-up (not blocking): the
+   smooth "walls-at-exactly-80" band would want a finer power gradient
+   (deeper Tower/enhance tiers or a tapered MajorBossMult) — see ledger.
 2. **Root casters during casts?** The last cast-cancel source: the sim
    moves a caster mid-cast and the clip travel-cancels. Rooting them is a
    sim/balance change (kiting implications).
@@ -54,8 +59,8 @@ before anyone acts on them:
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
-**NEXT UP: 10.1 The Great Rebalance — intents LOCKED (game-design §5.3);
-implementation delegated 2026-07-09.**
+**NEXT UP: 10.2 First-time experience (FTUE) & staged UI reveal — the
+onboarding pass that paces against the fixed curve (10.1 shipped).**
 
 Self-contained briefs for future sessions (any model); slice order =
 shipping order, each one-verified-slice-per-commit sized. Standing rules
@@ -65,27 +70,6 @@ gems · server authority (design §9) · zone drop-table hints · manual
 achievement-claim UX · dungeon BFS build-reveal anim · tilt-shift
 band-blur · SDF jiggle-rope tail · crypt mid-run merchant/boon-draft
 (user cut 2026-07-07; must never dilute dust's permanent-boon role).
-
-**10.1 The Great Rebalance (sim-driven — unblocks everything else)**
-Intents LOCKED 2026-07-09 → game-design §5.3: thorns reflect capped per
-hit at ~2–3% of the ATTACKER's MaxHp (sustain = the counter-build);
-curve tapers to a SOFT WALL at ~80 (81–100 = near-mythic + account
-stacks, the prestige band); gear/level rebased to ~50/50. Sim-proven
-inputs (2026-07-07 run): thorns bosses 32/36/44/48/52 unwinnable at any
-power (reflect ∝ attacker damage); the 1.18^stage ladder math dies near
-53 vs ilvl-linear gear; a full rare set at hero L1 clears stages 1–27.
-Slices (TUNING ORDER MATTERS — rebase player power before tapering the
-monster curve against it):
-(a) thorns per-hit cap in ApplyHit, all sources (walls acceptance:
-32/36/44/48/52 dissolve into their neighbors' levels);
-(b) gear/level rebase ~50/50 (GrowthPerLevel up, ValuePerItemLevel
-down; acceptance: bare vs full-rare walls columns within ~15 levels);
-(c) taper MonsterHpGrowth per tier against the REBASED power
-(acceptance, two-tier: on-curve columns green to ~80, mythic to 100);
-(d) extend BalanceSim first if (c) needs it: model tower buffs/crypt
-boons/enhance + a `pace` mode (hours-to-stage) — required to verify
-the 81–100 prestige band is truly reachable with stacks;
-(e) re-run walls/sweep/farm/crypt charts, commit tuning + findings.
 
 **10.2 First-time experience (FTUE) & staged UI reveal**
 A new player today sees ~10 buttons and 100 numbers in minute one.
@@ -210,6 +194,12 @@ impact language belongs to 10.6b). 10.11 COMPLETE.
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-07-09 10.1 The Great Rebalance COMPLETE: thorns capped mirror
+  (ThornsReflectHpCap), gear/level ~50/50, per-tier HP+damage taper
+  (Monster{Hp,Dmg}GrowthByTier → soft wall ~80, mythic+stacks→100),
+  BalanceSim account stacks + `pace` mode (10.1a–e). Open: finer power
+  gradient for a smooth 80/100 band (deeper Tower/enhance tiers or
+  tapered MajorBossMult) — every-10 major bosses gate the 50-100 climb.
 - 2026-07-09 10.7 crypt overhaul COMPLETE: room roles/keys, wave phases,
   chests/mimics/reward vault, client tells, mid-run persistence+resume+summary,
   BalanceSim `crypt` depth difficulty/reward chart (10.7a–g)
