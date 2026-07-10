@@ -182,6 +182,44 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void Sync_PaysInStrictBeatOrder_LaterDeedWaitsForEarlier()
+        {
+            // A drop landed before the tenth kill: loot's deed is done, slay's isn't.
+            var save = Fresh();
+            AddBagItem(save);
+            Assert.True(IntroQuests.IsComplete("intro_loot", save));
+
+            var (held, none) = IntroQuests.Sync(save, Cfg);
+            Assert.Same(save, held); // loot waits behind the unfinished slay beat
+            Assert.Empty(none);
+
+            // The moment slay completes, one Sync pays both — in beat order.
+            SetKills(save, IntroQuests.SlayTarget);
+            var (after, done) = IntroQuests.Sync(save, Cfg);
+            Assert.Equal(new[] { "intro_slay", "intro_loot" }, done.Select(q => q.Id).ToArray());
+        }
+
+        [Fact]
+        public void Sync_ClaimedBeatWithRegressedPredicate_NeverBlocksLaterBeats()
+        {
+            // Pay through the equip beat, then unequip (AnyEquipped is not monotone).
+            var save = Fresh();
+            SetKills(save, 50);
+            AddBagItem(save);
+            EquipSomething(save);
+            var (paid, _) = IntroQuests.Sync(save, Cfg);
+            Assert.True(IntroQuests.IsClaimed("intro_equip", paid));
+
+            paid.Heroes[0].Equipped.Clear(); // predicate regresses…
+            Assert.False(IntroQuests.IsComplete("intro_equip", paid));
+
+            paid.Progress.HighestStage = 2; // …but claimed beats stay satisfied: boss + reach still pay
+            var (after, done) = IntroQuests.Sync(paid, Cfg);
+            Assert.Equal(new[] { "intro_boss", "intro_reach" }, done.Select(q => q.Id).ToArray());
+            Assert.True(IntroQuests.AllClaimed(after));
+        }
+
+        [Fact]
         public void Sync_NoDeeds_SharesRef()
         {
             var save = Fresh();

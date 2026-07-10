@@ -81,7 +81,8 @@ namespace IdleGame.GameCore
 
         /// <summary>
         /// Retro-complete the intro: pay (gold + scrap + party XP) every beat whose deed has already
-        /// happened but hasn't been claimed, marking each claimed so it never mints twice. Called by the
+        /// happened but hasn't been claimed — strictly in beat order (an earned-but-out-of-order beat
+        /// waits for its predecessors) — marking each claimed so it never mints twice. Called by the
         /// client on load / after loot / on stage clear (idempotent, cheap). No-op (shares the ref) on an
         /// unarmed save or when nothing new completed. Returns the updated save plus the beats paid this
         /// call (for the client feed / juice). Pure — mirrors <see cref="Achievements.Record"/>.
@@ -95,7 +96,12 @@ namespace IdleGame.GameCore
             Dictionary<string, bool>? claimed = null; // cloned lazily on first payout
             foreach (var q in All)
             {
-                if (IsClaimed(q.Id, result) || !IsComplete(q.Id, result)) continue;
+                if (IsClaimed(q.Id, result)) continue; // paid = satisfied forever, even if its predicate
+                                                       // later regresses (unequip) — a claimed beat never blocks
+                // Guided order: a beat pays only once every earlier beat has paid. An out-of-order deed
+                // (a drop before the tenth kill) waits, then retro-pays in the same Sync that clears the
+                // earlier beat — so the feed and strip always advance top-to-bottom and can still never wedge.
+                if (!IsComplete(q.Id, result)) break;
 
                 // Pay through the existing reward reducers (they carry Intro forward by ref).
                 result = Progression.GrantGold(result, q.RewardGold);

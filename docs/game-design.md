@@ -414,7 +414,8 @@ staged reveal + a quest-driven intro — no tutorial system, no overlays (user p
 - **Guided intro = the first five quests**, seeded only at New Game ahead of the
   rolling board, worded imperatively: kill a pack → collect your first drop → equip
   it → beat the stage-1 boss → reach the first reveal. Each retro-completes if its
-  deed already happened (the `SyncHeroUnlocks` pattern) — the intro can never wedge.
+  deed already happened (the `SyncHeroUnlocks` pattern) and pays strictly in beat
+  order (an out-of-order deed waits for its predecessors) — the intro can never wedge.
 - **Celebration beats**: first boss kill and first hero unlock reuse the existing
   juice, one size bigger. **Breadcrumb**: one contextual HUD hint line fed by game
   state (idle claim ready / boss looks beatable / unspent skill point), lowest-key

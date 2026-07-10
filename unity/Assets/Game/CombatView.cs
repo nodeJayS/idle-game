@@ -2382,15 +2382,16 @@ namespace IdleGame.Game
             if (_save.Progress.Intro.Armed)
             {
                 string? hint = BreadcrumbHint();
-                if (hint != null) { y += 4f; DrawWalletLine(16f, ref y, hint, new Color(0.70f, 0.73f, 0.80f)); }
+                // Hints run longer than wallet lines ("Idle rewards ready to claim") — widen or they clip.
+                if (hint != null) { y += 4f; DrawWalletLine(16f, ref y, hint, new Color(0.70f, 0.73f, 0.80f), 520f); }
             }
         }
 
         private GUIStyle? _walletStyle;
-        private void DrawWalletLine(float x, ref float y, string text, Color color)
+        private void DrawWalletLine(float x, ref float y, string text, Color color, float w = 260f)
         {
             _walletStyle!.normal.textColor = color;
-            GUI.Label(new Rect(x, y, 260, 22), text, _walletStyle);
+            GUI.Label(new Rect(x, y, w, 22), text, _walletStyle);
             y += 24f;
         }
 

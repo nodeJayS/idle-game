@@ -15,13 +15,14 @@ push), 10 themed zones with terraced arenas, Tower, Crypt roguelite
 gems, gacha (live Ice Mage banner), and a balance simulator over pure
 GameCore. Roster: Knight / Fire Mage / Assassin / Priest (+ banner Ice
 Mage) on the MS2 skinned pipeline; monsters are faceted or SDF blend-shell.
-**653 GameCore tests green.** The 100-stage ladder is FIXED (10.1 shipped
+**689 GameCore tests green.** The 100-stage ladder is FIXED (10.1 shipped
 2026-07-09): thorns is a capped mirror, monster HP+damage taper per tier,
 gear/level rebased ~50/50. Stage 100 is now a reachable prestige gate —
 its every-10 major bosses demand near-mythic gear PLUS maxed account
 stacks (Tower buffs + crypt boons + gear enhance), verified in the sim.
-Headline problem now: a new player still meets ~10 buttons and 100 numbers
-in minute one — see backlog 10.2 (FTUE).
+FTUE shipped 2026-07-10: fresh games open on two buttons and a five-beat
+guided intro; the HUD stage-reveals itself by ~S12. Headline problem now:
+hand-placed UI coords rot on every screen change — see backlog 10.3.
 
 ## Your calls — decisions waiting on the USER
 
@@ -57,8 +58,8 @@ before anyone acts on them:
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
-**NEXT UP: 10.2 First-time experience (FTUE) & staged UI reveal — the
-onboarding pass that paces against the fixed curve (10.1 shipped).**
+**NEXT UP: 10.3 UI/UX foundation refactor — the layout-group pass that
+every later screen (Goals hub, loot QoL) builds on. (Or the user's pick.)**
 
 Self-contained briefs for future sessions (any model); slice order =
 shipping order, each one-verified-slice-per-commit sized. Standing rules
@@ -68,25 +69,6 @@ gems · server authority (design §9) · zone drop-table hints · manual
 achievement-claim UX · dungeon BFS build-reveal anim · tilt-shift
 band-blur · SDF jiggle-rope tail · crypt mid-run merchant/boon-draft
 (user cut 2026-07-07; must never dilute dust's permanent-boon role).
-
-**10.2 First-time experience (FTUE) & staged UI reveal**
-Design LOCKED 2026-07-09 → game-design §7.4 (quest-board-only intro,
-FAST reveal schedule — everything by ~S12; fresh-games-only gating via
-a New-Game flag, additive field, no save bump). Slices:
-(a) SHIPPED `2dd332c` — `Progression.FeatureUnlocked(feature, save)` +
-`FeatureRevealStage` table + New-Game arming (`IntroState.Armed` under
-ProgressState, unarmed saves see all);
-(b) SHIPPED — the five intro quests (`IntroQuests`): predicate-driven,
-retro-completing via `IntroQuests.Sync`, own sim track (not the rolling
-board — kinds there reroll/dedupe); read model `Board`/`Active`/`IsComplete`;
-(c)+(d) SHIPPED `d30211d` — staged button reveal (gapless reflow),
-launch popups gated pre-S3 (no rewards lost), stateless reveal toasts,
-"Getting started" strip above the rolling board, first-boss/first-hero
-celebration beats (campaign hero joins were silent before — fixed),
-wallet breadcrumb. Editor-compile verified; Play NOT yet (bridge down);
-(e) REMAINING: Play-verified New Game walkthrough end-to-end — NEEDS
-the bridge (attaches at session start only). Eyeball there: quest-panel
-clipping with the intro strip up (bump QuestH if needed).
 
 **10.3 UI/UX foundation refactor (the deferred layout-group pass)**
 Hand-placed coords rot on every screen change; do the real fix in order:
@@ -198,10 +180,12 @@ impact language belongs to 10.6b). 10.11 COMPLETE.
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
-- 2026-07-09 10.2 FTUE sim half (a+b): `FeatureUnlocked` staged-reveal
-  gating table + New-Game arming flag (`IntroState`, additive, no bump),
-  five predicate-driven retro-completing intro quests (`IntroQuests`);
-  (c)-(e) client + Play-verify still open (`2dd332c`..)
+- 2026-07-10 10.2 FTUE COMPLETE (design game-design §7.4): staged-reveal
+  gating (`FeatureUnlocked` + New-Game arming), five guided intro beats
+  (`IntroQuests`, now paying strictly in beat order), staged button
+  reveal, pre-S3 popup gating, reveal toasts, intro strip, celebration
+  beats, breadcrumb (clip-fixed). Play-verified New Game walkthrough
+  S0→S12: every reveal/beat/toast fired on cue (`2dd332c`..`d30211d`..)
 - 2026-07-09 10.1 The Great Rebalance COMPLETE: thorns capped mirror
   (ThornsReflectHpCap), gear/level ~50/50, per-tier HP+damage taper
   (Monster{Hp,Dmg}GrowthByTier), major-boss taper (MajorBossMultByTier:
