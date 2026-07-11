@@ -56,16 +56,15 @@ before anyone acts on them:
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
-**NEXT UP: 10.12 (e) laptop verify → (d) tiers → 10.5b-e / user pick.**
+**NEXT UP: 10.12(e) laptop verify → (d) tiers → 10.5c-e / user pick.**
 
-Self-contained briefs for future sessions (any model); slice order =
-shipping order, each one-verified-slice-per-commit sized. Standing rules
-apply (GameCore-first; MS2 = heroes only; no MS2 music; content seeds at
-New Game). Parked, deliberately not goals: prestige/rebirth · real-money
-gems · server authority (design §9) · zone drop-table hints · manual
-achievement-claim UX · dungeon BFS build-reveal anim · tilt-shift
-band-blur · SDF jiggle-rope tail · crypt mid-run merchant/boon-draft
-(user cut 2026-07-07; must never dilute dust's permanent-boon role).
+Self-contained briefs; slice order = shipping order, one verified slice
+per commit. Standing rules apply (GameCore-first; MS2 = heroes only; no
+MS2 music; content seeds at New Game). Parked, deliberately not goals:
+prestige/rebirth · real-money gems · server authority (§9) · zone
+drop-table hints · manual achievement-claim UX · BFS build-reveal anim ·
+tilt-shift band-blur · SDF jiggle-rope tail · crypt mid-run merchant/
+boon-draft (user cut 2026-07-07; never dilute dust's permanent role).
 
 **10.3 UI/UX foundation refactor — COMPLETE 2026-07-11** (ledger below;
 receipts in git). Kit lessons that BITE, kept here for future screens:
@@ -76,22 +75,22 @@ windows/modals scale match-0.5 (match-width leaves ~540 canvas units at
 21:9 — vanishing labels = height starvation); `KeepOnCanvas` heals are
 DISPLAY-ONLY (persisting a clamp taken against a transient mid-switch
 canvas size clobbers the user's layout — happened, Play-caught).
-Font note: UIFont.ttf (+meta) is DELIBERATELY untracked; the importer
-fallback list (HYWenHei → Segoe UI Symbol → Segoe UI → Arial) is
-machine-local — re-apply on a fresh checkout. Glyph audit 2026-07-11:
-all 24 non-ASCII glyphs in UI strings covered by the primary face.
-Still hand-placed (deferred, NOT part of 10.3): Settings panel,
-TowerView, ModifierPanel, MainMenu — migrate opportunistically when
-next touched.
+Font: UIFont.ttf (+meta) DELIBERATELY untracked; importer fallbacks
+(HYWenHei → Segoe UI Symbol → Segoe UI → Arial) are machine-local —
+re-apply on fresh checkout. Glyph audit: 24/24 covered. Still
+hand-placed (deferred): Settings panel, TowerView, ModifierPanel,
+MainMenu — migrate opportunistically when next touched.
 
 **10.5 Loot QoL 2.0 (legibility at scale)**
 Late-game bags are noise. (a) SHIPPED 2026-07-11 — loot filter:
 `LootFilterState` on ProgressState (per-slot floors + imprint guard,
 guard defaults ON; `Inventory.WouldAutoSalvage` = THE predicate; all
 salvage paths refuse guarded imprints like Locked; legacy pref
-carried over once at boot then cleared; 715 tests). (b) compare-anywhere:
-hover any item anywhere → delta vs equipped of the fielded hero with
-best PowerScore gain; (c) bulk-select salvage UI (tap-drag multi-select,
+carried over once at boot then cleared; 715 tests). (b) SHIPPED
+2026-07-11 — CompareCard (best-FIELDED-hero delta: all-verdict headline,
+DPS/EHP, raw rows, benched fallback) in the bag pane; Heroes screen
+gains the cross-hero "▲ for X instead" line. (c) bulk-select salvage UI
+(tap-drag multi-select,
 locked items refuse as today); (d) set bonuses (design §6.1): 3 sets
 per zone tier, 2pc/4pc bonuses as flat StatBlock adds in
 ComputeHeroStats (content-as-data, seeds at New Game); (e) per-hero

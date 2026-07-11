@@ -381,6 +381,16 @@ namespace IdleGame.Game
                 if (!anyDelta)
                     PanelKit.Label(_detail, "No stat change", Theme.FsSmall, Theme.TextBright, TextAnchor.MiddleLeft);
 
+                // Cross-hero surfacing (10.5b): if a DIFFERENT fielded hero would get a genuine
+                // upgrade from this item, point at them — so a bag item that's wasted on the selected
+                // hero but great for a partymate doesn't stay invisible until you switch heroes.
+                var party = new List<string>();
+                foreach (var pid in save.Party) if (pid != null) party.Add(pid);
+                var bestOther = Upgrades.BestForItem(save, item, _cfg, stage, party.Count > 0 ? party : null);
+                if (bestOther != null && bestOther.HeroId != _heroId && bestOther.Verdict == Upgrades.Verdict.Upgrade)
+                    PanelKit.Label(_detail, $"{UpgradeTell.Glyph(bestOther.Verdict)} {UpgradeTell.Pct(bestOther.DeltaPercent)} for {HeroName(save, bestOther.HeroId)} instead",
+                        Theme.FsSmall, UpgradeTell.Color(bestOther.Verdict), TextAnchor.MiddleLeft);
+
                 PanelKit.Flex(_detail); // push the Equip button to the bottom of the pane
                 var row = PanelKit.Row(_detail, Theme.BtnH);
                 PanelKit.ButtonCell(row, "Equip", () => EquipFromBag(save, item));

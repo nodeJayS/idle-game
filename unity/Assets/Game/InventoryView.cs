@@ -264,13 +264,10 @@ namespace IdleGame.Game
                 return;
             }
 
-            // Best-fit upgrade verdict (Lever 2): who would this help, and by how much?
-            var bestFit = Upgrades.BestForItem(save, item, _cfg, save.Progress.CurrentStage);
-            if (bestFit != null && bestFit.Verdict == Upgrades.Verdict.Upgrade)
-                PanelKit.Label(_detail, $"{UpgradeTell.Glyph(bestFit.Verdict)} {UpgradeTell.Pct(bestFit.DeltaPercent)} power for {HeroName(save, bestFit.HeroId)}",
-                    Theme.FsLabel, UpgradeTell.Color(bestFit.Verdict), TextAnchor.MiddleLeft);
-            else
-                PanelKit.Label(_detail, "No upgrade for any hero", Theme.FsSmall, UpgradeTell.Side, TextAnchor.MiddleLeft);
+            // Compare-anywhere (10.5b): the full power delta vs the best fielded hero's slot — not
+            // just the one-line "who does this help" headline, so a loose drop's worth is legible
+            // in the bag without opening the Heroes screen.
+            CompareCard.Build(_detail, save, item, _cfg, _view, heroId: null);
 
             // Locked loose items can't be salvaged — show a disabled placeholder instead of the salvage button.
             if (item.Locked)
