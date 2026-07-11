@@ -61,6 +61,19 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>
+        /// Dry-run of a claim one UTC day AFTER <paramref name="nowMs"/>, on the save AS-IS — the
+        /// Goals hub's "Tomorrow: +N gems (day M)" line. Whether today's claim is taken or skipped,
+        /// tomorrow's streak follows the same DayIndex math as a real claim (consecutive continues,
+        /// a gap resets to 1); a rolled-back clock that can't claim tomorrow previews 0. Pure reuse
+        /// of <see cref="Preview"/> — there is no second reward formula to drift.
+        /// </summary>
+        public static (long gems, int streak) PreviewNext(SaveState save, GameConfig cfg, long nowMs)
+        {
+            var (gems, streak, _) = Preview(save, cfg, nowMs + DayMs);
+            return (gems, streak);
+        }
+
+        /// <summary>
         /// Claim today's daily reward: advance the streak, credit gems, and stamp the claim day. No-op
         /// (shares the ref, <c>claimed = false</c>) if a claim isn't available yet. Grants exactly what
         /// <see cref="Preview"/> reported for the same save/now. Returns the updated save plus the gems

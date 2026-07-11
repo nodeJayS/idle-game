@@ -421,6 +421,31 @@ staged reveal + a quest-driven intro — no tutorial system, no overlays (user p
   state (idle claim ready / boss looks beatable / unspent skill point), lowest-key
   guidance that persists after the intro ends.
 
+### 7.5 Goals hub (locked 2026-07-10)
+
+**Why:** quests, achievements, and daily login are three doors to one habit —
+"come back and see what paid." Quests and achievements deliberately AUTO-PAY
+(no claim chores in an idle game); the only manual claim is the daily login.
+So the hub is a **consolidation + visibility** surface, not a claim queue: one
+window that shows progress toward everything, one pip that says something's
+waiting, two HUD buttons retired.
+
+- **One "Goals" control-bar button** replaces the Achievements button; the
+  ambient quest HUD panel stays (glanceability is its job, the hub's is depth).
+  A gold **pip** on the button whenever `Goals.Claimables` is non-empty.
+- **Three tabs — Today / Achievements / Login** (PanelKit window). Today = the
+  rolling board with progress bars + an "auto-pays on completion" caption.
+  Achievements = the lifetime ladder (absorbs and retires AchievementsPanel).
+  Login = streak state, claim button, and tomorrow's reward preview.
+- **Sim-side read model** (`Goals`, pure): `Claimables(save, cfg, now)` — the
+  one list of manual claims (today: daily login; the seam for future manual
+  systems) — and `ClaimAll` which applies them via the existing reducers.
+  Reward previews come from GameCore helpers (never recomputed client-side).
+- **FTUE**: the button reveals with `Feature.DailyLogin` (S3); the
+  Achievements tab hides until `Feature.Achievements` (S5). Unarmed saves see
+  all, as everywhere. The launch DailyLoginModal stays (same idempotent
+  reducer; the modal is arrival juice, the tab is the durable home).
+
 ---
 
 ## 8. Milestone roadmap
