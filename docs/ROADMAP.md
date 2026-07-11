@@ -56,8 +56,7 @@ before anyone acts on them:
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
-**NEXT UP (user-set 2026-07-11): 10.12 (c2)/(d)/(e) → then 10.5b-e or
-user pick (crypt verdicts pending, "Your calls" #3).**
+**NEXT UP: 10.12 (e) laptop verify → (d) tiers → 10.5b-e / user pick.**
 
 Self-contained briefs for future sessions (any model); slice order =
 shipping order, each one-verified-slice-per-commit sized. Standing rules
@@ -115,10 +114,12 @@ pack): root cause ONE Material PER PROP (leaked per rebuild) → cached
 per look; static-combine per zone rebuild (wind mask baked to vertex
 ALPHA — post-combine posOS.y un-plants bases); shadow gate from MESH
 bounds × scale (renderer.bounds is zero pre-render); cascades 4→2,
-dist 60 (Bootstrap consts). NEXT: (c2) first-use pop-in — prewarm
-runtime bakes + shader variants behind LoadingScreen. (d) GPU tier —
-Settings tiers (render scale, post, SDF fallback). (e) laptop
-profile-verify; Android dev-build smoke test.
+dist 60 (Bootstrap consts). (c2) SHIPPED 2026-07-11 — Prewarm behind
+the MAIN MENU (campaign crossings have NO LoadingScreen): GroundDetail
+styles baked at boot; cold variants (FxAdditive, Lit+emission,
+SdfBlendShell, DungeonLit) compiled via real hidden-RT draws. NEXT:
+(d) Settings tiers (render scale, post, SDF fallback) — tune AFTER
+(e): the user plays the weak laptop (the real acceptance test).
 Acceptance: steady frame time at cap on the weak laptop, no first-use
 pop-in, thermals sane after 10 min idle-farming.
 

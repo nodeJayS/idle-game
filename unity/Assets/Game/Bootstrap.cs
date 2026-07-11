@@ -39,6 +39,10 @@ namespace IdleGame.Game
             new GameObject("FrameCap").AddComponent<FrameCap>(); // 10.12a: the game must never run uncapped
             TrimShadows(); // 10.12c: the shadow pass re-drew ~1,500 scenery casters x4 cascades
             BuildEnvironment(cfg);
+            // 10.12c2: bake the lazy caches (all GroundDetail styles, FxKit sprite) and render
+            // each cold shader variant once, all hidden behind the main menu — the session
+            // start has no LoadingScreen, so the menu IS the cover. See Prewarm.cs.
+            Prewarm.Run();
             ShowMenu(cfg);
         }
 
