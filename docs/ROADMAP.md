@@ -58,8 +58,9 @@ before anyone acts on them:
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
-**NEXT UP: 10.5 Loot QoL 2.0 — or the user's pick (crypt-tuning
-verdicts pending, "Your calls" #3).**
+**NEXT UP (user-set 2026-07-11): finish 10.5a (in flight) → 10.12
+performance pass → then 10.5b-e or user pick (crypt-tuning verdicts
+still pending, "Your calls" #3).**
 
 Self-contained briefs for future sessions (any model); slice order =
 shipping order, each one-verified-slice-per-commit sized. Standing rules
@@ -97,6 +98,24 @@ locked items refuse as today); (d) set bonuses (design §6.1): 3 sets
 per zone tier, 2pc/4pc bonuses as flat StatBlock adds in
 ComputeHeroStats (content-as-data, seeds at New Game); (e) per-hero
 gear loadout snapshots (save/apply, bag-integrity checked).
+
+**10.12 Performance & mobile-readiness (user report 2026-07-11: weak
+laptop OVERHEATS, textures pop in late; goal = playable on mobile)**
+Measure first (Unity Profiler via MCP; dev build on the laptop if
+possible), then slice by evidence. Static-recon suspects, in order:
+(a) frame cap — NO targetFrameRate/vSync anywhere, the game renders
+uncapped (likely THE heat source); cap 60 (mobile 30/60) + vSync +
+throttle-when-unfocused, ship first (near-free). (b) IMGUI GC churn —
+CombatView allocates GUIStyles inside per-frame Draw* (OnGUI runs 2+
+passes/frame); cache like _walletStyle. (c) first-use hitches —
+runtime texture bakes (GroundDetail/FxKit/UiKit sprites) + URP shader
+variant compiles = "textures pop in late"; prewarm behind
+LoadingScreen (ShaderVariantCollection). (d) GPU tier — bloom/
+split-tone post + raymarched SDF blobs on integrated GPUs: quality
+tiers in Settings (render scale, post toggle, SDF fallback).
+(e) profile-verify on the laptop; Android dev-build smoke test.
+Acceptance: steady frame time at cap on the weak laptop, no first-use
+pop-in, thermals sane after 10 min idle-farming.
 
 **10.6 Combat presentation pass (juice v2)**
 The sim reads honest; make it FELT. (a) hit-stop: 30–50ms time-scale
