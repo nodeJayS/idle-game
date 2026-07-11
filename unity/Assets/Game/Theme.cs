@@ -92,6 +92,14 @@ namespace IdleGame.Game
         /// <summary>Warm gold padlock — locked-item tags, tile badges and button text.</summary>
         public static readonly Color LockGold = new(1f, 0.82f, 0.35f);
 
+        // ---- Colors: progress bars ----
+        /// <summary>Progress-bar track (the dark groove under a fill).</summary>
+        public static readonly Color BarTrack = new(0.15f, 0.16f, 0.20f);
+        /// <summary>Progress-bar fill — the standard green (goal boards, completed ladders).</summary>
+        public static readonly Color BarGreen = new(0.40f, 0.72f, 0.46f);
+        /// <summary>Progress-bar fill — gold, a lifetime ladder still in progress.</summary>
+        public static readonly Color BarGold = new(0.85f, 0.70f, 0.35f);
+
         // ---- Colors: dropdown ----
         /// <summary>Backdrop behind expanded dropdown options (darker than <see cref="Backdrop"/>).</summary>
         public static readonly Color BgDropdown = new(0.05f, 0.05f, 0.08f, 1f);

@@ -86,17 +86,6 @@ reveal), (e) HUD anchoring pass (safe margins, corner regions),
 (f) glyph/font audit last (single font asset, fallbacks).
 Acceptance: no hand-placed pixel coords left in migrated screens.
 
-**10.4 Goals hub (quests + achievements + daily login, one surface)**
-Three separate reward systems = three places to forget to click.
-(a) GameCore: unify claimable state behind one `Goals.Pending(save)`
-read model (no schema change — a view over the three systems);
-(b) one Goals panel with tabs (Today / Achievements / Login), claim-all
-button (respect display-rounding rules on reward totals); (c) HUD
-notification pip when anything is claimable (the single red-dot
-pattern); (d) retire the separate quest/achievement buttons; (e) a
-"tomorrow preview" line (next login reward + quest reroll time) for the
-come-back-tomorrow pull.
-
 **10.5 Loot QoL 2.0 (legibility at scale)**
 Late-game bags are noise. (a) loot filter: per-rarity auto-salvage
 floor PER SLOT + "never salvage imprinted" toggle (GameCore reducer +
@@ -186,6 +175,11 @@ impact language belongs to 10.6b). 10.11 COMPLETE.
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-07-10 10.4 Goals hub COMPLETE (design §7.5): `Goals.Claimables`/
+  `ClaimAll` read model + `DailyLogin.PreviewNext` (10 tests → 699);
+  Goals window (Today/Achievements/Login + claim-all + tomorrow
+  preview) on PanelKit; control-bar pip; Achievements button + panel
+  retired. Play-verified claim loop end-to-end.
 - 2026-07-10 10.3 (a)+(b): Theme tokens + PanelKit layout-group kit;
   Heroes screen migrated (zero positional literals), verified at
   16:9/16:10/21:9; (c)-(f) remain

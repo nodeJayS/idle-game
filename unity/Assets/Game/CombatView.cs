@@ -437,7 +437,7 @@ namespace IdleGame.Game
         private ModifierPanel? _modifierPanel;
         private TowerView? _towerView;
         private GachaPanel? _gachaPanel;
-        private AchievementsPanel? _achievements;
+        private GoalsPanel? _goals;
         private readonly Dictionary<string, View> _views = new Dictionary<string, View>();
 
         // Persistent in-world leader marker (party-feel batch): a thin flat gold disc that sits on
@@ -507,7 +507,7 @@ namespace IdleGame.Game
         public void BindModifiers(ModifierPanel panel) => _modifierPanel = panel;
         public void BindTower(TowerView panel) => _towerView = panel;
         public void BindGacha(GachaPanel panel) => _gachaPanel = panel;
-        public void BindAchievements(AchievementsPanel panel) => _achievements = panel;
+        public void BindGoals(GoalsPanel panel) => _goals = panel;
 
         /// <summary>The player's premium-currency (gem) balance — read-only surface the GachaPanel reads to
         /// show affordability. The gems SINK (a roll) still routes through <see cref="RollGacha"/>.</summary>
@@ -695,7 +695,7 @@ namespace IdleGame.Game
                                   || (_modifierPanel != null && _modifierPanel.IsOpen)
                                   || (_towerView != null && _towerView.IsOpen)
                                   || (_gachaPanel != null && _gachaPanel.IsOpen)
-                                  || (_achievements != null && _achievements.IsOpen);
+                                  || (_goals != null && _goals.IsOpen);
 
         // Launch modals (idle claim / daily login) are transient GameObjects, not bound panels, so
         // they register here — the IMGUI HUD (floating HP bars etc.) draws above every uGUI canvas
@@ -979,7 +979,7 @@ namespace IdleGame.Game
         {
             Feature.IdleClaim    => "Idle rewards unlocked — progress banks while you're away.",
             Feature.DailyLogin   => "Daily login unlocked — check in each day for gems.",
-            Feature.Achievements => "Achievements unlocked — lifetime milestones now pay out.",
+            Feature.Achievements => "Achievements unlocked — see Goals for lifetime milestones.",
             Feature.Modifiers    => "Modifiers unlocked — risk for reward.",
             Feature.Modes        => "The Tower and the Crypt have opened — Modes menu.",
             Feature.Gacha        => "Summoning unlocked — spend gems on new heroes.",
@@ -1026,6 +1026,19 @@ namespace IdleGame.Game
             SaveStore.Save(Save.Touch(_save, now));
             _chat?.AddFeed($"Daily reward — day {streak} streak!  +{Num.CompactFloor(gems)} gems",
                            new Color(0.6f, 0.85f, 1f));
+        }
+
+        /// <summary>Goals-hub "Claim all" (§7.5): apply every pending manual claim by routing each
+        /// kind through its EXISTING claim path (feed line + save flush for free). Today the only
+        /// manual claim is the daily login; future manual systems add their kind here as they join
+        /// <see cref="Goals.Claimables"/>. <c>now</c> is epoch ms.</summary>
+        public void ClaimAllGoals(long now)
+        {
+            foreach (var c in Goals.Claimables(_save, _cfg, now))
+                switch (c.Kind)
+                {
+                    case Goals.KindDailyLogin: ClaimDailyLogin(now); break;
+                }
         }
 
         /// <summary>Bank pending loot/XP/gold into the save. Returns true if XP was
@@ -2791,8 +2804,10 @@ namespace IdleGame.Game
 
         private void DrawControlBar()
         {
-            // the Heroes panel owns the screen (its own Close button dismisses it)
+            // Full-screen windows own the screen (their own Close dismisses them) — the bar would
+            // draw OVER their bottom edge otherwise (IMGUI renders above every uGUI canvas).
             if (_equipment != null && _equipment.IsOpen) return;
+            if (_goals != null && _goals.IsOpen) return;
             const float h = 80f, pad = 16f, gap = 12f;
             float sh = Screen.height / UiScale();
             float y = sh - h - pad;
@@ -2838,9 +2853,25 @@ namespace IdleGame.Game
                 x += 190 + gap;
             }
 
-            // Achievements (Lever 4): the permanent milestone ladder.
-            if (Progression.FeatureUnlocked(Feature.Achievements, _save))
-                if (Button(x, y, 240, h, "Achievements")) _achievements?.Toggle();
+            // Goals hub (§7.5): quests + achievements + daily login in one window (replaced the
+            // Achievements button). Reveals with the EARLIEST member system (DailyLogin, S3); the
+            // Achievements TAB inside gates separately on its own reveal (S5).
+            if (Progression.FeatureUnlocked(Feature.DailyLogin, _save)
+                || Progression.FeatureUnlocked(Feature.Achievements, _save))
+            {
+                const float goalsW = 170f;
+                if (Button(x, y, goalsW, h, "Goals")) _goals?.Toggle();
+                // Gold pip: a manual claim is waiting (today: the daily login). Drawn at the
+                // button's top-right from the rect we just used — a derived anchor, and cheap
+                // enough to check every OnGUI (one DayIndex compare).
+                if (Goals.Claimables(_save, _cfg, NowMs()).Count > 0)
+                {
+                    var prevColor = GUI.color;
+                    GUI.color = new Color(1f, 0.85f, 0.4f); // feed-accent gold (IMGUI bar idiom)
+                    GUI.Label(new Rect(x + goalsW - 30, y + 2, 26, 26), "●", PipStyle);
+                    GUI.color = prevColor;
+                }
+            }
             // (The party always moves as a group now; stage nav + Challenge live in the
             // top-centre HUD — see DrawTopControls.)
         }
@@ -2863,6 +2894,11 @@ namespace IdleGame.Game
         private GUIStyle? _btnStyleSm;
         private GUIStyle BtnStyleSm => _btnStyleSm ??= new GUIStyle(GUI.skin.button)
         { fontSize = 20, fontStyle = FontStyle.Bold };
+
+        // The claim-waiting pip on the Goals button (tinted via GUI.color at draw time).
+        private GUIStyle? _pipStyle;
+        private GUIStyle PipStyle => _pipStyle ??= new GUIStyle(GUI.skin.label)
+        { fontSize = 22, fontStyle = FontStyle.Bold, alignment = TextAnchor.UpperRight };
 
         // "Modes" bar button while a crypt run is live — violet, matching the dungeon feed lines.
         private GUIStyle? _modesActiveStyle;

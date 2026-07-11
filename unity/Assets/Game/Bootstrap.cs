@@ -99,9 +99,9 @@ namespace IdleGame.Game
             gacha.Bind(view, cfg);
             view.BindGacha(gacha);
 
-            var achievements = director.AddComponent<AchievementsPanel>();
-            achievements.Bind(view, cfg);
-            view.BindAchievements(achievements);
+            var goals = director.AddComponent<GoalsPanel>();
+            goals.Bind(view, cfg);
+            view.BindGoals(goals);
 
             var topbar = new GameObject("TopBar").AddComponent<TopBar>();
             topbar.transform.SetParent(session.transform);

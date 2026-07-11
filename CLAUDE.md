@@ -16,7 +16,7 @@ animate/poll, never decide rules. A future .NET server reuses GameCore as-is.
 
 ## Build & test
 - Sim: `dotnet test gamecore/GameCore.Tests` (xunit; globs the SAME
-  Assets/GameCore sources — edit sim code there). **689 tests green**
+  Assets/GameCore sources — edit sim code there). **699 tests green**
   (incl. DocsTests: ROADMAP ≤250 lines + keeps its sections — the ledger
   rule has teeth; prune, don't raise the budget).
 - Balance tooling: `dotnet run --project gamecore/BalanceSim -- walls|sweep|farm`
@@ -64,7 +64,9 @@ animate/poll, never decide rules. A future .NET server reuses GameCore as-is.
   the rare mod pairs; every first clear pays gems (TowerGemsPerFloor).
 - **Idle** (12h cap) · **quests** (rolling board) · **achievements**
   (lifetime ladder, auto-pay per tier) · **daily login → gems** (+ Tower
-  floor clears; the gem sources) · **gacha** (the gem sink: banner defs in config, pity, dupe →
+  floor clears; the gem sources) — all three surfaced in the **Goals hub**
+  (one window + control-bar pip; login = the only manual claim,
+  `Goals.Claimables`) · **gacha** (the gem sink: banner defs in config, pity, dupe →
   XP/scrap; "Winter's Return" gates the Ice Mage) · chat/feed panel (social
   tabs stubbed).
 - **Art**: faceted vertex-coloured world + TunicSurface height-blend shader,
