@@ -98,7 +98,13 @@ Shader "IdleGame/TunicSurface"
                 float3 posWS = TransformObjectToWorld(posOS);
 
                 // Sway scales with height above the pivot, so trunks/bottoms stay planted.
-                float mask = saturate(posOS.y);
+                // The mask is BAKED into vertex-colour alpha (= saturate of mesh-space height,
+                // stamped by Scenery.BuildFlatMesh) instead of read from posOS.y live: static
+                // batching folds world transforms into the combined mesh, so post-combine
+                // posOS.y is root-space height and the live mask would un-plant every base.
+                // Non-scenery meshes leave alpha at 1 — harmless, since only scenery materials
+                // ever set _WindStrength > 0. (Shadow/depth passes never applied wind.)
+                float mask = IN.color.a;
                 float phase = _TimeParameters.x * _WindSpeed + posWS.x * 0.5 + posWS.z * 0.5;
                 posWS.x += sin(phase) * _WindStrength * mask;
                 posWS.z += cos(phase * 0.8) * _WindStrength * mask;

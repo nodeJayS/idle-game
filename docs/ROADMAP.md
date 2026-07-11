@@ -15,14 +15,12 @@ push), 10 themed zones with terraced arenas, Tower, Crypt roguelite
 gems, gacha (live Ice Mage banner), and a balance simulator over pure
 GameCore. Roster: Knight / Fire Mage / Assassin / Priest (+ banner Ice
 Mage) on the MS2 skinned pipeline; monsters are faceted or SDF blend-shell.
-**689 GameCore tests green.** The 100-stage ladder is FIXED (10.1 shipped
-2026-07-09): thorns is a capped mirror, monster HP+damage taper per tier,
-gear/level rebased ~50/50. Stage 100 is now a reachable prestige gate —
-its every-10 major bosses demand near-mythic gear PLUS maxed account
-stacks (Tower buffs + crypt boons + gear enhance), verified in the sim.
-FTUE shipped 2026-07-10: fresh games open on two buttons and a five-beat
-guided intro; the HUD stage-reveals itself by ~S12. Headline problem now:
-hand-placed UI coords rot on every screen change — see backlog 10.3.
+**715 GameCore tests green.** The 100-stage ladder is FIXED (10.1,
+2026-07-09): stage 100 is a reachable prestige gate demanding
+near-mythic gear + maxed account stacks, sim-verified. FTUE shipped
+2026-07-10 (two-button open, five guided beats, staged HUD reveal).
+UI foundation (10.3) COMPLETE 2026-07-11. Headline problem now:
+performance on weak/mobile hardware — see 10.12.
 
 ## Your calls — decisions waiting on the USER
 
@@ -58,9 +56,8 @@ before anyone acts on them:
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
-**NEXT UP (user-set 2026-07-11): finish 10.5a (in flight) → 10.12
-performance pass → then 10.5b-e or user pick (crypt-tuning verdicts
-still pending, "Your calls" #3).**
+**NEXT UP (user-set 2026-07-11): 10.12 (c2)/(d)/(e) → then 10.5b-e or
+user pick (crypt verdicts pending, "Your calls" #3).**
 
 Self-contained briefs for future sessions (any model); slice order =
 shipping order, each one-verified-slice-per-commit sized. Standing rules
@@ -113,13 +110,15 @@ scratch buffers (total-order comparers keep byte-identical ordering;
 200-step lockstep test guards it) + client per-frame caches; calm
 farming ~31→11 KB/frame (editor-measured). Remaining churn is per-KILL
 bursty (events/strings/upgrade evals) — pool later only if device
-profiling says so. (c) first-use hitches —
-runtime texture bakes (GroundDetail/FxKit/UiKit sprites) + URP shader
-variant compiles = "textures pop in late"; prewarm behind
-LoadingScreen (ShaderVariantCollection). (d) GPU tier — bloom/
-split-tone post + raymarched SDF blobs on integrated GPUs: quality
-tiers in Settings (render scale, post toggle, SDF fallback).
-(e) profile-verify on the laptop; Android dev-build smoke test.
+profiling says so. (c) SHIPPED 2026-07-11 — scenery collapse (~1,514 → ~486 batches full
+pack): root cause ONE Material PER PROP (leaked per rebuild) → cached
+per look; static-combine per zone rebuild (wind mask baked to vertex
+ALPHA — post-combine posOS.y un-plants bases); shadow gate from MESH
+bounds × scale (renderer.bounds is zero pre-render); cascades 4→2,
+dist 60 (Bootstrap consts). NEXT: (c2) first-use pop-in — prewarm
+runtime bakes + shader variants behind LoadingScreen. (d) GPU tier —
+Settings tiers (render scale, post, SDF fallback). (e) laptop
+profile-verify; Android dev-build smoke test.
 Acceptance: steady frame time at cap on the weak laptop, no first-use
 pop-in, thermals sane after 10 min idle-farming.
 
@@ -229,8 +228,7 @@ impact language belongs to 10.6b). 10.11 COMPLETE.
   BalanceSim `crypt` depth difficulty/reward chart (10.7a–g)
 - 2026-07-07 10.11 complete: wardrobe browser, hero relooks
   (user-picked), FxKit procedural FX for all projectiles (`638d356`..)
-- 2026-07-07 Projectile release-frame launch (`b91359d`)
-- 2026-07-07 Anim feel: wing flap + hero swing/cast stutter fix (`0c5e1d4`)
+- 2026-07-07 Projectile release-frame launch (`b91359d`) · anim feel: wing flap + swing/cast stutter fix (`0c5e1d4`)
 - 2026-07-07 Balance sim (walls|sweep|farm) + wall findings (`4635483`)
 - 2026-07-07 Project audit: dead files, stale docs, clean sweep (`ed3d347`)
 - 2026-07-06 Crypt meta: keys, 3-floor runs, chest, boons (`7462d84`, `14ca7a5`)

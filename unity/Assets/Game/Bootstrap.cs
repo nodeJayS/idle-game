@@ -37,8 +37,28 @@ namespace IdleGame.Game
             var cfg = GameConfig.Default();
             AudioListener.volume = Settings.MasterVolume; // apply persisted master volume at boot
             new GameObject("FrameCap").AddComponent<FrameCap>(); // 10.12a: the game must never run uncapped
+            TrimShadows(); // 10.12c: the shadow pass re-drew ~1,500 scenery casters x4 cascades
             BuildEnvironment(cfg);
             ShowMenu(cfg);
+        }
+
+        // 10.12c shadow trim. The URP asset ships shadowDistance 90 / 4 cascades; at the fixed
+        // orthographic diorama framing the far cascades spend their texels (and a full scenery
+        // re-draw each) on ground the camera barely sees. Set at RUNTIME via the asset's public
+        // setters so the change lives in reviewable code and the .asset stays pristine on disk
+        // (note: in the editor the in-memory asset keeps the values until domain reload — Play
+        // again or restart to see the serialized numbers). Distance is a taste call — eyeball
+        // shadow reach in Play and bump back toward 90 if distant shadows visibly pop in.
+        private const int ShadowCascades = 2;
+        private const float ShadowDistance = 60f;
+
+        private static void TrimShadows()
+        {
+            if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset urp)
+            {
+                urp.shadowCascadeCount = ShadowCascades;
+                urp.shadowDistance = ShadowDistance;
+            }
         }
 
         private static void ShowMenu(GameConfig cfg)

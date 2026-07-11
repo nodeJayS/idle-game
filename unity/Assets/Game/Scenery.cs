@@ -119,6 +119,14 @@ namespace IdleGame.Game
                     Scatter(rng, 240, halfW, halfD, p => PlaceBushProp(t, rng, p, Foliage(accent, 0.05f), 0.5f, 1.1f));
                     break;
             }
+
+            // 10.12c draw-call collapse: fold the whole scatter into a few static batches —
+            // props never move (wind sway is a SHADER offset; the mask rides vertex alpha, so
+            // it survives the world-transform bake — see BuildFlatMesh). Safe to run once per
+            // rebuild: a zone change destroys this root wholesale, so a rebuilt root is always
+            // fresh GameObjects, never an already-combined set. Materials are shared per look
+            // (the cache above) — without that, combine had nothing to merge.
+            StaticBatchingUtility.Combine(_root);
         }
 
         private static void Scatter(System.Random rng, int count, float halfW, float halfD,
@@ -309,7 +317,13 @@ namespace IdleGame.Game
             Spawn(root, TuftMesh(rng), mat, pos, Vector3.one * s, Range(rng, 0f, 360f));
         }
 
-        // --- materials (built fresh per rebuild — cheap, and palettes bake per zone) ---
+        // --- materials (CACHED per look, 10.12c) ---------------------------------------
+        // The placer lambdas call these helpers per PROP, which used to mint a fresh Material
+        // per renderer (~1,500 unique instances per zone build): nothing could batch — every
+        // draw was its own material — and each rebuild leaked the previous set. One shared
+        // instance per parameter tuple means a whole prop family batches (and static-combines)
+        // into a handful of draws. Zone palettes still bake per zone: the accent is part of
+        // the key, so a different zone's foliage gets its own cached material.
 
         private static Material Foliage(Color accent, float wind)
             => Tun(accent, accent * 0.5f, -0.3f, 0.5f, 0.30f, wind);
@@ -350,10 +364,17 @@ namespace IdleGame.Game
         private static Material Gold()
             => Tun(new Color(0.90f, 0.76f, 0.35f), new Color(0.66f, 0.52f, 0.22f), 0.3f, 0.8f, 0.30f, 0f);
 
-        /// <summary>Build a TunicSurface material (normal-driven top/side colour + inked facet
-        /// edges + crisp light). Falls back to a matte URP/Lit if the shader is missing.</summary>
+        private static readonly Dictionary<(Color, Color, float, float, float, float), Material> _mats
+            = new Dictionary<(Color, Color, float, float, float, float), Material>();
+
+        /// <summary>Build (or fetch the cached) TunicSurface material for a look (normal-driven
+        /// top/side colour + inked facet edges + crisp light). Falls back to a matte URP/Lit if
+        /// the shader is missing. Cached per parameter tuple — see the section note above.</summary>
         private static Material Tun(Color top, Color side, float slopeLo, float slopeHi, float edgeDark, float wind)
         {
+            var key = (top, side, slopeLo, slopeHi, edgeDark, wind);
+            if (_mats.TryGetValue(key, out var cached) && cached != null) return cached; // Unity-null check: survives teardown
+
             var sh = Shader.Find("IdleGame/TunicSurface");
             if (sh == null)
             {
@@ -361,6 +382,7 @@ namespace IdleGame.Game
                 var fb = new Material(lit) { color = top };
                 Bootstrap.MakeMatte(fb);
                 fb.enableInstancing = true;
+                _mats[key] = fb;
                 return fb;
             }
             var m = new Material(sh);
@@ -373,6 +395,7 @@ namespace IdleGame.Game
             m.SetFloat("_ShadowImpact", 0.7f);
             m.SetFloat("_WindStrength", wind);
             m.enableInstancing = true; // identical mesh+material -> one batch
+            _mats[key] = m;
             return m;
         }
 
@@ -475,6 +498,11 @@ namespace IdleGame.Game
             return go;
         }
 
+        // Detail props shorter than this (world units) cast no shadow: a grass tuft or pebble
+        // contributes nothing readable to the shadow map, but every caster re-draws once per
+        // cascade — at ~1,500 scenery renderers the shadow pass dwarfed the camera pass (10.12c).
+        private const float ShadowMinHeight = 0.6f;
+
         private static GameObject Spawn(Transform parent, Mesh mesh, Material mat, Vector3 localPos, Vector3 localScale, float yRot = 0f)
         {
             var go = new GameObject("part");
@@ -483,7 +511,14 @@ namespace IdleGame.Game
             go.transform.localRotation = Quaternion.Euler(0f, yRot, 0f);
             go.transform.localScale = localScale;
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            go.AddComponent<MeshRenderer>().sharedMaterial = mat;
+            var mr = go.AddComponent<MeshRenderer>();
+            mr.sharedMaterial = mat;
+            // Per-PART policy (this is the one spawn choke point): a tree keeps its shadow via
+            // its tall trunk/canopy parts even if a small accent part opts out. Height comes from
+            // MESH bounds × scale, NOT renderer.bounds — renderer bounds are zero until first
+            // render, so a boot-time build would gate every prop off (Play-caught).
+            if (mesh.bounds.size.y * localScale.y < ShadowMinHeight)
+                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             return go;
         }
 
@@ -546,9 +581,13 @@ namespace IdleGame.Game
             var m = new Mesh { vertices = fv, triangles = ft };
             m.RecalculateNormals();
             m.RecalculateBounds();
-            // TunicSurface multiplies albedo by vertex colour; stamp white (no-op tint).
+            // TunicSurface multiplies albedo by vertex colour; stamp white (no-op tint). The
+            // ALPHA carries the wind-sway mask — saturate(mesh-space height), exactly what the
+            // shader used to derive from posOS.y at runtime. Baked into the vertex so it
+            // survives StaticBatchingUtility folding world transforms into a combined mesh
+            // (post-combine, posOS.y is combined-root space and would un-plant every base).
             var cols = new Color[fv.Length];
-            for (int i = 0; i < cols.Length; i++) cols[i] = Color.white;
+            for (int i = 0; i < cols.Length; i++) cols[i] = new Color(1f, 1f, 1f, Mathf.Clamp01(fv[i].y));
             m.colors = cols;
             return m;
         }
