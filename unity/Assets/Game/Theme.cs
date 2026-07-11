@@ -127,5 +127,34 @@ namespace IdleGame.Game
         public const float BtnH = 48f;
         public const float BtnHs = 44f;
         public const float CloseW = 140f;
+
+        // ==== modals =================================================================
+        // Values extracted verbatim from the three hand-placed modals (idle claim, outcome
+        // card, gacha) when they migrated onto PanelKit — pixel-faithful, not a new look.
+
+        /// <summary>Click-blocking dim behind the idle-claim modal.</summary>
+        public static readonly Color BackdropDim = new(0f, 0f, 0f, 0.6f);
+
+        // Outcome card (was CombatView.DrawOutcome, IMGUI). Win = bordered green panel; the
+        // loss banner is bare white text over the world with its own summary tint.
+        public static readonly Color OutcomeWinBorder = new(0.40f, 0.70f, 0.45f, 0.95f);
+        public static readonly Color OutcomeWinBg = new(0.10f, 0.13f, 0.11f, 0.98f);
+        public static readonly Color OutcomeWinTitle = new(0.6f, 0.95f, 0.6f);
+        public static readonly Color OutcomeWinSub = new(0.8f, 0.85f, 0.8f);
+        public static readonly Color OutcomeLossSummary = new(0.85f, 0.8f, 0.75f);
+        public const int FsOutcomeTitle = 30;
+        public const int FsOutcomeBanner = 34;
+
+        // Gacha (Summon). Panel keeps a hair of translucency (0.98) so the game ghosts through
+        // — there is NO backdrop, and that faint show-through is the intended read.
+        public static readonly Color GachaPanelBg = new(0.09f, 0.10f, 0.13f, 0.98f);
+        public static readonly Color GachaGold = new(1f, 0.82f, 0.32f);       // Summon title + featured reveal accent
+        public static readonly Color GachaBannerName = new(1f, 0.88f, 0.55f);
+        /// <summary>An affordable Roll — warm gold (disabled falls back to <see cref="BtnDisabled"/>).</summary>
+        public static readonly Color BtnGold = new(0.42f, 0.34f, 0.18f);
+        public static readonly Color RevealCommon = new(0.55f, 0.62f, 0.95f); // non-featured reveal accent
+        public static readonly Color RevealNewTag = new(1f, 0.92f, 0.5f);
+        public static readonly Color RevealSubTag = new(0.82f, 0.86f, 0.94f); // dupe tag + settle hint (hint at 0.85 alpha)
+        public const int FsRevealName = 40;
     }
 }

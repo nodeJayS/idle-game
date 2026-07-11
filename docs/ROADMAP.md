@@ -81,10 +81,14 @@ flexibleHeight=0 (force-expand HLGs report phantom flex) + minHeight;
 panel clips overflow. (c) SHIPPED 2026-07-10 — Inventory migrated
 (dropdown = canvas overlay on a DERIVED anchor via DropdownFollow;
 +12 Theme tokens, PanelKit.Stack; fixed the never-firing mass-salvage
-disarm timer). Next: (d) modals (boss result, idle claim, gacha
-reveal), (e) HUD anchoring pass (safe margins, corner regions),
-(f) glyph/font audit last (single font asset, fallbacks).
-Acceptance: no hand-placed pixel coords left in migrated screens.
+disarm timer). (d) SHIPPED 2026-07-11 — `PanelKit.Modal` (centered
+dialog; optional dim/border; NB force-expand rows clamp child flex
+to ≥1, so fixed-height cells need a non-expanding slot); outcome
+card (IMGUI DrawOutcome retired to uGUI OutcomeModal; HP-bar
+strike-through gated), idle claim + gacha (panel AND reveal beat)
+rebuilt layout-driven. Next: (e) HUD anchoring pass (safe margins,
+corner regions), (f) glyph/font audit last (single font asset,
+fallbacks). Acceptance: no hand-placed pixel coords in migrated screens.
 
 **10.5 Loot QoL 2.0 (legibility at scale)**
 Late-game bags are noise. (a) loot filter: per-rarity auto-salvage
@@ -180,9 +184,10 @@ impact language belongs to 10.6b). 10.11 COMPLETE.
   Goals window (Today/Achievements/Login + claim-all + tomorrow
   preview) on PanelKit; control-bar pip; Achievements button + panel
   retired. Play-verified claim loop end-to-end.
-- 2026-07-10 10.3 (a)+(b): Theme tokens + PanelKit layout-group kit;
-  Heroes screen migrated (zero positional literals), verified at
-  16:9/16:10/21:9; (c)-(f) remain
+- 2026-07-10/11 10.3 (a)-(d): Theme tokens + PanelKit layout-group kit
+  (+Modal); Heroes, Inventory, and the three modals (outcome / idle
+  claim / gacha reveal) migrated — zero positional literals, verified
+  at 16:9/16:10/21:9; (e)+(f) remain
 - 2026-07-10 10.2 FTUE COMPLETE (design game-design §7.4): staged-reveal
   gating (`FeatureUnlocked` + New-Game arming), five guided intro beats
   (`IntroQuests`, now paying strictly in beat order), staged button

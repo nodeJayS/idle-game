@@ -7,8 +7,8 @@ namespace IdleGame.Game
 {
     /// <summary>
     /// The "while you were away" claim modal (design §7 — the offline-return moment),
-    /// built in uGUI. Read-only: it just displays an <see cref="IdleReport"/> already
-    /// produced by <see cref="Idle.Claim"/> in game-core. The totals count up for a
+    /// built on <see cref="PanelKit"/>. Read-only: it just displays an <see cref="IdleReport"/>
+    /// already produced by <see cref="Idle.Claim"/> in game-core. The totals count up for a
     /// beat of juice; Collect dismisses it.
     /// </summary>
     public sealed class IdleClaimModal : MonoBehaviour
@@ -31,27 +31,28 @@ namespace IdleGame.Game
             _xp = report.Xp;
             _items = report.Items.Count;
 
-            var canvas = UiKit.CreateCanvas("IdleClaimCanvas", transform, sortOrder: 90);
-            UiKit.FullScreen(canvas.transform, new Color(0f, 0f, 0f, 0.6f));
+            PanelKit.Modal(transform, "IdleClaimCanvas", 90, new Vector2(420f, 300f),
+                           out var body, backdrop: Theme.BackdropDim);
 
-            var panel = UiKit.Panel(canvas.transform, new Vector2(420, 300), new Color(0.10f, 0.10f, 0.14f, 1f));
-            UiKit.Label(panel.transform, "Idle Rewards", 24, TextAnchor.MiddleCenter,
-                        new Vector2(380, 36), new Vector2(0, 110));
+            PanelKit.Label(body, "Idle Rewards", Theme.FsH1, Theme.TextBright, TextAnchor.MiddleCenter);
 
             var ts = System.TimeSpan.FromMilliseconds(report.ElapsedMs);
             string away = ts.TotalHours >= 1 ? $"{(int)ts.TotalHours}h {ts.Minutes}m" : $"{ts.Minutes}m {ts.Seconds}s";
             string capped = report.Capped ? "  (capped)" : "";
+            PanelKit.Label(body, $"Time: {away}{capped}", Theme.FsH2, Theme.TextBright, TextAnchor.MiddleLeft);
 
-            Line(panel.transform, $"Time: {away}{capped}", 50);
-            _goldText = Line(panel.transform, "", 14);
-            _xpText = Line(panel.transform, "", -22);
-            _itemsText = Line(panel.transform, "", -58);
+            _goldText = PanelKit.Label(body, "", Theme.FsH2, Theme.TextBright, TextAnchor.MiddleLeft);
+            _xpText = PanelKit.Label(body, "", Theme.FsH2, Theme.TextBright, TextAnchor.MiddleLeft);
+            _itemsText = PanelKit.Label(body, "", Theme.FsH2, Theme.TextBright, TextAnchor.MiddleLeft);
             Render(0f); // start the count-up at zero
-
             _animating = true;
 
-            UiKit.TextButton(panel.transform, "Collect", new Vector2(240, 70), new Vector2(0, -110),
-                () => Destroy(gameObject));
+            PanelKit.Flex(body); // slack pushes Collect to the panel bottom
+
+            var row = PanelKit.Row(body, Theme.BtnH);
+            PanelKit.FlexSpacer(row);
+            PanelKit.ButtonCell(row, "Collect", () => Destroy(gameObject), width: 240f, fontSize: Theme.FsH1);
+            PanelKit.FlexSpacer(row);
         }
 
         private void Update()
@@ -74,8 +75,5 @@ namespace IdleGame.Game
         private void OnDestroy() => _view?.PopLaunchModal();
 
         private static float EaseOutCubic(float t) => 1f - Mathf.Pow(1f - t, 3f);
-
-        private static Text Line(Transform parent, string text, float y) =>
-            UiKit.Label(parent, text, 17, TextAnchor.MiddleLeft, new Vector2(320, 26), new Vector2(0, y));
     }
 }

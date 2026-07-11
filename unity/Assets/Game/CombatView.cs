@@ -452,6 +452,7 @@ namespace IdleGame.Game
         private float _renderAlpha;     // 0..1 fraction into the current fixed step, for interpolation
         private float _outcomeTimer;
         private bool _resolved;
+        private GameObject? _outcomeUi; // the end-of-encounter card (uGUI); null while none is up
         // Auto-advance (push): while on, the party auto-challenges each stage's boss and chains
         // clears with no input, until a boss run FAILS (timeout or wipe) — which clears the flag.
         // A manual flee also clears it. Transient (a push session), not a persisted preference.
@@ -767,6 +768,7 @@ namespace IdleGame.Game
             _accMs = 0;
             _outcomeTimer = 0;
             _resolved = false;
+            ClearOutcome(); // a fresh encounter never inherits the previous card
             var heroDefs = new List<string>();
             foreach (var e in _combat.Entities)
                 if (e.Team == Team.Party)
@@ -820,7 +822,9 @@ namespace IdleGame.Game
             }
             else
             {
-                if (!_resolved) { _resolved = true; ResolveOutcome(); }
+                // ResolveOutcome runs FIRST (it sets _cryptDescend/_runSummary the card reads), then
+                // the outcome card is built exactly once for this resolve.
+                if (!_resolved) { _resolved = true; ResolveOutcome(); ClearOutcome(); BuildOutcomeUi(); }
                 _outcomeTimer += Time.deltaTime;
                 // A boss win shows a success popup that auto-advances after ~1s (or OK,
                 // which fast-forwards the timer); losses use the longer banner delay.
@@ -850,6 +854,10 @@ namespace IdleGame.Game
                     return;
                 }
             }
+
+            // Outcome card hides while a full-screen panel owns the view (parity with the old
+            // IMGUI draw, which bailed on AnyPanelOpen). Cheap once-per-frame flip.
+            if (_outcomeUi != null && _outcomeUi.activeSelf == AnyPanelOpen) _outcomeUi.SetActive(!AnyPanelOpen);
 
             ReconcileViews();
             SyncViews();
@@ -1271,6 +1279,51 @@ namespace IdleGame.Game
             }
         }
 
+        /// <summary>Build the end-of-encounter card (uGUI, replaces the old IMGUI DrawOutcome). Same
+        /// decision tree and strings: a win is a bordered success card (OK fast-forwards the resume
+        /// timer), a loss is a bare banner. Call AFTER <see cref="ResolveOutcome"/> — it sets the
+        /// _cryptDescend / _runSummary this reads.</summary>
+        private void BuildOutcomeUi()
+        {
+            bool bossWin = _combat.Kind == EncounterKind.BossChallenge && _combat.Status == CombatStatus.Won;
+            bool towerWin = _combat.Kind == EncounterKind.Tower && _combat.Status == CombatStatus.Won;
+            bool dungeonWin = _combat.Kind == EncounterKind.Dungeon && _combat.Status == CombatStatus.Won;
+            if (bossWin || towerWin || dungeonWin)
+            {
+                // §7.3: a dungeon win that ENDS the run (no descend) reads as a run-summary card.
+                bool runComplete = dungeonWin && !_cryptDescend;
+                string title = runComplete ? "Crypt run complete!"
+                             : dungeonWin ? $"Depth {Crypt.DepthRecord(_save)} cleared!"
+                             : towerWin ? $"Tower floor {_combat.TowerFloor} cleared!"
+                             : $"Stage {_combat.Stage} cleared!";
+                string sub = runComplete ? _runSummary
+                    : dungeonWin ? "Descending deeper…"
+                    : towerWin ? "Returning to camp…" : "Advancing to the next stage…";
+                _outcomeUi = OutcomeModal.ShowWin(transform, title, sub, () => _outcomeTimer = 9999f); // fast-forward
+            }
+            else
+            {
+                bool cryptWipe = _combat.Kind == EncounterKind.Dungeon;
+                string banner = _combat.Kind == EncounterKind.BossChallenge ? "BOSS FAILED"
+                              : _combat.Kind == EncounterKind.Tower ? $"FLOOR {_combat.TowerFloor} FAILED"
+                              : cryptWipe ? "CRYPT FAILED"
+                              : "PARTY WIPED";
+                // §7.3: a wiped run still shows its summary (floors banked before the wipe count).
+                string? summary = (cryptWipe && _runSummary.Length > 0) ? _runSummary : null;
+                _outcomeUi = OutcomeModal.ShowLoss(transform, banner, summary);
+            }
+            // First-frame parity: the old draw hid whenever a panel was open.
+            if (_outcomeUi != null && AnyPanelOpen) _outcomeUi.SetActive(false);
+        }
+
+        /// <summary>Tear down the outcome card if one is up. Called at every combat-resume point (so a
+        /// fresh encounter never inherits a stale card) and defensively before building a new one.</summary>
+        private void ClearOutcome()
+        {
+            if (_outcomeUi != null) Destroy(_outcomeUi);
+            _outcomeUi = null;
+        }
+
         /// <summary>Close out a crypt run (§7.3): clear the persisted ActiveRun (so it can't resume)
         /// and post the run SUMMARY — floors cleared this sitting plus the gem / dust / gold it earned
         /// (diffed from the snapshots taken at run start). Does not save; the ResolveOutcome caller
@@ -1364,6 +1417,7 @@ namespace IdleGame.Game
             CommitPending();
             Combat.EnterBossChallenge(_combat, _cfg);
             _accMs = 0; _outcomeTimer = 0; _resolved = false;
+            ClearOutcome();
             ReconcileViews();
         }
 
@@ -1541,6 +1595,7 @@ namespace IdleGame.Game
             Combat.ReconcileParty(_combat, _save, _cfg);
             _combat.ActiveModifiers = Modifiers.ResolveActive(_save, _cfg); // re-apply toggles to the resumed farm
             _accMs = 0; _outcomeTimer = 0; _resolved = false;
+            ClearOutcome();
             ReconcileViews();
             // Heroes who died in the boss fight are healed by ResumeFarm directly (no
             // Respawn EVENT fires), so resync their views out of the death pose too —
@@ -2286,7 +2341,6 @@ namespace IdleGame.Game
             DrawHealthBars(s);
             DrawHud(s);
             DrawTopControls(s);
-            DrawOutcome(s);
             DrawPartyHud(s);
             DrawControlBar();
             DrawModesPanel(s); // last: the mode-select menu overlays the HUD when open
@@ -2307,6 +2361,9 @@ namespace IdleGame.Game
         private void DrawHealthBars(float s)
         {
             if (AnyPanelOpen) return; // these IMGUI bars draw over uGUI panels — hide them while one's open
+            // The outcome card is uGUI too (IMGUI would strike through it); the fight is over, so
+            // the bars carry no information while the card is up.
+            if (_outcomeUi != null && _outcomeUi.activeSelf) return;
             var cam = Camera.main;
             if (cam == null) return;
             foreach (var e in _combat.Entities)
@@ -2609,59 +2666,6 @@ namespace IdleGame.Game
 
             if (buttonLabel != null && Button(x + w - 224, y + rowH / 2f - 21, 208, 42, buttonLabel, BtnStyleSm))
                 onClick();
-        }
-
-        /// <summary>Outcome overlay: a success popup on a boss win (auto-advances ~1s or OK),
-        /// a plain banner on a loss/wipe.</summary>
-        private void DrawOutcome(float s)
-        {
-            if (AnyPanelOpen || _combat.Status == CombatStatus.Running) return;
-            float sw = Screen.width / s, sh = Screen.height / s;
-
-            bool bossWin = _combat.Kind == EncounterKind.BossChallenge && _combat.Status == CombatStatus.Won;
-            bool towerWin = _combat.Kind == EncounterKind.Tower && _combat.Status == CombatStatus.Won;
-            bool dungeonWin = _combat.Kind == EncounterKind.Dungeon && _combat.Status == CombatStatus.Won;
-            if (bossWin || towerWin || dungeonWin)
-            {
-                float w = 420f, h = 180f, x = sw / 2f - w / 2f, y = sh / 2f - h / 2f;
-                DrawRect(x - 2, y - 2, w + 4, h + 4, new Color(0.40f, 0.70f, 0.45f, 0.95f));
-                DrawRect(x, y, w, h, new Color(0.10f, 0.13f, 0.11f, 0.98f));
-
-                // §7.3: a dungeon win that ENDS the run (no descend) reads as a run-summary card.
-                bool runComplete = dungeonWin && !_cryptDescend;
-                var t = new GUIStyle(GUI.skin.label) { fontSize = 30, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
-                t.normal.textColor = new Color(0.6f, 0.95f, 0.6f);
-                string title = runComplete ? "Crypt run complete!"
-                             : dungeonWin ? $"Depth {Crypt.DepthRecord(_save)} cleared!"
-                             : towerWin ? $"Tower floor {_combat.TowerFloor} cleared!"
-                             : $"Stage {_combat.Stage} cleared!";
-                GUI.Label(new Rect(x, y + 24, w, 40), title, t);
-                var sub = new GUIStyle(GUI.skin.label) { fontSize = 15, alignment = TextAnchor.MiddleCenter, wordWrap = true };
-                sub.normal.textColor = new Color(0.8f, 0.85f, 0.8f);
-                string subText = runComplete ? _runSummary
-                    : dungeonWin ? "Descending deeper…"
-                    : towerWin ? "Returning to camp…" : "Advancing to the next stage…";
-                GUI.Label(new Rect(x + 20, y + 70, w - 40, 44), subText, sub);
-
-                if (Button(x + w / 2f - 80, y + h - 60, 160, 44, "OK")) _outcomeTimer = 9999f; // fast-forward
-            }
-            else
-            {
-                bool cryptWipe = _combat.Kind == EncounterKind.Dungeon;
-                string banner = _combat.Kind == EncounterKind.BossChallenge ? "BOSS FAILED"
-                              : _combat.Kind == EncounterKind.Tower ? $"FLOOR {_combat.TowerFloor} FAILED"
-                              : cryptWipe ? "CRYPT FAILED"
-                              : "PARTY WIPED";
-                var bs = new GUIStyle(GUI.skin.label) { fontSize = 34, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
-                GUI.Label(new Rect(0, sh / 2f - 60, sw, 44), banner, bs);
-                // §7.3: a wiped run still gets its summary (floors banked before the wipe count).
-                if (cryptWipe && _runSummary.Length > 0)
-                {
-                    var rs = new GUIStyle(GUI.skin.label) { fontSize = 16, alignment = TextAnchor.MiddleCenter };
-                    rs.normal.textColor = new Color(0.85f, 0.8f, 0.75f);
-                    GUI.Label(new Rect(0, sh / 2f - 12, sw, 24), _runSummary, rs);
-                }
-            }
         }
 
         /// <summary>

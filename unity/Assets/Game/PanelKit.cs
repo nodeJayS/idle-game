@@ -65,6 +65,71 @@ namespace IdleGame.Game
             return canvas.gameObject;
         }
 
+        /// <summary>
+        /// A centered dialog — lighter than <see cref="Window"/> (no header/Close row; the caller
+        /// owns dismissal). The panel is <paramref name="size"/> on a roomy canvas and shrinks with
+        /// margins on a starved one. <paramref name="backdrop"/> null = NO dim at all, so clicks
+        /// outside the panel pass through to nothing (an unblocked overlay). <paramref name="border"/>
+        /// non-null wraps the panel in a 2px frame of that color. <paramref name="body"/> is the
+        /// panel's vertical stack — the caller adds rows. Returns the canvas (destroy it to close).
+        /// </summary>
+        public static GameObject Modal(Transform parent, string canvasName, int sortOrder,
+                                       Vector2 size, out RectTransform body,
+                                       Color? backdrop = null, Color? border = null, Color? panelBg = null)
+        {
+            // match 0.5 like Window: an ultrawide canvas keeps enough HEIGHT that the dialog's rows
+            // don't crush to nothing (match-width alone leaves ~540 units at 21:9).
+            var canvas = UiKit.CreateCanvas(canvasName, parent, sortOrder, match: 0.5f);
+            // Only add a backdrop when asked: a null backdrop leaves clicks outside the panel
+            // falling through to the game (no invisible raycast blocker).
+            if (backdrop != null) UiKit.FullScreen(canvas.transform, backdrop.Value);
+
+            // Optional border: an outer image carries the sizer; the panel insets 2px inside it so
+            // the color reads as a thin frame. Without a border the panel carries the sizer itself.
+            Transform panelParent = canvas.transform;
+            if (border != null)
+            {
+                var borderGo = new GameObject("Border", typeof(RectTransform));
+                borderGo.transform.SetParent(canvas.transform, false);
+                borderGo.AddComponent<Image>().color = border.Value;
+                var bs = borderGo.AddComponent<WindowSizer>();
+                bs.Margin = new Vector2(Theme.Gap * 5f, Theme.PadL);
+                bs.Max = size + new Vector2(4f, 4f);
+                panelParent = borderGo.transform;
+            }
+
+            var panelGo = new GameObject("Panel", typeof(RectTransform));
+            panelGo.transform.SetParent(panelParent, false);
+            panelGo.AddComponent<Image>().color = panelBg ?? Theme.BgPanel;
+            panelGo.AddComponent<RectMask2D>(); // crop overflow at the panel edge on a starved canvas
+            var prt = (RectTransform)panelGo.transform;
+
+            if (border != null)
+            {
+                // Stretch to the border, 2px in on every side (the frame shows through).
+                prt.anchorMin = Vector2.zero;
+                prt.anchorMax = Vector2.one;
+                prt.offsetMin = new Vector2(2f, 2f);
+                prt.offsetMax = new Vector2(-2f, -2f);
+            }
+            else
+            {
+                var sizer = panelGo.AddComponent<WindowSizer>();
+                sizer.Margin = new Vector2(Theme.Gap * 5f, Theme.PadL);
+                sizer.Max = size;
+            }
+
+            var vlg = panelGo.AddComponent<VerticalLayoutGroup>();
+            vlg.padding = new RectOffset((int)Theme.PadL, (int)Theme.PadL, (int)Theme.PadL, (int)Theme.PadL);
+            vlg.spacing = Theme.Gap;
+            vlg.childControlWidth = vlg.childControlHeight = true;
+            vlg.childForceExpandWidth = true;
+            vlg.childForceExpandHeight = false;
+
+            body = prt;
+            return canvas.gameObject;
+        }
+
         // ==== Structure ================================================================
 
         /// <summary>Splits <paramref name="parent"/> horizontally. Each column: weight 0 +
