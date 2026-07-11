@@ -2443,9 +2443,9 @@ namespace IdleGame.Game
             if (_walletStyle == null)
                 _walletStyle = new GUIStyle(GUI.skin.label) { fontSize = 16, fontStyle = FontStyle.Bold };
 
-            DrawWalletLine(16f, ref y, $"Gold   {Num.CompactFloor(gold)}", new Color(1f, 0.84f, 0.35f));
-            DrawWalletLine(16f, ref y, $"Scrap  {Num.CompactFloor(scrap)}", new Color(0.75f, 0.78f, 0.85f));
-            DrawWalletLine(16f, ref y, $"Gems   {Num.CompactFloor(gems)}", new Color(0.65f, 0.85f, 1f));
+            DrawWalletLine(Theme.HudPad, ref y, $"Gold   {Num.CompactFloor(gold)}", new Color(1f, 0.84f, 0.35f));
+            DrawWalletLine(Theme.HudPad, ref y, $"Scrap  {Num.CompactFloor(scrap)}", new Color(0.75f, 0.78f, 0.85f));
+            DrawWalletLine(Theme.HudPad, ref y, $"Gems   {Num.CompactFloor(gems)}", new Color(0.65f, 0.85f, 1f));
 
             // FTUE breadcrumb (§7.4): one muted contextual hint under the wallet — the least-cluttered HUD
             // anchor (top-centre already carries the stage nav + Challenge). Armed saves only, first-match.
@@ -2453,7 +2453,7 @@ namespace IdleGame.Game
             {
                 string? hint = BreadcrumbHint();
                 // Hints run longer than wallet lines ("Idle rewards ready to claim") — widen or they clip.
-                if (hint != null) { y += 4f; DrawWalletLine(16f, ref y, hint, new Color(0.70f, 0.73f, 0.80f), 520f); }
+                if (hint != null) { y += 4f; DrawWalletLine(Theme.HudPad, ref y, hint, new Color(0.70f, 0.73f, 0.80f), 520f); }
             }
         }
 
@@ -2678,7 +2678,7 @@ namespace IdleGame.Game
         {
             if (AnyPanelOpen) return;
 
-            const float w = 340f, rowH = 72f, gap = 10f, pad = 18f;
+            const float w = 340f, rowH = 72f, gap = 10f, pad = Theme.HudPad;
             const float ipad = 16f;       // inner horizontal padding
             float sw = Screen.width / s, sh = Screen.height / s;
 
@@ -2686,7 +2686,11 @@ namespace IdleGame.Game
             int n = ids.Length;
             float totalH = n * rowH + (n - 1) * gap;
             float x = sw - w - pad;
-            float y0 = sh - totalH - pad;
+            // Reserve the control-bar band: while the bar is visible the chips sit ABOVE it at
+            // every aspect (consistent placement beats overlap-detection — at 1280 canvas width
+            // the bar's right edge runs under a bottom-flush chip stack).
+            float lift = ControlBarVisible ? Theme.HudBarH + Theme.HudPad : 0f;
+            float y0 = sh - totalH - pad - lift;
             float bx = x + ipad, bw = w - ipad * 2f;
 
             for (int i = 0; i < n; i++)
@@ -2806,13 +2810,20 @@ namespace IdleGame.Game
             }
         }
 
+        /// <summary>Mirrors <see cref="DrawControlBar"/>'s own early-outs — the ONE place the
+        /// bar's visibility is decided, so other bottom-corner draws (party HUD) can reserve the
+        /// bar band exactly when it's actually there. Note: when inventory is open the bar shrinks
+        /// to "Close Bag" but still occupies the band; the party HUD returns on AnyPanelOpen in
+        /// that case anyway, so whenever the party HUD draws at all the bar is drawing full.</summary>
+        private bool ControlBarVisible => !(_equipment != null && _equipment.IsOpen)
+                                       && !(_goals != null && _goals.IsOpen);
+
         private void DrawControlBar()
         {
             // Full-screen windows own the screen (their own Close dismisses them) — the bar would
             // draw OVER their bottom edge otherwise (IMGUI renders above every uGUI canvas).
-            if (_equipment != null && _equipment.IsOpen) return;
-            if (_goals != null && _goals.IsOpen) return;
-            const float h = 80f, pad = 16f, gap = 12f;
+            if (!ControlBarVisible) return;
+            const float h = Theme.HudBarH, pad = Theme.HudPad, gap = Theme.HudGap;
             float sh = Screen.height / UiScale();
             float y = sh - h - pad;
             float x = pad;

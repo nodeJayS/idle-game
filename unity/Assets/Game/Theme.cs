@@ -128,6 +128,18 @@ namespace IdleGame.Game
         public const float BtnHs = 44f;
         public const float CloseW = 140f;
 
+        // ==== HUD ====================================================================
+        // Shared HUD geometry: the ambient in-world chrome (IMGUI control bar / party chips,
+        // TopBar) keys its screen-edge margins and the control-bar band off these so corner
+        // regions can be reserved consistently instead of each draw copying a literal.
+
+        /// <summary>Screen-edge safe margin for HUD elements.</summary>
+        public const float HudPad = 16f;
+        /// <summary>Gap between adjacent HUD controls (control-bar buttons).</summary>
+        public const float HudGap = 12f;
+        /// <summary>Control-bar button height — the bottom band the bar occupies.</summary>
+        public const float HudBarH = 80f;
+
         // ==== modals =================================================================
         // Values extracted verbatim from the three hand-placed modals (idle claim, outcome
         // card, gacha) when they migrated onto PanelKit — pixel-faithful, not a new look.

@@ -126,9 +126,15 @@ namespace IdleGame.Game
             var prt = panel.rectTransform;
             prt.anchorMin = prt.anchorMax = new Vector2(0f, 0.5f);
             prt.pivot = new Vector2(0f, 1f);            // anchor by the top-left corner (same as chat)
-            prt.anchoredPosition = _pos;
-            prt.anchoredPosition = _pos = UiKit.ClampToCanvas(_pos, prt, _canvas);
-            Settings.QuestX = _pos.x; Settings.QuestY = _pos.y; // heal an off-screen saved position
+            // Display-only heal: _pos (the SAVED rect) stays the source of truth — persisting a
+            // clamp taken against a stale or transient canvas size overwrites the user's layout
+            // (Play-caught). KeepOnCanvas re-derives the display rect from _pos/_size on first
+            // layout and on every canvas resize; only drags persist (MakeDraggable below).
+            prt.anchoredPosition = UiKit.ClampToCanvas(_pos, prt, _canvas);
+            var keep = panel.gameObject.AddComponent<KeepOnCanvas>();
+            keep.Canvas = _canvas;
+            keep.DesiredPos = () => _pos;
+            keep.DesiredSize = () => new Vector2(_size.x, _collapsed ? HeaderH : _size.y);
 
             BuildHeader(panel.transform, prt);
 

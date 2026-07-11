@@ -23,8 +23,11 @@ namespace IdleGame.Game
         {
             var canvas = UiKit.CreateCanvas("TopBarCanvas", transform, sortOrder: 85);
 
+            // Screen-edge insets come from Theme.HudPad; the name label's (84,-30) and the
+            // Settings button's -80 are INTERNAL offsets (beside/below the 56px avatar), kept
+            // literal — deriving them from the pad would only obscure the chip's layout.
             var circle = UiKit.Circle(canvas.transform, 56f, AvatarColor(Account.Name), Vector2.zero);
-            Anchor(circle.rectTransform, new Vector2(16, -16));
+            Anchor(circle.rectTransform, new Vector2(Theme.HudPad, -Theme.HudPad));
             var initials = UiKit.Label(circle.transform, Initials(Account.Name), 24, TextAnchor.MiddleCenter,
                                        new Vector2(56, 56), Vector2.zero);
             initials.color = new Color(0.1f, 0.1f, 0.12f);
@@ -34,7 +37,7 @@ namespace IdleGame.Game
             Anchor((RectTransform)_nameLabel.transform, new Vector2(84, -30));
 
             var gear = UiKit.TextButton(canvas.transform, "Settings", new Vector2(104, 34), Vector2.zero, ToggleSettings, 18);
-            Anchor((RectTransform)gear.transform, new Vector2(16, -80));
+            Anchor((RectTransform)gear.transform, new Vector2(Theme.HudPad, -80));
         }
 
         private static void Anchor(RectTransform rt, Vector2 pos)

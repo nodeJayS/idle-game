@@ -500,6 +500,46 @@ namespace IdleGame.Game
         }
     }
 
+    /// <summary>
+    /// Keeps a point-anchored, persisted-rect panel (quest/chat HUD) fully on its canvas —
+    /// the restore-time counterpart of <see cref="DraggableHandle"/>'s drag clamp. A rect
+    /// saved under a DIFFERENT canvas size (HUD canvases are match-0: at 21:9 the canvas is
+    /// only ~540 units tall vs 720 at 16:9) can restore off-screen; this re-clamps on first
+    /// layout and again on every canvas resize, mirroring <see cref="WindowSizer"/>'s
+    /// cache-last-parent-size shape. NON-persisting by design: the editor/window can report
+    /// TRANSIENT canvas sizes mid-resolution-switch, and persisting a clamp taken against one
+    /// of those overwrites the user's saved layout (Play-caught). The saved rect stays the
+    /// source of truth; every resize re-derives the display rect from the getters, so a
+    /// temporary squeeze self-restores on the next valid size.
+    /// </summary>
+    public sealed class KeepOnCanvas : MonoBehaviour
+    {
+        public Canvas Canvas = null!;
+        /// <summary>The persisted/authored position (the drag path keeps it current).</summary>
+        public Func<Vector2> DesiredPos = () => Vector2.zero;
+        /// <summary>The intended size incl. collapsed state; null = leave size alone. Size
+        /// applies BEFORE position (a rect larger than the canvas would defeat the clamp).</summary>
+        public Func<Vector2>? DesiredSize;
+        private Vector2 _lastCanvas = new(-1f, -1f);
+
+        private void OnEnable() => _lastCanvas = new(-1f, -1f); // re-clamp on re-enable
+        private void Update() => Apply();
+
+        private void Apply()
+        {
+            if (Canvas == null) return;
+            var cs = ((RectTransform)Canvas.transform).rect.size;
+            if (cs.x <= 0f || cs.y <= 0f || cs == _lastCanvas) return; // not laid out yet / unchanged
+            _lastCanvas = cs;
+
+            var rt = (RectTransform)transform;
+            const float m = 8f; // the margin ClampToCanvas keeps — size honours the same inset
+            if (DesiredSize != null)
+                rt.sizeDelta = Vector2.Min(DesiredSize(), cs - new Vector2(m * 2f, m * 2f));
+            rt.anchoredPosition = UiKit.ClampToCanvas(DesiredPos(), rt, Canvas);
+        }
+    }
+
     /// <summary>Drag handler that resizes a target RectTransform from its bottom-right grip
     /// (top-left stays anchored). Added via <see cref="UiKit.MakeResizable"/>.</summary>
     public sealed class ResizeHandle : MonoBehaviour, IDragHandler
