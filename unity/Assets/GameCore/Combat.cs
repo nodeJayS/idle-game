@@ -1,7 +1,6 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace IdleGame.GameCore
 {
@@ -756,10 +755,51 @@ namespace IdleGame.GameCore
                 if (e.IsBoss) ApplyModifier(e, def, stage, 1.0, cfg, behaviorOnly: true);
         }
 
-        /// <summary>Advance the sim one fixed step. Mutates state; returns this step's events.</summary>
-        public static List<CombatEvent> StepCombat(CombatState s, double dtMs, GameConfig cfg, Rng rng)
+        // Deterministic actor ordering (design principle 1): entity Ids are unique, so both
+        // comparers define TOTAL orders — an unstable List.Sort is byte-identical to the stable
+        // OrderBy/ThenBy chains they replaced (10.12b: LINQ removed from the 30Hz step path).
+        // Static IComparer instances (not Comparison lambdas): List.Sort(IComparer) allocates
+        // nothing, while Sort(Comparison) wraps the delegate in a comparer object per call on Mono.
+        private sealed class IdOrdinalComparer : IComparer<CombatEntity>
         {
-            var events = new List<CombatEvent>();
+            public int Compare(CombatEntity? a, CombatEntity? b) => string.CompareOrdinal(a!.Id, b!.Id);
+        }
+        private static readonly IdOrdinalComparer IdOrdinal = new IdOrdinalComparer();
+
+        private sealed class SlotThenIdComparer : IComparer<CombatEntity>
+        {
+            public int Compare(CombatEntity? a, CombatEntity? b)
+            {
+                int c = a!.Slot.CompareTo(b!.Slot);
+                return c != 0 ? c : string.CompareOrdinal(a.Id, b!.Id);
+            }
+        }
+        private static readonly SlotThenIdComparer SlotThenId = new SlotThenIdComparer();
+
+        /// <summary>True if any living entity is on <paramref name="team"/> — the allocation-free
+        /// replacement for Entities.Any(...) in the per-step win/lose checks (LINQ Any boxes the
+        /// list enumerator every call).</summary>
+        private static bool AnyAlive(CombatState s, Team team)
+        {
+            foreach (var e in s.Entities)
+                if (e.Team == team && e.Alive) return true;
+            return false;
+        }
+
+        /// <summary>Advance the sim one fixed step. Mutates state; returns this step's events.
+        /// Allocates a fresh event list per call — fine for tests/offline resolution; the 30Hz
+        /// client loop uses the buffer overload below instead.</summary>
+        public static List<CombatEvent> StepCombat(CombatState s, double dtMs, GameConfig cfg, Rng rng)
+            => StepCombat(s, dtMs, cfg, rng, new List<CombatEvent>());
+
+        /// <summary>Advance the sim one fixed step into a caller-owned event buffer (cleared
+        /// first; returned for convenience). The caller must consume the events before the next
+        /// step with the same buffer — the client does (HandleEvents runs per step). With the
+        /// CombatState scratch buffers this path allocates nothing steady-state (10.12b).</summary>
+        public static List<CombatEvent> StepCombat(CombatState s, double dtMs, GameConfig cfg, Rng rng,
+                                                   List<CombatEvent> events)
+        {
+            events.Clear();
             if (s.Status != CombatStatus.Running) return events;
 
             // The arena (or null = open plane) for this whole step — threaded to every movement,
@@ -828,9 +868,11 @@ namespace IdleGame.GameCore
                 }
             }
 
-            var actors = s.Entities.Where(e => e.Alive)
-                                   .OrderBy(e => e.Id, StringComparer.Ordinal)
-                                   .ToList();
+            // Scratch-backed snapshot in stable Id order (was Where/OrderBy/ToList — 10.12b).
+            var actors = s.ScratchActors;
+            actors.Clear();
+            foreach (var e in s.Entities) if (e.Alive) actors.Add(e);
+            actors.Sort(IdOrdinal);
 
             // In Group tactic the whole party shares one focus target (recomputed each
             // step); Solo and all monsters use their own nearest enemy.
@@ -856,9 +898,11 @@ namespace IdleGame.GameCore
             HashSet<string>? meleeFocusIds = null;
             if (s.Tactic == PartyTactic.Solo)
             {
-                var line = s.Entities.Where(e => e.Team == Team.Party && e.Alive)
-                                     .OrderBy(e => e.Slot).ThenBy(e => e.Id, StringComparer.Ordinal)
-                                     .ToList();
+                // Scratch-backed party line in stable Slot-then-Id order (was OrderBy/ThenBy — 10.12b).
+                var line = s.ScratchLine;
+                line.Clear();
+                foreach (var e in s.Entities) if (e.Team == Team.Party && e.Alive) line.Add(e);
+                line.Sort(SlotThenId);
                 if (line.Count > 0)
                 {
                     // An explicit pick is ALWAYS honored (even a ranged hero). With no pick — or a
@@ -888,7 +932,8 @@ namespace IdleGame.GameCore
                     if (!(s.FormationHeading.X == 0 && s.FormationHeading.Y == 0))
                         heading = s.FormationHeading;
                     // Rank followers within their own role group, preserving party order.
-                    followerRank = new Dictionary<string, (bool, int)>();
+                    followerRank = s.ScratchFollowerRank;
+                    followerRank.Clear();
                     int meleeRank = 0, rangedRank = 0;
                     foreach (var f in line)
                     {
@@ -896,7 +941,8 @@ namespace IdleGame.GameCore
                         followerRank[f.Id] = f.RangedRole ? (true, rangedRank++) : (false, meleeRank++);
                     }
                     // Living ranged party heroes = the casters a melee hero peels to defend.
-                    rangedAllyIds = new HashSet<string>();
+                    rangedAllyIds = s.ScratchRangedAllyIds;
+                    rangedAllyIds.Clear();
                     foreach (var f in line)
                         if (f.RangedRole) rangedAllyIds.Add(f.Id);
                     // TargetIds of the living MELEE heroes (leader included). The leader's advance
@@ -904,7 +950,8 @@ namespace IdleGame.GameCore
                     // naturally covers both "fighting" and "walking towards". TargetIds persist on
                     // entities between steps, so this reads last step's choices during this step's
                     // loop — deterministic, and one step of lag is fine.
-                    meleeFocusIds = new HashSet<string>();
+                    meleeFocusIds = s.ScratchMeleeFocusIds;
+                    meleeFocusIds.Clear();
                     foreach (var f in line)
                         if (!f.RangedRole && f.TargetId != null) meleeFocusIds.Add(f.TargetId);
                 }
@@ -1128,7 +1175,8 @@ namespace IdleGame.GameCore
                         double splash = e.Stats.Get(StatKey.SplashRadius);
                         if (splash > 0)
                         {
-                            var extra = new List<CombatEntity>();
+                            var extra = s.ScratchSplash; // two-phase: collect, then hit (10.12b scratch)
+                            extra.Clear();
                             foreach (var o in s.Entities)
                                 if (o.Team == target.Team && o.Alive && !ReferenceEquals(o, target) &&
                                     Vec2.Distance(o.Pos, target.Pos) <= splash)
@@ -1141,7 +1189,9 @@ namespace IdleGame.GameCore
                         int chains = Math.Min(cfg.Balance.MaxChainJumps, (int)Math.Floor(e.Stats.Get(StatKey.ChainCount)));
                         if (chains > 0)
                         {
-                            var chained = new HashSet<string> { target.Id };
+                            var chained = s.ScratchChained; // 10.12b scratch
+                            chained.Clear();
+                            chained.Add(target.Id);
                             var from = target;
                             for (int c = 0; c < chains; c++)
                             {
@@ -1223,7 +1273,7 @@ namespace IdleGame.GameCore
 
             // A downed hero has Hp 0 (Alive == false), so an all-at-once wipe makes
             // partyAlive false -> Lost.
-            bool partyAlive = s.Entities.Any(e => e.Team == Team.Party && e.Alive);
+            bool partyAlive = AnyAlive(s, Team.Party);
             if (s.Kind == EncounterKind.Farm)
             {
                 // Endless: never auto-wins, no timeout — only a wipe ends it.
@@ -1240,7 +1290,7 @@ namespace IdleGame.GameCore
                 // crypt room by room, not just the boss room — no wave still WAITS, and every chest
                 // is popped (§7.3: the reward room is walked, not skipped). Lose on a full wipe or
                 // the failsafe timeout (a run that can't finish the sweep in DungeonMaxRunSeconds).
-                bool unfinished = s.Entities.Any(e => e.Team == Team.Enemy && e.Alive)
+                bool unfinished = AnyAlive(s, Team.Enemy)
                                   || s.DungeonPendingWaves.Count > 0
                                   || (s.Dungeon != null && s.DungeonChestsOpened.Count < s.Dungeon.Dungeon.Chests.Count);
                 if (!partyAlive) s.Status = CombatStatus.Lost;
@@ -1251,7 +1301,7 @@ namespace IdleGame.GameCore
             }
             else
             {
-                bool enemyAlive = s.Entities.Any(e => e.Team == Team.Enemy && e.Alive);
+                bool enemyAlive = AnyAlive(s, Team.Enemy);
                 double timeoutSec = s.Kind == EncounterKind.BossChallenge
                     ? cfg.Balance.BossChallengeSeconds
                     : cfg.Balance.MaxRunSeconds;
@@ -1268,10 +1318,11 @@ namespace IdleGame.GameCore
                                                  int maxSteps = 100000, double dtMs = DefaultStepMs)
         {
             var all = new List<CombatEvent>();
+            var step = new List<CombatEvent>(); // one reused step buffer; AddRange copies it out
             int steps = 0;
             while (s.Status == CombatStatus.Running && steps < maxSteps)
             {
-                all.AddRange(StepCombat(s, dtMs, cfg, rng));
+                all.AddRange(StepCombat(s, dtMs, cfg, rng, step));
                 steps++;
             }
             return all;
@@ -1995,9 +2046,11 @@ namespace IdleGame.GameCore
         private static void ResolveCollisions(CombatState s, GameConfig cfg, IArenaSurface? arena = null,
                                               string? immovableId = null)
         {
-            var bodies = s.Entities.Where(e => e.Alive)
-                                   .OrderBy(e => e.Id, StringComparer.Ordinal)
-                                   .ToList();
+            // Scratch-backed body list in stable Id order (was Where/OrderBy/ToList — 10.12b).
+            var bodies = s.ScratchBodies;
+            bodies.Clear();
+            foreach (var e in s.Entities) if (e.Alive) bodies.Add(e);
+            bodies.Sort(IdOrdinal);
             double w = cfg.Balance.MapHalfWidth, d = cfg.Balance.MapHalfDepth;
             int iters = Math.Max(1, cfg.Balance.CollisionIterations);
 

@@ -34,6 +34,12 @@ namespace IdleGame.Game
         private readonly List<Text> _names = new();
         private readonly List<Text> _counts = new();
         private readonly List<RectTransform> _fills = new();
+        // 10.12b: last-pushed values per row. UpdateBoard runs every frame and the .text setter
+        // early-outs on an EQUAL string — but the interpolation itself still allocated one; skip
+        // the string work entirely unless the quest actually moved. Seeded with sentinels in Build.
+        private readonly List<QuestKind> _rowKind = new();
+        private readonly List<long> _rowTarget = new();
+        private readonly List<long> _rowProgress = new();
 
         // FTUE guided-intro strip (§7.4): a warm "Getting started" header + one row per beat, above the
         // rolling board. Pre-built hidden and driven by CombatView.UpdateIntro; _introOffset is the body
@@ -43,6 +49,7 @@ namespace IdleGame.Game
         private GameObject? _introHeaderGo;
         private readonly List<GameObject> _introRows = new();
         private readonly List<Text> _introLabels = new();
+        private readonly List<int> _introDone = new(); // 10.12b: -1 unseeded / 0 pending / 1 claimed
         private float _introOffset;
 
         public void Open()
@@ -73,9 +80,13 @@ namespace IdleGame.Game
                 _introRows[i].SetActive(use);
                 if (!use) continue;
                 var r = rows![i];
-                bool done = r.Claimed;
-                _introLabels[i].text = (done ? "✔ " : "• ") + r.Quest.Title;
-                _introLabels[i].color = done ? new Color(0.55f, 0.85f, 0.55f) : new Color(0.82f, 0.86f, 0.92f);
+                int done = r.Claimed ? 1 : 0;
+                if (_introDone[i] != done) // only the claimed flag can change; title is fixed per beat
+                {
+                    _introDone[i] = done;
+                    _introLabels[i].text = (done == 1 ? "✔ " : "• ") + r.Quest.Title;
+                    _introLabels[i].color = done == 1 ? new Color(0.55f, 0.85f, 0.55f) : new Color(0.82f, 0.86f, 0.92f);
+                }
                 shown++;
             }
             _introOffset = show ? IntroHeaderH + shown * IntroRowH + 6f : 0f;
@@ -93,10 +104,15 @@ namespace IdleGame.Game
                 if (!used) continue;
                 var q = board.Active[i];
                 // Slide the rolling rows below the guided-intro strip (offset 0 when it's inactive).
+                // Position/anchor writes are struct setters — alloc-free, so they stay unconditional.
                 ((RectTransform)_rows[i].transform).anchoredPosition = new Vector2(0f, -_introOffset - i * RowH);
-                _names[i].text = QuestLabel(q);
-                // progress floors, the goal ceils (game-design §7 — never show a goal as met early)
-                _counts[i].text = $"{Num.CompactFloor(q.Progress)} / {Num.CompactCeil(q.Target)}";
+                if (_rowKind[i] != q.Kind || _rowTarget[i] != q.Target || _rowProgress[i] != q.Progress)
+                {
+                    _rowKind[i] = q.Kind; _rowTarget[i] = q.Target; _rowProgress[i] = q.Progress;
+                    _names[i].text = QuestLabel(q);
+                    // progress floors, the goal ceils (game-design §7 — never show a goal as met early)
+                    _counts[i].text = $"{Num.CompactFloor(q.Progress)} / {Num.CompactCeil(q.Target)}";
+                }
                 float frac = q.Target > 0 ? Mathf.Clamp01((float)((double)q.Progress / q.Target)) : 0f;
                 _fills[i].anchorMax = new Vector2(frac, 1f); // left-anchored fill: width = frac of the bar
             }
@@ -119,7 +135,8 @@ namespace IdleGame.Game
         {
             ClearCanvas();
             _rows.Clear(); _names.Clear(); _counts.Clear(); _fills.Clear();
-            _introRows.Clear(); _introLabels.Clear(); _introHeaderGo = null; _introOffset = 0f;
+            _rowKind.Clear(); _rowTarget.Clear(); _rowProgress.Clear();
+            _introRows.Clear(); _introLabels.Clear(); _introDone.Clear(); _introHeaderGo = null; _introOffset = 0f;
 
             float h = _collapsed ? HeaderH : _size.y;
             var panel = UiKit.Panel(_canvas.transform, new Vector2(_size.x, h), new Color(0.08f, 0.08f, 0.11f, 0.92f));
@@ -224,7 +241,7 @@ namespace IdleGame.Game
                 lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
 
                 rgo.SetActive(false);
-                _introRows.Add(rgo); _introLabels.Add(lbl);
+                _introRows.Add(rgo); _introLabels.Add(lbl); _introDone.Add(-1);
             }
         }
 
@@ -273,6 +290,7 @@ namespace IdleGame.Game
 
             rowGo.SetActive(false);
             _rows.Add(rowGo); _names.Add(name); _counts.Add(count); _fills.Add(frt);
+            _rowKind.Add((QuestKind)(-1)); _rowTarget.Add(-1); _rowProgress.Add(-1); // sentinel: first update always fills
         }
 
         private void BuildResizeGrip(Transform panel, RectTransform panelRt)

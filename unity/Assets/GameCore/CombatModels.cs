@@ -233,6 +233,22 @@ namespace IdleGame.GameCore
         public HashSet<int> DungeonChestsOpened = new HashSet<int>();
         public List<CombatEntity> DungeonMimics = new List<CombatEntity>();
         public long PendingDust;
+
+        // ---- step scratch (10.12b) ----
+        // Reused per-step buffers so the 30Hz StepCombat allocates nothing steady-state: each
+        // use site Clear()s before filling, never reallocates. Transient like everything here
+        // (CombatState is never serialized). Deliberately PER-STATE, not static — a future
+        // server runs many combats concurrently (design §9 keeps that door open). Only
+        // StepCombat and its direct helpers may touch these; nothing reads them across steps.
+        public readonly List<CombatEntity> ScratchActors = new List<CombatEntity>();
+        public readonly List<CombatEntity> ScratchLine = new List<CombatEntity>();
+        public readonly List<CombatEntity> ScratchBodies = new List<CombatEntity>();
+        public readonly List<CombatEntity> ScratchSplash = new List<CombatEntity>();
+        public readonly HashSet<string> ScratchChained = new HashSet<string>();
+        public readonly Dictionary<string, (bool ranged, int roleRank)> ScratchFollowerRank
+            = new Dictionary<string, (bool ranged, int roleRank)>();
+        public readonly HashSet<string> ScratchRangedAllyIds = new HashSet<string>();
+        public readonly HashSet<string> ScratchMeleeFocusIds = new HashSet<string>();
     }
 
     /// <summary>An active monster modifier handed to the sim by the client (resolved from the

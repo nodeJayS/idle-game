@@ -1110,19 +1110,59 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void IsDeterministicForSameSeed()
         {
-            CombatState Build() => State(
-                Ent("A", Team.Party, hp: 200, atk: 20, def: 0, critChance: 0.5, critDmg: 2.0),
-                Ent("B", Team.Enemy, hp: 200, atk: 15, def: 0, critChance: 0.3, critDmg: 1.8));
+            // Two identical FULL farm sims (3-hero Solo formation — leader/follower/ranged paths,
+            // trash spawning, splash, collisions) must stay in lockstep for 200 steps: identical
+            // event sequences and final entity states. This is the guard for the 10.12b
+            // scratch-buffer refactor (and any future one): one run uses the allocating
+            // StepCombat, the other the reused-buffer overload — byte-identical ordering required.
+            CombatState Build()
+            {
+                var party = new[]
+                {
+                    new HeroInstance { Id = "h1", DefId = "warrior_basic",  Level = 5 },
+                    new HeroInstance { Id = "h2", DefId = "magician_basic", Level = 5 },
+                    new HeroInstance { Id = "h3", DefId = "thief_basic",    Level = 5 },
+                };
+                var s = Combat.InitFarm(party, 3, Cfg, new Rng(7));
+                s.Tactic = PartyTactic.Solo;
+                return s;
+            }
 
             var s1 = Build();
             var s2 = Build();
-            var e1 = Combat.RunToEnd(s1, Cfg, new Rng(123));
-            var e2 = Combat.RunToEnd(s2, Cfg, new Rng(123));
+            var r1 = new Rng(123);
+            var r2 = new Rng(123);
+            var buf = new List<CombatEvent>(); // reused across steps, like the client
 
-            Assert.Equal(e1.Count, e2.Count);
+            for (int i = 0; i < 200; i++)
+            {
+                var e1 = Combat.StepCombat(s1, Combat.DefaultStepMs, Cfg, r1);
+                var e2 = Combat.StepCombat(s2, Combat.DefaultStepMs, Cfg, r2, buf);
+
+                Assert.Equal(e1.Count, e2.Count);
+                for (int j = 0; j < e1.Count; j++)
+                {
+                    Assert.Equal(e1[j].Type, e2[j].Type);
+                    Assert.Equal(e1[j].SourceId, e2[j].SourceId);
+                    Assert.Equal(e1[j].TargetId, e2[j].TargetId);
+                    Assert.Equal(e1[j].EntityId, e2[j].EntityId);
+                    Assert.Equal(e1[j].Amount, e2[j].Amount);
+                    Assert.Equal(e1[j].Crit, e2[j].Crit);
+                }
+            }
+
             Assert.Equal(s1.Status, s2.Status);
-            Assert.Equal(Hp(s1, "A"), Hp(s2, "A"));
-            Assert.Equal(Hp(s1, "B"), Hp(s2, "B"));
+            Assert.Equal(s1.Entities.Count, s2.Entities.Count);
+            for (int i = 0; i < s1.Entities.Count; i++)
+            {
+                var a = s1.Entities[i];
+                var b = s2.Entities[i];
+                Assert.Equal(a.Id, b.Id);
+                Assert.Equal(a.Hp, b.Hp);
+                Assert.Equal(a.Pos.X, b.Pos.X);
+                Assert.Equal(a.Pos.Y, b.Pos.Y);
+                Assert.Equal(a.TargetId, b.TargetId);
+            }
         }
 
         [Fact]

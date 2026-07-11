@@ -448,6 +448,12 @@ namespace IdleGame.Game
         private string? _leaderMarkerEntityId; // the entity id the marker currently follows
 
         private double _accMs;
+        // ---- per-frame reuse (10.12b): steady-state buffers so Update/OnGUI allocate ~nothing ----
+        private readonly List<CombatEvent> _stepEvents = new List<CombatEvent>(); // StepCombat buffer overload
+        private readonly HashSet<string> _presentScratch = new HashSet<string>(); // ReconcileViews
+        private readonly List<string> _staleScratch = new List<string>();          // ReconcileViews
+        private List<IntroQuestStatus>? _introBoard;  // cached intro strip; valid while _save doesn't move
+        private SaveState? _introBoardSave;           // the save the cache was built from (ref = dirty flag)
         private bool _steppedThisFrame; // did the sim advance this frame? (rolls render snapshots)
         private float _renderAlpha;     // 0..1 fraction into the current fixed step, for interpolation
         private float _outcomeTimer;
@@ -796,7 +802,14 @@ namespace IdleGame.Game
             // the final beat retired the intro this frame.
             if (IntroQuests.Active(_save)) SyncIntro();
             bool introActive = IntroQuests.Active(_save);
-            _questPanel?.UpdateIntro(introActive ? IntroQuests.Board(_save) : null, introActive);
+            if (introActive && !ReferenceEquals(_introBoardSave, _save))
+            {
+                // Reducers replace _save on ANY change, so the reference IS the dirty flag —
+                // rebuild the board (a fresh list per call) only when the save object moved.
+                _introBoard = IntroQuests.Board(_save);
+                _introBoardSave = _save;
+            }
+            _questPanel?.UpdateIntro(introActive ? _introBoard : null, introActive);
             _questPanel?.UpdateBoard(_save.Quests, _cfg); // reflect live goal progress
 
             if (_combat.Status == CombatStatus.Running)
@@ -805,7 +818,9 @@ namespace IdleGame.Game
                 int steps = 0;
                 while (_accMs >= Combat.DefaultStepMs && _combat.Status == CombatStatus.Running && steps < MaxStepsPerFrame)
                 {
-                    HandleEvents(Combat.StepCombat(_combat, Combat.DefaultStepMs, _cfg, _rng));
+                    // Buffer overload (10.12b): one reused event list — HandleEvents consumes it
+                    // fully before the next step clears it, so nothing may retain it.
+                    HandleEvents(Combat.StepCombat(_combat, Combat.DefaultStepMs, _cfg, _rng, _stepEvents));
                     _accMs -= Combat.DefaultStepMs;
                     steps++;
                 }
@@ -1824,25 +1839,27 @@ namespace IdleGame.Game
             _views[e.Id] = view;
         }
 
-        /// <summary>Add views for new (spawned) entities and drop views for pruned/removed ones.</summary>
+        /// <summary>Add views for new (spawned) entities and drop views for pruned/removed ones.
+        /// Runs every frame — the set/list are reused scratch fields (10.12b), cleared here.</summary>
         private void ReconcileViews()
         {
-            var present = new HashSet<string>();
+            var present = _presentScratch;
+            present.Clear();
             foreach (var e in _combat.Entities)
             {
                 present.Add(e.Id);
                 if (!_views.ContainsKey(e.Id) && e.Alive) SpawnView(e); // don't re-spawn a view for a corpse mid-death-fx
             }
 
-            List<string>? stale = null;
+            var stale = _staleScratch;
+            stale.Clear();
             foreach (var kv in _views)
-                if (!present.Contains(kv.Key)) (stale ??= new List<string>()).Add(kv.Key);
-            if (stale != null)
-                foreach (var id in stale)
-                {
-                    if (_views[id].Go != null) Destroy(_views[id].Go);
-                    _views.Remove(id);
-                }
+                if (!present.Contains(kv.Key)) stale.Add(kv.Key);
+            foreach (var id in stale)
+            {
+                if (_views[id].Go != null) Destroy(_views[id].Go);
+                _views.Remove(id);
+            }
         }
 
         private void ClearViews()
@@ -2383,10 +2400,13 @@ namespace IdleGame.Game
 
                 if (e.Downed)
                 {
-                    var dl = new GUIStyle(GUI.skin.label) { fontSize = 11, fontStyle = FontStyle.Bold };
-                    dl.normal.textColor = new Color(1f, 0.85f, 0.4f);
+                    if (_downedWorldStyle == null)
+                    {
+                        _downedWorldStyle = new GUIStyle(GUI.skin.label) { fontSize = 11, fontStyle = FontStyle.Bold };
+                        _downedWorldStyle.normal.textColor = new Color(1f, 0.85f, 0.4f);
+                    }
                     GUI.Label(new Rect(cx - 30, cy - 4, 60, 16),
-                              $"↻ {Mathf.CeilToInt((float)e.RespawnMs / 1000f)}s", dl);
+                              $"↻ {Mathf.CeilToInt((float)e.RespawnMs / 1000f)}s", _downedWorldStyle);
                     continue;
                 }
                 if (!e.Alive) continue;
@@ -2405,9 +2425,9 @@ namespace IdleGame.Game
             if (AnyPanelOpen) return; // a full-screen panel (Heroes/Inventory) owns the view
             float sw = Screen.width / s;
             // Top-centre context line (clears the account chip / Settings button at top-left).
-            var style = new GUIStyle(GUI.skin.label)
+            var style = _hudCtxStyle ??= new GUIStyle(GUI.skin.label)
             { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.UpperCenter };
-            bool major = _cfg.Stages.Find(st => st.Stage == _combat.Stage)?.IsMajorBoss == true;
+            bool major = FindStage(_combat.Stage)?.IsMajorBoss == true;
             // Boss challenge: a top-centre context line naming the stage + its modifier (the
             // boss exhibits and grants it — Lever 1). Farm needs no centre line: the wallet
             // moved top-left (below) and the stage shows in DrawTopControls.
@@ -2426,9 +2446,9 @@ namespace IdleGame.Game
             {
                 float remain = Mathf.Max(0f, (float)(_cfg.Balance.BossChallengeSeconds - _combat.TimeMs / 1000.0));
                 remain = Mathf.Ceil(remain * 10f) / 10f; // countdown rounds UP (game-design §7)
-                var timer = new GUIStyle(GUI.skin.label)
+                var timer = _bossTimerStyle ??= new GUIStyle(GUI.skin.label)
                 { fontSize = 30, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
-                timer.normal.textColor = remain <= 10 ? new Color(1f, 0.4f, 0.35f) : Color.white;
+                timer.normal.textColor = remain <= 10 ? new Color(1f, 0.4f, 0.35f) : Color.white; // mutating the cached style is alloc-free
                 GUI.Label(new Rect(sw / 2f - 100, 40, 200, 40), $"{remain:0.0}s", timer);
             }
         }
@@ -2463,6 +2483,25 @@ namespace IdleGame.Game
             }
         }
 
+        // Per-frame OnGUI style caches (10.12b — the _walletStyle ??= idiom: GUIStyle needs
+        // GUI.skin, so construction must stay lazy inside OnGUI) + the stage-nav label cache.
+        private GUIStyle? _hudCtxStyle;      // DrawHud top-centre context line
+        private GUIStyle? _bossTimerStyle;   // boss-challenge countdown (color mutated per frame)
+        private GUIStyle? _stageNavStyle;    // DrawTopControls "Stage N"
+        private GUIStyle? _downedWorldStyle; // DrawHealthBars downed "↻ Ns" tag
+        private string? _stageLabel;         // "Stage N", re-built only when N changes
+        private int _stageLabelStage = -1;
+
+        /// <summary>Stage def lookup without the per-frame List.Find closure (it captured `this`
+        /// every OnGUI). Manual scan — the stage list is small and ordered.</summary>
+        private StageDef? FindStage(int stage)
+        {
+            var list = _cfg.Stages;
+            for (int i = 0; i < list.Count; i++)
+                if (list[i].Stage == stage) return list[i];
+            return null;
+        }
+
         private GUIStyle? _walletStyle;
         private void DrawWalletLine(float x, ref float y, string text, Color color, float w = 260f)
         {
@@ -2482,12 +2521,15 @@ namespace IdleGame.Game
                 int cur = _save.Progress.CurrentStage;
                 int maxStage = Mathf.Min(_save.Progress.HighestStage + 1, _cfg.Stages.Count);
 
-                var st = new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
-                GUI.Label(new Rect(cx - 90, 44, 180, 40), $"Stage {cur}", st);
+                var st = _stageNavStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+                // "Stage N" re-interpolates only when the stage changes (a per-frame string
+                // otherwise — the steady-state farm HUD should allocate nothing).
+                if (_stageLabel == null || _stageLabelStage != cur) { _stageLabelStage = cur; _stageLabel = $"Stage {cur}"; }
+                GUI.Label(new Rect(cx - 90, 44, 180, 40), _stageLabel, st);
                 if (cur > 1 && Button(cx - 162, 46, 46, 38, "◀")) GoToStage(cur - 1);
                 if (cur < maxStage && Button(cx + 116, 46, 46, 38, "▶")) GoToStage(cur + 1);
 
-                bool major = _cfg.Stages.Find(x => x.Stage == cur)?.IsMajorBoss == true;
+                bool major = FindStage(cur)?.IsMajorBoss == true;
                 if (Button(cx - 185, 90, 370, 46, major ? "Challenge ★ Major Boss" : "Challenge Miniboss", BtnStyleSm)) ChallengeBoss();
                 // (Crypt entry moved to the Modes menu on the control bar.)
             }

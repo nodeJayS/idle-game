@@ -107,9 +107,13 @@ Measure first (Unity Profiler via MCP; dev build on the laptop if
 possible), then slice by evidence. Static-recon suspects, in order:
 (a) SHIPPED 2026-07-11 — FrameCap: 60 focused / 10 unfocused,
 vSync OFF deliberately (vSyncCount>0 makes Unity ignore
-targetFrameRate — a 144Hz panel would still run hot). (b) IMGUI GC churn —
-CombatView allocates GUIStyles inside per-frame Draw* (OnGUI runs 2+
-passes/frame); cache like _walletStyle. (c) first-use hitches —
+targetFrameRate — a 144Hz panel would still run hot). (b) SHIPPED
+2026-07-11 — steady-state GC: StepCombat de-LINQed onto CombatState
+scratch buffers (total-order comparers keep byte-identical ordering;
+200-step lockstep test guards it) + client per-frame caches; calm
+farming ~31→11 KB/frame (editor-measured). Remaining churn is per-KILL
+bursty (events/strings/upgrade evals) — pool later only if device
+profiling says so. (c) first-use hitches —
 runtime texture bakes (GroundDetail/FxKit/UiKit sprites) + URP shader
 variant compiles = "textures pop in late"; prewarm behind
 LoadingScreen (ShaderVariantCollection). (d) GPU tier — bloom/
