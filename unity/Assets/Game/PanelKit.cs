@@ -90,6 +90,19 @@ namespace IdleGame.Game
             return result;
         }
 
+        /// <summary>Turn an existing container (e.g. Window's body) into a vertical stack IN PLACE —
+        /// the vertical counterpart of <see cref="Columns"/>. Children then flow top-to-bottom;
+        /// a <see cref="Flex"/> child absorbs the slack. Returns the same rect.</summary>
+        public static RectTransform Stack(RectTransform parent, float spacing = Theme.Gap)
+        {
+            var vlg = parent.gameObject.AddComponent<VerticalLayoutGroup>();
+            vlg.spacing = spacing;
+            vlg.childControlWidth = vlg.childControlHeight = true;
+            vlg.childForceExpandWidth = true;
+            vlg.childForceExpandHeight = false;
+            return parent;
+        }
+
         /// <summary>An inset box (Theme.BgInset) with an optional muted header label. Returns the
         /// content container (VerticalLayoutGroup) — the caller adds rows. To make it fill the
         /// remaining column height, set <c>LayoutElement.flexibleHeight = 1</c> on the return.</summary>

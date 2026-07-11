@@ -24,6 +24,20 @@ namespace IdleGame.Game
         public static readonly Color BtnPrimary = new(0.22f, 0.30f, 0.45f);
         public static readonly Color BtnSelected = new(0.30f, 0.45f, 0.65f);
         public static readonly Color BtnDisabled = new(0.22f, 0.24f, 0.28f);
+        /// <summary>Disabled action buttons in the item detail pane (a hair warmer than <see cref="BtnDisabled"/>).</summary>
+        public static readonly Color BtnDisabledDark = new(0.24f, 0.24f, 0.28f);
+        /// <summary>The Enhance verb — green like the stat gain it buys.</summary>
+        public static readonly Color BtnEnhance = new(0.26f, 0.42f, 0.32f);
+        /// <summary>The Reforge gamble verb — violet like the affix reroll.</summary>
+        public static readonly Color BtnReforge = new(0.34f, 0.30f, 0.46f);
+        /// <summary>Lock toggle when the item IS locked (warm gold ground under <see cref="LockGold"/> text).</summary>
+        public static readonly Color BtnLockOn = new(0.46f, 0.38f, 0.16f);
+        /// <summary>Lock toggle when the item is unlocked — deliberately neutral.</summary>
+        public static readonly Color BtnLockOff = new(0.26f, 0.26f, 0.30f);
+        /// <summary>A destructive verb at rest (Salvage all) — dark red, reads dangerous but calm.</summary>
+        public static readonly Color BtnDanger = new(0.42f, 0.26f, 0.26f);
+        /// <summary>An ARMED destructive confirm (second click executes) — hot red.</summary>
+        public static readonly Color BtnDangerArmed = new(0.62f, 0.22f, 0.22f);
 
         // ---- Colors: list rows ----
         /// <summary>A muted row (e.g. a benched hero) — reads as present but de-emphasized.</summary>
@@ -71,6 +85,18 @@ namespace IdleGame.Game
         public static readonly Color Mastery = new(0.95f, 0.35f, 0.3f);
         /// <summary>Imprinted-affix violet.</summary>
         public static readonly Color Imprint = new(0.85f, 0.6f, 1f);
+        /// <summary>Bag count when loose items exceed the cap (idle/boss spillover keeps dropping).</summary>
+        public static readonly Color Overfull = new(1f, 0.6f, 0.4f);
+        /// <summary>The "Off" state of a header toggle (auto-equip / auto-salvage).</summary>
+        public static readonly Color ToggleOff = new(0.7f, 0.72f, 0.78f);
+        /// <summary>Warm gold padlock — locked-item tags, tile badges and button text.</summary>
+        public static readonly Color LockGold = new(1f, 0.82f, 0.35f);
+
+        // ---- Colors: dropdown ----
+        /// <summary>Backdrop behind expanded dropdown options (darker than <see cref="Backdrop"/>).</summary>
+        public static readonly Color BgDropdown = new(0.05f, 0.05f, 0.08f, 1f);
+        /// <summary>The currently-selected dropdown option row.</summary>
+        public static readonly Color DropdownSelected = new(0.24f, 0.34f, 0.5f);
 
         // ---- Font sizes ----
         public const int FsTitle = 28;

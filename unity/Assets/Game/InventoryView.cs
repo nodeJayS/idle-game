@@ -13,9 +13,32 @@ namespace IdleGame.Game
     /// the whole roster draws from. Manual salvage (detail pane) + the auto-salvage
     /// threshold (header) run through the pure <see cref="Inventory"/> reducers and
     /// <see cref="Settings.AutoSalvageMax"/>; game rules stay in GameCore.
+    ///
+    /// Built on <see cref="PanelKit"/> + <see cref="Theme"/> (10.3): anchor/layout-group
+    /// driven throughout. The two sanctioned positional exceptions: tile-corner badges
+    /// (<see cref="LockBadgeTile"/> et al.) and the auto-salvage dropdown overlay, whose
+    /// anchor is DERIVED from the laid-out header button (see <see cref="DropdownFollow"/>).
     /// </summary>
     public sealed class InventoryView : MonoBehaviour
     {
+        private const float TileSize = 76f;      // bag tile edge
+        private const float DetailW = 300f;      // fixed detail column width
+        private const float FooterH = 40f;       // bottom action row / detail action-button height
+        private const float SalvageH = 46f;      // the salvage/confirm buttons (slightly taller — the risky verb)
+        private const float SwatchPx = 13f;      // rarity-legend swatch edge
+        private const float LegendLabelW = 68f;  // rarity-legend name cell
+        private const float CountW = 90f;        // header live-count cell
+        private const float ScrapW = 130f;       // header scrap cell
+        private const float AutoSalvageW = 230f; // auto-salvage header button
+        private const float AutoEquipW = 150f;   // auto-equip toggle
+        private const float SortW = 85f;
+        private const float SalvageAllW = 250f;
+        private const float LockW = 96f;
+        private const float CancelW = 140f;
+        private const float DropRowH = 36f;      // dropdown option row height
+        private const int FsMid = 16;            // Cancel + dropdown options (between FsBody and FsSubTab)
+        private const int MinNameFs = 11;        // long imprint names auto-shrink to this
+
         private CombatView _view = null!;
         private GameConfig _cfg = null!;
 
@@ -64,37 +87,37 @@ namespace IdleGame.Game
         {
             var save = _view.CurrentSave;
 
-            var canvas = UiKit.CreateCanvas("InventoryCanvas", transform, sortOrder: 95);
-            _panel = canvas.gameObject;
-            UiKit.FullScreen(canvas.transform, new Color(0f, 0f, 0f, 0.6f));
+            _panel = PanelKit.Window(transform, "Inventory", Close, out var body, "InventoryCanvas",
+                                     sortOrder: 95, max: new Vector2(920, 640));
+            var canvas = _panel.GetComponent<Canvas>();
+            var panelRt = (RectTransform)_panel.GetComponentInChildren<WindowSizer>().transform;
 
-            var panel = UiKit.Panel(canvas.transform, new Vector2(920, 640), new Color(0.10f, 0.10f, 0.14f, 1f));
+            PanelKit.Stack(body); // header row / grid+detail / footer
 
+            // Header row: live bag count, scrap balance, then the two drop-handling automations.
+            var header = PanelKit.Row(body, Theme.BtnHs);
             int loose = Inventory.LooseCount(save);
             int cap = _cfg.Balance.InventoryCap;
-            var title = UiKit.Label(panel.transform, $"Inventory  {loose}/{cap}", 22, TextAnchor.MiddleLeft,
-                                    new Vector2(180, 40), new Vector2(-355, 274));
-            if (loose > cap) title.color = new Color(1f, 0.6f, 0.4f); // overfilled (idle/boss spillover)
-
+            PanelKit.TextCell(header, $"{loose}/{cap}", Theme.FsBody,
+                loose > cap ? Theme.Overfull : Theme.TextBody, // overfilled (idle/boss spillover)
+                TextAnchor.MiddleLeft, width: CountW);
             long scrap = save.Currencies.TryGetValue("scrap", out var sc) ? sc : 0;
-            UiKit.Label(panel.transform, $"Scrap: {Num.CompactFloor(scrap)}", 15, TextAnchor.MiddleLeft,
-                        new Vector2(130, 30), new Vector2(-215, 274)).color = new Color(0.75f, 0.78f, 0.85f);
+            PanelKit.TextCell(header, $"Scrap: {Num.CompactFloor(scrap)}", Theme.FsBody, Theme.TextBody,
+                TextAnchor.MiddleLeft, width: ScrapW);
+            PanelKit.FlexSpacer(header);
+            var autoSalvageBtn = BuildAutoSalvage(header);
+            BuildAutoEquip(header);
 
-            BuildAutoEquip(panel.transform);
-            // persisted order: the inventory list IS the display order, so Sort survives
-            // reopen. Bottom row between the rarity legend and "Salvage all" (the top row
-            // is fully occupied by auto-salvage / auto-equip / Close).
-            UiKit.TextButton(panel.transform, "Sort", new Vector2(85, 40), new Vector2(135, -300),
-                             () => { _view.SortInventory(); Rebuild(); }, 15);
-            UiKit.TextButton(panel.transform, "Close", new Vector2(110, 50), new Vector2(400, 274), Close, 22);
+            // Middle: grid of item tiles (the shared bag) | fixed detail pane.
+            var mid = PanelKit.Flex(body);
+            var cols = PanelKit.Columns(mid, (1f, 0f), (0f, DetailW));
 
-            // left: grid of item tiles (the shared bag)
-            var grid = UiKit.ScrollGrid(panel.transform, new Vector2(520, 520), new Vector2(-170, -20), new Vector2(76, 76));
+            var grid = UiKit.ScrollGridFill(cols[0], new Vector2(TileSize, TileSize));
             int stage = save.Progress.CurrentStage;
             foreach (var item in save.Inventory)
             {
                 var it = item; // capture
-                var tile = UiKit.ItemTile(grid, new Vector2(76, 76), Vector2.zero, it.Rarity, UiKit.SlotAbbrev(SlotOf(it)), raycast: true);
+                var tile = UiKit.ItemTile(grid, new Vector2(TileSize, TileSize), Vector2.zero, it.Rarity, UiKit.SlotAbbrev(SlotOf(it)), raycast: true);
                 // Loose items that are an upgrade for someone get a green ▲ (Lever 2 legibility).
                 if (EquippedByWhom(save, it.Id) == null)
                 {
@@ -111,34 +134,43 @@ namespace IdleGame.Game
                 UiKit.Hover(tile, () => ShowDetail(save, it));
             }
 
-            // rarity color reference (since names no longer carry the rarity word — color is the cue)
-            BuildRarityLegend(panel.transform);
-            BuildMassSalvage(panel.transform);
-
-            // right: item details
-            var box = UiKit.Panel(panel.transform, new Vector2(300, 520), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(310, -20));
-            _detail = box.rectTransform;
+            var detail = PanelKit.Section(cols[1], null);
+            detail.gameObject.AddComponent<LayoutElement>().flexibleHeight = 1f; // fill the column
+            _detail = detail;
             ShowDetail(save, null); // initial prompt
+
+            // Footer: rarity color reference (since names no longer carry the rarity word —
+            // color is the cue), then Sort (persisted order: the inventory list IS the display
+            // order, so Sort survives reopen) and the mass-salvage verb.
+            var footer = PanelKit.Row(body, FooterH);
+            BuildRarityLegend(footer);
+            PanelKit.FlexSpacer(footer);
+            PanelKit.ButtonCell(footer, "Sort", () => { _view.SortInventory(); Rebuild(); },
+                width: SortW, fontSize: Theme.FsBody);
+            BuildMassSalvage(footer);
 
             // auto-salvage threshold: drops at/below this rarity convert to scrap on pickup.
             // Built last so its expanded dropdown renders (and raycasts) on top of the grid.
-            BuildAutoSalvage(panel.transform);
+            BuildAutoSalvageDropdown(canvas, panelRt, autoSalvageBtn);
         }
 
         // A compact color→rarity key along the bottom of the bag: now that item names drop the rarity
         // word, the tile/border color is the cue, so a quick reference keeps it legible at a glance.
-        private void BuildRarityLegend(Transform parent)
+        private static void BuildRarityLegend(RectTransform footer)
         {
-            var order = new IdleGame.GameCore.Rarity[] {
-                IdleGame.GameCore.Rarity.Normal, IdleGame.GameCore.Rarity.Rare, IdleGame.GameCore.Rarity.Unique,
-                IdleGame.GameCore.Rarity.Legendary, IdleGame.GameCore.Rarity.Mythic };
-            float x = -430f, y = -300f;
-            for (int i = 0; i < order.Length; i++)
+            var order = new[] { Rarity.Normal, Rarity.Rare, Rarity.Unique, Rarity.Legendary, Rarity.Mythic };
+            foreach (var r in order)
             {
-                UiKit.Panel(parent, new Vector2(13, 13), Palette.Rarity(order[i]), new Vector2(x + 6, y));
-                UiKit.Label(parent, StatDisplay.RarityName(order[i]), 12, TextAnchor.MiddleLeft,
-                            new Vector2(80, 16), new Vector2(x + 56, y)).color = Palette.Rarity(order[i]);
-                x += 104f;
+                var sw = new GameObject("Swatch", typeof(RectTransform));
+                sw.transform.SetParent(footer, false);
+                sw.AddComponent<Image>().color = Palette.Rarity(r);
+                var le = sw.AddComponent<LayoutElement>();
+                le.preferredWidth = SwatchPx; le.preferredHeight = SwatchPx;
+                // Explicit 0s: the Row's force-expand would stretch the chip to full row height
+                // otherwise (an explicit LayoutElement value overrides forceExpand).
+                le.flexibleWidth = 0f; le.flexibleHeight = 0f;
+                PanelKit.TextCell(footer, StatDisplay.RarityName(r), Theme.FsTiny, Palette.Rarity(r),
+                    TextAnchor.MiddleLeft, width: LegendLabelW);
             }
         }
 
@@ -152,45 +184,39 @@ namespace IdleGame.Game
 
             if (item == null)
             {
-                UiKit.Label(_detail, "Hover or click an item.", 15, TextAnchor.MiddleCenter, new Vector2(260, 60), Vector2.zero);
+                PanelKit.Flex(_detail);
+                PanelKit.Label(_detail, "Hover or click an item.", Theme.FsBody, Theme.TextBright, TextAnchor.MiddleCenter);
+                PanelKit.Flex(_detail);
                 return;
             }
 
-            float y = 210f;
             // Locked items lead with a gold [L] tag (mirrors the tile badge) so the protection reads at a glance.
             string nameText = (item.Locked ? "[L] " : "") + StatDisplay.ItemName(item, _cfg);
-            var nameLbl = UiKit.Label(_detail, nameText, 18, TextAnchor.MiddleLeft,
-                        new Vector2(280, 26), new Vector2(0, y));
-            nameLbl.color = Palette.Rarity(item.Rarity);
+            var nameLbl = PanelKit.Label(_detail, nameText, Theme.FsH2, Palette.Rarity(item.Rarity), TextAnchor.MiddleLeft);
             // Titled imprints ("Volatile … of Leeching") can run long — auto-shrink to fit one line.
-            nameLbl.resizeTextForBestFit = true; nameLbl.resizeTextMaxSize = 18; nameLbl.resizeTextMinSize = 11;
-            y -= 24f;
-            UiKit.Label(_detail, StatDisplay.RarityName(item.Rarity), 13, TextAnchor.MiddleLeft,
-                        new Vector2(270, 20), new Vector2(0, y)).color = Palette.Rarity(item.Rarity); // rarity as a status line
-            y -= 22f;
-            UiKit.Label(_detail, $"{SlotOf(item)} · item level {item.ItemLevel}", 13, TextAnchor.MiddleLeft,
-                        new Vector2(270, 22), new Vector2(0, y));
-            y -= 22f;
+            nameLbl.resizeTextForBestFit = true; nameLbl.resizeTextMaxSize = Theme.FsH2; nameLbl.resizeTextMinSize = MinNameFs;
+
+            PanelKit.Label(_detail, StatDisplay.RarityName(item.Rarity), Theme.FsSmall,
+                Palette.Rarity(item.Rarity), TextAnchor.MiddleLeft); // rarity as a status line
+            PanelKit.Label(_detail, $"{SlotOf(item)} · item level {item.ItemLevel}", Theme.FsSmall,
+                Theme.TextBright, TextAnchor.MiddleLeft);
             if (item.Enhance > 0)
-            {
-                UiKit.Label(_detail, $"Enhanced +{item.Enhance} · +{item.Enhance * _cfg.Balance.EnhanceBasePctPerLevel * 100:0}% base stats",
-                            13, TextAnchor.MiddleLeft, new Vector2(270, 20), new Vector2(0, y))
-                     .color = new Color(0.55f, 0.9f, 0.55f);
-                y -= 22f;
-            }
-            y -= 4f;
+                PanelKit.Label(_detail, $"Enhanced +{item.Enhance} · +{item.Enhance * _cfg.Balance.EnhanceBasePctPerLevel * 100:0}% base stats",
+                    Theme.FsSmall, Theme.Good, TextAnchor.MiddleLeft);
+
             var affixes = new List<Affix>(item.Affixes);
             affixes.Sort((x, z) => StatDisplay.Rank(x.Stat).CompareTo(StatDisplay.Rank(z.Stat)));
             foreach (var a in affixes)
             {
                 if (Loot.IsImprintStat(a.Stat, _cfg)) // mechanical-mod signature: flavor, not a raw number
-                    UiKit.Label(_detail, $"✦ Imprinted — {StatDisplay.ImprintBlurb(a.Stat)}", 13, TextAnchor.MiddleLeft,
-                                new Vector2(270, 20), new Vector2(0, y)).color = new Color(0.85f, 0.6f, 1f);
+                    PanelKit.Label(_detail, $"✦ Imprinted — {StatDisplay.ImprintBlurb(a.Stat)}", Theme.FsSmall,
+                        Theme.Imprint, TextAnchor.MiddleLeft);
                 else
-                    UiKit.Label(_detail, $"+{StatDisplay.Value(a.Stat, a.Value)} {StatDisplay.Label(a.Stat)}", 13, TextAnchor.MiddleLeft,
-                                new Vector2(270, 20), new Vector2(0, y));
-                y -= 22f;
+                    PanelKit.Label(_detail, $"+{StatDisplay.Value(a.Stat, a.Value)} {StatDisplay.Label(a.Stat)}",
+                        Theme.FsSmall, Theme.TextBright, TextAnchor.MiddleLeft);
             }
+
+            PanelKit.Flex(_detail); // pin the action stack to the pane bottom
 
             // Enhance (THE scrap sink): +5% of the item BASE's stats per level. Safe to +5,
             // can fail +6..+9 (scrap only), can DROP a level from +10 up. Any item, worn or loose.
@@ -202,13 +228,11 @@ namespace IdleGame.Game
                 bool canEn = Inventory.CanEnhance(save, item.Id, _cfg);
                 string odds = chance >= 1.0 ? "" :
                     nextLvl >= _cfg.Balance.EnhanceDropFrom ? $"  {chance * 100:0}% ⚠" : $"  {chance * 100:0}%";
-                var en = UiKit.TextButton(_detail, $"Enhance → +{nextLvl}  {Num.CompactCeil(ec)}s{odds}", new Vector2(260, 40),
-                    new Vector2(0, -104), canEn
-                        ? () => { _view.EnhanceItem(item.Id); ShowDetail(_view.CurrentSave, _view.CurrentSave.Inventory.Find(i => i.Id == item.Id)); }
-                        : (System.Action)(() => { }), 15);
-                en.interactable = canEn;
-                var enImg = en.GetComponent<Image>();
-                if (enImg != null) enImg.color = canEn ? new Color(0.26f, 0.42f, 0.32f) : new Color(0.24f, 0.24f, 0.28f);
+                var enRow = PanelKit.Row(_detail, FooterH);
+                var en = PanelKit.ButtonCell(enRow, $"Enhance → +{nextLvl}  {Num.CompactCeil(ec)}s{odds}",
+                    () => { _view.EnhanceItem(item.Id); ShowDetail(_view.CurrentSave, _view.CurrentSave.Inventory.Find(i => i.Id == item.Id)); },
+                    fontSize: Theme.FsBody, enabled: canEn);
+                en.GetComponent<Image>().color = canEn ? Theme.BtnEnhance : Theme.BtnDisabledDark;
             }
 
             // Reforge (item shop): gamble the normal affix values with gold+scrap. Works on any item
@@ -217,50 +241,43 @@ namespace IdleGame.Game
             {
                 var (rg, rs) = Inventory.ReforgeCost(item, _cfg);
                 bool canRf = Inventory.CanReforge(save, item.Id, _cfg);
-                var rf = UiKit.TextButton(_detail, $"Reforge  {Num.CompactCeil(rg)}g + {Num.CompactCeil(rs)}s", new Vector2(260, 40),
-                    new Vector2(0, -150), canRf
-                        ? () => { _view.ReforgeItem(item.Id); ShowDetail(_view.CurrentSave, _view.CurrentSave.Inventory.Find(i => i.Id == item.Id)); }
-                        : (System.Action)(() => { }), 15);
-                rf.interactable = canRf;
-                var rfImg = rf.GetComponent<Image>();
-                if (rfImg != null) rfImg.color = canRf ? new Color(0.34f, 0.30f, 0.46f) : new Color(0.24f, 0.24f, 0.28f);
+                var rfRow = PanelKit.Row(_detail, FooterH);
+                var rf = PanelKit.ButtonCell(rfRow, $"Reforge  {Num.CompactCeil(rg)}g + {Num.CompactCeil(rs)}s",
+                    () => { _view.ReforgeItem(item.Id); ShowDetail(_view.CurrentSave, _view.CurrentSave.Inventory.Find(i => i.Id == item.Id)); },
+                    fontSize: Theme.FsBody, enabled: canRf);
+                rf.GetComponent<Image>().color = canRf ? Theme.BtnReforge : Theme.BtnDisabledDark;
             }
 
             // Lock toggle (works on BAG and EQUIPPED gear alike): a locked item can never be salvaged.
-            // Sits at the bottom of the pane above the salvage row; equipped gear gets it too.
+            // Sits in the action stack above the salvage row; equipped gear gets it too.
             BuildLockToggle(save, item);
 
             var owner = EquippedByWhom(save, item.Id);
             if (owner != null)
             {
                 // Equipped gear can't be salvaged (the reducer throws) — show the owner instead.
-                y -= 8f;
-                UiKit.Label(_detail, $"Equipped by {HeroName(save, owner)}", 14, TextAnchor.MiddleLeft,
-                            new Vector2(270, 22), new Vector2(0, y)).color = new Color(0.6f, 0.8f, 1f);
+                PanelKit.Label(_detail, $"Equipped by {HeroName(save, owner)}", Theme.FsLabel,
+                    Theme.Info, TextAnchor.MiddleLeft);
                 return;
             }
 
             // Best-fit upgrade verdict (Lever 2): who would this help, and by how much?
-            y -= 8f;
             var bestFit = Upgrades.BestForItem(save, item, _cfg, save.Progress.CurrentStage);
             if (bestFit != null && bestFit.Verdict == Upgrades.Verdict.Upgrade)
-                UiKit.Label(_detail, $"{UpgradeTell.Glyph(bestFit.Verdict)} {UpgradeTell.Pct(bestFit.DeltaPercent)} power for {HeroName(save, bestFit.HeroId)}",
-                            14, TextAnchor.MiddleLeft, new Vector2(270, 22), new Vector2(0, y)).color = UpgradeTell.Color(bestFit.Verdict);
+                PanelKit.Label(_detail, $"{UpgradeTell.Glyph(bestFit.Verdict)} {UpgradeTell.Pct(bestFit.DeltaPercent)} power for {HeroName(save, bestFit.HeroId)}",
+                    Theme.FsLabel, UpgradeTell.Color(bestFit.Verdict), TextAnchor.MiddleLeft);
             else
-                UiKit.Label(_detail, "No upgrade for any hero", 13, TextAnchor.MiddleLeft,
-                            new Vector2(270, 22), new Vector2(0, y)).color = UpgradeTell.Side;
-            y -= 26f;
+                PanelKit.Label(_detail, "No upgrade for any hero", Theme.FsSmall, UpgradeTell.Side, TextAnchor.MiddleLeft);
 
             // Locked loose items can't be salvaged — show a disabled placeholder instead of the salvage button.
             if (item.Locked)
             {
-                var protd = UiKit.TextButton(_detail, "Locked — unlock to salvage", new Vector2(260, 46),
-                                             new Vector2(0, -196), () => { }, 15);
-                protd.interactable = false;
-                var pimg = protd.GetComponent<Image>();
-                if (pimg != null) pimg.color = new Color(0.24f, 0.24f, 0.28f);
+                var pRow = PanelKit.Row(_detail, SalvageH);
+                var protd = PanelKit.ButtonCell(pRow, "Locked — unlock to salvage", () => { },
+                    fontSize: Theme.FsBody, enabled: false);
+                protd.GetComponent<Image>().color = Theme.BtnDisabledDark;
                 var plbl = protd.GetComponentInChildren<Text>();
-                if (plbl != null) plbl.color = LockColor;
+                if (plbl != null) plbl.color = Theme.LockGold;
                 return;
             }
 
@@ -268,20 +285,24 @@ namespace IdleGame.Game
             long worth = _cfg.Balance.ScrapValue(item.Rarity, item.ItemLevel);
             if (_confirmSalvageId == item.Id)
             {
-                var confirm = UiKit.TextButton(_detail, $"Confirm salvage  +{worth}", new Vector2(260, 46),
-                                               new Vector2(0, -186), () => DoSalvage(save, item), 18);
-                confirm.GetComponent<Image>().color = new Color(0.62f, 0.22f, 0.22f);
-                UiKit.TextButton(_detail, "Cancel", new Vector2(140, 40), new Vector2(0, -234),
-                                 () => { _confirmSalvageId = null; ShowDetail(save, item); }, 16);
+                var cRow = PanelKit.Row(_detail, SalvageH);
+                PanelKit.ButtonCell(cRow, $"Confirm salvage  +{worth}", () => DoSalvage(save, item), fontSize: Theme.FsH2)
+                    .GetComponent<Image>().color = Theme.BtnDangerArmed;
+                var xRow = PanelKit.Row(_detail, FooterH);
+                PanelKit.FlexSpacer(xRow);
+                PanelKit.ButtonCell(xRow, "Cancel", () => { _confirmSalvageId = null; ShowDetail(save, item); },
+                    width: CancelW, fontSize: FsMid);
+                PanelKit.FlexSpacer(xRow);
             }
             else
             {
-                UiKit.TextButton(_detail, $"Salvage  +{worth} scrap", new Vector2(260, 46), new Vector2(0, -196),
+                var sRow = PanelKit.Row(_detail, SalvageH);
+                PanelKit.ButtonCell(sRow, $"Salvage  +{worth} scrap",
                     () =>
                     {
                         if (item.Rarity >= Rarity.Unique) { _confirmSalvageId = item.Id; ShowDetail(save, item); }
                         else DoSalvage(save, item);
-                    }, 18);
+                    }, fontSize: Theme.FsH2);
             }
         }
 
@@ -292,23 +313,23 @@ namespace IdleGame.Game
             Rebuild();
         }
 
-        /// <summary>The per-item padlock button (top-right of the detail pane): flips Item.Locked via the
-        /// pure reducer. Works on bag AND equipped gear. Toggling refreshes the whole panel so the tile
-        /// badge + salvage button track the new state. </summary>
+        /// <summary>The per-item padlock button (right-aligned in the detail action stack): flips
+        /// Item.Locked via the pure reducer. Works on bag AND equipped gear. Toggling refreshes the
+        /// whole panel so the tile badge + salvage button track the new state.</summary>
         private void BuildLockToggle(SaveState save, Item item)
         {
             if (_detail == null) return;
-            var btn = UiKit.TextButton(_detail, item.Locked ? "Locked" : "Lock", new Vector2(96, 30),
-                new Vector2(92, 210), () =>
+            var row = PanelKit.Row(_detail, Theme.RowHs);
+            PanelKit.FlexSpacer(row);
+            var btn = PanelKit.ButtonCell(row, item.Locked ? "Locked" : "Lock", () =>
                 {
                     _view.ToggleItemLock(item.Id);
                     Rebuild(); // re-open the panel so tiles/badges refresh, then re-show this item
                     ShowDetail(_view.CurrentSave, _view.CurrentSave.Inventory.Find(i => i.Id == item.Id));
-                }, 14);
-            var img = btn.GetComponent<Image>();
-            if (img != null) img.color = item.Locked ? new Color(0.46f, 0.38f, 0.16f) : new Color(0.26f, 0.26f, 0.30f);
+                }, width: LockW, fontSize: Theme.FsLabel);
+            btn.GetComponent<Image>().color = item.Locked ? Theme.BtnLockOn : Theme.BtnLockOff;
             var lbl = btn.GetComponentInChildren<Text>();
-            if (lbl != null) lbl.color = item.Locked ? LockColor : new Color(0.85f, 0.86f, 0.9f);
+            if (lbl != null) lbl.color = item.Locked ? Theme.LockGold : Theme.TextBright;
         }
 
         // ---- auto-salvage threshold control ----
@@ -332,38 +353,64 @@ namespace IdleGame.Game
         }
 
         private static Color AutoSalvageColor(Rarity? max) =>
-            max == null ? new Color(0.7f, 0.72f, 0.78f) : Palette.Rarity(max.Value);
+            max == null ? Theme.ToggleOff : Palette.Rarity(max.Value);
 
-        /// <summary>Header button + an explicit dropdown list of thresholds (replaces the old
-        /// cycling button). Click the header to expand; click an option to set it and collapse.</summary>
-        private void BuildAutoSalvage(Transform parent)
+        /// <summary>The auto-salvage header button (dropdown header). Click to expand/collapse;
+        /// the option list itself is the canvas overlay built by <see cref="BuildAutoSalvageDropdown"/>.</summary>
+        private RectTransform BuildAutoSalvage(RectTransform header)
         {
             var cur = Settings.AutoSalvageMax;
-            var btn = UiKit.TextButton(parent, $"Auto-salvage: {AutoSalvageLabel(cur)}  {(_autoSalvageOpen ? "▴" : "▾")}",
-                                       new Vector2(230, 46), new Vector2(-15, 274),
-                                       () => { _autoSalvageOpen = !_autoSalvageOpen; Rebuild(); }, 15);
+            var btn = PanelKit.ButtonCell(header, $"Auto-salvage: {AutoSalvageLabel(cur)}  {(_autoSalvageOpen ? "▴" : "▾")}",
+                () => { _autoSalvageOpen = !_autoSalvageOpen; Rebuild(); },
+                width: AutoSalvageW, fontSize: Theme.FsBody);
             var lbl = btn.GetComponentInChildren<Text>();
             if (lbl != null) lbl.color = AutoSalvageColor(cur);
+            return (RectTransform)btn.transform;
+        }
 
+        /// <summary>The expanded threshold list. Layout groups can't express overlays, so this is an
+        /// anchored overlay parented to the CANVAS (not a layout child): its anchor is DERIVED from
+        /// the header button's laid-out rect — the sanctioned exception (same class as WindowSizer
+        /// centering), not a hand-placed coordinate. <see cref="DropdownFollow"/> re-derives it every
+        /// LateUpdate, so it stays glued even while the first frame's layout settles or the window
+        /// resizes. Content inside is still layout-group driven.</summary>
+        private void BuildAutoSalvageDropdown(Canvas canvas, RectTransform panelRt, RectTransform headerBtn)
+        {
             if (!_autoSalvageOpen) return;
 
-            const float rowH = 40f, firstY = 229f; // first row just under the header button
-            int n = AutoSalvageOptions.Length;
-            // backdrop behind the option rows (added before them, so the buttons sit on top)
-            float panelH = rowH * n + 8f;
-            float panelCY = firstY + rowH / 2f - panelH / 2f;
-            UiKit.Panel(parent, new Vector2(238, panelH), new Color(0.05f, 0.05f, 0.08f, 1f), new Vector2(-15, panelCY));
+            var root = new GameObject("AutoSalvageDropdown", typeof(RectTransform));
+            root.transform.SetParent(canvas.transform, false); // last canvas child ⇒ draws/raycasts above the window
+            root.AddComponent<Image>().color = Theme.BgDropdown; // backdrop; also blocks hover on tiles beneath
 
-            for (int i = 0; i < n; i++)
+            var vlg = root.AddComponent<VerticalLayoutGroup>();
+            vlg.padding = new RectOffset((int)Theme.GapXs, (int)Theme.GapXs, (int)Theme.GapXs, (int)Theme.GapXs);
+            vlg.spacing = Theme.GapXs;
+            vlg.childControlWidth = vlg.childControlHeight = true;
+            vlg.childForceExpandWidth = true;
+            vlg.childForceExpandHeight = false;
+
+            var fitter = root.AddComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize; // height from the options; width from DropdownFollow
+
+            var rootRt = (RectTransform)root.transform;
+            foreach (var (max, label) in AutoSalvageOptions)
             {
-                var (max, label) = AutoSalvageOptions[i];
-                bool selected = max == cur;
-                var ob = UiKit.TextButton(parent, (selected ? "● " : "") + label, new Vector2(222, rowH - 4f),
-                                          new Vector2(-15, firstY - rowH * i), () => SelectAutoSalvage(max), 16);
-                if (selected) ob.GetComponent<Image>().color = new Color(0.24f, 0.34f, 0.5f);
+                bool selected = max == Settings.AutoSalvageMax;
+                var row = PanelKit.Row(rootRt, DropRowH);
+                var ob = PanelKit.ButtonCell(row, (selected ? "● " : "") + label, () => SelectAutoSalvage(max), fontSize: FsMid);
+                if (selected) ob.GetComponent<Image>().color = Theme.DropdownSelected;
                 var ol = ob.GetComponentInChildren<Text>();
                 if (ol != null) ol.color = AutoSalvageColor(max);
             }
+
+            var follow = root.AddComponent<DropdownFollow>();
+            follow.Button = headerBtn;
+            follow.CanvasRt = (RectTransform)canvas.transform;
+
+            // One-shot settle so the overlay lands right on its first visible frame; the follow
+            // component keeps it correct from then on.
+            LayoutRebuilder.ForceRebuildLayoutImmediate(panelRt);
+            follow.Apply();
         }
 
         private void SelectAutoSalvage(Rarity? max)
@@ -389,7 +436,7 @@ namespace IdleGame.Game
         /// <summary>One-click bag cleanup: scrap EVERY loose, unlocked item regardless of rarity. Because
         /// this now destroys rares/uniques/legendaries, the first click ARMS a confirm ("Confirm salvage
         /// all (N)") for a few seconds; the second click executes. Locked items are always spared.</summary>
-        private void BuildMassSalvage(Transform parent)
+        private void BuildMassSalvage(RectTransform footer)
         {
             var save = _view.CurrentSave;
             int n = SalvageableCount(save);
@@ -398,14 +445,11 @@ namespace IdleGame.Game
             string label = !enabled ? "Salvage all"
                          : _confirmMassSalvage ? $"Confirm salvage all ({n})"
                          : "Salvage all";
-            var btn = UiKit.TextButton(parent, label, new Vector2(250, 40), new Vector2(320, -300),
-                enabled ? OnMassSalvageClick : (System.Action)(() => { }), 15);
-            btn.interactable = enabled;
-            var img = btn.GetComponent<Image>();
-            if (img != null)
-                img.color = !enabled ? new Color(0.24f, 0.24f, 0.28f)
-                          : _confirmMassSalvage ? new Color(0.62f, 0.22f, 0.22f) // armed = hot red
-                          : new Color(0.42f, 0.26f, 0.26f);
+            var btn = PanelKit.ButtonCell(footer, label, OnMassSalvageClick,
+                width: SalvageAllW, fontSize: Theme.FsBody, enabled: enabled);
+            btn.GetComponent<Image>().color = !enabled ? Theme.BtnDisabledDark
+                : _confirmMassSalvage ? Theme.BtnDangerArmed // armed = hot red
+                : Theme.BtnDanger;
         }
 
         private void OnMassSalvageClick()
@@ -413,10 +457,12 @@ namespace IdleGame.Game
             if (!_confirmMassSalvage)
             {
                 // First click arms; auto-disarm after a few seconds so a stray click can't destroy the bag.
+                // The timer must start AFTER the rebuild: RebuildKeepConfirm → Close stops any running
+                // timer, so starting first left the confirm armed forever (pre-10.3 bug, fixed here).
                 _confirmMassSalvage = true;
+                RebuildKeepConfirm();
                 if (_massSalvageTimer != null) StopCoroutine(_massSalvageTimer);
                 if (gameObject.activeInHierarchy) _massSalvageTimer = StartCoroutine(DisarmMassSalvageAfter());
-                RebuildKeepConfirm();
                 return;
             }
             // Second click within the window: execute.
@@ -437,29 +483,29 @@ namespace IdleGame.Game
         /// <summary>A simple on/off toggle (Lever 2): when on, a banked drop that's a genuine power
         /// upgrade for a fielded hero auto-equips. Sits in the header beside auto-salvage — both
         /// govern what happens to drops automatically.</summary>
-        private void BuildAutoEquip(Transform parent)
+        private void BuildAutoEquip(RectTransform header)
         {
             bool on = Settings.AutoEquipUpgrades;
-            var btn = UiKit.TextButton(parent, $"Auto-equip: {(on ? "On" : "Off")}", new Vector2(150, 46),
-                                       new Vector2(230, 274), () => { Settings.AutoEquipUpgrades = !on; Rebuild(); }, 15);
+            var btn = PanelKit.ButtonCell(header, $"Auto-equip: {(on ? "On" : "Off")}",
+                () => { Settings.AutoEquipUpgrades = !on; Rebuild(); },
+                width: AutoEquipW, fontSize: Theme.FsBody);
             var lbl = btn.GetComponentInChildren<Text>();
-            if (lbl != null) lbl.color = on ? UpgradeTell.Up : new Color(0.7f, 0.72f, 0.78f);
+            if (lbl != null) lbl.color = on ? UpgradeTell.Up : Theme.ToggleOff;
         }
 
         // ---- helpers ----
 
-        private static readonly Color LockColor = new Color(1f, 0.82f, 0.35f); // warm gold padlock
-
         /// <summary>Pin a small "[L]" lock tag to a bag tile's bottom-left corner when the item is locked
         /// (protected from all salvage). Bottom-left keeps it clear of the ▲ / ✦ corner badges. Uses the
-        /// [L] tag rather than an emoji so it renders in Unity's default font.</summary>
+        /// [L] tag rather than an emoji so it renders in Unity's default font. (Tile-corner pin — the
+        /// badge class of positional exception, same as UpgradeTell's badges.)</summary>
         private static void LockBadgeTile(GameObject tile)
         {
-            var lbl = UiKit.Label(tile.transform, "[L]", 12, TextAnchor.LowerLeft, new Vector2(24, 14), Vector2.zero);
+            var lbl = UiKit.Label(tile.transform, "[L]", Theme.FsTiny, TextAnchor.LowerLeft, new Vector2(24, 14), Vector2.zero);
             var rt = (RectTransform)lbl.transform;
             rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0f, 0f);
             rt.anchoredPosition = new Vector2(2f, 2f);
-            lbl.color = LockColor;
+            lbl.color = Theme.LockGold;
             lbl.raycastTarget = false;
         }
 
@@ -478,6 +524,36 @@ namespace IdleGame.Game
             foreach (var h in save.Heroes)
                 if (h.Equipped.ContainsValue(itemId)) return h.Id;
             return null;
+        }
+    }
+
+    /// <summary>Keeps the auto-salvage dropdown glued under its header button: every LateUpdate the
+    /// overlay's position/width are re-DERIVED from the button's laid-out world rect, converted into
+    /// canvas-local units (InverseTransformPoint folds in Canvas.scaleFactor). Deriving each frame —
+    /// rather than once at build — makes it robust to the first frame's unsettled layout and to
+    /// window resizes. Height stays owned by the overlay's own ContentSizeFitter.</summary>
+    public sealed class DropdownFollow : MonoBehaviour
+    {
+        public RectTransform Button = null!;
+        public RectTransform CanvasRt = null!;
+        private static readonly Vector3[] Corners = new Vector3[4];
+
+        private void LateUpdate() => Apply();
+
+        public void Apply()
+        {
+            if (Button == null || CanvasRt == null) return;
+            Button.GetWorldCorners(Corners);
+            Vector3 bl = CanvasRt.InverseTransformPoint(Corners[0]); // bottom-left
+            Vector3 br = CanvasRt.InverseTransformPoint(Corners[3]); // bottom-right
+            float w = br.x - bl.x;
+            if (w <= 0f) return; // button not laid out yet — converge on a later frame
+
+            var rt = (RectTransform)transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 1f); // hang below the button
+            rt.sizeDelta = new Vector2(w + Theme.GapS, rt.sizeDelta.y); // a hair wider than the button
+            rt.anchoredPosition = new Vector2((bl.x + br.x) * 0.5f, bl.y - Theme.GapXs);
         }
     }
 }

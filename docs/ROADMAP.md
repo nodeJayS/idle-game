@@ -78,9 +78,12 @@ layout-group driven; windows scale match-0.5 so ultrawide keeps its
 height) and the Heroes screen migrated: zero positional literals,
 Play-verified at 16:9/16:10/21:9. Kit lessons baked in: rows pin
 flexibleHeight=0 (force-expand HLGs report phantom flex) + minHeight;
-panel clips overflow. Next: (c) Inventory, (d) modals (boss result,
-idle claim, gacha reveal), (e) HUD anchoring pass (safe margins, corner
-regions), (f) glyph/font audit last (single font asset, fallbacks).
+panel clips overflow. (c) SHIPPED 2026-07-10 — Inventory migrated
+(dropdown = canvas overlay on a DERIVED anchor via DropdownFollow;
++12 Theme tokens, PanelKit.Stack; fixed the never-firing mass-salvage
+disarm timer). Next: (d) modals (boss result, idle claim, gacha
+reveal), (e) HUD anchoring pass (safe margins, corner regions),
+(f) glyph/font audit last (single font asset, fallbacks).
 Acceptance: no hand-placed pixel coords left in migrated screens.
 
 **10.4 Goals hub (quests + achievements + daily login, one surface)**
