@@ -105,9 +105,9 @@ gear loadout snapshots (save/apply, bag-integrity checked).
 laptop OVERHEATS, textures pop in late; goal = playable on mobile)**
 Measure first (Unity Profiler via MCP; dev build on the laptop if
 possible), then slice by evidence. Static-recon suspects, in order:
-(a) frame cap — NO targetFrameRate/vSync anywhere, the game renders
-uncapped (likely THE heat source); cap 60 (mobile 30/60) + vSync +
-throttle-when-unfocused, ship first (near-free). (b) IMGUI GC churn —
+(a) SHIPPED 2026-07-11 — FrameCap: 60 focused / 10 unfocused,
+vSync OFF deliberately (vSyncCount>0 makes Unity ignore
+targetFrameRate — a 144Hz panel would still run hot). (b) IMGUI GC churn —
 CombatView allocates GUIStyles inside per-frame Draw* (OnGUI runs 2+
 passes/frame); cache like _walletStyle. (c) first-use hitches —
 runtime texture bakes (GroundDetail/FxKit/UiKit sprites) + URP shader

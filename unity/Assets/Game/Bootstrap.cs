@@ -36,6 +36,7 @@ namespace IdleGame.Game
 
             var cfg = GameConfig.Default();
             AudioListener.volume = Settings.MasterVolume; // apply persisted master volume at boot
+            new GameObject("FrameCap").AddComponent<FrameCap>(); // 10.12a: the game must never run uncapped
             BuildEnvironment(cfg);
             ShowMenu(cfg);
         }
@@ -365,5 +366,28 @@ namespace IdleGame.Game
             return tex;
         }
 
+    }
+
+    /// <summary>
+    /// 10.12a frame cap. The game shipped UNCAPPED — a laptop GPU renders an idle scene at
+    /// hundreds of fps, which is pure heat (user-reported overheating on a weaker machine).
+    /// vSync stays OFF deliberately: vSyncCount &gt; 0 makes Unity IGNORE targetFrameRate and
+    /// lock to panel refresh, so a 144 Hz laptop would still run 144 fps hot. Unfocused, an
+    /// idle game needs presence, not fluidity — drop hard: the sim steps by accumulated
+    /// delta so nothing is lost, and idle accrual covers real absence.
+    /// </summary>
+    public sealed class FrameCap : MonoBehaviour
+    {
+        public const int Focused = 60;
+        public const int Unfocused = 10;
+
+        private void Awake()
+        {
+            QualitySettings.vSyncCount = 0;
+            Application.targetFrameRate = Focused;
+        }
+
+        private void OnApplicationFocus(bool focused)
+            => Application.targetFrameRate = focused ? Focused : Unfocused;
     }
 }
