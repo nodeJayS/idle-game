@@ -60,6 +60,19 @@ namespace IdleGame.Game
         {
             var loaded = SaveStore.Load();
             if (loaded == null) { NewGame(cfg); return; } // corrupt/missing -> fall back
+
+            // One-time carry-over (10.5a): the auto-salvage threshold moved into the SAVE
+            // (per-slot loot filter). If the legacy global pref is still set and this save has
+            // no floors yet, seed every slot from it and clear the pref — it was a PlayerPrefs
+            // global that leaked into New Game; it now survives only as this migration source.
+            // Runs right after Save.Migrate (inside Load) and BEFORE Idle.Claim, so the offline
+            // drops below respect the carried filter.
+            if (Settings.AutoSalvageMax != null && loaded.Progress.Loot.SalvageMaxBySlot.Count == 0)
+            {
+                loaded = Inventory.SetSalvageFloorAll(loaded, Settings.AutoSalvageMax);
+                Settings.AutoSalvageMax = null;
+            }
+
             var (save, report) = Idle.Claim(loaded, cfg, NowMs()); // real offline gap
             save = Modifiers.SyncToStage(save, cfg); // align owned modifiers to farm depth (covers pre-stage-model saves)
             save = Progression.SyncHeroUnlocks(save, cfg); // retro-grant unlocks ≤ HighestStage; drop shelved heroes

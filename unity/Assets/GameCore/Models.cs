@@ -113,8 +113,9 @@ namespace IdleGame.GameCore
         public int CurrentStage = 1;
         public int AccountLevel = 1;
         // Tower of Ascension (alt mode) progress. Nested here so it rides the existing
-        // `Progress` reference-threading (only the 2 `new ProgressState{}` reducers must carry it),
-        // and can grow without touching every SaveState copy site.
+        // `Progress` reference-threading — only the handful of `new ProgressState{}` reducers
+        // (7 as of 10.5a; grep before adding a field) must carry each sub-state, and the
+        // ~20 SaveState copy sites get it free.
         public TowerState Tower = new TowerState();
         // Lifetime achievement ladder (Lever 4). Nested here for the same reason as Tower — the
         // ProgressState constructors carry it forward, so the ~20 other save-copy sites get it free.
@@ -128,6 +129,22 @@ namespace IdleGame.GameCore
         // deserializes to a fresh IntroState with Armed=false, so Progression.FeatureUnlocked
         // treats every existing save as fully unlocked, forever (fresh games only gate).
         public IntroState Intro = new IntroState();
+        // Loot filter (10.5a): per-slot auto-salvage floors + the imprint guard. Nested here for
+        // the same threading reason as its siblings.
+        public LootFilterState Loot = new LootFilterState();
+    }
+
+    /// <summary>10.5a loot filter: per-slot auto-salvage floors + the imprint guard.
+    /// Additive (no version bump) — backfilled by <see cref="Save.Migrate"/> like Crypt/Daily.
+    /// Read through <see cref="Inventory.WouldAutoSalvage"/> — the ONE auto-salvage predicate.</summary>
+    public sealed class LootFilterState
+    {
+        // slot -> highest rarity that still auto-salvages ("X & below"); absent slot = off.
+        public Dictionary<EquipSlot, Rarity> SalvageMaxBySlot = new Dictionary<EquipSlot, Rarity>();
+        // Imprinted gear (any affix outside cfg.AffixPool — the Tower-gated prize) refuses ALL
+        // salvage paths while on, exactly like Item.Locked. Default ON, incl. for old saves
+        // (field initializer survives deserialization of absent properties).
+        public bool NeverSalvageImprinted = true;
     }
 
     /// <summary>Which HUD feature/panel the staged reveal gates (§7.4). A player meets only the

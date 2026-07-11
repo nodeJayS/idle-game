@@ -29,8 +29,8 @@ namespace IdleGame.GameCore
         {
             public SaveState Save = null!;
             public List<Item> Stored = new List<Item>();    // went into the bag
-            public List<Item> Salvaged = new List<Item>();  // auto-salvaged to scrap (<= threshold)
-            public List<Item> Rejected = new List<Item>();  // bag full + above threshold => left behind
+            public List<Item> Salvaged = new List<Item>();  // auto-salvaged to scrap (loot filter)
+            public List<Item> Rejected = new List<Item>();  // bag full + kept by the filter => left behind
             public long ScrapGained;
             public bool BagFull => Rejected.Count > 0;
         }
@@ -50,15 +50,16 @@ namespace IdleGame.GameCore
 
         /// <summary>
         /// Commit dropped loot under <see cref="BalanceConstants.InventoryCap"/> (loose
-        /// items only). With auto-salvage on, any drop at or below
-        /// <paramref name="autoSalvageMax"/> converts to scrap instead of taking a slot.
+        /// items only). Any drop the save's loot filter marks for auto-salvage
+        /// (<see cref="WouldAutoSalvage"/>: per-slot rarity floors + the imprint guard)
+        /// converts to scrap instead of taking a slot.
         /// Remaining items are stored; when the bag is full they're stored anyway if
         /// <paramref name="allowOverflow"/> (idle / boss / special-stage rewards may push
         /// past the cap) or otherwise REJECTED (live farm pickups). Items already owned
         /// are never destroyed. Pure: returns a new save in the result.
         /// </summary>
         public static LootResult AddLoot(SaveState save, IReadOnlyList<Item> items, GameConfig cfg,
-                                         Rarity? autoSalvageMax, bool allowOverflow = false)
+                                         bool allowOverflow = false)
         {
             var result = new LootResult();
             var nextInventory = new List<Item>(save.Inventory);
@@ -68,7 +69,7 @@ namespace IdleGame.GameCore
 
             foreach (var item in items)
             {
-                if (autoSalvageMax != null && item.Rarity <= autoSalvageMax.Value && !item.Locked)
+                if (WouldAutoSalvage(save, item, cfg))
                 {
                     scrap += cfg.Balance.ScrapValue(item.Rarity, item.ItemLevel);
                     result.Salvaged.Add(item);
@@ -89,6 +90,103 @@ namespace IdleGame.GameCore
             result.Save = Build(save, nextInventory, AddScrap(save.Currencies, scrap));
             return result;
         }
+
+        // ---- Loot filter (10.5a): per-slot auto-salvage floors + the imprint guard ----
+
+        /// <summary>True if the item carries any affix whose stat is outside <c>cfg.AffixPool</c> —
+        /// the Tower-gated imprint prize (the same predicate <see cref="Reforge"/> uses to spare
+        /// imprint affixes). Deliberately wider than Loot.IsImprinted's registered-modifier check:
+        /// anything the pool can't roll is irreplaceable, so the salvage guard treats it as such.</summary>
+        public static bool IsImprinted(Item item, GameConfig cfg)
+        {
+            foreach (var a in item.Affixes)
+                if (!cfg.AffixPool.Exists(d => d.Stat == a.Stat)) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// THE auto-salvage predicate — every auto-salvage decision (live drops, idle claim)
+        /// reads this one gate. True when the save's loot filter marks the drop for scrap:
+        /// its slot has a floor set and the item's rarity is at or below it ("X &amp; below").
+        /// Never true for a locked item, for imprinted gear while
+        /// <see cref="LootFilterState.NeverSalvageImprinted"/> is on, or for an item whose
+        /// base is unknown (defensive: never destroy what we can't classify).
+        /// </summary>
+        public static bool WouldAutoSalvage(SaveState save, Item item, GameConfig cfg)
+        {
+            if (item.Locked) return false;
+            var filter = save.Progress.Loot;
+            if (filter.NeverSalvageImprinted && IsImprinted(item, cfg)) return false;
+            if (!cfg.ItemBases.TryGetValue(item.BaseId, out var baseDef)) return false;
+            if (!filter.SalvageMaxBySlot.TryGetValue(baseDef.Slot, out var floor)) return false; // no floor => off
+            return item.Rarity <= floor;
+        }
+
+        /// <summary>Set one slot's auto-salvage floor ("max &amp; below" scraps on drop); null removes
+        /// the entry (that slot stops auto-salvaging). Pure — Progress-copy convention.</summary>
+        public static SaveState SetSalvageFloor(SaveState save, EquipSlot slot, Rarity? max)
+        {
+            var floors = new Dictionary<EquipSlot, Rarity>(save.Progress.Loot.SalvageMaxBySlot);
+            if (max == null) floors.Remove(slot);
+            else floors[slot] = max.Value;
+            return WithLootFilter(save, new LootFilterState
+            {
+                SalvageMaxBySlot = floors,
+                NeverSalvageImprinted = save.Progress.Loot.NeverSalvageImprinted,
+            });
+        }
+
+        /// <summary>Set every active slot's floor at once (the "All slots" verb); null clears them all. Pure.</summary>
+        public static SaveState SetSalvageFloorAll(SaveState save, Rarity? max)
+        {
+            var floors = new Dictionary<EquipSlot, Rarity>();
+            if (max != null)
+                foreach (var slot in EquipSlots.Active) floors[slot] = max.Value;
+            return WithLootFilter(save, new LootFilterState
+            {
+                SalvageMaxBySlot = floors,
+                NeverSalvageImprinted = save.Progress.Loot.NeverSalvageImprinted,
+            });
+        }
+
+        /// <summary>Toggle the never-salvage-imprinted guard (see <see cref="LootFilterState"/>). Pure.</summary>
+        public static SaveState SetImprintGuard(SaveState save, bool on)
+            => WithLootFilter(save, new LootFilterState
+            {
+                SalvageMaxBySlot = new Dictionary<EquipSlot, Rarity>(save.Progress.Loot.SalvageMaxBySlot),
+                NeverSalvageImprinted = on,
+            });
+
+        // Clone the save with a new LootFilterState, nested under a cloned ProgressState (its
+        // siblings share refs). Everything else shares refs — the pure-reducer convention
+        // (mirrors Achievements.WithAchievements / Tower.WithFloor).
+        private static SaveState WithLootFilter(SaveState save, LootFilterState loot) => new SaveState
+        {
+            Version = save.Version,
+            RngSeed = save.RngSeed,
+            RngCursor = save.RngCursor,
+            Heroes = save.Heroes,
+            Party = save.Party,
+            LeaderHeroId = save.LeaderHeroId,
+            Inventory = save.Inventory,
+            Currencies = save.Currencies,
+            Progress = new ProgressState
+            {
+                HighestStage = save.Progress.HighestStage,
+                CurrentStage = save.Progress.CurrentStage,
+                AccountLevel = save.Progress.AccountLevel,
+                Tower = save.Progress.Tower,
+                Achievements = save.Progress.Achievements,
+                Daily = save.Progress.Daily,
+                Crypt = save.Progress.Crypt,
+                Intro = save.Progress.Intro,
+                Loot = loot,
+            },
+            Quests = save.Quests,
+            Modifiers = save.Modifiers,
+            GachaPity = save.GachaPity,
+            LastClaimAt = save.LastClaimAt,
+        };
 
         // ---- Reforge (item shop): the modifier-shop gamble verb, pointed at gear ----
 
@@ -217,8 +315,10 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>
-        /// Manually salvage one loose item to scrap. Throws on unknown item or one that's
-        /// equipped (so the player can never accidentally scrap worn gear). Pure.
+        /// Manually salvage one loose item to scrap. Throws on unknown item, one that's
+        /// equipped (so the player can never accidentally scrap worn gear), a locked one, or
+        /// an imprinted one while the imprint guard is on (all salvage paths refuse — the
+        /// Locked precedent). Pure.
         /// </summary>
         public static SaveState SalvageItem(SaveState save, string itemId, GameConfig cfg)
         {
@@ -228,6 +328,8 @@ namespace IdleGame.GameCore
                 throw new InvalidOperationException($"SalvageItem: item \"{itemId}\" is equipped");
             if (item.Locked)
                 throw new InvalidOperationException($"SalvageItem: item \"{itemId}\" is locked");
+            if (save.Progress.Loot.NeverSalvageImprinted && IsImprinted(item, cfg))
+                throw new InvalidOperationException($"SalvageItem: item \"{itemId}\" is imprinted and the imprint guard is on");
 
             var nextInventory = new List<Item>(save.Inventory);
             nextInventory.RemoveAll(i => i.Id == itemId);
@@ -236,22 +338,24 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>
-        /// Mass-salvage: convert EVERY loose item that is (1) not equipped and (2) not locked to scrap
-        /// in one action — regardless of rarity (the "Salvage all" verb; the client arms a confirm step
-        /// because this now destroys rares/uniques/legendaries too). Equipped gear and locked items are
-        /// never touched (per-item guards, same as <see cref="SalvageItem"/>). Returns the new save plus
-        /// how many items were scrapped and the scrap gained; a no-match call returns the input save
-        /// unchanged. Pure.
+        /// Mass-salvage: convert EVERY loose item that is (1) not equipped, (2) not locked, and
+        /// (3) not imprint-guarded to scrap in one action — regardless of rarity (the "Salvage all"
+        /// verb; the client arms a confirm step because this destroys rares/uniques/legendaries too).
+        /// Equipped gear, locked items, and — while the imprint guard is on — imprinted gear are
+        /// never touched (per-item guards, same as <see cref="SalvageItem"/>). Returns the new save
+        /// plus how many items were scrapped and the scrap gained; a no-match call returns the input
+        /// save unchanged. Pure.
         /// </summary>
         public static (SaveState Save, int Count, long Scrap) SalvageAll(SaveState save, GameConfig cfg)
         {
             var equipped = EquippedIds(save);
+            bool guard = save.Progress.Loot.NeverSalvageImprinted;
             var nextInventory = new List<Item>(save.Inventory.Count);
             int count = 0;
             long scrap = 0;
             foreach (var it in save.Inventory)
             {
-                if (!it.Locked && !equipped.Contains(it.Id))
+                if (!it.Locked && !equipped.Contains(it.Id) && !(guard && IsImprinted(it, cfg)))
                 {
                     count++;
                     scrap += cfg.Balance.ScrapValue(it.Rarity, it.ItemLevel);

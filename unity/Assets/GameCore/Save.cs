@@ -128,6 +128,8 @@ namespace IdleGame.GameCore
             save.Progress.Crypt.Boons ??= new Dictionary<string, int>();
             save.Progress.Intro ??= new IntroState(); // older saves predate FTUE arming (Armed=false => all unlocked)
             save.Progress.Intro.IntroClaimed ??= new Dictionary<string, bool>();
+            save.Progress.Loot ??= new LootFilterState(); // older saves predate the loot filter (imprint guard defaults ON)
+            save.Progress.Loot.SalvageMaxBySlot ??= new Dictionary<EquipSlot, Rarity>();
             save.Quests ??= new QuestBoard(); // EnsureBoard (client, needs cfg) backfills the goals
             save.Modifiers ??= new MonsterModifiers(); // none owned on older saves until a boss grants one
             save.Modifiers.Tuning ??= new Dictionary<string, double>(); // modifier-shop tuning (new field)

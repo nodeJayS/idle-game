@@ -690,6 +690,12 @@ namespace IdleGame.Game
         /// via the pure reducer. Works on bag AND equipped gear.</summary>
         public void ToggleItemLock(string itemId) => _save = Inventory.ToggleLock(_save, itemId);
 
+        // Loot filter (10.5a) pass-throughs — same idiom as ToggleItemLock: the InventoryView UI
+        // routes every mutation through the view so the save swap happens in one place.
+        public void SetSalvageFloor(EquipSlot slot, Rarity? max) => _save = Inventory.SetSalvageFloor(_save, slot, max);
+        public void SetSalvageFloorAll(Rarity? max) => _save = Inventory.SetSalvageFloorAll(_save, max);
+        public void SetImprintGuard(bool on) => _save = Inventory.SetImprintGuard(_save, on);
+
         private bool AnyPanelOpen => _launchModals > 0
                                   || (_inventory != null && _inventory.IsOpen)
                                   || (_equipment != null && _equipment.IsOpen)
@@ -1062,7 +1068,7 @@ namespace IdleGame.Game
 
                 // Live farm trash is capped; boss/special-stage clears may overfill the bag.
                 bool allowOverflow = _combat.Kind != EncounterKind.Farm;
-                var loot = Inventory.AddLoot(_save, _combat.PendingLoot, _cfg, Settings.AutoSalvageMax, allowOverflow);
+                var loot = Inventory.AddLoot(_save, _combat.PendingLoot, _cfg, allowOverflow); // filter lives in the save (10.5a)
                 _save = loot.Save;
                 _combat.PendingLoot.Clear();
 
@@ -2047,9 +2053,9 @@ namespace IdleGame.Game
                         {
                             // Tag the loot-rain line when the drop is a real upgrade (Lever 2), so a
                             // kill visibly matters in the stream you're watching. Skip items the
-                            // auto-salvage threshold will scrap anyway (no point, and saves the eval).
+                            // loot filter will scrap anyway (no point, and saves the eval).
                             string line = $"{StatDisplay.ItemName(ev.Item, _cfg)} (i{ev.Item.ItemLevel})";
-                            bool keep = Settings.AutoSalvageMax == null || ev.Item.Rarity > Settings.AutoSalvageMax.Value;
+                            bool keep = !Inventory.WouldAutoSalvage(_save, ev.Item, _cfg);
                             var up = keep ? Upgrades.BestForItem(_save, ev.Item, _cfg, _save.Progress.CurrentStage) : null;
                             if (up != null && up.Verdict == Upgrades.Verdict.Upgrade)
                                 line += $"  ▲ {UpgradeTell.Pct(up.DeltaPercent)} {HeroDisplayName(up.HeroId)}";

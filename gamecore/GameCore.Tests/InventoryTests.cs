@@ -125,7 +125,7 @@ namespace IdleGame.GameCore.Tests
         public void AddLootStoresItemsWhenRoom()
         {
             var save = Save.NewGame(1, Cfg, 0);
-            var res = Inventory.AddLoot(save, new[] { It("a"), It("b") }, Cfg, null);
+            var res = Inventory.AddLoot(save, new[] { It("a"), It("b") }, Cfg);
 
             Assert.Equal(2, res.Stored.Count);
             Assert.Empty(res.Salvaged);
@@ -138,7 +138,7 @@ namespace IdleGame.GameCore.Tests
         {
             var cfg = CapCfg(2);
             var save = Save.NewGame(1, cfg, 0);
-            var res = Inventory.AddLoot(save, new[] { It("a"), It("b"), It("c") }, cfg, null);
+            var res = Inventory.AddLoot(save, new[] { It("a"), It("b"), It("c") }, cfg);
 
             Assert.Equal(2, res.Stored.Count);
             Assert.Single(res.Rejected);
@@ -151,9 +151,10 @@ namespace IdleGame.GameCore.Tests
         public void AddLootAutoSalvagesAtOrBelowThreshold()
         {
             var save = Save.NewGame(1, Cfg, 0);
+            save = Inventory.SetSalvageFloorAll(save, Rarity.Rare); // the filter now lives in the save
             var items = new[] { It("n", Rarity.Normal), It("r", Rarity.Rare), It("u", Rarity.Unique) };
 
-            var res = Inventory.AddLoot(save, items, Cfg, Rarity.Rare); // salvage Normal + Rare, keep Unique
+            var res = Inventory.AddLoot(save, items, Cfg); // salvage Normal + Rare, keep Unique
 
             Assert.Equal(2, res.Salvaged.Count);
             Assert.Single(res.Stored);
@@ -168,16 +169,17 @@ namespace IdleGame.GameCore.Tests
             // bag full of legendaries; nothing already owned may be removed
             var cfg = CapCfg(2);
             var save = Save.NewGame(1, cfg, 0);
+            save = Inventory.SetSalvageFloorAll(save, Rarity.Normal);
             save = Inventory.AddItems(save, new[] { It("L1", Rarity.Legendary), It("L2", Rarity.Legendary) });
 
-            // incoming Normal at/below threshold => salvaged to scrap, legendaries intact
-            var res = Inventory.AddLoot(save, new[] { It("n", Rarity.Normal) }, cfg, Rarity.Normal);
+            // incoming Normal at/below the floor => salvaged to scrap, legendaries intact
+            var res = Inventory.AddLoot(save, new[] { It("n", Rarity.Normal) }, cfg);
             Assert.Single(res.Salvaged);
             Assert.Empty(res.Rejected);
             Assert.Equal(2, res.Save.Inventory.Count);
 
-            // a Unique (above threshold) with a full bag => rejected, still nothing destroyed
-            var res2 = Inventory.AddLoot(save, new[] { It("u", Rarity.Unique) }, cfg, Rarity.Normal);
+            // a Unique (above the floor) with a full bag => rejected, still nothing destroyed
+            var res2 = Inventory.AddLoot(save, new[] { It("u", Rarity.Unique) }, cfg);
             Assert.Single(res2.Rejected);
             Assert.Equal(2, res2.Save.Inventory.Count);
             Assert.Contains(res2.Save.Inventory, i => i.Id == "L1");
@@ -194,7 +196,7 @@ namespace IdleGame.GameCore.Tests
 
             Assert.Equal(0, Inventory.LooseCount(save)); // equipped item isn't loose
 
-            var res = Inventory.AddLoot(save, new[] { It("a", Rarity.Rare) }, cfg, null);
+            var res = Inventory.AddLoot(save, new[] { It("a", Rarity.Rare) }, cfg);
             Assert.Single(res.Stored); // cap-1 still has room because the worn sword doesn't count
             Assert.Empty(res.Rejected);
         }
@@ -206,7 +208,7 @@ namespace IdleGame.GameCore.Tests
             var save = Save.NewGame(1, cfg, 0);
 
             // idle / boss / special-stage rewards: allowOverflow stores everything past the cap
-            var res = Inventory.AddLoot(save, new[] { It("a"), It("b"), It("c"), It("d") }, cfg, null, allowOverflow: true);
+            var res = Inventory.AddLoot(save, new[] { It("a"), It("b"), It("c"), It("d") }, cfg, allowOverflow: true);
 
             Assert.Equal(4, res.Stored.Count);
             Assert.Empty(res.Rejected);
@@ -217,7 +219,7 @@ namespace IdleGame.GameCore.Tests
         public void AddLootIsPure()
         {
             var save = Save.NewGame(1, Cfg, 0);
-            var res = Inventory.AddLoot(save, new[] { It("a") }, Cfg, null);
+            var res = Inventory.AddLoot(save, new[] { It("a") }, Cfg);
 
             Assert.Empty(save.Inventory);                       // input untouched
             Assert.NotSame(save.Inventory, res.Save.Inventory);
@@ -399,11 +401,12 @@ namespace IdleGame.GameCore.Tests
         [Fact]
         public void AutoSalvageThresholdSkipsLockedDrop()
         {
-            // The auto-salvage-on-drop path (AddLoot) must not scrap a locked item, even below threshold.
+            // The auto-salvage-on-drop path (AddLoot) must not scrap a locked item, even below the floor.
             var save = Save.NewGame(1, Cfg, 0);
+            save = Inventory.SetSalvageFloorAll(save, Rarity.Rare); // a floor that would scrap a Normal
             var locked = It("drop", Rarity.Normal, "rusty_sword", 1);
             locked.Locked = true;
-            var loot = Inventory.AddLoot(save, new[] { locked }, Cfg, Rarity.Rare); // threshold would scrap a Normal
+            var loot = Inventory.AddLoot(save, new[] { locked }, Cfg);
 
             Assert.Empty(loot.Salvaged);                          // locked => not auto-salvaged
             Assert.Contains(loot.Stored, i => i.Id == "drop");    // stored in the bag instead

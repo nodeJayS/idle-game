@@ -68,8 +68,7 @@ namespace IdleGame.GameCore
         /// Loot uses an ephemeral Rng seeded from (RngSeed, LastClaimAt) so the result
         /// is deterministic without touching the persisted combat cursor.
         /// </summary>
-        public static (SaveState next, IdleReport report) Claim(SaveState save, GameConfig cfg, long now,
-                                                                Rarity? autoSalvageMax = null)
+        public static (SaveState next, IdleReport report) Claim(SaveState save, GameConfig cfg, long now)
         {
             var report = Preview(save, cfg, now);
             if (report.ElapsedMs <= 0) return (save, report); // nothing to claim / clock skew
@@ -90,7 +89,7 @@ namespace IdleGame.GameCore
 
             // Reuse the tested reducers, then clone once more for gold + the new clock.
             var next = Progression.GrantPartyXp(save, report.Xp, cfg); // long: no more 2.1B/claim clamp
-            var loot = Inventory.AddLoot(next, report.Items, cfg, autoSalvageMax, allowOverflow: true); // idle may overfill
+            var loot = Inventory.AddLoot(next, report.Items, cfg, allowOverflow: true); // idle may overfill; filter applies
             next = loot.Save;
             report.ScrapGained = loot.ScrapGained;
 

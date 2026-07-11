@@ -191,6 +191,7 @@ namespace IdleGame.GameCore
                 Daily = save.Progress.Daily,
                 Crypt = save.Progress.Crypt,
                 Intro = save.Progress.Intro,
+                Loot = save.Progress.Loot,
             });
 
             next = SyncHeroUnlocks(next, cfg);
@@ -290,6 +291,7 @@ namespace IdleGame.GameCore
                 Daily = save.Progress.Daily,
                 Crypt = save.Progress.Crypt,
                 Intro = save.Progress.Intro,
+                Loot = save.Progress.Loot,
             });
         }
 

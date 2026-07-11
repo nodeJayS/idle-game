@@ -10,13 +10,14 @@ namespace IdleGame.Game
     /// The shared account bag (uGUI). A grid of rarity-bordered item tiles; hover or click
     /// a tile to see its details on the right. Equipping is NOT done here — that's the
     /// per-hero Equipment HUD (<see cref="EquipmentView"/>); this window is purely the bag
-    /// the whole roster draws from. Manual salvage (detail pane) + the auto-salvage
-    /// threshold (header) run through the pure <see cref="Inventory"/> reducers and
-    /// <see cref="Settings.AutoSalvageMax"/>; game rules stay in GameCore.
+    /// the whole roster draws from. Manual salvage (detail pane) + the loot filter (header:
+    /// per-slot auto-salvage floors + the imprint guard, 10.5a) run through the pure
+    /// <see cref="Inventory"/> reducers — the filter lives in the SAVE, not a pref; game
+    /// rules stay in GameCore.
     ///
     /// Built on <see cref="PanelKit"/> + <see cref="Theme"/> (10.3): anchor/layout-group
     /// driven throughout. The two sanctioned positional exceptions: tile-corner badges
-    /// (<see cref="LockBadgeTile"/> et al.) and the auto-salvage dropdown overlay, whose
+    /// (<see cref="LockBadgeTile"/> et al.) and the loot-filter dropdown overlay, whose
     /// anchor is DERIVED from the laid-out header button (see <see cref="DropdownFollow"/>).
     /// </summary>
     public sealed class InventoryView : MonoBehaviour
@@ -29,7 +30,9 @@ namespace IdleGame.Game
         private const float LegendLabelW = 68f;  // rarity-legend name cell
         private const float CountW = 90f;        // header live-count cell
         private const float ScrapW = 130f;       // header scrap cell
-        private const float AutoSalvageW = 230f; // auto-salvage header button
+        private const float AutoSalvageW = 230f; // loot-filter header button
+        private const float SlotLabelW = 74f;    // slot-name cell in the filter dropdown
+        private const float GuardBtnW = 64f;     // the imprint-guard On/Off button
         private const float AutoEquipW = 150f;   // auto-equip toggle
         private const float SortW = 85f;
         private const float SalvageAllW = 250f;
@@ -45,7 +48,7 @@ namespace IdleGame.Game
         private GameObject? _panel;        // the open inventory canvas (null when closed)
         private RectTransform? _detail;    // fixed detail pane, updated on hover/click
         private string? _confirmSalvageId; // two-step confirm guard for Unique+ salvage
-        private bool _autoSalvageOpen;     // auto-salvage dropdown expanded? (kept across Rebuild)
+        private bool _filterOpen;          // loot-filter dropdown expanded? (kept across Rebuild)
         private bool _confirmMassSalvage;  // "Salvage all" armed? (first click arms, second executes)
         private Coroutine? _massSalvageTimer; // disarms the confirm after a few seconds
 
@@ -62,7 +65,7 @@ namespace IdleGame.Game
         public void Toggle()
         {
             if (_panel != null) { Close(); return; }
-            _autoSalvageOpen = false;    // fresh open starts collapsed
+            _filterOpen = false;         // fresh open starts collapsed
             _confirmMassSalvage = false; // fresh open starts disarmed
             Open();
         }
@@ -105,7 +108,7 @@ namespace IdleGame.Game
             PanelKit.TextCell(header, $"Scrap: {Num.CompactFloor(scrap)}", Theme.FsBody, Theme.TextBody,
                 TextAnchor.MiddleLeft, width: ScrapW);
             PanelKit.FlexSpacer(header);
-            var autoSalvageBtn = BuildAutoSalvage(header);
+            var lootFilterBtn = BuildLootFilter(header);
             BuildAutoEquip(header);
 
             // Middle: grid of item tiles (the shared bag) | fixed detail pane.
@@ -149,9 +152,9 @@ namespace IdleGame.Game
                 width: SortW, fontSize: Theme.FsBody);
             BuildMassSalvage(footer);
 
-            // auto-salvage threshold: drops at/below this rarity convert to scrap on pickup.
+            // loot filter: per-slot floors + imprint guard governing what scraps on pickup.
             // Built last so its expanded dropdown renders (and raycasts) on top of the grid.
-            BuildAutoSalvageDropdown(canvas, panelRt, autoSalvageBtn);
+            BuildLootFilterDropdown(canvas, panelRt, lootFilterBtn);
         }
 
         // A compact color→rarity key along the bottom of the bag: now that item names drop the rarity
@@ -281,6 +284,19 @@ namespace IdleGame.Game
                 return;
             }
 
+            // Imprint-guarded gear can't be salvaged while the guard is on (SalvageItem throws) —
+            // the same disabled-placeholder treatment the Locked state gets, in imprint violet.
+            if (save.Progress.Loot.NeverSalvageImprinted && Inventory.IsImprinted(item, _cfg))
+            {
+                var gRow = PanelKit.Row(_detail, SalvageH);
+                var guarded = PanelKit.ButtonCell(gRow, "✦ Imprinted — guarded by the loot filter", () => { },
+                    fontSize: Theme.FsBody, enabled: false);
+                guarded.GetComponent<Image>().color = Theme.BtnDisabledDark;
+                var glbl = guarded.GetComponentInChildren<Text>();
+                if (glbl != null) glbl.color = Theme.Imprint;
+                return;
+            }
+
             // Loose item -> manual salvage. Unique and above take a second click to confirm.
             long worth = _cfg.Balance.ScrapValue(item.Rarity, item.ItemLevel);
             if (_confirmSalvageId == item.Id)
@@ -332,12 +348,12 @@ namespace IdleGame.Game
             if (lbl != null) lbl.color = item.Locked ? Theme.LockGold : Theme.TextBright;
         }
 
-        // ---- auto-salvage threshold control ----
+        // ---- loot filter control (10.5a: per-slot auto-salvage floors + imprint guard) ----
 
-        // The selectable thresholds, low→high. Legendary/Mythic are intentionally absent:
+        // The selectable floors, low→high. Legendary/Mythic are intentionally absent:
         // they're the top boss-only chase tiers, so auto-salvage never touches them.
         // Unique IS offered for the late game where Unique drops become churn.
-        // "& below" matches Inventory.AddLoot's `Rarity <= max` semantics.
+        // "& below" matches Inventory.WouldAutoSalvage's `Rarity <= floor` semantics.
         private static readonly (Rarity? max, string label)[] AutoSalvageOptions =
         {
             (null, "Off"),
@@ -355,30 +371,62 @@ namespace IdleGame.Game
         private static Color AutoSalvageColor(Rarity? max) =>
             max == null ? Theme.ToggleOff : Palette.Rarity(max.Value);
 
-        /// <summary>The auto-salvage header button (dropdown header). Click to expand/collapse;
-        /// the option list itself is the canvas overlay built by <see cref="BuildAutoSalvageDropdown"/>.</summary>
-        private RectTransform BuildAutoSalvage(RectTransform header)
+        /// <summary>The option after <paramref name="cur"/> in the cycle (a slot's button click).</summary>
+        private static Rarity? NextOption(Rarity? cur)
         {
-            var cur = Settings.AutoSalvageMax;
-            var btn = PanelKit.ButtonCell(header, $"Auto-salvage: {AutoSalvageLabel(cur)}  {(_autoSalvageOpen ? "▴" : "▾")}",
-                () => { _autoSalvageOpen = !_autoSalvageOpen; Rebuild(); },
+            for (int i = 0; i < AutoSalvageOptions.Length; i++)
+                if (AutoSalvageOptions[i].max == cur)
+                    return AutoSalvageOptions[(i + 1) % AutoSalvageOptions.Length].max;
+            return null;
+        }
+
+        /// <summary>The shared floor when every active slot agrees: (uniform, value). No floors at
+        /// all reads as uniform Off; a partial or mixed spread is not uniform ("Custom").</summary>
+        private static (bool uniform, Rarity? shared) SharedFloor(LootFilterState f)
+        {
+            if (f.SalvageMaxBySlot.Count == 0) return (true, null);
+            if (f.SalvageMaxBySlot.Count != EquipSlots.Active.Length) return (false, null);
+            Rarity? first = null;
+            foreach (var slot in EquipSlots.Active)
+            {
+                if (!f.SalvageMaxBySlot.TryGetValue(slot, out var v)) return (false, null);
+                if (first == null) first = v;
+                else if (v != first) return (false, null);
+            }
+            return (true, first);
+        }
+
+        /// <summary>The loot-filter header button (dropdown header): "Loot filter: &lt;summary&gt;"
+        /// where the summary is Off / the shared floor label / Custom. Click to expand/collapse;
+        /// the panel itself is the canvas overlay built by <see cref="BuildLootFilterDropdown"/>.</summary>
+        private RectTransform BuildLootFilter(RectTransform header)
+        {
+            var filter = _view.CurrentSave.Progress.Loot;
+            var (uniform, shared) = SharedFloor(filter);
+            string summary = uniform ? AutoSalvageLabel(shared) : "Custom";
+            var btn = PanelKit.ButtonCell(header, $"Loot filter: {summary}  {(_filterOpen ? "▴" : "▾")}",
+                () => { _filterOpen = !_filterOpen; Rebuild(); },
                 width: AutoSalvageW, fontSize: Theme.FsBody);
             var lbl = btn.GetComponentInChildren<Text>();
-            if (lbl != null) lbl.color = AutoSalvageColor(cur);
+            if (lbl != null) lbl.color = uniform ? AutoSalvageColor(shared) : Theme.TextBright;
             return (RectTransform)btn.transform;
         }
 
-        /// <summary>The expanded threshold list. Layout groups can't express overlays, so this is an
-        /// anchored overlay parented to the CANVAS (not a layout child): its anchor is DERIVED from
-        /// the header button's laid-out rect — the sanctioned exception (same class as WindowSizer
-        /// centering), not a hand-placed coordinate. <see cref="DropdownFollow"/> re-derives it every
-        /// LateUpdate, so it stays glued even while the first frame's layout settles or the window
-        /// resizes. Content inside is still layout-group driven.</summary>
-        private void BuildAutoSalvageDropdown(Canvas canvas, RectTransform panelRt, RectTransform headerBtn)
+        /// <summary>The expanded loot-filter panel: one cycle row per equip slot, an "All slots"
+        /// row of the four floor options, and the imprint-guard toggle. Layout groups can't express
+        /// overlays, so this is an anchored overlay parented to the CANVAS (not a layout child):
+        /// its anchor is DERIVED from the header button's laid-out rect — the sanctioned exception
+        /// (same class as WindowSizer centering), not a hand-placed coordinate.
+        /// <see cref="DropdownFollow"/> re-derives it every LateUpdate, so it stays glued even
+        /// while the first frame's layout settles or the window resizes. Content inside is still
+        /// layout-group driven. Every mutation routes through the view and rebuilds, so the rows
+        /// always show live save state (the dropdown stays open across the rebuild).</summary>
+        private void BuildLootFilterDropdown(Canvas canvas, RectTransform panelRt, RectTransform headerBtn)
         {
-            if (!_autoSalvageOpen) return;
+            if (!_filterOpen) return;
+            var filter = _view.CurrentSave.Progress.Loot;
 
-            var root = new GameObject("AutoSalvageDropdown", typeof(RectTransform));
+            var root = new GameObject("LootFilterDropdown", typeof(RectTransform));
             root.transform.SetParent(canvas.transform, false); // last canvas child ⇒ draws/raycasts above the window
             root.AddComponent<Image>().color = Theme.BgDropdown; // backdrop; also blocks hover on tiles beneath
 
@@ -390,34 +438,62 @@ namespace IdleGame.Game
             vlg.childForceExpandHeight = false;
 
             var fitter = root.AddComponent<ContentSizeFitter>();
-            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize; // height from the options; width from DropdownFollow
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize; // height from the rows; width from DropdownFollow
 
             var rootRt = (RectTransform)root.transform;
-            foreach (var (max, label) in AutoSalvageOptions)
+
+            // One row per slot: label + a cycle button showing the current floor (click = next option;
+            // cycling four options beats a nested dropdown-in-a-dropdown).
+            foreach (var slot in EquipSlots.Active)
             {
-                bool selected = max == Settings.AutoSalvageMax;
+                var s = slot; // capture
+                Rarity? cur = filter.SalvageMaxBySlot.TryGetValue(slot, out var v) ? v : (Rarity?)null;
                 var row = PanelKit.Row(rootRt, DropRowH);
-                var ob = PanelKit.ButtonCell(row, (selected ? "● " : "") + label, () => SelectAutoSalvage(max), fontSize: FsMid);
-                if (selected) ob.GetComponent<Image>().color = Theme.DropdownSelected;
-                var ol = ob.GetComponentInChildren<Text>();
-                if (ol != null) ol.color = AutoSalvageColor(max);
+                PanelKit.TextCell(row, slot.ToString(), FsMid, Theme.TextBody, TextAnchor.MiddleLeft, width: SlotLabelW);
+                var cb = PanelKit.ButtonCell(row, AutoSalvageLabel(cur),
+                    () => { _view.SetSalvageFloor(s, NextOption(cur)); Rebuild(); }, fontSize: Theme.FsSmall);
+                var cl = cb.GetComponentInChildren<Text>();
+                if (cl != null) cl.color = AutoSalvageColor(cur);
             }
+
+            // "All slots": the four floors as one-click buttons (compact labels — the per-slot rows
+            // spell out "& below"). The active one highlights only when every slot already agrees.
+            var (uniform, shared) = SharedFloor(filter);
+            var all = PanelKit.Row(rootRt, DropRowH);
+            PanelKit.TextCell(all, "All slots", FsMid, Theme.TextMuted, TextAnchor.MiddleLeft, width: SlotLabelW);
+            foreach (var (max, _) in AutoSalvageOptions)
+            {
+                var m = max; // capture
+                string shortLbl = max == null ? "Off" : max.Value.ToString();
+                bool selected = uniform && shared == max;
+                var ab = PanelKit.ButtonCell(all, shortLbl,
+                    () => { _view.SetSalvageFloorAll(m); Rebuild(); }, fontSize: Theme.FsSmall);
+                if (selected) ab.GetComponent<Image>().color = Theme.DropdownSelected;
+                var al = ab.GetComponentInChildren<Text>();
+                if (al != null) al.color = AutoSalvageColor(max);
+            }
+
+            // Imprint guard: On = imprinted gear refuses every salvage path (the Locked precedent).
+            bool guard = filter.NeverSalvageImprinted;
+            var gRow = PanelKit.Row(rootRt, DropRowH);
+            PanelKit.TextCell(gRow, "Keep imprinted", FsMid, guard ? Theme.Imprint : Theme.TextBody,
+                TextAnchor.MiddleLeft, flex: 1f);
+            var gb = PanelKit.ButtonCell(gRow, guard ? "On" : "Off",
+                () => { _view.SetImprintGuard(!guard); Rebuild(); }, width: GuardBtnW, fontSize: FsMid);
+            var gl = gb.GetComponentInChildren<Text>();
+            if (gl != null) gl.color = guard ? Theme.Imprint : Theme.ToggleOff;
 
             var follow = root.AddComponent<DropdownFollow>();
             follow.Button = headerBtn;
             follow.CanvasRt = (RectTransform)canvas.transform;
+            // Wider than the header: four floor buttons share the All-slots row, and even the
+            // compact labels wrap mid-word at the button's own width ("Normal" needs the most).
+            follow.ExtraWidth = 150f;
 
             // One-shot settle so the overlay lands right on its first visible frame; the follow
             // component keeps it correct from then on.
             LayoutRebuilder.ForceRebuildLayoutImmediate(panelRt);
             follow.Apply();
-        }
-
-        private void SelectAutoSalvage(Rarity? max)
-        {
-            Settings.AutoSalvageMax = max;
-            _autoSalvageOpen = false; // collapse after choosing
-            Rebuild();
         }
 
         // ---- mass salvage ----
@@ -536,6 +612,9 @@ namespace IdleGame.Game
     {
         public RectTransform Button = null!;
         public RectTransform CanvasRt = null!;
+        /// <summary>Widens the panel beyond the button (centered) — for dropdowns whose rows
+        /// need more room than the header button is wide (the loot filter's All-slots row).</summary>
+        public float ExtraWidth;
         private static readonly Vector3[] Corners = new Vector3[4];
 
         private void LateUpdate() => Apply();
@@ -552,7 +631,7 @@ namespace IdleGame.Game
             var rt = (RectTransform)transform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.pivot = new Vector2(0.5f, 1f); // hang below the button
-            rt.sizeDelta = new Vector2(w + Theme.GapS, rt.sizeDelta.y); // a hair wider than the button
+            rt.sizeDelta = new Vector2(w + Theme.GapS + ExtraWidth, rt.sizeDelta.y); // a hair wider than the button
             rt.anchoredPosition = new Vector2((bl.x + br.x) * 0.5f, bl.y - Theme.GapXs);
         }
     }

@@ -105,6 +105,7 @@ namespace IdleGame.GameCore
                 Daily = save.Progress.Daily,
                 Crypt = save.Progress.Crypt,
                 Intro = save.Progress.Intro,
+                Loot = save.Progress.Loot,
             };
             // Grant the per-floor gem reward — mirror DailyLogin.Apply's premium-currency credit exactly
             // (clone the currencies dict, add to Currencies[PremiumCurrency]). Only ever reached on the

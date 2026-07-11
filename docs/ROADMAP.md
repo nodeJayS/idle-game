@@ -89,9 +89,11 @@ TowerView, ModifierPanel, MainMenu — migrate opportunistically when
 next touched.
 
 **10.5 Loot QoL 2.0 (legibility at scale)**
-Late-game bags are noise. (a) loot filter: per-rarity auto-salvage
-floor PER SLOT + "never salvage imprinted" toggle (GameCore reducer +
-tests, wire into the existing salvage paths); (b) compare-anywhere:
+Late-game bags are noise. (a) SHIPPED 2026-07-11 — loot filter:
+`LootFilterState` on ProgressState (per-slot floors + imprint guard,
+guard defaults ON; `Inventory.WouldAutoSalvage` = THE predicate; all
+salvage paths refuse guarded imprints like Locked; legacy pref
+carried over once at boot then cleared; 715 tests). (b) compare-anywhere:
 hover any item anywhere → delta vs equipped of the fielded hero with
 best PowerScore gain; (c) bulk-select salvage UI (tap-drag multi-select,
 locked items refuse as today); (d) set bonuses (design §6.1): 3 sets

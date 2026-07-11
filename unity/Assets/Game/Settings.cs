@@ -60,8 +60,9 @@ namespace IdleGame.Game
         public static bool  QuestLocked    { get => PlayerPrefs.GetInt("questLock", 0) != 0;      set => Set("questLock", value); }
         public static bool  QuestCollapsed { get => PlayerPrefs.GetInt("questCollapsed", 0) != 0; set => Set("questCollapsed", value); }
 
-        /// <summary>Auto-salvage threshold: drops at or below this rarity convert to scrap on
-        /// pickup instead of taking a bag slot. null = off (default — never auto-discards).
+        /// <summary>LEGACY (10.5a): the auto-salvage threshold now lives in the save as the
+        /// per-slot loot filter (<see cref="LootFilterState"/>). This pref survives ONLY as the
+        /// one-time migration source — Bootstrap.Continue seeds the filter from it and clears it.
         /// Stored as an int: -1 = off, otherwise (int)Rarity.</summary>
         public static Rarity? AutoSalvageMax
         {

@@ -321,6 +321,7 @@ namespace IdleGame.GameCore
                     Daily = save.Progress.Daily,
                     Crypt = crypt,
                     Intro = save.Progress.Intro,
+                    Loot = save.Progress.Loot,
                 },
                 Quests = save.Quests,
                 Modifiers = save.Modifiers,
