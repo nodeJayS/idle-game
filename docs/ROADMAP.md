@@ -72,10 +72,13 @@ band-blur · SDF jiggle-rope tail · crypt mid-run merchant/boon-draft
 
 **10.3 UI/UX foundation refactor (the deferred layout-group pass)**
 Hand-placed coords rot on every screen change; do the real fix in order:
-(a) a reusable uGUI panel kit (header/close/scroll/list-row prefab
-builders, one theme-token file: colors/font sizes/spacing consts);
-(b) migrate ONE screen (Heroes) to layout groups + the kit, verify at
-16:9/16:10/ultrawide, THEN (c) Inventory, (d) modals (boss result,
+(a)+(b) SHIPPED 2026-07-10 — `Theme` token file + `PanelKit`
+(Window/Columns/Section/Row/cells/ListRow/TabBar/KeyValueRow, all
+layout-group driven; windows scale match-0.5 so ultrawide keeps its
+height) and the Heroes screen migrated: zero positional literals,
+Play-verified at 16:9/16:10/21:9. Kit lessons baked in: rows pin
+flexibleHeight=0 (force-expand HLGs report phantom flex) + minHeight;
+panel clips overflow. Next: (c) Inventory, (d) modals (boss result,
 idle claim, gacha reveal), (e) HUD anchoring pass (safe margins, corner
 regions), (f) glyph/font audit last (single font asset, fallbacks).
 Acceptance: no hand-placed pixel coords left in migrated screens.
@@ -180,6 +183,9 @@ impact language belongs to 10.6b). 10.11 COMPLETE.
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-07-10 10.3 (a)+(b): Theme tokens + PanelKit layout-group kit;
+  Heroes screen migrated (zero positional literals), verified at
+  16:9/16:10/21:9; (c)-(f) remain
 - 2026-07-10 10.2 FTUE COMPLETE (design game-design §7.4): staged-reveal
   gating (`FeatureUnlocked` + New-Game arming), five guided intro beats
   (`IntroQuests`, now paying strictly in beat order), staged button

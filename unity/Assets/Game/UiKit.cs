@@ -29,8 +29,11 @@ namespace IdleGame.Game
             }
         }
 
-        /// <summary>A screen-space overlay canvas (creates the shared EventSystem if missing).</summary>
-        public static Canvas CreateCanvas(string name, Transform? parent, int sortOrder = 0)
+        /// <summary>A screen-space overlay canvas (creates the shared EventSystem if missing).
+        /// <paramref name="match"/> is the CanvasScaler width↔height blend: HUD canvases keep the
+        /// historical 0 (match width); full-screen windows pass 0.5 so an ultrawide screen doesn't
+        /// scale the UI so tall that the window loses its vertical room.</summary>
+        public static Canvas CreateCanvas(string name, Transform? parent, int sortOrder = 0, float match = 0f)
         {
             EnsureEventSystem();
 
@@ -44,6 +47,7 @@ namespace IdleGame.Game
             var scaler = go.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1280, 720);
+            scaler.matchWidthOrHeight = match;
 
             go.AddComponent<GraphicRaycaster>();
             return canvas;
@@ -349,6 +353,100 @@ namespace IdleGame.Game
             pos.x = Mathf.Clamp(pos.x, minX, Mathf.Max(minX, maxX));
             pos.y = Mathf.Clamp(pos.y, minY, Mathf.Max(minY, maxY));
             return pos;
+        }
+
+        /// <summary>A vertical scroll that fills its layout cell (flexible LayoutElement) instead
+        /// of anchoring at a fixed size — for scrolls that live inside a PanelKit column. Returns
+        /// the content RectTransform (a VerticalLayoutGroup); add rows with a LayoutElement height.</summary>
+        public static RectTransform ScrollColumnFill(Transform parent, float spacing = 4f)
+        {
+            var go = new GameObject("Scroll", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var rt = (RectTransform)go.transform;
+
+            var bg = go.AddComponent<Image>();
+            bg.color = new Color(0f, 0f, 0f, 0.25f);
+            go.AddComponent<RectMask2D>();
+            var le = go.AddComponent<LayoutElement>();
+            le.flexibleWidth = 1f; le.flexibleHeight = 1f;
+
+            var scroll = go.AddComponent<ScrollRect>();
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.scrollSensitivity = 18f;
+            scroll.viewport = rt;
+
+            var content = new GameObject("Content", typeof(RectTransform));
+            content.transform.SetParent(go.transform, false);
+            var crt = (RectTransform)content.transform;
+            crt.anchorMin = new Vector2(0f, 1f);
+            crt.anchorMax = new Vector2(1f, 1f);
+            crt.pivot = new Vector2(0.5f, 1f);
+            crt.offsetMin = new Vector2(0f, crt.offsetMin.y);
+            crt.offsetMax = new Vector2(0f, crt.offsetMax.y);
+            crt.anchoredPosition = Vector2.zero;
+
+            var vlg = content.AddComponent<VerticalLayoutGroup>();
+            vlg.childControlHeight = vlg.childControlWidth = true;
+            vlg.childForceExpandHeight = false;
+            vlg.childForceExpandWidth = true;
+            vlg.spacing = spacing;
+            vlg.padding = new RectOffset(6, 6, 6, 6);
+
+            var fitter = content.AddComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            scroll.content = crt;
+            return crt;
+        }
+
+        /// <summary>A wrapping-grid scroll that fills its layout cell (flexible LayoutElement). The
+        /// grid uses a Flexible constraint so it re-wraps to whatever width the layout cell gives —
+        /// for grids inside a PanelKit column. Returns the content RectTransform.</summary>
+        public static RectTransform ScrollGridFill(Transform parent, Vector2 cell, float spacing = 8f)
+        {
+            var go = new GameObject("ScrollGrid", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var rt = (RectTransform)go.transform;
+
+            var bg = go.AddComponent<Image>();
+            bg.color = new Color(0f, 0f, 0f, 0.25f);
+            go.AddComponent<RectMask2D>();
+            var le = go.AddComponent<LayoutElement>();
+            le.flexibleWidth = 1f; le.flexibleHeight = 1f;
+
+            var scroll = go.AddComponent<ScrollRect>();
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.scrollSensitivity = 24f;
+            scroll.viewport = rt;
+
+            var content = new GameObject("Content", typeof(RectTransform));
+            content.transform.SetParent(go.transform, false);
+            var crt = (RectTransform)content.transform;
+            crt.anchorMin = new Vector2(0f, 1f);
+            crt.anchorMax = new Vector2(1f, 1f);
+            crt.pivot = new Vector2(0.5f, 1f);
+            crt.offsetMin = new Vector2(0f, crt.offsetMin.y);
+            crt.offsetMax = new Vector2(0f, crt.offsetMax.y);
+            crt.anchoredPosition = Vector2.zero;
+
+            const int pad = 8;
+            var grid = content.AddComponent<GridLayoutGroup>();
+            grid.cellSize = cell;
+            grid.spacing = new Vector2(spacing, spacing);
+            grid.padding = new RectOffset(pad, pad, pad, pad);
+            // Flexible constraint auto-wraps to the cell width the layout group hands us — no
+            // fixed column count to recompute (the anchored ScrollGrid needs a known width; this
+            // one adapts).
+            grid.constraint = GridLayoutGroup.Constraint.Flexible;
+            grid.childAlignment = TextAnchor.UpperCenter;
+
+            var fitter = content.AddComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            scroll.content = crt;
+            return crt;
         }
 
         public static Button TextButton(Transform parent, string label, Vector2 size, Vector2 pos, Action onClick, int fontSize = 26)

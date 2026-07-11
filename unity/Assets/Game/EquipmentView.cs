@@ -16,6 +16,10 @@ namespace IdleGame.Game
     /// Skills milestone), and <b>Stats</b>. Opened from the control bar (no hero ⇒ first
     /// party hero) or a Party-HUD chip (that hero). All mutations go through the pure
     /// <see cref="Inventory"/> / <see cref="Party"/> reducers via <see cref="CombatView"/>.
+    ///
+    /// Built on <see cref="PanelKit"/> + <see cref="Theme"/> (10.3): the whole tree is
+    /// anchor/layout-group driven — no anchoredPosition, no y-cursors, every color/size
+    /// comes from Theme. Rarity/verdict colors stay data-driven (Palette / UpgradeTell).
     /// </summary>
     public sealed class EquipmentView : MonoBehaviour
     {
@@ -27,6 +31,12 @@ namespace IdleGame.Game
             (EquipSlot.Weapon, 0, 1), (EquipSlot.Chest, 1, 1), (EquipSlot.Gloves, 2, 1),
                                       (EquipSlot.Boots, 1, 2),
         };
+
+        private const float DollCell = 84f;   // doll tile edge (the 3×3 cross)
+        private const float BagTile = 70f;     // shared-bag tile edge
+        private const float RailW = 220f;      // fixed left-rail width
+        private const float SideColW = 284f;   // fixed doll / detail column width (grid is 268 wide)
+        private const float ActionW = 140f;    // header action-button width
 
         private CombatView _view = null!;
         private GameConfig _cfg = null!;
@@ -74,42 +84,23 @@ namespace IdleGame.Game
                 _heroId = FirstPartyHeroId(save);
             if (_heroId == null) return;
 
-            var canvas = UiKit.CreateCanvas("HeroesCanvas", transform, sortOrder: 96);
-            _panel = canvas.gameObject;
-            // Fully opaque backdrop: this is a full-screen management view, so it covers the
-            // HUD chrome (TopBar, chat) behind it instead of letting them bleed through a dim.
-            UiKit.FullScreen(canvas.transform, new Color(0.06f, 0.06f, 0.09f, 1f));
+            // Fully opaque backdrop: this is a full-screen management view, so it covers the HUD
+            // chrome (TopBar, chat) behind it instead of letting it bleed through a dim.
+            _panel = PanelKit.Window(transform, "Heroes", Close, out var body, "HeroesCanvas", sortOrder: 96);
 
-            var panel = UiKit.Panel(canvas.transform, new Vector2(1160, 680), new Color(0.10f, 0.10f, 0.14f, 1f));
-            // anchoredPosition is the rect CENTRE; offset by half-width so the left-aligned
-            // title sits just inside the panel's left edge instead of hanging off it.
-            UiKit.Label(panel.transform, "Heroes", 28, TextAnchor.MiddleLeft, new Vector2(230, 38), new Vector2(-440, 300));
-            UiKit.TextButton(panel.transform, "Close", new Vector2(140, 48), new Vector2(495, 300), Close, 22);
-
-            BuildSelector(panel.transform, save);
-            BuildHeroHeader(panel.transform, save);
-            BuildSubTabs(panel.transform);
-
-            switch (_subTab)
-            {
-                case SubTab.Skills: BuildSkillsPane(panel.transform, save); break;
-                case SubTab.Stats:  BuildStatsPane(panel.transform, save);  break;
-                default:            BuildEquipment(panel.transform, save);  break;
-            }
+            var cols = PanelKit.Columns(body, (0f, RailW), (1f, 0f));
+            BuildSelector(cols[0], save);
+            BuildRightPane(cols[1], save);
         }
 
-        // ---- left rail: party slots + all owned heroes ----
+        // ---- left rail: party slots + all owned heroes (+ swap stack when full) ----
 
-        private void BuildSelector(Transform parent, SaveState save)
+        private void BuildSelector(RectTransform rail, SaveState save)
         {
-            const float xL = -462f;
             int fielded = PartyFieldedCount(save);
             string? leaderId = Party.EffectiveLeader(save, _cfg); // ★ marks who leads the formation
 
-            UiKit.Label(parent, $"Party  ·  {fielded}/{save.Party.Length}", 14, TextAnchor.MiddleLeft,
-                        new Vector2(196, 20), new Vector2(xL, 272)).color = new Color(0.7f, 0.74f, 0.8f);
-
-            float y = 242f;
+            var party = PanelKit.Section(rail, $"Party  ·  {fielded}/{save.Party.Length}");
             for (int i = 0; i < save.Party.Length; i++)
             {
                 string? id = save.Party[i];
@@ -117,37 +108,61 @@ namespace IdleGame.Game
                 string label = filled
                     ? $"{i + 1}.  {(id == leaderId ? "★ " : "")}{HeroName(save, id)}"
                     : $"{i + 1}.  — empty —";
-                var b = UiKit.TextButton(parent, label, new Vector2(196, 32), new Vector2(xL, y),
-                    () => { if (filled) SelectHero(id!); }, 14);
-                var img = b.GetComponent<Image>();
-                if (!filled) img.color = new Color(0.12f, 0.13f, 0.16f);
-                else if (id == _heroId) img.color = new Color(0.30f, 0.45f, 0.65f);
-                y -= 36f;
+                PanelKit.ListRow(party, label, () => { if (filled) SelectHero(id!); },
+                    selected: filled && id == _heroId, muted: !filled);
             }
 
-            UiKit.Label(parent, "All heroes", 14, TextAnchor.MiddleLeft,
-                        new Vector2(196, 20), new Vector2(xL, 98)).color = new Color(0.7f, 0.74f, 0.8f);
-
-            // Fixed stack for now (rosters are small); becomes a scroll list as it grows.
-            y = 68f;
+            var roster = PanelKit.Section(rail, "All heroes");
             foreach (var hero in save.Heroes)
             {
                 var id = hero.Id;
                 bool isFielded = Array.IndexOf(save.Party, id) >= 0;
-                var b = UiKit.TextButton(parent, isFielded ? HeroName(save, id) : HeroName(save, id) + "  (B)",
-                    new Vector2(196, 30), new Vector2(xL, y), () => SelectHero(id), 15);
-                var img = b.GetComponent<Image>();
-                if (id == _heroId) img.color = new Color(0.30f, 0.45f, 0.65f);
-                else if (!isFielded) img.color = new Color(0.18f, 0.18f, 0.23f);
-                y -= 34f;
+                PanelKit.ListRow(roster, isFielded ? HeroName(save, id) : HeroName(save, id) + "  (B)",
+                    () => SelectHero(id), selected: id == _heroId, muted: !isFielded, fontSize: Theme.FsBody);
+            }
+
+            // Party FULL (§3): a benched, selected hero swaps in for a fielded one. One "↔ <Name>"
+            // row per fielded hero, gated on CanEditParty (farm-only) — the reducer takes that hero's
+            // exact slot. Only shown when there's no empty slot to plain-Field into.
+            int slot = Array.IndexOf(save.Party, _heroId);
+            bool selectedBenched = slot < 0;
+            bool full = Array.IndexOf(save.Party, (string?)null) < 0;
+            if (selectedBenched && full)
+            {
+                var swap = PanelKit.Section(rail, "Swap in for:");
+                foreach (var fid in save.Party)
+                {
+                    if (fid == null) continue;
+                    string outgoing = fid;
+                    PanelKit.ListRow(swap, $"↔  {HeroName(save, outgoing)}",
+                        () => { _view.ApplyPartyEdit(Party.SwapHero(save, _heroId!, outgoing)); Rebuild(); },
+                        enabled: _view.CanEditParty, fontSize: Theme.FsLabel);
+                }
             }
         }
 
         private void SelectHero(string heroId) { _heroId = heroId; Rebuild(); }
 
-        // ---- right pane: hero header + field/bench ----
+        // ---- right pane: hero header + field/bench + sub-tabs ----
 
-        private void BuildHeroHeader(Transform parent, SaveState save)
+        private void BuildRightPane(RectTransform right, SaveState save)
+        {
+            BuildHeroHeader(right, save);
+
+            string[] tabs = { "Equipment", "Skills", "Stats" };
+            PanelKit.TabBar(right, tabs, (int)_subTab, i => { _subTab = (SubTab)i; Rebuild(); });
+
+            // Tab content stacks directly into the right column (a VerticalLayoutGroup): the fill
+            // element in each pane (Columns host / scroll list / stat Section) absorbs the slack.
+            switch (_subTab)
+            {
+                case SubTab.Skills: BuildSkillsPane(right, save); break;
+                case SubTab.Stats:  BuildStatsPane(right, save);  break;
+                default:            BuildEquipment(right, save);  break;
+            }
+        }
+
+        private void BuildHeroHeader(RectTransform right, SaveState save)
         {
             var hero = save.Heroes.Find(h => h.Id == _heroId);
             if (hero == null) return;
@@ -156,136 +171,128 @@ namespace IdleGame.Game
             bool fielded = slot >= 0;
             int fieldedCount = PartyFieldedCount(save);
             bool canEdit = _view.CanEditParty;
-
-            // Left-aligned in the RIGHT pane: centre = leftEdge(-330) + width/2 so the text
-            // starts at -330 and never reaches back over the left rail (ends ~-364).
-            UiKit.Label(parent, HeroName(save, _heroId), 22, TextAnchor.MiddleLeft, new Vector2(300, 26), new Vector2(-180, 282))
-                .color = new Color(0.85f, 0.9f, 1f);
-            UiKit.Label(parent, fielded ? $"Level {hero.Level} · fielded (slot {slot + 1})" : $"Level {hero.Level} · benched",
-                        13, TextAnchor.MiddleLeft, new Vector2(340, 18), new Vector2(-160, 258))
-                .color = new Color(0.7f, 0.74f, 0.8f);
-
-            // Leader badge (§2): who actually leads, and whether it was chosen or auto-derived.
-            // Bright gold for the explicit pick, a muted gold when it's the computed default.
             string? effectiveLeader = Party.EffectiveLeader(save, _cfg);
-            if (_heroId == effectiveLeader)
-            {
-                bool explicitPick = save.LeaderHeroId == _heroId;
-                UiKit.Label(parent, explicitPick ? "★ Leader" : "★ Leader (auto)", 13, TextAnchor.MiddleLeft,
-                            new Vector2(340, 18), new Vector2(-160, 238))
-                    .color = explicitPick ? new Color(1f, 0.85f, 0.4f) : new Color(0.75f, 0.68f, 0.42f);
-            }
 
-            // Stacked UNDER Close (top-right) with a gap, not overlapping it.
+            // Row A: name + the primary Field/Bench action (right).
+            var rowA = PanelKit.Row(right, Theme.BtnHs);
+            PanelKit.TextCell(rowA, HeroName(save, _heroId), Theme.FsH1, Theme.TextBright, TextAnchor.MiddleLeft, flex: 1f);
             if (fielded)
             {
-                // Last-hero guard (§4): benching the only fielded hero is a no-op (the reducer
-                // refuses to strand the party). Surface that — grey the button + relabel it —
-                // exactly like the greyed-out idiom below (interactable off, muted Image).
+                // Last-hero guard (§4): benching the only fielded hero is a no-op (the reducer refuses
+                // to strand the party). Surface that — grey + relabel the button, inert.
                 bool onlyHero = fieldedCount == 1;
-                ActionButton(parent, onlyHero ? "Last hero" : "Bench", new Vector2(140, 44), new Vector2(495, 248),
-                    canEdit && !onlyHero,
-                    () => { _view.ApplyPartyEdit(Party.SetPartySlot(save, slot, null)); Rebuild(); });
-
-                // Leader toggle: the chosen hero leads the formation; the rest fall in behind.
-                // Safe to change any time (it only re-points who's followed), so not farm-gated.
-                bool isLeader = _heroId == effectiveLeader;
-                ActionButton(parent, isLeader ? "★ Leader" : "Make Leader", new Vector2(140, 40), new Vector2(495, 198), !isLeader,
-                    () => { _view.SetLeader(_heroId); Rebuild(); });
+                PanelKit.ButtonCell(rowA, onlyHero ? "Last hero" : "Bench",
+                    () => { _view.ApplyPartyEdit(Party.SetPartySlot(save, slot, null)); Rebuild(); },
+                    width: ActionW, fontSize: Theme.FsH2, enabled: canEdit && !onlyHero);
             }
             else
             {
                 int firstEmpty = Array.IndexOf(save.Party, (string?)null);
                 if (firstEmpty >= 0)
-                {
-                    // An empty slot exists: the plain one-click Field into it.
-                    ActionButton(parent, "Field", new Vector2(140, 44), new Vector2(495, 248), canEdit,
-                        () => { _view.ApplyPartyEdit(Party.FieldHero(save, firstEmpty, _heroId!)); Rebuild(); });
-                }
+                    PanelKit.ButtonCell(rowA, "Field",
+                        () => { _view.ApplyPartyEdit(Party.FieldHero(save, firstEmpty, _heroId!)); Rebuild(); },
+                        width: ActionW, fontSize: Theme.FsH2, enabled: canEdit);
                 else
-                {
-                    // Party FULL (§3): the swap stack lives in the LEFT rail under the roster
-                    // list (the stat card — a later sibling — draws over the right column below
-                    // its second row, so three rows can't fit there). One "↔ <Name>" row per
-                    // fielded hero, styled like the roster rows; this benched hero takes that
-                    // hero's exact slot. The right column keeps a muted hint pointing at it.
-                    UiKit.Label(parent, "Party full", 13, TextAnchor.MiddleCenter,
-                                new Vector2(140, 20), new Vector2(495, 248)).color = new Color(0.55f, 0.58f, 0.65f);
-
-                    const float xL = -462f; // the left rail's column (BuildSelector)
-                    UiKit.Label(parent, "Swap in for:", 14, TextAnchor.MiddleLeft,
-                                new Vector2(196, 20), new Vector2(xL, -104)).color = new Color(0.7f, 0.74f, 0.8f);
-                    float sy = -132f;
-                    foreach (var fid in save.Party)
-                    {
-                        if (fid == null) continue;
-                        string outgoing = fid;
-                        ActionButton(parent, $"↔  {HeroName(save, outgoing)}", new Vector2(196, 30), new Vector2(xL, sy), canEdit,
-                            () => { _view.ApplyPartyEdit(Party.SwapHero(save, _heroId!, outgoing)); Rebuild(); }, 14);
-                        sy -= 34f;
-                    }
-                }
+                    // Party full: the swap stack lives in the left rail; a muted hint points at it.
+                    PanelKit.TextCell(rowA, "Party full", Theme.FsSmall, Theme.TextDim, TextAnchor.MiddleCenter, width: ActionW);
             }
-        }
 
-        private void BuildSubTabs(Transform parent)
-        {
-            var defs = new (SubTab tab, string label, float x)[]
+            // Row B: level/fielded status + the leader toggle (right, fielded only).
+            var rowB = PanelKit.Row(right, Theme.BtnHs);
+            PanelKit.TextCell(rowB, fielded ? $"Level {hero.Level} · fielded (slot {slot + 1})" : $"Level {hero.Level} · benched",
+                Theme.FsSmall, Theme.TextMuted, TextAnchor.MiddleLeft, flex: 1f);
+            if (fielded)
             {
-                (SubTab.Equipment, "Equipment", -250f),
-                (SubTab.Skills, "Skills", -110f),
-                (SubTab.Stats, "Stats", 30f),
-            };
-            foreach (var d in defs)
+                // Leader toggle: the chosen hero leads the formation; the rest fall in behind. Safe to
+                // change any time (it only re-points who's followed), so not farm-gated.
+                bool isLeader = _heroId == effectiveLeader;
+                PanelKit.ButtonCell(rowB, isLeader ? "★ Leader" : "Make Leader",
+                    () => { _view.SetLeader(_heroId); Rebuild(); },
+                    width: ActionW, fontSize: Theme.FsH2, enabled: !isLeader);
+            }
+
+            // Row C — leader badge (§2): who actually leads and whether it was chosen or auto-derived.
+            // Bright gold for the explicit pick, muted gold for the computed default. Only when this
+            // hero is the effective leader.
+            if (_heroId == effectiveLeader)
             {
-                var tab = d.tab;
-                var b = UiKit.TextButton(parent, d.label, new Vector2(130, 42), new Vector2(d.x, 214f),
-                    () => { _subTab = tab; Rebuild(); }, 17);
-                if (_subTab == tab) b.GetComponent<Image>().color = new Color(0.30f, 0.45f, 0.65f);
+                bool explicitPick = save.LeaderHeroId == _heroId;
+                var rowC = PanelKit.Row(right, 18f);
+                PanelKit.TextCell(rowC, explicitPick ? "★ Leader" : "★ Leader (auto)", Theme.FsSmall,
+                    explicitPick ? Theme.AccentGold : Theme.LeaderAuto, TextAnchor.MiddleLeft, flex: 1f);
             }
         }
 
         // ---- Equipment sub-tab: doll + shared bag + compare pane ----
 
-        private void BuildEquipment(Transform parent, SaveState save)
+        private void BuildEquipment(RectTransform right, SaveState save)
         {
-            BuildDoll(parent, save);
-            BuildBag(parent, save);
-            var box = UiKit.Panel(parent, new Vector2(270, 440), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(445, -30));
-            _detail = box.rectTransform;
+            var host = PanelKit.Flex(right); // fills the space under the tab bar; Columns lays it out
+            var cols = PanelKit.Columns(host, (0f, SideColW), (1f, 0f), (0f, SideColW));
+            BuildDoll(cols[0], save);
+            BuildBag(cols[1], save);
+
+            var detail = PanelKit.Section(cols[2], null);
+            detail.gameObject.AddComponent<LayoutElement>().flexibleHeight = 1f; // fill the column
+            _detail = detail;
             ShowHeroStats(save); // default pane = the hero's stat sheet
         }
 
-        private void BuildDoll(Transform parent, SaveState save)
+        private void BuildDoll(RectTransform col, SaveState save)
         {
             var hero = save.Heroes.Find(h => h.Id == _heroId)!;
-            const float cell = 84f, sp = 92f, ox = -210f, oy = 8f;
 
-            UiKit.Label(parent, "Equipped", 14, TextAnchor.MiddleCenter, new Vector2(280, 18), new Vector2(-210, 168))
-                .color = new Color(0.7f, 0.74f, 0.8f);
+            var section = PanelKit.Section(col, "Equipped");
 
-            foreach (var (slot, col, row) in Cells)
-            {
-                float cx = ox + (col - 1) * sp;
-                float cy = oy - (row - 1) * sp;
+            // A 3×3 GridLayoutGroup holds the body cross: 5 real slots + 4 invisible placeholders
+            // (added in row-major order so each lands in its cell). No manual coordinates.
+            var gridGo = new GameObject("Doll", typeof(RectTransform));
+            gridGo.transform.SetParent(section, false);
+            var grid = gridGo.AddComponent<GridLayoutGroup>();
+            grid.cellSize = new Vector2(DollCell, DollCell);
+            grid.spacing = new Vector2(Theme.GapS, Theme.GapS);
+            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            grid.constraintCount = 3;
+            grid.childAlignment = TextAnchor.MiddleCenter;
+            float gridWH = DollCell * 3f + Theme.GapS * 2f;
+            var gle = gridGo.AddComponent<LayoutElement>();
+            gle.preferredWidth = gridWH; gle.preferredHeight = gridWH; gle.flexibleWidth = 1f;
 
-                hero.Equipped.TryGetValue(slot, out var itemId);
-                var item = itemId != null ? save.Inventory.Find(i => i.Id == itemId) : null;
-                Rarity? rarity = item?.Rarity;
-
-                var tile = UiKit.ItemTile(parent, new Vector2(cell, cell), new Vector2(cx, cy), rarity, UiKit.SlotAbbrev(slot), raycast: true);
-                var captured = item;
-                tile.AddComponent<Button>().onClick.AddListener(() => ShowDetail(save, captured, slotIfEmpty: slot));
-                UiKit.Hover(tile, () => ShowDetail(save, captured, slotIfEmpty: slot), () => ShowHeroStats(save));
-            }
+            for (int row = 0; row < 3; row++)
+                for (int colIdx = 0; colIdx < 3; colIdx++)
+                {
+                    var cell = FindCell(colIdx, row);
+                    if (cell == null)
+                    {
+                        // Invisible placeholder so the cross keeps its shape in the grid.
+                        var ph = new GameObject("gap", typeof(RectTransform));
+                        ph.transform.SetParent(gridGo.transform, false);
+                        continue;
+                    }
+                    var slot = cell.Value;
+                    hero.Equipped.TryGetValue(slot, out var itemId);
+                    var item = itemId != null ? save.Inventory.Find(i => i.Id == itemId) : null;
+                    var tile = UiKit.ItemTile(gridGo.transform, new Vector2(DollCell, DollCell), Vector2.zero,
+                        item?.Rarity, UiKit.SlotAbbrev(slot), raycast: true);
+                    var captured = item;
+                    tile.AddComponent<Button>().onClick.AddListener(() => ShowDetail(save, captured, slotIfEmpty: slot));
+                    UiKit.Hover(tile, () => ShowDetail(save, captured, slotIfEmpty: slot), () => ShowHeroStats(save));
+                }
         }
 
-        private void BuildBag(Transform parent, SaveState save)
+        private static EquipSlot? FindCell(int col, int row)
+        {
+            foreach (var (slot, c, r) in Cells) if (c == col && r == row) return slot;
+            return null;
+        }
+
+        private void BuildBag(RectTransform col, SaveState save)
         {
             int loose = Inventory.LooseCount(save);
-            UiKit.Label(parent, $"Bag (shared)  ·  {loose}/{_cfg.Balance.InventoryCap}", 14, TextAnchor.MiddleLeft,
-                        new Vector2(300, 20), new Vector2(140, 170)).color = new Color(0.7f, 0.74f, 0.8f);
-            var grid = UiKit.ScrollGrid(parent, new Vector2(300, 300), new Vector2(140, -26), new Vector2(70, 70));
+            var section = PanelKit.Section(col, $"Bag (shared)  ·  {loose}/{_cfg.Balance.InventoryCap}");
+            section.gameObject.AddComponent<LayoutElement>().flexibleHeight = 1f;
+
+            var grid = UiKit.ScrollGridFill(section, new Vector2(BagTile, BagTile));
 
             bool any = false;
             var equipped = EquippedIds(save);
@@ -294,82 +301,72 @@ namespace IdleGame.Game
                 if (equipped.Contains(item.Id)) continue; // only free items can be equipped
                 any = true;
                 var it = item;
-                var tile = UiKit.ItemTile(grid, new Vector2(70, 70), Vector2.zero, it.Rarity, UiKit.SlotAbbrev(SlotOf(it)), raycast: true);
+                var tile = UiKit.ItemTile(grid, new Vector2(BagTile, BagTile), Vector2.zero, it.Rarity,
+                    UiKit.SlotAbbrev(SlotOf(it)), raycast: true);
                 tile.AddComponent<Button>().onClick.AddListener(() => EquipFromBag(save, it)); // one click to equip
                 UiKit.Hover(tile, () => ShowDetail(save, it), () => ShowHeroStats(save));        // hover to compare
             }
             if (!any)
-                UiKit.Label(parent, "No free items in the bag.", 14, TextAnchor.MiddleCenter,
-                            new Vector2(280, 40), new Vector2(140, 40));
+                PanelKit.Label(section, "No free items in the bag.", Theme.FsLabel, Theme.TextMuted, TextAnchor.MiddleCenter);
         }
 
-        // ---- detail / compare pane ----
+        // ---- detail / compare pane (Equipment tab, right column) ----
 
         private void ShowDetail(SaveState save, Item? item, EquipSlot? slotIfEmpty = null)
         {
             if (_detail == null) return;
-            for (int i = _detail.childCount - 1; i >= 0; i--) Destroy(_detail.GetChild(i).gameObject);
+            ClearPane(_detail);
 
             if (item == null)
             {
                 string msg = slotIfEmpty != null ? $"{slotIfEmpty} — empty\nHover a bag item to compare." : "Hover or click an item.";
-                UiKit.Label(_detail, msg, 15, TextAnchor.MiddleCenter, new Vector2(250, 80), new Vector2(0, 0));
+                PanelKit.Flex(_detail);
+                PanelKit.Label(_detail, msg, Theme.FsBody, Theme.TextMuted, TextAnchor.MiddleCenter);
+                PanelKit.Flex(_detail);
                 return;
             }
 
-            float y = 196f;
-            var nameLbl = UiKit.Label(_detail, StatDisplay.ItemName(item, _cfg), 18, TextAnchor.MiddleLeft,
-                        new Vector2(250, 24), new Vector2(0, y));
-            nameLbl.color = Palette.Rarity(item.Rarity);
+            var nameLbl = PanelKit.Label(_detail, StatDisplay.ItemName(item, _cfg), Theme.FsH2, Palette.Rarity(item.Rarity), TextAnchor.MiddleLeft);
             // Titled imprints ("Volatile … of Leeching") can run long — auto-shrink to fit one line.
-            nameLbl.resizeTextForBestFit = true; nameLbl.resizeTextMaxSize = 18; nameLbl.resizeTextMinSize = 11;
-            y -= 22f;
-            UiKit.Label(_detail, StatDisplay.RarityName(item.Rarity), 13, TextAnchor.MiddleLeft,
-                        new Vector2(250, 18), new Vector2(0, y)).color = Palette.Rarity(item.Rarity); // rarity as a status line
-            y -= 22f;
-            UiKit.Label(_detail, $"{SlotOf(item)} · item level {item.ItemLevel}", 13, TextAnchor.MiddleLeft,
-                        new Vector2(250, 20), new Vector2(0, y));
-            y -= 24f;
+            nameLbl.resizeTextForBestFit = true; nameLbl.resizeTextMaxSize = Theme.FsH2; nameLbl.resizeTextMinSize = 11;
+
+            PanelKit.Label(_detail, StatDisplay.RarityName(item.Rarity), Theme.FsSmall, Palette.Rarity(item.Rarity), TextAnchor.MiddleLeft);
+            PanelKit.Label(_detail, $"{SlotOf(item)} · item level {item.ItemLevel}", Theme.FsSmall, Theme.TextBright, TextAnchor.MiddleLeft);
+
             var affixes = new List<Affix>(item.Affixes);
             affixes.Sort((x, z) => StatDisplay.Rank(x.Stat).CompareTo(StatDisplay.Rank(z.Stat)));
             foreach (var a in affixes)
             {
                 if (Loot.IsImprintStat(a.Stat, _cfg)) // mechanical-mod signature: flavor, not a raw number
-                    UiKit.Label(_detail, $"✦ Imprinted — {StatDisplay.ImprintBlurb(a.Stat)}", 13, TextAnchor.MiddleLeft,
-                                new Vector2(250, 18), new Vector2(0, y)).color = new Color(0.85f, 0.6f, 1f);
+                    PanelKit.Label(_detail, $"✦ Imprinted — {StatDisplay.ImprintBlurb(a.Stat)}", Theme.FsSmall, Theme.Imprint, TextAnchor.MiddleLeft);
                 else
-                    UiKit.Label(_detail, $"+{StatDisplay.Value(a.Stat, a.Value)} {StatDisplay.Label(a.Stat)}", 13, TextAnchor.MiddleLeft,
-                                new Vector2(250, 18), new Vector2(0, y));
-                y -= 20f;
+                    PanelKit.Label(_detail, $"+{StatDisplay.Value(a.Stat, a.Value)} {StatDisplay.Label(a.Stat)}", Theme.FsSmall, Theme.TextBright, TextAnchor.MiddleLeft);
             }
 
             bool equippedHere = EquippedByWhom(save, item.Id) == _heroId;
             if (equippedHere)
             {
-                UiKit.Label(_detail, "Equipped", 13, TextAnchor.MiddleLeft, new Vector2(250, 18), new Vector2(0, y - 6)).color =
-                    new Color(0.6f, 0.85f, 1f);
-                UiKit.TextButton(_detail, "Unequip", new Vector2(200, 50), new Vector2(0, -196),
+                PanelKit.Label(_detail, "Equipped", Theme.FsSmall, Theme.Info, TextAnchor.MiddleLeft);
+                PanelKit.Flex(_detail);
+                var row = PanelKit.Row(_detail, Theme.BtnH);
+                PanelKit.ButtonCell(row, "Unequip",
                     () => { _view.ReplaceSave(Inventory.UnequipItem(save, _heroId!, SlotOf(item))); Rebuild(); });
             }
             else
             {
-                y -= 8f;
-                UiKit.Label(_detail, $"vs {HeroName(save, _heroId)}'s {SlotOf(item)}:", 13, TextAnchor.MiddleLeft,
-                            new Vector2(250, 18), new Vector2(0, y));
-                y -= 22f;
+                PanelKit.Label(_detail, $"vs {HeroName(save, _heroId)}'s {SlotOf(item)}:", Theme.FsSmall, Theme.TextMuted, TextAnchor.MiddleLeft);
 
                 var (before, after) = Inventory.ComparePairForHero(save, _heroId!, item, _cfg);
 
                 // One-line power verdict (Lever 2), then the derived deltas (B2) behind it.
                 int stage = save.Progress.CurrentStage;
                 var eval = Upgrades.EvaluateForHero(save, _heroId!, item, _cfg, stage);
-                UiKit.Label(_detail, $"{UpgradeTell.Glyph(eval.Verdict)} {eval.Verdict}  {UpgradeTell.Pct(eval.DeltaPercent)} power",
-                            15, TextAnchor.MiddleLeft, new Vector2(250, 20), new Vector2(0, y)).color = UpgradeTell.Color(eval.Verdict);
-                y -= 24f;
-                y = DerivedDeltaRow(_detail, "DPS", DerivedStats.Dps(after) - DerivedStats.Dps(before), y);
-                y = DerivedDeltaRow(_detail, "Eff. Life",
-                        DerivedStats.EffectiveHp(after, _cfg, stage) - DerivedStats.EffectiveHp(before, _cfg, stage), y);
-                y -= 4f;
+                PanelKit.Label(_detail, $"{UpgradeTell.Glyph(eval.Verdict)} {eval.Verdict}  {UpgradeTell.Pct(eval.DeltaPercent)} power",
+                    Theme.FsBody, UpgradeTell.Color(eval.Verdict), TextAnchor.MiddleLeft);
+
+                DerivedDeltaRow(_detail, "DPS", DerivedStats.Dps(after) - DerivedStats.Dps(before));
+                DerivedDeltaRow(_detail, "Eff. Life",
+                    DerivedStats.EffectiveHp(after, _cfg, stage) - DerivedStats.EffectiveHp(before, _cfg, stage));
 
                 // Raw stat deltas
                 bool anyDelta = false;
@@ -378,16 +375,15 @@ namespace IdleGame.Game
                     double d = after.Get(k) - before.Get(k);
                     if (d == 0) continue;
                     anyDelta = true;
-                    var l = UiKit.Label(_detail, $"{(d > 0 ? "▲" : "▼")} {StatDisplay.Label(k)}  {StatDisplay.Delta(k, d)}",
-                                        13, TextAnchor.MiddleLeft, new Vector2(250, 18), new Vector2(0, y));
-                    l.color = d > 0 ? new Color(0.45f, 0.9f, 0.5f) : new Color(0.95f, 0.45f, 0.45f);
-                    y -= 20f;
+                    PanelKit.Label(_detail, $"{(d > 0 ? "▲" : "▼")} {StatDisplay.Label(k)}  {StatDisplay.Delta(k, d)}",
+                        Theme.FsSmall, d > 0 ? Theme.Good : Theme.Bad, TextAnchor.MiddleLeft);
                 }
                 if (!anyDelta)
-                    UiKit.Label(_detail, "No stat change", 13, TextAnchor.MiddleLeft, new Vector2(250, 18), new Vector2(0, y));
+                    PanelKit.Label(_detail, "No stat change", Theme.FsSmall, Theme.TextBright, TextAnchor.MiddleLeft);
 
-                UiKit.TextButton(_detail, "Equip", new Vector2(200, 50), new Vector2(0, -196),
-                    () => EquipFromBag(save, item));
+                PanelKit.Flex(_detail); // push the Equip button to the bottom of the pane
+                var row = PanelKit.Row(_detail, Theme.BtnH);
+                PanelKit.ButtonCell(row, "Equip", () => EquipFromBag(save, item));
             }
         }
 
@@ -397,19 +393,31 @@ namespace IdleGame.Game
             Rebuild();
         }
 
-        // ---- Stats sub-tab ----
+        /// <summary>A headline derived-stat delta row (DPS / Effective Life) in the compare pane.
+        /// Rounds to a whole number; an effectively-zero change reads as a dim "±0".</summary>
+        private static void DerivedDeltaRow(RectTransform into, string label, double delta)
+        {
+            long r = (long)Math.Round(delta);
+            string arrow = r > 0 ? "▲" : r < 0 ? "▼" : "·";
+            string val = (r > 0 ? "+" : r < 0 ? "-" : "±") + Math.Abs(r).ToString("N0");
+            var color = r > 0 ? Theme.GoodBright : r < 0 ? Theme.BadBright : Theme.TextDim;
+            PanelKit.Label(into, $"{arrow} {label}  {val}", Theme.FsLabel, color, TextAnchor.MiddleLeft);
+        }
+
+        // ---- Stats sub-tab (and the Equipment tab's default pane) ----
 
         private void ShowHeroStats(SaveState save)
         {
             if (_detail == null) return;
-            for (int i = _detail.childCount - 1; i >= 0; i--) Destroy(_detail.GetChild(i).gameObject);
+            ClearPane(_detail);
             RenderStatSheet(_detail, save);
         }
 
-        private void BuildStatsPane(Transform parent, SaveState save)
+        private void BuildStatsPane(RectTransform right, SaveState save)
         {
-            var box = UiKit.Panel(parent, new Vector2(380, 430), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(60, -26));
-            RenderStatSheet(box.rectTransform, save);
+            var section = PanelKit.Section(right, null);
+            section.gameObject.AddComponent<LayoutElement>().flexibleHeight = 1f;
+            RenderStatSheet(section, save);
         }
 
         private void RenderStatSheet(RectTransform into, SaveState save)
@@ -418,78 +426,57 @@ namespace IdleGame.Game
             if (hero == null) return;
             var stats = Stats.ComputeHeroStats(hero, _cfg, Stats.ResolveEquipped(save, hero));
 
-            UiKit.Label(into, HeroName(save, _heroId), 18, TextAnchor.MiddleLeft, new Vector2(250, 24), new Vector2(0, 188))
-                .color = new Color(0.85f, 0.9f, 1f);
-            UiKit.Label(into, $"Level {hero.Level}", 12, TextAnchor.MiddleLeft, new Vector2(250, 18), new Vector2(0, 166));
+            // Min-pinned so a height-starved pane crushes the stat rows' slack, not the headline.
+            PanelKit.Fixed(PanelKit.Label(into, HeroName(save, _heroId), Theme.FsH2, Theme.TextBright, TextAnchor.MiddleLeft).gameObject, height: 24f);
+            PanelKit.Fixed(PanelKit.Label(into, $"Level {hero.Level}", Theme.FsTiny, Theme.TextBright, TextAnchor.MiddleLeft).gameObject, height: 18f);
 
             // Headline derived stats (A2): DPS and Effective Life — the at-a-glance "how strong /
             // how tanky" numbers. EHP is read against the current stage's boss hit (the gate).
             int stage = save.Progress.CurrentStage;
-            var accent = new Color(1f, 0.86f, 0.45f);
-            DerivedRow(into, "DPS", DerivedStats.Dps(stats).ToString("N0"), 138f, accent);
-            DerivedRow(into, "Effective Life", DerivedStats.EffectiveHp(stats, _cfg, stage).ToString("N0"), 116f, accent);
-            UiKit.Label(into, $"vs stage {stage} boss hit", 10, TextAnchor.MiddleRight, new Vector2(205, 14), new Vector2(22, 101))
-                .color = new Color(0.6f, 0.62f, 0.68f);
+            AccentRow(into, "DPS", DerivedStats.Dps(stats).ToString("N0"));
+            AccentRow(into, "Effective Life", DerivedStats.EffectiveHp(stats, _cfg, stage).ToString("N0"));
+            PanelKit.Label(into, $"vs stage {stage} boss hit", Theme.FsMicro, Theme.TextDim, TextAnchor.MiddleRight);
 
-            float y = 78f;
             foreach (var k in StatDisplay.Order)
-            {
-                UiKit.Label(into, StatDisplay.Label(k), 13, TextAnchor.MiddleLeft, new Vector2(160, 18), new Vector2(-45, y));
-                UiKit.Label(into, StatDisplay.Value(k, stats.Get(k)), 13, TextAnchor.MiddleRight, new Vector2(90, 18), new Vector2(95, y));
-                y -= 22f;
-            }
+                PanelKit.KeyValueRow(into, StatDisplay.Label(k), StatDisplay.Value(k, stats.Get(k)));
         }
 
         /// <summary>A highlighted derived-stat row (DPS / Effective Life) in the stat sheet.</summary>
-        private static void DerivedRow(RectTransform into, string label, string value, float y, Color color)
+        private static void AccentRow(RectTransform into, string label, string value)
         {
-            UiKit.Label(into, label, 14, TextAnchor.MiddleLeft, new Vector2(160, 18), new Vector2(-45, y)).color = color;
-            UiKit.Label(into, value, 14, TextAnchor.MiddleRight, new Vector2(130, 18), new Vector2(75, y)).color = color;
-        }
-
-        /// <summary>A headline derived-stat delta row (DPS / Effective Life) in the compare pane.
-        /// Rounds to a whole number; an effectively-zero change reads as a dim "±0". Returns next y.</summary>
-        private static float DerivedDeltaRow(RectTransform into, string label, double delta, float y)
-        {
-            long r = (long)System.Math.Round(delta);
-            string arrow = r > 0 ? "▲" : r < 0 ? "▼" : "·";
-            string val = (r > 0 ? "+" : r < 0 ? "-" : "±") + System.Math.Abs(r).ToString("N0");
-            var l = UiKit.Label(into, $"{arrow} {label}  {val}", 14, TextAnchor.MiddleLeft, new Vector2(250, 18), new Vector2(0, y));
-            l.color = r > 0 ? new Color(0.55f, 1f, 0.6f) : r < 0 ? new Color(1f, 0.5f, 0.5f) : new Color(0.6f, 0.62f, 0.68f);
-            return y - 22f;
+            var row = PanelKit.Row(into, 22f);
+            PanelKit.TextCell(row, label, Theme.FsLabel, Theme.AccentGoldWarm, TextAnchor.MiddleLeft, flex: 1f);
+            PanelKit.TextCell(row, value, Theme.FsLabel, Theme.AccentGoldWarm, TextAnchor.MiddleRight, flex: 1f);
         }
 
         // ---- Skills sub-tab: the 2+2 kit (§7.2) — no loadout, invest points + mastery ----
 
-        private void BuildSkillsPane(Transform parent, SaveState save)
+        private void BuildSkillsPane(RectTransform right, SaveState save)
         {
             var hero = save.Heroes.Find(h => h.Id == _heroId);
             if (hero == null) return;
-
-            var box = UiKit.Panel(parent, new Vector2(560, 500), new Color(0.07f, 0.07f, 0.10f, 1f), new Vector2(120, -61));
 
             var actives = Skills.KnownActive(hero, _cfg);
             var passives = Skills.KnownPassive(hero, _cfg);
             int points = Skills.UnspentPoints(hero, _cfg);
 
-            UiKit.Label(box.transform, $"{HeroName(save, _heroId)} — Skills", 18, TextAnchor.MiddleLeft,
-                        new Vector2(300, 26), new Vector2(-110, 224)).color = new Color(0.85f, 0.9f, 1f);
-            UiKit.Label(box.transform, $"+1 pt / {_cfg.Balance.SkillPointsEveryLevels} levels", 13, TextAnchor.MiddleRight,
-                        new Vector2(190, 22), new Vector2(170, 224)).color = new Color(0.62f, 0.66f, 0.72f);
+            // Header row: title + the "+1 pt / N levels" note.
+            var titleRow = PanelKit.Row(right, 26f);
+            PanelKit.TextCell(titleRow, $"{HeroName(save, _heroId)} — Skills", Theme.FsH2, Theme.TextBright, TextAnchor.MiddleLeft, flex: 1f);
+            PanelKit.TextCell(titleRow, $"+1 pt / {_cfg.Balance.SkillPointsEveryLevels} levels", Theme.FsSmall, Theme.TextDim2, TextAnchor.MiddleRight, flex: 1f);
 
             // Skill points + respec row: spend a point to rank a skill up (rank 5 = mastery).
-            UiKit.Label(box.transform, $"Skill Points: {points}", 15, TextAnchor.MiddleLeft,
-                        new Vector2(280, 22), new Vector2(-110, 198)).color =
-                points > 0 ? new Color(1f, 0.85f, 0.4f) : new Color(0.62f, 0.66f, 0.72f);
-            ActionButton(box.transform, "Respec", new Vector2(110, 30), new Vector2(210, 198),
-                Skills.PointsSpent(hero) > 0,
-                () => { _view.ReplaceSave(Skills.RespecHero(save, _heroId!, _cfg)); Rebuild(); }, 14);
+            var pointsRow = PanelKit.Row(right, Theme.RowHs);
+            PanelKit.TextCell(pointsRow, $"Skill Points: {points}", Theme.FsBody,
+                points > 0 ? Theme.AccentGold : Theme.TextDim2, TextAnchor.MiddleLeft, flex: 1f);
+            PanelKit.ButtonCell(pointsRow, "Respec",
+                () => { _view.ReplaceSave(Skills.RespecHero(save, _heroId!, _cfg)); Rebuild(); },
+                width: 110f, fontSize: Theme.FsLabel, enabled: Skills.PointsSpent(hero) > 0);
 
-            // ---- Active skills (always auto-cast once revealed) ----
-            UiKit.Label(box.transform, "ACTIVE — auto-cast once unlocked", 12, TextAnchor.MiddleLeft,
-                        new Vector2(400, 18), new Vector2(-110, 170)).color = new Color(0.55f, 0.7f, 0.95f);
+            // Both kits share one scroll so a full 2+2 with long effect text can't overflow.
+            var list = UiKit.ScrollColumnFill(right, spacing: Theme.GapXs);
 
-            float y = 144f;
+            PanelKit.Label(list, "ACTIVE — auto-cast once unlocked", Theme.FsTiny, Theme.ActiveSkill, TextAnchor.MiddleLeft);
             foreach (var id in actives)
             {
                 if (!_cfg.Skills.TryGetValue(id, out var sk)) continue;
@@ -500,31 +487,14 @@ namespace IdleGame.Game
                 // Reveal gate: a locked kit skill neither casts nor accepts points — show when it opens.
                 bool unlocked = Skills.IsUnlocked(hero, id, _cfg);
                 string sub = unlocked ? meta : $"unlocks at Lv {sk.UnlockLevel}";
-                var subColor = unlocked ? new Color(0.66f, 0.70f, 0.78f) : new Color(0.95f, 0.62f, 0.55f);
-
-                if (unlocked) // tint the rows the hero actually casts
-                    UiKit.Panel(box.transform, new Vector2(540, 42), new Color(0.18f, 0.28f, 0.42f, 0.55f), new Vector2(0, y - 8f));
-
-                UiKit.Label(box.transform, sk.Name, 16, TextAnchor.MiddleLeft, new Vector2(250, 22), new Vector2(-115, y))
-                    .color = unlocked ? new Color(0.85f, 0.92f, 1f) : new Color(0.55f, 0.57f, 0.62f);
-                UiKit.Label(box.transform, sub, 12, TextAnchor.MiddleLeft, new Vector2(250, 16), new Vector2(-115, y - 16f))
-                    .color = subColor;
-
-                DrawRankBadge(box.transform, rank, sk, new Vector2(90, y - 8f));
-
-                string capturedId = id;
-                ActionButton(box.transform, "＋", new Vector2(40, 34), new Vector2(232, y - 8f),
-                    Skills.CanInvest(save, _heroId!, id, _cfg),
-                    () => { _view.ReplaceSave(Skills.InvestSkill(save, _heroId!, capturedId, _cfg)); Rebuild(); }, 18);
-
-                y -= 44f;
+                var subColor = unlocked ? Theme.TextMuted : Theme.Warn;
+                var nameColor = unlocked ? Theme.TextBright : Theme.TextDisabled;
+                // Tint the rows the hero actually casts.
+                SkillRow(list, save, id, sk, rank, sk.Name, sub, nameColor, subColor,
+                    tint: unlocked ? Theme.ActiveRowTint : (Color?)null);
             }
 
-            // ---- Passive nodes (always-on; rank them for stats, never slotted) ----
-            y -= 6f;
-            UiKit.Label(box.transform, "PASSIVE — always on, rank for stats", 12, TextAnchor.MiddleLeft,
-                        new Vector2(400, 18), new Vector2(-110, y)).color = new Color(0.6f, 0.85f, 0.65f);
-            y -= 26f;
+            PanelKit.Label(list, "PASSIVE — always on, rank for stats", Theme.FsTiny, Theme.PassiveSkill, TextAnchor.MiddleLeft);
             foreach (var id in passives)
             {
                 if (!_cfg.Skills.TryGetValue(id, out var sk)) continue;
@@ -534,49 +504,45 @@ namespace IdleGame.Game
                 string effect = !unlocked ? $"unlocks at Lv {sk.UnlockLevel}"
                     : rank > 0 ? $"+{sk.StatPerRank:0.##} {sk.PassiveStat}/rank  (now +{total:0.##})"
                     : $"+{sk.StatPerRank:0.##} {sk.PassiveStat}/rank";
-
-                UiKit.Label(box.transform, sk.Name, 16, TextAnchor.MiddleLeft, new Vector2(250, 22), new Vector2(-115, y))
-                    .color = !unlocked ? new Color(0.55f, 0.57f, 0.62f)
-                           : rank > 0 ? new Color(0.82f, 1f, 0.86f) : new Color(0.78f, 0.80f, 0.85f);
-                UiKit.Label(box.transform, effect, 12, TextAnchor.MiddleLeft, new Vector2(280, 16), new Vector2(-115, y - 16f))
-                    .color = !unlocked ? new Color(0.95f, 0.62f, 0.55f) : new Color(0.66f, 0.78f, 0.70f);
-
-                DrawRankBadge(box.transform, rank, sk, new Vector2(90, y - 8f));
-
-                string capturedId = id;
-                ActionButton(box.transform, "＋", new Vector2(40, 34), new Vector2(232, y - 8f),
-                    Skills.CanInvest(save, _heroId!, id, _cfg),
-                    () => { _view.ReplaceSave(Skills.InvestSkill(save, _heroId!, capturedId, _cfg)); Rebuild(); }, 18);
-
-                y -= 44f;
+                var nameColor = !unlocked ? Theme.TextDisabled
+                    : rank > 0 ? Theme.PassiveBright : Theme.TextBody;
+                var subColor = !unlocked ? Theme.Warn : Theme.PassiveDim;
+                SkillRow(list, save, id, sk, rank, sk.Name, effect, nameColor, subColor, tint: null);
             }
         }
 
-        /// <summary>Rank readout: grey at 0, gold once invested, red "MASTERY" at MaxRank (§7.2 —
-        /// the capped skill counts extra ranks via Skills.EffectiveRank).</summary>
-        private void DrawRankBadge(Transform parent, int rank, SkillDef sk, Vector2 pos)
+        /// <summary>One skill entry: [name + sub-line stack | rank badge | ＋ invest]. An optional
+        /// <paramref name="tint"/> shades the row background (unlocked actives the hero casts).</summary>
+        private void SkillRow(RectTransform list, SaveState save, string id, SkillDef sk, int rank,
+                              string name, string sub, Color nameColor, Color subColor, Color? tint)
         {
+            var row = PanelKit.Row(list, 44f);
+            if (tint != null) row.gameObject.AddComponent<Image>().color = tint.Value;
+
+            var stack = PanelKit.VStack(row, 0f);
+            stack.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
+            PanelKit.Label(stack, name, Theme.FsBody, nameColor, TextAnchor.LowerLeft);
+            PanelKit.Label(stack, sub, Theme.FsTiny, subColor, TextAnchor.UpperLeft);
+
+            // Rank readout: grey at 0, gold once invested, red bold "MASTERY" at MaxRank (§7.2 — the
+            // capped skill counts extra ranks via Skills.EffectiveRank).
             bool mastered = rank >= sk.MaxRank;
-            var lbl = UiKit.Label(parent, mastered ? "MASTERY" : $"Rk {rank}/{sk.MaxRank}", 13,
-                                  TextAnchor.MiddleCenter, new Vector2(90, 22), pos);
-            lbl.color = mastered ? new Color(0.95f, 0.35f, 0.3f)
-                      : rank > 0 ? new Color(1f, 0.85f, 0.45f) : new Color(0.6f, 0.64f, 0.7f);
-            if (mastered) lbl.fontStyle = FontStyle.Bold;
+            var badge = PanelKit.TextCell(row, mastered ? "MASTERY" : $"Rk {rank}/{sk.MaxRank}", Theme.FsSmall,
+                mastered ? Theme.Mastery : rank > 0 ? Theme.AccentGoldWarm : Theme.TextDim,
+                TextAnchor.MiddleCenter, width: 90f);
+            if (mastered) badge.fontStyle = FontStyle.Bold;
+
+            string capturedId = id;
+            PanelKit.ButtonCell(row, "＋",
+                () => { _view.ReplaceSave(Skills.InvestSkill(save, _heroId!, capturedId, _cfg)); Rebuild(); },
+                width: 44f, fontSize: Theme.FsH2, enabled: Skills.CanInvest(save, _heroId!, id, _cfg));
         }
 
         // ---- helpers ----
 
-        /// <summary>A TextButton that renders greyed + inert when <paramref name="enabled"/> is false.</summary>
-        private static Button ActionButton(Transform parent, string label, Vector2 size, Vector2 pos,
-                                           bool enabled, Action onClick, int fontSize = 18)
+        private static void ClearPane(RectTransform pane)
         {
-            var b = UiKit.TextButton(parent, label, size, pos, enabled ? onClick : () => { }, fontSize);
-            if (!enabled)
-            {
-                b.interactable = false;
-                b.GetComponent<Image>().color = new Color(0.22f, 0.24f, 0.28f);
-            }
-            return b;
+            for (int i = pane.childCount - 1; i >= 0; i--) UnityEngine.Object.Destroy(pane.GetChild(i).gameObject);
         }
 
         private EquipSlot SlotOf(Item item) => _cfg.ItemBases[item.BaseId].Slot;
