@@ -1,6 +1,8 @@
 #nullable enable
+using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using IdleGame.GameCore;
 
@@ -13,7 +15,9 @@ namespace IdleGame.Game
     /// the whole roster draws from. Manual salvage (detail pane) + the loot filter (header:
     /// per-slot auto-salvage floors + the imprint guard, 10.5a) run through the pure
     /// <see cref="Inventory"/> reducers — the filter lives in the SAVE, not a pref; game
-    /// rules stay in GameCore.
+    /// rules stay in GameCore. Bulk-select salvage (10.5c): a footer "Select" mode where
+    /// tiles toggle/sweep into a hand-picked set for one no-confirm salvage
+    /// (<see cref="Inventory.SalvageMany"/>).
     ///
     /// Built on <see cref="PanelKit"/> + <see cref="Theme"/> (10.3): anchor/layout-group
     /// driven throughout. The two sanctioned positional exceptions: tile-corner badges
@@ -35,7 +39,11 @@ namespace IdleGame.Game
         private const float GuardBtnW = 64f;     // the imprint-guard On/Off button
         private const float AutoEquipW = 150f;   // auto-equip toggle
         private const float SortW = 85f;
-        private const float SalvageAllW = 250f;
+        // 200 (was 250 pre-10.5c) still fits the armed "Confirm salvage all (999)" label — the shave
+        // pays for the Select toggle so the footer stays inside the 920-window's width budget.
+        private const float SalvageAllW = 200f;
+        private const float SelectW = 90f;       // bulk-select mode toggle (10.5c)
+        private const float SalvageSelW = 290f;  // "Salvage N selected  (+X scrap)" runs long
         private const float LockW = 96f;
         private const float CancelW = 140f;
         private const float DropRowH = 36f;      // dropdown option row height
@@ -52,6 +60,13 @@ namespace IdleGame.Game
         private bool _confirmMassSalvage;  // "Salvage all" armed? (first click arms, second executes)
         private Coroutine? _massSalvageTimer; // disarms the confirm after a few seconds
 
+        // ---- bulk-select salvage (10.5c) ----
+        private bool _selectMode;          // tiles toggle into a selection instead of showing detail
+        private readonly HashSet<string> _selected = new HashSet<string>(); // selected item ids
+        private bool _sweeping;            // a press-drag sweep is in progress (press ... release)
+        private Button? _selSalvageBtn;    // footer "Salvage N selected" — updated IN PLACE:
+        private Text? _selSalvageLbl;      // rebuilding mid-sweep would destroy the tile under the pointer
+
         /// <summary>True while the inventory panel is open (the HUD reads this).</summary>
         public bool IsOpen => _panel != null;
 
@@ -67,6 +82,9 @@ namespace IdleGame.Game
             if (_panel != null) { Close(); return; }
             _filterOpen = false;         // fresh open starts collapsed
             _confirmMassSalvage = false; // fresh open starts disarmed
+            _selectMode = false;         // fresh open starts in browse mode, selection discarded
+            _selected.Clear();
+            _sweeping = false;
             Open();
         }
 
@@ -77,6 +95,9 @@ namespace IdleGame.Game
             _panel = null;
             _detail = null;
             _confirmSalvageId = null;
+            _selSalvageBtn = null; // destroyed with the panel; select-mode STATE survives Rebuild
+            _selSalvageLbl = null;
+            _sweeping = false;
         }
 
         /// <summary>Reopen on the current save (after a salvage mutates it). Disarms the mass-salvage
@@ -132,15 +153,22 @@ namespace IdleGame.Game
                 // Locked items get a padlock in the bottom-left corner (never salvaged). Bottom-left so it
                 // never collides with the top-right ▲ upgrade badge or the top-left ✦ imprint badge.
                 if (it.Locked) LockBadgeTile(tile);
-                var btn = tile.AddComponent<Button>();
-                btn.onClick.AddListener(() => ShowDetail(save, it));
-                UiKit.Hover(tile, () => ShowDetail(save, it));
+                if (_selectMode)
+                {
+                    WireSelectTile(tile, save, it); // toggle/sweep instead of detail
+                }
+                else
+                {
+                    var btn = tile.AddComponent<Button>();
+                    btn.onClick.AddListener(() => ShowDetail(save, it));
+                    UiKit.Hover(tile, () => ShowDetail(save, it));
+                }
             }
 
             var detail = PanelKit.Section(cols[1], null);
             detail.gameObject.AddComponent<LayoutElement>().flexibleHeight = 1f; // fill the column
             _detail = detail;
-            ShowDetail(save, null); // initial prompt
+            if (_selectMode) ShowSelectHint(); else ShowDetail(save, null); // initial prompt
 
             // Footer: rarity color reference (since names no longer carry the rarity word —
             // color is the cue), then Sort (persisted order: the inventory list IS the display
@@ -148,9 +176,19 @@ namespace IdleGame.Game
             var footer = PanelKit.Row(body, FooterH);
             BuildRarityLegend(footer);
             PanelKit.FlexSpacer(footer);
-            PanelKit.ButtonCell(footer, "Sort", () => { _view.SortInventory(); Rebuild(); },
-                width: SortW, fontSize: Theme.FsBody);
-            BuildMassSalvage(footer);
+            BuildSelectToggle(footer);
+            if (_selectMode)
+            {
+                // Select mode swaps the verb stack: the wide "Salvage N selected" takes both the
+                // Sort and Salvage-all slots (sorting mid-selection would shuffle tiles under a sweep).
+                BuildSalvageSelected(footer);
+            }
+            else
+            {
+                PanelKit.ButtonCell(footer, "Sort", () => { _view.SortInventory(); Rebuild(); },
+                    width: SortW, fontSize: Theme.FsBody);
+                BuildMassSalvage(footer);
+            }
 
             // loot filter: per-slot floors + imprint guard governing what scraps on pickup.
             // Built last so its expanded dropdown renders (and raycasts) on top of the grid.
@@ -551,6 +589,122 @@ namespace IdleGame.Game
             if (_panel != null && _confirmMassSalvage) { _confirmMassSalvage = false; RebuildKeepConfirm(); }
         }
 
+        // ---- bulk-select salvage (10.5c) ----
+
+        // Selection tint: Theme.BtnSelected ghosted over the tile so it reads as "picked" without
+        // fighting the rarity border (which stays fully visible around it).
+        private static readonly Color SelectedTint =
+            new Color(Theme.BtnSelected.r, Theme.BtnSelected.g, Theme.BtnSelected.b, 0.45f);
+
+        /// <summary>The footer mode toggle. Entering select mode collapses the loot-filter dropdown
+        /// (its overlay would eat sweep raycasts over the top tile rows); leaving — by toggle or by
+        /// closing the window (see <see cref="Toggle"/>) — discards the selection.</summary>
+        private void BuildSelectToggle(RectTransform footer)
+        {
+            var btn = PanelKit.ButtonCell(footer, "Select", ToggleSelectMode, width: SelectW, fontSize: Theme.FsBody);
+            if (_selectMode) btn.GetComponent<Image>().color = Theme.BtnSelected;
+        }
+
+        private void ToggleSelectMode()
+        {
+            _selectMode = !_selectMode;
+            _selected.Clear(); // both directions start clean — a stale pick must never carry over
+            _sweeping = false;
+            if (_selectMode) _filterOpen = false;
+            Rebuild(); // also disarms a pending mass-salvage confirm
+        }
+
+        /// <summary>Select-mode wiring for one bag tile. Eligible tiles toggle on press and join a
+        /// press-drag sweep; a sweep only ever SETS selected — dragging back over a tile never
+        /// deselects it (the mobile-inventory idiom). Ineligible tiles (equipped / locked /
+        /// imprint-guarded — the same set <see cref="Inventory.SalvageMany"/> refuses) get NO relay:
+        /// clicks and sweeps pass over them, so the footer never promises scrap it can't deliver.
+        /// They keep their existing tells (equipped shows in detail, [L] and ✦ badges).</summary>
+        private void WireSelectTile(GameObject tile, SaveState save, Item it)
+        {
+            bool guard = save.Progress.Loot.NeverSalvageImprinted;
+            bool eligible = !it.Locked
+                         && EquippedByWhom(save, it.Id) == null
+                         && !(guard && Inventory.IsImprinted(it, _cfg));
+            if (!eligible) return;
+
+            // Stretch-fill tint above the tile art; enabled tracks membership in the selection.
+            var ovGo = new GameObject("Selected", typeof(RectTransform));
+            ovGo.transform.SetParent(tile.transform, false);
+            var ovRt = (RectTransform)ovGo.transform;
+            ovRt.anchorMin = Vector2.zero; ovRt.anchorMax = Vector2.one;
+            ovRt.offsetMin = Vector2.zero; ovRt.offsetMax = Vector2.zero;
+            var overlay = ovGo.AddComponent<Image>();
+            overlay.color = SelectedTint;
+            overlay.raycastTarget = false;
+            overlay.enabled = _selected.Contains(it.Id);
+
+            var relay = tile.AddComponent<SelectRelay>();
+            relay.OnPress = () =>
+            {
+                _sweeping = true;
+                if (!_selected.Add(it.Id)) _selected.Remove(it.Id); // a plain press toggles
+                overlay.enabled = _selected.Contains(it.Id);
+                UpdateSelectedFooter();
+            };
+            relay.OnRelease = () => _sweeping = false;
+            relay.OnSweepEnter = () =>
+            {
+                if (!_sweeping) return;
+                _selected.Add(it.Id); // sweep SETS — re-crossing never toggles off
+                overlay.enabled = true;
+                UpdateSelectedFooter();
+            };
+        }
+
+        /// <summary>Select mode's static detail pane: the pane is a usage hint, not a hover target.</summary>
+        private void ShowSelectHint()
+        {
+            if (_detail == null) return;
+            for (int i = _detail.childCount - 1; i >= 0; i--) Destroy(_detail.GetChild(i).gameObject);
+            PanelKit.Flex(_detail);
+            PanelKit.Label(_detail, "Tap items to select — drag to sweep.", Theme.FsBody, Theme.TextMuted, TextAnchor.MiddleCenter);
+            PanelKit.Flex(_detail);
+        }
+
+        /// <summary>The select-mode salvage verb. No arm/confirm step — unlike "Salvage all", the
+        /// player hand-picked every item — but it keeps the danger red so it still reads destructive.
+        /// Label/enabled refresh IN PLACE via <see cref="UpdateSelectedFooter"/>.</summary>
+        private void BuildSalvageSelected(RectTransform footer)
+        {
+            var btn = PanelKit.ButtonCell(footer, "", DoSalvageSelected, width: SalvageSelW, fontSize: Theme.FsBody);
+            _selSalvageBtn = btn;
+            _selSalvageLbl = btn.GetComponentInChildren<Text>();
+            UpdateSelectedFooter();
+        }
+
+        /// <summary>Refresh the select-mode footer button in place — selection changes during a
+        /// sweep must NOT rebuild the panel (destroying the tile under a pressed pointer kills the
+        /// sweep). Count/scrap are recomputed against the live save, so a stale id drops out of the
+        /// promise instead of inflating it (display floors — CLAUDE.md rounding).</summary>
+        private void UpdateSelectedFooter()
+        {
+            if (_selSalvageBtn == null || _selSalvageLbl == null) return;
+            var save = _view.CurrentSave;
+            int n = 0;
+            long scrap = 0;
+            foreach (var it in save.Inventory)
+                if (_selected.Contains(it.Id)) { n++; scrap += _cfg.Balance.ScrapValue(it.Rarity, it.ItemLevel); }
+            _selSalvageLbl.text = $"Salvage {n} selected  (+{Num.CompactFloor(scrap)} scrap)";
+            _selSalvageBtn.interactable = n > 0;
+            _selSalvageBtn.GetComponent<Image>().color = n > 0 ? Theme.BtnDanger : Theme.BtnDisabledDark;
+        }
+
+        private void DoSalvageSelected()
+        {
+            var ids = new List<string>(_selected);
+            _selectMode = false; // done: back to browse mode on the post-salvage rebuild
+            _selected.Clear();
+            _sweeping = false;
+            _view.SalvageSelected(ids); // posts the feed line; stale ids skip inside the reducer
+            Rebuild();
+        }
+
         // ---- auto-equip-if-better toggle ----
 
         /// <summary>A simple on/off toggle (Lever 2): when on, a banked drop that's a genuine power
@@ -631,5 +785,28 @@ namespace IdleGame.Game
             rt.sizeDelta = new Vector2(w + Theme.GapS + ExtraWidth, rt.sizeDelta.y); // a hair wider than the button
             rt.anchoredPosition = new Vector2((bl.x + br.x) * 0.5f, bl.y - Theme.GapXs);
         }
+    }
+
+    /// <summary>
+    /// Pointer relay for bulk-select tiles (the <see cref="HoverProxy"/> class of component): press
+    /// toggles, press-drag sweeps via enter events, release ends the sweep (uGUI delivers pointer-up
+    /// to the pressed object even after the pointer leaves it, so the sweep can't stick on). The
+    /// empty drag handlers are load-bearing: they CLAIM the drag so the bag's ScrollRect doesn't
+    /// scroll the grid out from under a sweep (wheel scrolling is untouched; dragging from a
+    /// non-selectable tile or the gaps still scrolls).
+    /// </summary>
+    public sealed class SelectRelay : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
+                                      IPointerEnterHandler, IBeginDragHandler, IDragHandler, IEndDragHandler
+    {
+        public Action? OnPress;
+        public Action? OnRelease;
+        public Action? OnSweepEnter;
+
+        public void OnPointerDown(PointerEventData e) => OnPress?.Invoke();
+        public void OnPointerUp(PointerEventData e) => OnRelease?.Invoke();
+        public void OnPointerEnter(PointerEventData e) => OnSweepEnter?.Invoke();
+        public void OnBeginDrag(PointerEventData e) { }
+        public void OnDrag(PointerEventData e) { }
+        public void OnEndDrag(PointerEventData e) { }
     }
 }

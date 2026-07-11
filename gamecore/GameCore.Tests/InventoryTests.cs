@@ -325,6 +325,111 @@ namespace IdleGame.GameCore.Tests
             Assert.Same(save, next); // unchanged input handed back
         }
 
+        // --- SalvageMany (10.5c bulk-select): sweep semantics — ineligible ids skip silently ---
+
+        // Any affix whose stat is outside cfg.AffixPool reads as imprinted (SplashRadius is the
+        // established not-in-pool stat — same as the Reforge/loot-filter imprint tests).
+        private static Item Imprinted(string id, Rarity rarity = Rarity.Rare)
+        {
+            var it = It(id, rarity);
+            it.Affixes.Add(new Affix { Stat = StatKey.SplashRadius, Value = 1.2 });
+            return it;
+        }
+
+        [Fact]
+        public void SalvageManyScrapsExactlyTheListedItems()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            save = Inventory.AddItems(save, new[]
+            {
+                It("a", Rarity.Normal, "rusty_sword", 2),
+                It("b", Rarity.Rare, "rusty_sword", 3),
+                It("c", Rarity.Legendary, "rusty_sword", 5), // NOT selected — must survive
+            });
+            long expect = Cfg.Balance.ScrapValue(Rarity.Normal, 2) + Cfg.Balance.ScrapValue(Rarity.Rare, 3);
+
+            var (next, count, scrap) = Inventory.SalvageMany(save, new[] { "a", "b" }, Cfg);
+
+            Assert.Equal(2, count);
+            Assert.Equal(expect, scrap);
+            Assert.Equal(expect, next.Currencies["scrap"]);
+            Assert.DoesNotContain(next.Inventory, i => i.Id == "a");
+            Assert.DoesNotContain(next.Inventory, i => i.Id == "b");
+            Assert.Contains(next.Inventory, i => i.Id == "c");   // unselected survives
+            Assert.Equal(3, save.Inventory.Count);               // input untouched (pure)
+        }
+
+        [Fact]
+        public void SalvageManySkipsIneligibleIdsAndScrapsTheRest()
+        {
+            // A sweep, not a command: equipped/locked/guarded-imprint/unknown ids in the list are
+            // skipped silently (unlike SalvageItem, which throws) while the eligible rest scraps.
+            var save = Save.NewGame(1, Cfg, 0);
+            save = Inventory.AddItems(save, new[]
+            {
+                It("worn", Rarity.Rare, "rusty_sword"),
+                It("safe", Rarity.Rare, "leather_cap", 3),
+                Imprinted("imp"),
+                It("dies", Rarity.Rare, "leather_cap", 3),
+            });
+            save = Inventory.EquipItem(save, "h1", "worn", Cfg);
+            save = Inventory.ToggleLock(save, "safe");
+            long expect = Cfg.Balance.ScrapValue(Rarity.Rare, 3); // only "dies"
+
+            var (next, count, scrap) = Inventory.SalvageMany(save,
+                new[] { "worn", "safe", "imp", "ghost", "dies" }, Cfg);
+
+            Assert.Equal(1, count);
+            Assert.Equal(expect, scrap);
+            Assert.Contains(next.Inventory, i => i.Id == "worn"); // equipped survives
+            Assert.Contains(next.Inventory, i => i.Id == "safe"); // locked survives
+            Assert.Contains(next.Inventory, i => i.Id == "imp");  // guard defaults ON — imprint survives
+            Assert.DoesNotContain(next.Inventory, i => i.Id == "dies");
+        }
+
+        [Fact]
+        public void SalvageManyCreditsDuplicateIdsOnce()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            save = Inventory.AddItems(save, new[] { It("a", Rarity.Rare, "rusty_sword", 3) });
+            long expect = Cfg.Balance.ScrapValue(Rarity.Rare, 3);
+
+            var (next, count, scrap) = Inventory.SalvageMany(save, new[] { "a", "a", "a" }, Cfg);
+
+            Assert.Equal(1, count);
+            Assert.Equal(expect, scrap);
+            Assert.Empty(next.Inventory);
+        }
+
+        [Fact]
+        public void SalvageManyEmptyOrNoMatchListSharesTheInputRef()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            save = Inventory.AddItems(save, new[] { It("a") });
+
+            var (next, count, scrap) = Inventory.SalvageMany(save, new string[0], Cfg);
+            Assert.Equal(0, count);
+            Assert.Equal(0, scrap);
+            Assert.Same(save, next);
+
+            var (next2, count2, _) = Inventory.SalvageMany(save, new[] { "ghost" }, Cfg);
+            Assert.Equal(0, count2);
+            Assert.Same(save, next2);
+        }
+
+        [Fact]
+        public void SalvageManyWithGuardOffScrapsImprinted()
+        {
+            var save = Save.NewGame(1, Cfg, 0);
+            save = Inventory.AddItems(save, new[] { Imprinted("imp") });
+            save = Inventory.SetImprintGuard(save, false);
+
+            var (next, count, _) = Inventory.SalvageMany(save, new[] { "imp" }, Cfg);
+
+            Assert.Equal(1, count);
+            Assert.Empty(next.Inventory);
+        }
+
         // --- lock (per-item salvage protection) ---
 
         [Fact]

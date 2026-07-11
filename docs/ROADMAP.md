@@ -89,9 +89,10 @@ salvage paths refuse guarded imprints like Locked; legacy pref
 carried over once at boot then cleared; 715 tests). (b) SHIPPED
 2026-07-11 — CompareCard (best-FIELDED-hero delta: all-verdict headline,
 DPS/EHP, raw rows, benched fallback) in the bag pane; Heroes screen
-gains the cross-hero "▲ for X instead" line. (c) bulk-select salvage UI
-(tap-drag multi-select,
-locked items refuse as today); (d) set bonuses (design §6.1): 3 sets
+gains the cross-hero "▲ for X instead" line. (c) SHIPPED 2026-07-11 —
+`SalvageMany` (sweep contract: skips guarded/stale ids silently vs
+SalvageItem's throw; 720 tests) + bag Select mode (tap-toggle, sweep
+only SELECTS, guarded tiles get no relay). (d) set bonuses (§6.1): 3 sets
 per zone tier, 2pc/4pc bonuses as flat StatBlock adds in
 ComputeHeroStats (content-as-data, seeds at New Game); (e) per-hero
 gear loadout snapshots (save/apply, bag-integrity checked).

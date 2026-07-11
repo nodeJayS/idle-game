@@ -370,6 +370,42 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>
+        /// Bulk-salvage a hand-picked set of items (the select-mode "Salvage N selected" verb).
+        /// Ineligible ids — unknown, equipped, locked, or imprinted while the guard is on — are
+        /// SKIPPED silently rather than throwing: bulk is a sweep, not a command. The UI pre-filters
+        /// the selection, but the reducer must stay safe against races/stale ids — unlike
+        /// <see cref="SalvageItem"/>, which throws because a single deliberate action deserves a
+        /// loud failure. Duplicate ids credit once (the inventory is walked, not the list). Returns
+        /// the new save plus the salvaged count and scrap gained; a no-match call returns the input
+        /// save unchanged. Pure.
+        /// </summary>
+        public static (SaveState Save, int Count, long Scrap) SalvageMany(SaveState save, IReadOnlyList<string> itemIds, GameConfig cfg)
+        {
+            var wanted = new HashSet<string>(itemIds);
+            if (wanted.Count == 0) return (save, 0, 0);
+
+            var equipped = EquippedIds(save);
+            bool guard = save.Progress.Loot.NeverSalvageImprinted;
+            var nextInventory = new List<Item>(save.Inventory.Count);
+            int count = 0;
+            long scrap = 0;
+            foreach (var it in save.Inventory)
+            {
+                if (wanted.Contains(it.Id) && !it.Locked && !equipped.Contains(it.Id) && !(guard && IsImprinted(it, cfg)))
+                {
+                    count++;
+                    scrap += cfg.Balance.ScrapValue(it.Rarity, it.ItemLevel);
+                }
+                else
+                {
+                    nextInventory.Add(it);
+                }
+            }
+            if (count == 0) return (save, 0, 0);
+            return (Build(save, nextInventory, AddScrap(save.Currencies, scrap)), count, scrap);
+        }
+
+        /// <summary>
         /// Toggle an item's salvage <see cref="Item.Locked"/> flag (a locked item can never be salvaged).
         /// Works on BAG and EQUIPPED items alike — locking worn gear is meaningful (it stays locked when
         /// unequipped). No-op (returns the input save) on an unknown id. Pure: returns a new save with a

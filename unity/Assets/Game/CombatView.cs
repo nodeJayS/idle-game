@@ -692,6 +692,19 @@ namespace IdleGame.Game
                            new Color(0.7f, 0.8f, 1f));
         }
 
+        /// <summary>Bulk-select salvage (10.5c, InventoryView's select mode): scrap the hand-picked
+        /// ids via the pure sweep reducer + report the haul in the feed. No confirm step — the player
+        /// chose each item — and no error path: ineligible or stale ids skip silently inside
+        /// <see cref="Inventory.SalvageMany"/>, so a raced selection just salvages what it can.</summary>
+        public void SalvageSelected(List<string> itemIds)
+        {
+            var (next, count, scrap) = Inventory.SalvageMany(_save, itemIds, _cfg);
+            if (count == 0) return; // selection went stale before the click — nothing to report
+            _save = next;
+            _chat?.AddFeed($"Salvaged {count} selected  (+{Num.CompactFloor(scrap)} scrap)",
+                           new Color(0.7f, 0.8f, 1f));
+        }
+
         /// <summary>InventoryView's per-item Lock toggle: flip whether an item can ever be salvaged,
         /// via the pure reducer. Works on bag AND equipped gear.</summary>
         public void ToggleItemLock(string itemId) => _save = Inventory.ToggleLock(_save, itemId);
