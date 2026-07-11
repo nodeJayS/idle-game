@@ -58,8 +58,8 @@ before anyone acts on them:
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
-**NEXT UP: 10.3 UI/UX foundation refactor — the layout-group pass that
-every later screen (Goals hub, loot QoL) builds on. (Or the user's pick.)**
+**NEXT UP: 10.5 Loot QoL 2.0 — or the user's pick (crypt-tuning
+verdicts pending, "Your calls" #3).**
 
 Self-contained briefs for future sessions (any model); slice order =
 shipping order, each one-verified-slice-per-commit sized. Standing rules
@@ -70,30 +70,22 @@ achievement-claim UX · dungeon BFS build-reveal anim · tilt-shift
 band-blur · SDF jiggle-rope tail · crypt mid-run merchant/boon-draft
 (user cut 2026-07-07; must never dilute dust's permanent-boon role).
 
-**10.3 UI/UX foundation refactor (the deferred layout-group pass)**
-Hand-placed coords rot on every screen change; do the real fix in order:
-(a)+(b) SHIPPED 2026-07-10 — `Theme` token file + `PanelKit`
-(Window/Columns/Section/Row/cells/ListRow/TabBar/KeyValueRow, all
-layout-group driven; windows scale match-0.5 so ultrawide keeps its
-height) and the Heroes screen migrated: zero positional literals,
-Play-verified at 16:9/16:10/21:9. Kit lessons baked in: rows pin
-flexibleHeight=0 (force-expand HLGs report phantom flex) + minHeight;
-panel clips overflow. (c) SHIPPED 2026-07-10 — Inventory migrated
-(dropdown = canvas overlay on a DERIVED anchor via DropdownFollow;
-+12 Theme tokens, PanelKit.Stack; fixed the never-firing mass-salvage
-disarm timer). (d) SHIPPED 2026-07-11 — `PanelKit.Modal` (centered
-dialog; optional dim/border; NB force-expand rows clamp child flex
-to ≥1, so fixed-height cells need a non-expanding slot); outcome
-card (IMGUI DrawOutcome retired to uGUI OutcomeModal; HP-bar
-strike-through gated), idle claim + gacha (panel AND reveal beat)
-rebuilt layout-driven. (e) SHIPPED 2026-07-11 — Theme HUD tokens
-(HudPad/HudGap/HudBarH); quest/chat persisted rects healed by
-`KeepOnCanvas` (DISPLAY-ONLY by design: a clamp taken against a
-transient mid-switch canvas size must never overwrite the saved
-layout — it did, Play-caught, prefs repaired); party chips reserve
-the control-bar band via shared ControlBarVisible. Next: (f)
-glyph/font audit (single font asset, fallbacks). Acceptance: no
-hand-placed pixel coords in migrated screens.
+**10.3 UI/UX foundation refactor — COMPLETE 2026-07-11** (ledger below;
+receipts in git). Kit lessons that BITE, kept here for future screens:
+rows pin flexibleHeight=0 + minHeight (force-expand HLGs report phantom
+flex to their parent) BUT force-expand also clamps CHILD flex to ≥1, so
+a fixed-height cell inside a row needs a non-expanding VStack slot;
+windows/modals scale match-0.5 (match-width leaves ~540 canvas units at
+21:9 — vanishing labels = height starvation); `KeepOnCanvas` heals are
+DISPLAY-ONLY (persisting a clamp taken against a transient mid-switch
+canvas size clobbers the user's layout — happened, Play-caught).
+Font note: UIFont.ttf (+meta) is DELIBERATELY untracked; the importer
+fallback list (HYWenHei → Segoe UI Symbol → Segoe UI → Arial) is
+machine-local — re-apply on a fresh checkout. Glyph audit 2026-07-11:
+all 24 non-ASCII glyphs in UI strings covered by the primary face.
+Still hand-placed (deferred, NOT part of 10.3): Settings panel,
+TowerView, ModifierPanel, MainMenu — migrate opportunistically when
+next touched.
 
 **10.5 Loot QoL 2.0 (legibility at scale)**
 Late-game bags are noise. (a) loot filter: per-rarity auto-salvage
@@ -189,11 +181,12 @@ impact language belongs to 10.6b). 10.11 COMPLETE.
   Goals window (Today/Achievements/Login + claim-all + tomorrow
   preview) on PanelKit; control-bar pip; Achievements button + panel
   retired. Play-verified claim loop end-to-end.
-- 2026-07-10/11 10.3 (a)-(e): Theme tokens + PanelKit layout-group kit
+- 2026-07-10/11 10.3 COMPLETE: Theme tokens + PanelKit layout-group kit
   (+Modal); Heroes, Inventory, and the three modals (outcome / idle
   claim / gacha reveal) migrated — zero positional literals; HUD
-  anchoring (KeepOnCanvas heal, corner regions, HUD tokens); all
-  verified at 16:9/16:10/21:9; (f) font audit remains
+  anchoring (KeepOnCanvas display-only heal, corner regions, HUD
+  tokens); font audit (single UiKit.Font everywhere, 24/24 glyphs,
+  local importer fallbacks); all verified at 16:9/16:10/21:9
 - 2026-07-10 10.2 FTUE COMPLETE (design game-design §7.4): staged-reveal
   gating (`FeatureUnlocked` + New-Game arming), five guided intro beats
   (`IntroQuests`, now paying strictly in beat order), staged button
