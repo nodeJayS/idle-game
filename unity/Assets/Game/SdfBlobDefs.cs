@@ -60,6 +60,9 @@ namespace IdleGame.Game
                 { "grave_ooze", GraveOoze() },
                 { "bone_amalgam", BoneAmalgam() },
                 { "crypt_wraith", CryptWraith() },
+                // Molten + frost tier critters (10.10b) — same desaturation rule as the crypt trio.
+                { "magma_blob", MagmaBlob() },
+                { "frost_drifter", FrostDrifter() },
             };
             foreach (var def in d.Values) def.Height = TopOf(def.Prims);
             return d;
@@ -250,6 +253,67 @@ namespace IdleGame.Game
                     // A third, lower tail-wisp so the drift reads as torn cloth, not a tripod.
                     new() { name = "wisp_T", localPosition = new Vector3(0f, 0.34f, -0.26f),
                             radius = 0.13f, halfLength = 0f, color = wisp, blendK = 0.22f },
+                },
+            };
+        }
+
+        /// <summary>Magma Blob — the molten tier's hopper: dark basalt mass with EMBER nubs — the
+        /// orange dominates its channels outright (the 10.10a desaturation lesson) so it glows
+        /// against the lava floors without any hot emission. "Pulse" gait is slice (c); Hop until.</summary>
+        private static Def MagmaBlob()
+        {
+            // Play-tuned 2026-07-12: pass one's "cooled crust" brown was near-IDENTICAL to the
+            // molten floor (0.35,0.25,0.22) — a brown boulder. Obsidian-black mass + big bright
+            // ember masses is the contrast pair that survives; one ember faces the camera south.
+            Color basalt = new Color(0.15f, 0.13f, 0.14f);
+            Color ember  = new Color(0.92f, 0.46f, 0.14f);
+            Color core   = new Color(1.00f, 0.66f, 0.24f); // the top vent, brightest
+            return new Def
+            {
+                Family = SdfBlobAnimator.Family.Hop,
+                BoundsPadding = 0.6f, // hop arc + squash (the GraveOoze numbers)
+                // GROUND RULE (see MireSlime): authored resting on y=0.
+                Prims = new List<SdfBlobRig.PrimitiveDef>
+                {
+                    new() { name = "body", localPosition = new Vector3(0f, 0.50f, 0f),
+                            radius = 0.48f, halfLength = 0f, color = basalt, blendK = 0.34f },
+                    new() { name = "ember_F", localPosition = new Vector3(-0.20f, 0.34f, 0.34f),
+                            radius = 0.24f, halfLength = 0f, color = ember, blendK = 0.20f },
+                    new() { name = "ember_R", localPosition = new Vector3(0.40f, 0.42f, -0.04f),
+                            radius = 0.22f, halfLength = 0f, color = ember, blendK = 0.20f },
+                    // The vent: a bright core cresting the mass — crisp, breaking the silhouette
+                    // (the GraveOoze femur lesson).
+                    new() { name = "vent", localPosition = new Vector3(0.06f, 0.90f, 0f),
+                            radius = 0.19f, halfLength = 0f, color = core, blendK = 0.14f },
+                },
+            };
+        }
+
+        /// <summary>Frost Drifter — the frost tier's ranged floater: deep glacial blue-teal (the
+        /// frost floors are LIGHT, so contrast comes from going DARKER — the BoneAmalgam lesson
+        /// inverted) with a paler crystal crown breaking the top.</summary>
+        private static Def FrostDrifter()
+        {
+            Color ice    = new Color(0.30f, 0.48f, 0.66f); // deep glacial blue — blue dominates
+            Color crown  = new Color(0.52f, 0.72f, 0.88f); // pale crystal cap
+            Color shard  = new Color(0.26f, 0.40f, 0.56f); // trailing shards, darker
+            return new Def
+            {
+                Family = SdfBlobAnimator.Family.Float,
+                BoundsPadding = 0.4f, // hover ±0.15 + waft margin (the FenSpirit numbers)
+                // GROUND RULE + hover clearance (see FenSpirit).
+                Prims = new List<SdfBlobRig.PrimitiveDef>
+                {
+                    new() { name = "body", localPosition = new Vector3(0f, 0.76f, 0f),
+                            radius = 0.36f, halfLength = 0f, color = ice, blendK = 0.30f },
+                    // The crown: a crisp up-thrust crystal capsule cresting the body.
+                    new() { name = "crown", localPosition = new Vector3(0f, 1.16f, 0f),
+                            localEuler = new Vector3(0f, 0f, 12f),
+                            radius = 0.14f, halfLength = 0.18f, color = crown, blendK = 0.14f },
+                    new() { name = "shard_L", localPosition = new Vector3(-0.26f, 0.44f, -0.14f),
+                            radius = 0.14f, halfLength = 0f, color = shard, blendK = 0.22f },
+                    new() { name = "shard_R", localPosition = new Vector3(0.26f, 0.44f, -0.14f),
+                            radius = 0.14f, halfLength = 0f, color = shard, blendK = 0.22f },
                 },
             };
         }

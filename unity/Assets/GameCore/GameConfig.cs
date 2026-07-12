@@ -1229,6 +1229,21 @@ namespace IdleGame.GameCore
                                (StatKey.CritChance, 0.08), (StatKey.CritDmg, 1.5),
                                (StatKey.AttackRange, 3.2)), // > 2.0 => Combat treats it as ranged
             };
+            // 10.10b: one SDF critter per remaining crypt tier, so every band mixes shells in.
+            // Magma Blob (molten): tanky hopper welling up out of the lava floor.
+            cfg.Monsters["magma_blob"] = Trash("magma_blob", "Magma Blob", 55, 3.5, 2, 1.9, 0.75, 0, 18, 5);
+            cfg.Monsters["magma_blob"].SpawnStyle = "rise";
+            // Frost Drifter (frost): a ranged drifting ice mote — the crypt_wraith pattern, and the
+            // one monster whose icebolt is LITERALLY ice.
+            cfg.Monsters["frost_drifter"] = new MonsterDef
+            {
+                Id = "frost_drifter", Name = "Frost Drifter", LootTableId = "common", XpReward = 20, GoldReward = 6, Sprite = "frost_drifter",
+                AttackFx = "icebolt",
+                BaseStats = SB((StatKey.Hp, 30), (StatKey.Atk, 6), (StatKey.Def, 0),
+                               (StatKey.MoveSpd, 3.0), (StatKey.AtkSpd, 1.1),
+                               (StatKey.CritChance, 0.05), (StatKey.CritDmg, 1.5),
+                               (StatKey.AttackRange, 3.2)),
+            };
 
             cfg.Monsters["tide_crab"] = Trash("tide_crab", "Tide Crab", 55, 4, 3, 2.2, 0.75, 0, 12, 3);
             cfg.Monsters["storm_caller"] = Trash("storm_caller", "Storm Caller", 40, 6.5, 0, 3.0, 1.15, 0.06, 20, 6);
@@ -1284,13 +1299,13 @@ namespace IdleGame.GameCore
             cfg.CryptTiers.Add(new CryptTierDef
             {
                 ThemeKey = "molten",
-                TrashRoster = new List<string> { "magma_imp", "cinder_hound" },
+                TrashRoster = new List<string> { "magma_imp", "cinder_hound", "magma_blob" },
                 BossId = "ash_tyrant",
             });
             cfg.CryptTiers.Add(new CryptTierDef
             {
                 ThemeKey = "frost",
-                TrashRoster = new List<string> { "ice_sprite", "frost_wolf" },
+                TrashRoster = new List<string> { "ice_sprite", "frost_wolf", "frost_drifter" },
                 BossId = "glacier_golem",
             });
             // Three boon tracks — the grave-dust sink (permanent, account-wide).

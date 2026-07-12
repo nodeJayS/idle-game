@@ -157,8 +157,9 @@ bone amalgam (Walk, skull + spur) / crypt wraith (Float, ranged) join
 the crypt tier's 5-mob roster. Palette lesson: the crypt's dim
 warm-grey light DESATURATES — a hue must dominate its channels
 outright or it reads as rock (three Play-tuned passes);
-(b) molten + frost tier blobs (magma pulse-blob, frost drifter) so
-every crypt tier mixes at least one SDF critter into its roster;
+(b) SHIPPED 2026-07-12: magma blob (obsidian + ember masses — the
+floor-match trap again) + frost drifter (dark-on-light inversion);
+every crypt tier now mixes SDF shells into its roster;
 (c) ONE new gait family in SdfBlobAnimator (Your calls #6: Slither or
 Pulse); keep the IMonsterAnim feed shape unchanged;
 (d) an SDF ELITE/BOSS: one big multi-prim creature for a deep crypt
@@ -167,9 +168,8 @@ rigs if a boss silhouette needs more);
 (e) profile at packed-maze density (78+ mobs live today): per-blob
 mesh + MPB cost, subdivision level, cull distance — the acceptance
 gate before blobs go wide in dungeon rosters;
-(f) overworld backfill LAST: swap 2-3 faceted zone monsters whose
-silhouettes suit blending (bog_horror, chaos_spawn) — faceted Tunic
-look stays the art rule; SDF is a body style, not a restyle.
+(f) overworld backfill LAST (bog_horror, chaos_spawn) — faceted Tunic
+stays the art rule; SDF is a body style, not a restyle.
 
 **10.11 Hero look & skill-FX identity (user-assigned 2026-07-07 — NEXT)**
 The shipped heroes wear arbitrary MS2 outfits ("ugly hats") instead of
