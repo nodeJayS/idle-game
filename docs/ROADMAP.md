@@ -40,13 +40,11 @@ before anyone acts on them:
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
-**NEXT UP: 10.10(d) Slither boss → 10.6 juice / 10.9 audio /
-10.10(f). Perf SELF-VERIFIED 2026-07-12: `-benchmark` mode
-(save-sandboxed, uncapped, writes benchmark.json — run the exe on the
-laptop for a report); desktop\@720p 1.7-2.0ms avg, ~0 GC → GPU fill is
-the only weak-spec risk → 10.12(d) tiers SHIPPED. BUILD BUG fixed:
-code-only shaders were STRIPPED from standalone builds (the game had
-never been buildable) — custom shaders now live under Resources/.**
+**NEXT UP: 10.6 juice / 10.9 audio / 10.10(f) overworld backfill.
+Perf SELF-VERIFIED 2026-07-12 (`-benchmark` mode; desktop\@720p
+1.7-2.0ms avg, ~0 GC) — run the exe on the laptop for benchmark.json.
+BUILD BUG fixed: Shader.Find-only shaders get stripped from builds —
+custom shaders MUST live under Resources/.**
 
 **Crypt own-depth curve — SHIPPED 2026-07-12** (user verdict): floors
 anchor to `Crypt.StageEquivalent` (stage 8 at depth 1 → ~100 at 60,
@@ -164,12 +162,15 @@ over seg0..segN, tail-weighted, never rests; first user = crypt Bone
 Serpent, the (d) boss shape rehearsal) + Pulse (|sin|³ heartbeat, ±7%
 swell, quickens with travel; magma_blob on its named gait). Feed
 shape unchanged; both mechanics verified numerically in live combat;
-(d) an SDF ELITE/BOSS: one big multi-prim creature for a deep crypt
-tier — check the 16-prim uniform budget first (raise it or compose two
-rigs if a boss silhouette needs more);
+(d) SHIPPED 2026-07-13: Ossuary Wyrm, the crypt tier's OWN boss
+(nightmare_maw stays the campaign's; stats identical). 13/16 prims:
+z-lying capsule chain (sphere chains scallop at boss radii) + FAT
+far-jutting details riding the wave via the new nearest-seg rider
+binding; dark body + bleached skull (pale floors — contrast pairs);
+per-def Subdivisions (boss 12) shrinks seam membranes;
 (e) PASSED 2026-07-12 (no knobs turned): 512-640 tris + ≤2.1µs MPB
 push + ZERO GC per blob; 120 live ≈ 0.26ms/frame; shadows match
-faceted mobs. Blobs cleared to go wide — (d)/(f) unblocked;
+faceted mobs. Blobs cleared to go wide — (f) unblocked;
 (f) overworld backfill LAST (bog_horror, chaos_spawn) — faceted Tunic
 stays the art rule; SDF is a body style, not a restyle.
 

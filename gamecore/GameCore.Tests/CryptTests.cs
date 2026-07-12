@@ -267,6 +267,16 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void CryptTierFieldsItsOwnBoss()
+        {
+            // 10.10d content contract: the crypt tier fields the Ossuary Wyrm, not a borrowed
+            // campaign zone boss — and the wyrm is a real boss (boss loot table).
+            var crypt = Crypt.TierForFloor(1, Cfg)!;
+            Assert.Equal("ossuary_wyrm", crypt.BossId);
+            Assert.Equal("boss", Cfg.Monsters["ossuary_wyrm"].LootTableId);
+        }
+
+        [Fact]
         public void EncounterForFloorPicksTheDeepestBandAtOrBelowTheFloor()
         {
             // §7.3 depth-band table: 1 / 11 / 21 / 41 in Default(). The deepest MinDepth ≤ floor wins.

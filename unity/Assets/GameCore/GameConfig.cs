@@ -1260,6 +1260,12 @@ namespace IdleGame.GameCore
                                (StatKey.AttackRange, 3.2)),
             };
 
+            // Ossuary Wyrm (10.10d): the crypt's OWN boss — the SDF Slither showpiece the Bone
+            // Serpent rehearsed, replacing the borrowed nightmare_maw on the crypt tier (the maw
+            // stays the Gloom Hollow campaign boss). Stats are the maw's EXACTLY: this swap is an
+            // identity change, not a balance change (crypt curves were tuned 2026-07-11/12).
+            cfg.Monsters["ossuary_wyrm"] = BossMob("ossuary_wyrm", "Ossuary Wyrm", 190, 13, 3, 2.4, 0.85);
+
             cfg.Monsters["tide_crab"] = Trash("tide_crab", "Tide Crab", 55, 4, 3, 2.2, 0.75, 0, 12, 3);
             cfg.Monsters["storm_caller"] = Trash("storm_caller", "Storm Caller", 40, 6.5, 0, 3.0, 1.15, 0.06, 20, 6);
             cfg.Monsters["tempest_naga"] = BossMob("tempest_naga", "Tempest Naga", 185, 13, 3, 2.8, 1.0);
@@ -1309,7 +1315,9 @@ namespace IdleGame.GameCore
                 // 10.10a/c: the SDF blobs join the crypt band (bat + shade stay) — packs mix
                 // shells and faceted bodies across six roster slots.
                 TrashRoster = new List<string> { "cave_bat", "gloom_shade", "grave_ooze", "bone_amalgam", "crypt_wraith", "bone_serpent" },
-                BossId = "nightmare_maw",
+                // 10.10d: the crypt fields its OWN boss (SDF wyrm) instead of borrowing the
+                // Gloom Hollow zone boss — same stats, new identity.
+                BossId = "ossuary_wyrm",
             });
             cfg.CryptTiers.Add(new CryptTierDef
             {

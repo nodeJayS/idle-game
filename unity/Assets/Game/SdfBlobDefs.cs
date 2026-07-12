@@ -26,6 +26,8 @@ namespace IdleGame.Game
             public SdfBlobAnimator.Family Family;
             public float Height;         // health-bar anchor = TOP of the blob (see BuildDefs)
             public float BoundsPadding;  // world-space slack for the gait's peak excursion
+            public int Subdivisions = 9; // source-mesh density; bosses want more (seam membranes
+                                         // between deeply-overlapped prims shrink with vert count)
 
             /// <summary>A per-instance deep copy of the authored prims. The registry is STATIC and
             /// shared, but BuildMesh writes PrimitiveDef.node — so every spawned blob must get its
@@ -65,6 +67,8 @@ namespace IdleGame.Game
                 { "frost_drifter", FrostDrifter() },
                 // Slither's first user (10.10c) — and the shape rehearsal for the (d) boss.
                 { "bone_serpent", BoneSerpent() },
+                // The (d) boss itself: the crypt tier's own vault guardian, 15 of the 16-prim budget.
+                { "ossuary_wyrm", OssuaryWyrm() },
             };
             foreach (var def in d.Values) def.Height = TopOf(def.Prims);
             return d;
@@ -350,6 +354,87 @@ namespace IdleGame.Game
                             radius = 0.14f, halfLength = 0f, color = tail, blendK = 0.28f },
                     new() { name = "seg4", localPosition = new Vector3(0f, 0.11f, -0.74f),
                             radius = 0.11f, halfLength = 0f, color = tail, blendK = 0.26f },
+                },
+            };
+        }
+
+        /// <summary>Ossuary Wyrm (10.10d) — the crypt tier's BOSS: the bone_serpent shape at boss
+        /// scale, REARED — the head lifts off the ground cobra-style (grounded segments keep
+        /// y = radius, the ground rule; seg0/seg1 arch up), crowned with swept-back horns + jaw,
+        /// rib spurs mid-body, and one necrotic-green dorsal crest (green must dominate its
+        /// channels to survive the crypt light — the 10.10a lesson). Two edit-mode lessons baked
+        /// in (2026-07-13 captures): grounded segments are Z-LYING CAPSULES, not spheres — a
+        /// boss-radius sphere chain scallops like a caterpillar; and details at boss scale must
+        /// be FAT and jut FAR (the chubby-limb lesson compounds with body radius — an r 0.08 spur
+        /// on an r 0.3 body melts into a flat grey disc). Details ride the chain via the
+        /// animator's rider binding (nearest segment by rest pose: horns/jaw → seg0, crest →
+        /// seg1, spurs → seg3). 13 prims of the 16 budget (MAX_PRIMS check done 2026-07-13 — no
+        /// raise needed). Bosses spawn at root scale 1 (rank scale is non-boss only), so ALL of
+        /// the size lives here: ~2.8 units nose-to-tail vs the serpent's ~1.3.</summary>
+        private static Def OssuaryWyrm()
+        {
+            // CONTRAST PAIR, not a single hue (Play-tuned 2026-07-13): the trash serpents' ivory
+            // reads at their size, but a boss-sized ivory mass on the crypt's PALE floors was a
+            // washed-out carpet. So the body goes DARK exhumed bone (dark-on-light, the
+            // frost_drifter rule) and the bleached skull/horns/spurs stay the bright focal.
+            Color skull = new Color(0.84f, 0.80f, 0.66f);
+            Color mid   = new Color(0.44f, 0.41f, 0.34f);
+            Color tail  = new Color(0.32f, 0.30f, 0.25f);
+            Color jaw   = new Color(0.30f, 0.27f, 0.22f);
+            Color crest = new Color(0.30f, 0.55f, 0.33f);
+            return new Def
+            {
+                Family = SdfBlobAnimator.Family.Slither,
+                BoundsPadding = 0.5f, // lateral whip (±SlitherAmp, tail-weighted) + squash margin
+                Subdivisions = 12,    // ONE instance on screen — spend verts to shrink seam membranes
+                Prims = new List<SdfBlobRig.PrimitiveDef>
+                {
+                    // The chain, head → tail (prims order IS the animator's chain order): sphere
+                    // skull + sphere neck rearing up, then z-lying capsules (localEuler x=90 puts
+                    // the capsule axis along +Z) for a smooth dorsal line down to a sphere tail tip.
+                    new() { name = "seg0", localPosition = new Vector3(0f, 0.82f, 1.08f),
+                            radius = 0.40f, halfLength = 0f, color = skull, blendK = 0.26f },
+                    new() { name = "seg1", localPosition = new Vector3(0f, 0.56f, 0.76f),
+                            radius = 0.33f, halfLength = 0f, color = mid, blendK = 0.32f },
+                    new() { name = "seg2", localPosition = new Vector3(0f, 0.30f, 0.40f),
+                            localEuler = new Vector3(90f, 0f, 0f),
+                            radius = 0.30f, halfLength = 0.14f, color = mid, blendK = 0.32f },
+                    new() { name = "seg3", localPosition = new Vector3(0f, 0.26f, 0.00f),
+                            localEuler = new Vector3(90f, 0f, 0f),
+                            radius = 0.26f, halfLength = 0.14f, color = mid, blendK = 0.32f },
+                    new() { name = "seg4", localPosition = new Vector3(0f, 0.22f, -0.40f),
+                            localEuler = new Vector3(90f, 0f, 0f),
+                            radius = 0.22f, halfLength = 0.13f, color = tail, blendK = 0.32f },
+                    new() { name = "seg5", localPosition = new Vector3(0f, 0.18f, -0.76f),
+                            localEuler = new Vector3(90f, 0f, 0f),
+                            radius = 0.18f, halfLength = 0.12f, color = tail, blendK = 0.30f },
+                    new() { name = "seg6", localPosition = new Vector3(0f, 0.12f, -1.18f),
+                            radius = 0.12f, halfLength = 0f, color = tail, blendK = 0.28f },
+                    // Detail capsules: crisp (low blendK) and OVERSIZED so they clearly break the
+                    // fused surface (the GraveOoze femur lesson, scaled up). Horns splay WIDE, not
+                    // back — the diorama looks down at 45°, and a swept-back horn projects onto the
+                    // skull and vanishes (2026-07-13 capture); a wide V survives every yaw.
+                    new() { name = "horn_L", localPosition = new Vector3(-0.24f, 1.08f, 0.94f),
+                            localEuler = new Vector3(-10f, 0f, 58f),
+                            radius = 0.11f, halfLength = 0.30f, color = skull, blendK = 0.10f },
+                    new() { name = "horn_R", localPosition = new Vector3(0.24f, 1.08f, 0.94f),
+                            localEuler = new Vector3(-10f, 0f, -58f),
+                            radius = 0.11f, halfLength = 0.30f, color = skull, blendK = 0.10f },
+                    // The under-jaw, thrust forward-down past the skull — dark gristle snout notch.
+                    new() { name = "jaw", localPosition = new Vector3(0f, 0.50f, 1.44f),
+                            localEuler = new Vector3(75f, 0f, 0f),
+                            radius = 0.12f, halfLength = 0.16f, color = jaw, blendK = 0.12f },
+                    // Rib spurs flanking the mid-body (bind to seg3).
+                    new() { name = "spur_L", localPosition = new Vector3(-0.30f, 0.48f, 0.00f),
+                            localEuler = new Vector3(0f, 0f, 55f),
+                            radius = 0.10f, halfLength = 0.22f, color = skull, blendK = 0.10f },
+                    new() { name = "spur_R", localPosition = new Vector3(0.30f, 0.48f, 0.00f),
+                            localEuler = new Vector3(0f, 0f, -55f),
+                            radius = 0.10f, halfLength = 0.22f, color = skull, blendK = 0.10f },
+                    // The necrotic crest at the arch apex — the one colour accent (binds to seg1).
+                    new() { name = "crest", localPosition = new Vector3(0f, 1.00f, 0.55f),
+                            localEuler = new Vector3(-30f, 0f, 0f),
+                            radius = 0.10f, halfLength = 0.22f, color = crest, blendK = 0.12f },
                 },
             };
         }

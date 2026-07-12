@@ -93,6 +93,11 @@ namespace IdleGame.Game
         private readonly List<Node> _legNodes  = new(); // names starting "leg" — swing about the hip
         private readonly List<Node> _allNodes  = new(); // every prim node — Hop translates ALL of them
         private readonly List<Node> _segNodes  = new(); // "seg0".."segN" IN NAME ORDER — the slither chain
+        // Slither RIDERS (10.10d): non-seg detail prims (horns, jaw, spurs) bound to their nearest
+        // segment so they follow its lateral wave — without this a boss-scale skull slides out from
+        // under its own horns. Parallel lists; only PoseSlither reads them.
+        private readonly List<Node> _riderNodes = new();
+        private readonly List<int>  _riderSeg   = new();
 
         [SerializeField] private Family _family = Family.Walk;
 
@@ -213,6 +218,8 @@ namespace IdleGame.Game
             _legNodes.Clear();
             _allNodes.Clear();
             _segNodes.Clear();
+            _riderNodes.Clear();
+            _riderSeg.Clear();
             if (_rig == null) return;
 
             foreach (var pd in _rig.prims)
@@ -246,6 +253,23 @@ namespace IdleGame.Game
                 // Unknown prims (nubs/antennae) keep rest pose in Walk; in Hop they still ride the
                 // whole-blob arc because _allNodes holds every node.
             }
+
+            // Slither riders (10.10d): bind every non-seg prim to its NEAREST segment (by authored
+            // rest pose) so PoseRiders can copy that segment's positional delta each frame — a
+            // boss skull's horns/jaw track the head through the wave AND the attack/hit squash.
+            if (_segNodes.Count > 0)
+                foreach (var n in _allNodes)
+                {
+                    if (_segNodes.Contains(n)) continue;
+                    int best = 0; float bd = float.MaxValue;
+                    for (int i = 0; i < _segNodes.Count; i++)
+                    {
+                        float d2 = (n.restPos - _segNodes[i].restPos).sqrMagnitude;
+                        if (d2 < bd) { bd = d2; best = i; }
+                    }
+                    _riderNodes.Add(n);
+                    _riderSeg.Add(best);
+                }
         }
 
         private void Update()
@@ -274,6 +298,10 @@ namespace IdleGame.Game
             // NODE local-Y (a per-axis prim squash is impossible). Applied after the gait set the
             // rest-relative pose this frame, so they compose as an additional Y offset.
             LayerBodySquash(dt);
+
+            // Slither riders LAST so they inherit their segment's FINAL delta this frame — the
+            // wave from PoseSlither plus the squash the layer above just added to seg0.
+            if (_family == Family.Slither) PoseRiders();
 
             // The rig pushes on LateUpdate, but edit-mode LateUpdate isn't guaranteed each repaint —
             // push explicitly so the posed children reflect in the MPB immediately (SdfBlobWiggle
@@ -531,6 +559,22 @@ namespace IdleGame.Game
                 s.t.localPosition = p;
                 s.t.localRotation = s.restRot;
                 s.t.localScale = s.restScale;
+            }
+        }
+
+        /// <summary>Pose every Slither rider (non-seg detail prim) by copying its bound segment's
+        /// positional DELTA from rest — so horns/jaw/spurs follow the skull through the lateral
+        /// wave and the squash layer without re-deriving either. Rotation/scale stay at rest (the
+        /// wave never rotates segments; a rotated horn would read as wobble, not tracking).</summary>
+        private void PoseRiders()
+        {
+            for (int r = 0; r < _riderNodes.Count; r++)
+            {
+                var n = _riderNodes[r];
+                var seg = _segNodes[_riderSeg[r]];
+                n.t.localPosition = n.restPos + (seg.t.localPosition - seg.restPos);
+                n.t.localRotation = n.restRot;
+                n.t.localScale = n.restScale;
             }
         }
 

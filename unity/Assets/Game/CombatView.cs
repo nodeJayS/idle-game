@@ -1753,7 +1753,7 @@ namespace IdleGame.Game
                 var def = SdfBlobDefs.TryGet(e.RefId)!;
                 var blob = new GameObject(e.Id);
                 blobRig = blob.AddComponent<SdfBlobRig>();
-                blobRig.subdivisions = 9;
+                blobRig.subdivisions = def.Subdivisions; // 9 for trash; the boss spends more verts
                 blobRig.boundsPadding = def.BoundsPadding;
                 blobRig.prims = def.ClonePrims(); // per-instance copy — shared defs would stomp pd.node
                 blobRig.BuildMesh();
