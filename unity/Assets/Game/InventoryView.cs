@@ -231,30 +231,39 @@ namespace IdleGame.Game
                 return;
             }
 
+            // The identity block is Fixed-pinned (min = preferred): when the pane is over
+            // budget, the flexible fill below crushes first — these lines must never vanish
+            // (the height-starvation trap; the set-tell lines pushed a 1080p pane over once).
             // Locked items lead with a gold [L] tag (mirrors the tile badge) so the protection reads at a glance.
             string nameText = (item.Locked ? "[L] " : "") + StatDisplay.ItemName(item, _cfg);
             var nameLbl = PanelKit.Label(_detail, nameText, Theme.FsH2, Palette.Rarity(item.Rarity), TextAnchor.MiddleLeft);
             // Titled imprints ("Volatile … of Leeching") can run long — auto-shrink to fit one line.
             nameLbl.resizeTextForBestFit = true; nameLbl.resizeTextMaxSize = Theme.FsH2; nameLbl.resizeTextMinSize = MinNameFs;
+            PanelKit.Fixed(nameLbl.gameObject, height: 24f);
 
-            PanelKit.Label(_detail, StatDisplay.RarityName(item.Rarity), Theme.FsSmall,
+            var rar = PanelKit.Label(_detail, StatDisplay.RarityName(item.Rarity), Theme.FsSmall,
                 Palette.Rarity(item.Rarity), TextAnchor.MiddleLeft); // rarity as a status line
-            PanelKit.Label(_detail, $"{SlotOf(item)} · item level {item.ItemLevel}", Theme.FsSmall,
+            PanelKit.Fixed(rar.gameObject, height: 18f);
+            var slotLbl = PanelKit.Label(_detail, $"{SlotOf(item)} · item level {item.ItemLevel}", Theme.FsSmall,
                 Theme.TextBright, TextAnchor.MiddleLeft);
+            PanelKit.Fixed(slotLbl.gameObject, height: 18f);
             if (item.Enhance > 0)
-                PanelKit.Label(_detail, $"Enhanced +{item.Enhance} · +{item.Enhance * _cfg.Balance.EnhanceBasePctPerLevel * 100:0}% base stats",
+            {
+                var enhLbl = PanelKit.Label(_detail, $"Enhanced +{item.Enhance} · +{item.Enhance * _cfg.Balance.EnhanceBasePctPerLevel * 100:0}% base stats",
                     Theme.FsSmall, Theme.Good, TextAnchor.MiddleLeft);
+                PanelKit.Fixed(enhLbl.gameObject, height: 18f);
+            }
 
             var affixes = new List<Affix>(item.Affixes);
             affixes.Sort((x, z) => StatDisplay.Rank(x.Stat).CompareTo(StatDisplay.Rank(z.Stat)));
             foreach (var a in affixes)
             {
-                if (Loot.IsImprintStat(a.Stat, _cfg)) // mechanical-mod signature: flavor, not a raw number
-                    PanelKit.Label(_detail, $"✦ Imprinted — {StatDisplay.ImprintBlurb(a.Stat)}", Theme.FsSmall,
-                        Theme.Imprint, TextAnchor.MiddleLeft);
-                else
-                    PanelKit.Label(_detail, $"+{StatDisplay.Value(a.Stat, a.Value)} {StatDisplay.Label(a.Stat)}",
+                var affLbl = Loot.IsImprintStat(a.Stat, _cfg) // mechanical-mod signature: flavor, not a raw number
+                    ? PanelKit.Label(_detail, $"✦ Imprinted — {StatDisplay.ImprintBlurb(a.Stat)}", Theme.FsSmall,
+                        Theme.Imprint, TextAnchor.MiddleLeft)
+                    : PanelKit.Label(_detail, $"+{StatDisplay.Value(a.Stat, a.Value)} {StatDisplay.Label(a.Stat)}",
                         Theme.FsSmall, Theme.TextBright, TextAnchor.MiddleLeft);
+                PanelKit.Fixed(affLbl.gameObject, height: 18f);
             }
 
             PanelKit.Flex(_detail); // pin the action stack to the pane bottom
@@ -296,7 +305,9 @@ namespace IdleGame.Game
             var owner = EquippedByWhom(save, item.Id);
             if (owner != null)
             {
-                // Equipped gear can't be salvaged (the reducer throws) — show the owner instead.
+                // Equipped gear can't be salvaged (the reducer throws) — show the owner instead,
+                // with the §6.2 set tells counted against them (they're wearing it).
+                CompareCard.SetLines(_detail, save, item, _cfg, owner);
                 PanelKit.Label(_detail, $"Equipped by {HeroName(save, owner)}", Theme.FsLabel,
                     Theme.Info, TextAnchor.MiddleLeft);
                 return;

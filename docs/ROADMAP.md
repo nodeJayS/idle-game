@@ -89,12 +89,13 @@ DPS/EHP, raw rows, benched fallback) in the bag pane; Heroes screen
 gains the cross-hero "▲ for X instead" line. (c) SHIPPED 2026-07-11 —
 `SalvageMany` (sweep contract: skips guarded/stale ids silently vs
 SalvageItem's throw; 720 tests) + bag Select mode (tap-toggle, sweep
-only SELECTS, guarded tiles get no relay). (d) design locked §6.2;
-CORE SHIPPED 2026-07-11 (30 generated sets, Rare+ roll on the drop
-rng, 2pc/4pc flat adds in ComputeHeroStats; the ≤8% gate test FAILED
-1×/2× affix budgets — shipped 0.35×/0.7×; 733 tests); UI tells
-("«Set» n/4" + bonus lines) still to come. (e) per-hero gear
-loadout snapshots (save/apply, bag-integrity checked).
+only SELECTS, guarded tiles get no relay). (d) SHIPPED 2026-07-11
+(design §6.2): 30 generated sets, Rare+ roll on the drop rng, 2pc/4pc
+flat adds in ComputeHeroStats (the ≤8% gate test REJECTED 1×/2× affix
+budgets — shipped 0.35×/0.7×; 733 tests); set tells in both panes
+(name — n/4 + one rich-text bonus line; the third line starved the
+1080p pane — identity block now Fixed-pinned, ±0 derived rows skip).
+(e) per-hero gear loadout snapshots (save/apply, bag-integrity checked).
 
 **10.12 Performance & mobile-readiness (user report 2026-07-11: weak
 laptop OVERHEATS, textures pop in late; goal = playable on mobile)**

@@ -343,6 +343,9 @@ namespace IdleGame.Game
                     PanelKit.Label(_detail, $"+{StatDisplay.Value(a.Stat, a.Value)} {StatDisplay.Label(a.Stat)}", Theme.FsSmall, Theme.TextBright, TextAnchor.MiddleLeft);
             }
 
+            // §6.2 set tells vs the selected hero (n/4 counts the pieces they'd wear with this on).
+            CompareCard.SetLines(_detail, save, item, _cfg, _heroId);
+
             bool equippedHere = EquippedByWhom(save, item.Id) == _heroId;
             if (equippedHere)
             {

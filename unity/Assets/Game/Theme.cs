@@ -168,5 +168,9 @@ namespace IdleGame.Game
         public static readonly Color RevealNewTag = new(1f, 0.92f, 0.5f);
         public static readonly Color RevealSubTag = new(0.82f, 0.86f, 0.94f); // dupe tag + settle hint (hint at 0.85 alpha)
         public const int FsRevealName = 40;
+
+        /// <summary>Gear-set identity/bonus lines (§6.2) — teal, distinct from passive green
+        /// and Info blue; inactive bonus tiers fall back to <see cref="TextDim"/>.</summary>
+        public static readonly Color SetBonus = new(0.55f, 0.9f, 0.8f);
     }
 }
