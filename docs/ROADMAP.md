@@ -53,7 +53,8 @@ before anyone acts on them:
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
-**NEXT UP: 10.12(e) laptop verify → (d) tiers → 10.5c-e / user pick.**
+**NEXT UP: 10.12(e) laptop verify (USER) → (d) tiers → user pick
+(crypt verdicts #2-#8 waiting) → 10.6 juice / 10.8 endless.**
 
 Self-contained briefs; slice order = shipping order, one verified slice
 per commit. Standing rules apply (GameCore-first; MS2 = heroes only; no
@@ -79,23 +80,15 @@ hand-placed (deferred): Settings panel, TowerView, ModifierPanel,
 MainMenu — migrate opportunistically when next touched.
 
 **10.5 Loot QoL 2.0 (legibility at scale)**
-Late-game bags are noise. (a) SHIPPED 2026-07-11 — loot filter:
-`LootFilterState` on ProgressState (per-slot floors + imprint guard,
-guard defaults ON; `Inventory.WouldAutoSalvage` = THE predicate; all
-salvage paths refuse guarded imprints like Locked; legacy pref
-carried over once at boot then cleared; 715 tests). (b) SHIPPED
-2026-07-11 — CompareCard (best-FIELDED-hero delta: all-verdict headline,
-DPS/EHP, raw rows, benched fallback) in the bag pane; Heroes screen
-gains the cross-hero "▲ for X instead" line. (c) SHIPPED 2026-07-11 —
-`SalvageMany` (sweep contract: skips guarded/stale ids silently vs
-SalvageItem's throw; 720 tests) + bag Select mode (tap-toggle, sweep
-only SELECTS, guarded tiles get no relay). (d) SHIPPED 2026-07-11
-(design §6.2): 30 generated sets, Rare+ roll on the drop rng, 2pc/4pc
-flat adds in ComputeHeroStats (the ≤8% gate test REJECTED 1×/2× affix
-budgets — shipped 0.35×/0.7×; 733 tests); set tells in both panes
-(name — n/4 + one rich-text bonus line; the third line starved the
-1080p pane — identity block now Fixed-pinned, ±0 derived rows skip).
-(e) per-hero gear loadout snapshots (save/apply, bag-integrity checked).
+**COMPLETE 2026-07-11** (all five slices in one day; ledger below,
+receipts in git). Durable lessons kept: the SWEEP CONTRACT (bulk verbs
+— SalvageMany, Loadouts.Apply — skip stale/guarded entries silently;
+single deliberate verbs throw; state which in the doc comment); flat
+set bonuses on multiplier-ish stats (CritDmg/AtkSpd) explode late-tier
+— the §6.2 ≤8% gate test is the tuner, not eyes; additive fields on
+hand-copied models (Item.SetId, HeroInstance.Loadout) MUST be threaded
+through every copy site or a reducer silently strips them — grep
+`new Item`/`new HeroInstance` when adding one.
 
 **10.12 Performance & mobile-readiness (user report 2026-07-11: weak
 laptop OVERHEATS, textures pop in late; goal = playable on mobile)**
@@ -201,6 +194,13 @@ impact language belongs to 10.6b). 10.11 COMPLETE.
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-07-11 10.5 Loot QoL 2.0 COMPLETE: per-slot loot filter + imprint
+  guard · CompareCard compare-anywhere · SalvageMany + Select mode ·
+  §6.2 set bonuses (30 gen'd, gate-tuned ≤8%) + tells · loadout
+  snapshots. 699 → 738 tests, all Play-verified.
+- 2026-07-11 10.12(a-c2) perf: FrameCap 60/10 · StepCombat scratch
+  (~31→11 KB/f) · scenery combine (~1,514→~486 batches) · Prewarm.
+  (d) tiers + (e) laptop verify remain, gated on the user's test.
 - 2026-07-10 10.4 Goals hub COMPLETE (design §7.5): `Goals.Claimables`/
   `ClaimAll` read model + `DailyLogin.PreviewNext` (10 tests → 699);
   Goals window (Today/Achievements/Login + claim-all + tomorrow

@@ -278,6 +278,16 @@ namespace IdleGame.Game
                     tile.AddComponent<Button>().onClick.AddListener(() => ShowDetail(save, captured, slotIfEmpty: slot));
                     UiKit.Hover(tile, () => ShowDetail(save, captured, slotIfEmpty: slot), () => ShowHeroStats(save));
                 }
+
+            // Loadout snapshot verbs (10.5e): Save remembers this outfit; Wear re-equips every
+            // surviving piece (never strips a slot — stale pieces skip, see Loadouts.Apply).
+            var heroId = _heroId!;
+            var lRow = PanelKit.Row(section, Theme.RowHs);
+            PanelKit.ButtonCell(lRow, "Save loadout",
+                () => { _view.SaveLoadout(heroId); Rebuild(); }, fontSize: Theme.FsSmall);
+            PanelKit.ButtonCell(lRow, "Wear loadout",
+                () => { _view.ApplyLoadout(heroId); Rebuild(); }, fontSize: Theme.FsSmall,
+                enabled: hero.Loadout != null && hero.Loadout.Count > 0);
         }
 
         private static EquipSlot? FindCell(int col, int row)

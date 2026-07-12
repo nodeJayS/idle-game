@@ -715,6 +715,24 @@ namespace IdleGame.Game
         public void SetSalvageFloorAll(Rarity? max) => _save = Inventory.SetSalvageFloorAll(_save, max);
         public void SetImprintGuard(bool on) => _save = Inventory.SetImprintGuard(_save, on);
 
+        // Loadout snapshots (10.5e), same idiom. Apply feeds its outcome — the skipped count is
+        // the honest half of the sweep contract ("2 pieces unavailable" beats silence).
+        public void SaveLoadout(string heroId)
+        {
+            _save = Loadouts.SaveSnapshot(_save, heroId);
+            _chat?.AddFeed($"{HeroDisplayName(heroId)}'s loadout saved.", new Color(0.7f, 0.8f, 1f));
+        }
+
+        public void ApplyLoadout(string heroId)
+        {
+            var (next, applied, skipped) = Loadouts.Apply(_save, heroId, _cfg);
+            _save = next;
+            if (applied > 0) Combat.RefreshPartyStats(_combat, _save, _cfg); // worn gear changed mid-run
+            string tail = skipped > 0 ? $" ({skipped} piece{(skipped == 1 ? "" : "s")} unavailable)" : "";
+            _chat?.AddFeed($"{HeroDisplayName(heroId)} wears their loadout — {applied} equipped{tail}.",
+                new Color(0.7f, 0.8f, 1f));
+        }
+
         private bool AnyPanelOpen => _launchModals > 0
                                   || (_inventory != null && _inventory.IsOpen)
                                   || (_equipment != null && _equipment.IsOpen)

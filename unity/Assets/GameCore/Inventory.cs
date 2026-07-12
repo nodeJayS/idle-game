@@ -601,6 +601,7 @@ namespace IdleGame.GameCore
             Xp = hero.Xp,
             Equipped = equipped,
             SkillRanks = hero.SkillRanks,
+            Loadout = hero.Loadout,
         };
 
         private static SaveState WithHero(SaveState save, HeroInstance updated)

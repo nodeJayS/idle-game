@@ -81,6 +81,12 @@ namespace IdleGame.GameCore
         // persisted (see Skills.UnspentPoints). Threaded through every HeroInstance copy site,
         // or an equip/level edit silently resets it.
         public Dictionary<string, int> SkillRanks = new Dictionary<string, int>();
+        // Gear loadout snapshot (10.5e): slot -> itemId as of the last Loadouts.SaveSnapshot.
+        // null = never saved (additive field, no version bump). Item ids, not copies — an item
+        // that was salvaged/re-equipped since is simply skipped at apply time (bag integrity
+        // lives in Loadouts.Apply, not here). Threaded through every HeroInstance copy site,
+        // same rule as SkillRanks above.
+        public Dictionary<EquipSlot, string>? Loadout;
     }
 
     public sealed class Affix
