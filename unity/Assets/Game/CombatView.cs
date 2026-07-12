@@ -755,6 +755,7 @@ namespace IdleGame.Game
         {
             _save = save;
             _cfg = cfg;
+            _altSpeed2x = PlayerPrefs.GetInt("altSpeed2x", 0) == 1; // 2× alt-mode pref (client-side)
             _save = Quests.EnsureBoard(_save, _cfg); // backfill the goal board (new field on older saves)
             SyncIntro(); // FTUE: pay any guided-intro beat already earned at load (no-op on unarmed saves)
             BuildSpawnEffects();
@@ -825,6 +826,12 @@ namespace IdleGame.Game
         private void Update()
         {
             if (_combat == null) return;
+            // 2× speed for alt modes (user call 2026-07-12): timeScale doubles the sim accumulator
+            // AND every view animation coherently (all view code runs on scaled deltaTime; the
+            // fixed-step sim just steps twice as often — determinism untouched). Applied every
+            // frame so NO mode transition can leak a scaled clock back into the campaign.
+            Time.timeScale = _altSpeed2x && (_combat.Kind == EncounterKind.Dungeon
+                                             || _combat.Kind == EncounterKind.Tower) ? 2f : 1f;
             // Load boundary: while the loading screen covers the swap, the sim holds its breath —
             // the destination map takes its first step only once the player can see it (otherwise
             // dungeon mobs converge under the shroud and entry reads as "pre-aggroed", user-caught).
@@ -1501,6 +1508,19 @@ namespace IdleGame.Game
         private string _runSummary = "";
 
         private static long NowMs() => System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+        // 2× speed for alt modes (user call 2026-07-12): client-side pref, applied via
+        // Time.timeScale in Update (Dungeon/Tower ONLY — the campaign never scales).
+        // Loaded in Init, not a field initializer — Unity APIs off the constructor path.
+        private bool _altSpeed2x;
+
+        private void ToggleAltSpeed()
+        {
+            _altSpeed2x = !_altSpeed2x;
+            PlayerPrefs.SetInt("altSpeed2x", _altSpeed2x ? 1 : 0);
+            _chat?.AddFeed(_altSpeed2x ? "Speed: 2x (crypt & tower)" : "Speed: 1x",
+                           new Color(0.7f, 0.8f, 1f));
+        }
 
         /// <summary>Start a crypt RUN (Modes menu): tick the daily key recharge, consume a key, and
         /// LOAD into floor DepthRecord+1 — the world swap, the fresh dungeon CombatState, and the
@@ -2593,14 +2613,18 @@ namespace IdleGame.Game
                 if (Button(cx - 90, 90, 180, 44, "Flee")) FleeToFarm();
             }
             // Alt modes put an EXIT where the campaign's Challenge button lives (user call
-            // 2026-07-06): the way home is always in the same spot.
+            // 2026-07-06): the way home is always in the same spot. The 2× toggle (user call
+            // 2026-07-12, idle-standard; alt modes only — never the campaign) sits beside it,
+            // available from the moment the mode is, persisted client-side.
             else if (_combat.Kind == EncounterKind.Dungeon)
             {
                 if (Button(cx - 185, 90, 370, 46, "Exit Crypt", BtnStyleSm)) AbandonDungeonRun();
+                if (Button(cx + 195, 90, 70, 46, _altSpeed2x ? "2x" : "1x", BtnStyleSm)) ToggleAltSpeed();
             }
             else if (_combat.Kind == EncounterKind.Tower)
             {
                 if (Button(cx - 185, 90, 370, 46, $"Exit Tower — Floor {_combat.TowerFloor}", BtnStyleSm)) AbandonTowerRun();
+                if (Button(cx + 195, 90, 70, 46, _altSpeed2x ? "2x" : "1x", BtnStyleSm)) ToggleAltSpeed();
             }
 
             // Auto-push toggle — always available while running so it can be armed or cancelled

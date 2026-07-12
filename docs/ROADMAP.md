@@ -55,10 +55,10 @@ depth (key-bounded). Feel shapers: HP ×0.6 (rooms stay brisk) + atk
 +2%/floor (deep failure = WIPE, never a timeout). Chart: rare/L50
 walls at depth 31 by wipe; legendary/mid clears 60 at 200-400s sweeps.
 
-**2× speed toggle — alt modes (user verdict 2026-07-12).** Crypt +
-Tower get an idle-standard 2× button from mode unlock (campaign and
-endless stay 1×); persisted client-side. Likely Time.timeScale while
-the mode runs (fixed-step sim just steps faster), reset on exit.
+**2× speed toggle — SHIPPED 2026-07-12** (user verdict): Crypt + Tower
+get a 2x button beside Exit (campaign/endless stay 1×); Time.timeScale
+applied EVERY frame off the mode kind (no transition can leak a scaled
+clock), pref client-side. Play-verified: campaign pins 1, dungeon 2.
 
 Self-contained briefs; slice order = shipping order, one verified slice
 per commit. Standing rules apply (GameCore-first; MS2 = heroes only; no
