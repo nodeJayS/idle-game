@@ -152,11 +152,11 @@ The proven pipeline (SdfBlendShell shader + SdfBlobRig + SdfBlobAnimator
 with Hop/Walk/Float gaits, seamless smin bodies under faceted normals)
 reaches only 3 of 30+ monsters — and the crypt, where packs are densest
 and monsters are seen closest, uses none of it. Slices:
-(a) author a CRYPT-NATIVE blob family in SdfBlobDefs: grave ooze
-(Hop), bone amalgam (Walk — legs swing on the existing hip logic),
-crypt wraith (Float) — dark palettes with GENTLE glows; each needs a
-GameCore MonsterDef (stats/XP/gold, content-as-data) + CryptTierDef
-roster entry; new content seeds at New Game;
+(a) SHIPPED 2026-07-12: grave ooze (Hop, rise-spawn, femur tell) /
+bone amalgam (Walk, skull + spur) / crypt wraith (Float, ranged) join
+the crypt tier's 5-mob roster. Palette lesson: the crypt's dim
+warm-grey light DESATURATES — a hue must dominate its channels
+outright or it reads as rock (three Play-tuned passes);
 (b) molten + frost tier blobs (magma pulse-blob, frost drifter) so
 every crypt tier mixes at least one SDF critter into its roster;
 (c) ONE new gait family in SdfBlobAnimator (Your calls #6: Slither or

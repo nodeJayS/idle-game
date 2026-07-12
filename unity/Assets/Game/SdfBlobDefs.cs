@@ -55,6 +55,11 @@ namespace IdleGame.Game
                 { "mire_slime", MireSlime() },
                 { "bog_shambler", BogShambler() },
                 { "fen_spirit", FenSpirit() },
+                // Crypt-native trio (10.10a) — dark palettes, GENTLE lift (crypt floors are dim
+                // grey-blue; brightness comes from albedo contrast, never hot emission).
+                { "grave_ooze", GraveOoze() },
+                { "bone_amalgam", BoneAmalgam() },
+                { "crypt_wraith", CryptWraith() },
             };
             foreach (var def in d.Values) def.Height = TopOf(def.Prims);
             return d;
@@ -147,6 +152,104 @@ namespace IdleGame.Game
                             radius = 0.16f, halfLength = 0f, color = wisp, blendK = 0.22f },
                     new() { name = "wisp_R", localPosition = new Vector3(0.30f, 0.41f, -0.10f),
                             radius = 0.16f, halfLength = 0f, color = wisp, blendK = 0.22f },
+                },
+            };
+        }
+
+        /// <summary>Grave Ooze — the crypt tank: a fat low body with two side nubs (the mire_slime
+        /// silhouette) plus a half-swallowed BONE poking out of the mass — the "grave" tell. Sickly
+        /// necrotic green a hair brighter than the crypt's grey-blue floor so it wells up readable.
+        /// SpawnStyle "rise" (GameCore) does the emergence; Hop carries it after.</summary>
+        private static Def GraveOoze()
+        {
+            // Play-tuned 2026-07-12 (two passes): the crypt's dim warm-grey light DESATURATES —
+            // the first passes read as a mossy boulder. Green must dominate its channels outright
+            // to survive; equal-ish R/B reads grey on the lavender floors.
+            Color body = new Color(0.32f, 0.58f, 0.34f);
+            Color nub  = new Color(0.40f, 0.68f, 0.42f);
+            Color bone = new Color(0.78f, 0.75f, 0.62f); // the jutting femur — ivory, no glow
+            return new Def
+            {
+                Family = SdfBlobAnimator.Family.Hop,
+                BoundsPadding = 0.6f, // hop arc + squash margin (the MireSlime numbers)
+                // GROUND RULE (see MireSlime): authored resting on y=0.
+                Prims = new List<SdfBlobRig.PrimitiveDef>
+                {
+                    new() { name = "body", localPosition = new Vector3(0f, 0.52f, 0f),
+                            radius = 0.50f, halfLength = 0f, color = body, blendK = 0.35f },
+                    new() { name = "nub_L", localPosition = new Vector3(-0.40f, 0.40f, 0f),
+                            radius = 0.21f, halfLength = 0f, color = nub, blendK = 0.24f },
+                    new() { name = "nub_R", localPosition = new Vector3(0.40f, 0.40f, 0f),
+                            radius = 0.21f, halfLength = 0f, color = nub, blendK = 0.24f },
+                    // The bone: a thin capsule BREAKING THE SILHOUETTE at a jaunty angle — Play-caught
+                    // that a shy bone drowns in the mass; it must clear the body top from any camera
+                    // yaw. Small blendK so it stays crisp (a fused bone reads as a lump).
+                    new() { name = "bone", localPosition = new Vector3(0.24f, 0.90f, -0.10f),
+                            localEuler = new Vector3(0f, 0f, -38f),
+                            radius = 0.10f, halfLength = 0.26f, color = bone, blendK = 0.10f },
+                },
+            };
+        }
+
+        /// <summary>Bone Amalgam — the crypt walker: the BogShambler frame (body + head + two chubby
+        /// legs) in grave-bone ivory with dark joint-gristle legs, plus a shoulder spur so the
+        /// silhouette says "knot of bones", not "pale shambler".</summary>
+        private static Def BoneAmalgam()
+        {
+            // Play-tuned 2026-07-12: the first-pass ivory read as muddy "mud golem" brown in the
+            // crypt light — pushed toward real bleached bone so the fantasy lands.
+            Color mass = new Color(0.68f, 0.64f, 0.54f);
+            Color skull = new Color(0.80f, 0.76f, 0.64f);
+            Color joint = new Color(0.42f, 0.38f, 0.31f); // dark gristle legs
+            return new Def
+            {
+                Family = SdfBlobAnimator.Family.Walk,
+                BoundsPadding = 0.5f, // ±LegSwing excursion (the BogShambler numbers)
+                // GROUND RULE (see MireSlime): leg tips touch y=0, body/head stack above.
+                Prims = new List<SdfBlobRig.PrimitiveDef>
+                {
+                    new() { name = "body", localPosition = new Vector3(0f, 0.88f, 0f),
+                            radius = 0.48f, halfLength = 0f, color = mass, blendK = 0.30f },
+                    new() { name = "head", localPosition = new Vector3(0f, 1.46f, 0.08f),
+                            radius = 0.28f, halfLength = 0f, color = skull, blendK = 0.25f },
+                    // A jutting shoulder spur — crisp (low blendK) like the ooze's bone.
+                    new() { name = "spur", localPosition = new Vector3(-0.34f, 1.22f, -0.04f),
+                            localEuler = new Vector3(0f, 0f, 42f),
+                            radius = 0.10f, halfLength = 0.20f, color = skull, blendK = 0.12f },
+                    new() { name = "leg_L", localPosition = new Vector3(-0.24f, 0.43f, 0f),
+                            radius = 0.17f, halfLength = 0.26f, color = joint, blendK = 0.16f },
+                    new() { name = "leg_R", localPosition = new Vector3(0.24f, 0.43f, 0f),
+                            radius = 0.17f, halfLength = 0.26f, color = joint, blendK = 0.16f },
+                },
+            };
+        }
+
+        /// <summary>Crypt Wraith — the ranged floater: the FenSpirit frame in dark spectral purple
+        /// (the crypt's gloom accent), wisps trailing lower and further back so it drifts like torn
+        /// cloth. All tint in the albedo — the diorama bloom would wash any hot emission white.</summary>
+        private static Def CryptWraith()
+        {
+            Color shroud = new Color(0.40f, 0.34f, 0.54f); // dark spectral purple
+            Color crown  = new Color(0.52f, 0.46f, 0.68f); // brighter hood/crown
+            Color wisp   = new Color(0.33f, 0.28f, 0.45f); // trailing rags, darker
+            return new Def
+            {
+                Family = SdfBlobAnimator.Family.Float,
+                BoundsPadding = 0.4f, // hover ±0.15 + death-waft margin (the FenSpirit numbers)
+                // GROUND RULE + hover clearance (see FenSpirit): lowest wisp keeps ~0.10 at the dip.
+                Prims = new List<SdfBlobRig.PrimitiveDef>
+                {
+                    new() { name = "body", localPosition = new Vector3(0f, 0.78f, 0f),
+                            radius = 0.38f, halfLength = 0f, color = shroud, blendK = 0.32f },
+                    new() { name = "head", localPosition = new Vector3(0f, 1.20f, 0.02f),
+                            radius = 0.25f, halfLength = 0f, color = crown, blendK = 0.26f },
+                    new() { name = "wisp_L", localPosition = new Vector3(-0.26f, 0.42f, -0.16f),
+                            radius = 0.15f, halfLength = 0f, color = wisp, blendK = 0.22f },
+                    new() { name = "wisp_R", localPosition = new Vector3(0.26f, 0.42f, -0.16f),
+                            radius = 0.15f, halfLength = 0f, color = wisp, blendK = 0.22f },
+                    // A third, lower tail-wisp so the drift reads as torn cloth, not a tripod.
+                    new() { name = "wisp_T", localPosition = new Vector3(0f, 0.34f, -0.26f),
+                            radius = 0.13f, halfLength = 0f, color = wisp, blendK = 0.22f },
                 },
             };
         }

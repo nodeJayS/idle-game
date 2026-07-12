@@ -1209,6 +1209,27 @@ namespace IdleGame.GameCore
             cfg.Monsters["gloom_shade"] = Trash("gloom_shade", "Gloom Shade", 46, 6, 1, 3.0, 1.0, 0.10, 20, 6);
             cfg.Monsters["nightmare_maw"] = BossMob("nightmare_maw", "Nightmare Maw", 190, 13, 3, 2.4, 0.85);
 
+            // ---- Crypt-native SDF blob family (10.10a): joins the crypt tier's roster where packs
+            // are densest and monsters seen closest (cave_bat + gloom_shade stay). Same flavor-not-
+            // power rule as the swamp trio: the tank / walker / ranged-glass triangle, stats inside
+            // the crypt-tier envelope. Client blob shells live in SdfBlobDefs, keyed by these ids.
+            // Grave Ooze: the tank — most HP, least damage, slowest; wells UP out of the crypt floor.
+            cfg.Monsters["grave_ooze"] = Trash("grave_ooze", "Grave Ooze", 60, 2.5, 2, 1.7, 0.7, 0, 16, 4);
+            cfg.Monsters["grave_ooze"].SpawnStyle = "rise";
+            // Bone Amalgam: the middling melee walker — a shambling knot of grave-bones.
+            cfg.Monsters["bone_amalgam"] = Trash("bone_amalgam", "Bone Amalgam", 50, 4.5, 2, 2.4, 0.8, 0.02, 20, 5);
+            // Crypt Wraith: fast, fragile, genuinely RANGED (the fen_spirit pattern — authored inline
+            // for AttackRange > 2.0 and a projectile hint; the pale-ice bolt reads as a spectral mote).
+            cfg.Monsters["crypt_wraith"] = new MonsterDef
+            {
+                Id = "crypt_wraith", Name = "Crypt Wraith", LootTableId = "common", XpReward = 22, GoldReward = 6, Sprite = "crypt_wraith",
+                AttackFx = "icebolt",
+                BaseStats = SB((StatKey.Hp, 26), (StatKey.Atk, 6.5), (StatKey.Def, 0),
+                               (StatKey.MoveSpd, 3.4), (StatKey.AtkSpd, 1.2),
+                               (StatKey.CritChance, 0.08), (StatKey.CritDmg, 1.5),
+                               (StatKey.AttackRange, 3.2)), // > 2.0 => Combat treats it as ranged
+            };
+
             cfg.Monsters["tide_crab"] = Trash("tide_crab", "Tide Crab", 55, 4, 3, 2.2, 0.75, 0, 12, 3);
             cfg.Monsters["storm_caller"] = Trash("storm_caller", "Storm Caller", 40, 6.5, 0, 3.0, 1.15, 0.06, 20, 6);
             cfg.Monsters["tempest_naga"] = BossMob("tempest_naga", "Tempest Naga", 185, 13, 3, 2.8, 1.0);
@@ -1255,7 +1276,9 @@ namespace IdleGame.GameCore
             cfg.CryptTiers.Add(new CryptTierDef
             {
                 ThemeKey = "crypt",
-                TrashRoster = new List<string> { "cave_bat", "gloom_shade" },
+                // 10.10a: the SDF blob trio joins the crypt band (bat + shade stay) — five-mob
+                // roster like the swamp zone, so packs mix shells and faceted bodies.
+                TrashRoster = new List<string> { "cave_bat", "gloom_shade", "grave_ooze", "bone_amalgam", "crypt_wraith" },
                 BossId = "nightmare_maw",
             });
             cfg.CryptTiers.Add(new CryptTierDef
