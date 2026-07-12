@@ -113,6 +113,24 @@ namespace IdleGame.GameCore.Tests
             Assert.Throws<ArgumentOutOfRangeException>(() => Progression.SetStage(low, 52, Cfg));
         }
 
+        [Fact]
+        public void MaxSelectableStageIsTheOneSelectionRule()
+        {
+            // The client's stage nav reads this helper; it must agree with SetStage's acceptance.
+            var low = Fresh();
+            low.Progress.HighestStage = 50;
+            Assert.Equal(51, Progression.MaxSelectableStage(low, Cfg));
+
+            var edge = Fresh();
+            edge.Progress.HighestStage = 100; // campaign complete, nothing endless yet
+            Assert.Equal(101, Progression.MaxSelectableStage(edge, Cfg));
+
+            var deep = Fresh();
+            deep.Progress.HighestStage = 100;
+            deep.Progress.EndlessBest = 5;
+            Assert.Equal(106, Progression.MaxSelectableStage(deep, Cfg));
+        }
+
         // ---------------- migration ----------------
 
         [Fact]

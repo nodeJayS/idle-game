@@ -285,9 +285,7 @@ namespace IdleGame.GameCore
         /// </summary>
         public static SaveState SetStage(SaveState save, int stage, GameConfig cfg)
         {
-            int maxSelectable = save.Progress.HighestStage >= cfg.Stages.Count
-                ? cfg.Stages.Count + save.Progress.EndlessBest + 1
-                : Math.Min(save.Progress.HighestStage + 1, cfg.Stages.Count);
+            int maxSelectable = MaxSelectableStage(save, cfg);
             if (stage < 1 || stage > maxSelectable)
                 throw new ArgumentOutOfRangeException(nameof(stage),
                     $"SetStage: {stage} out of range (1..{maxSelectable})");
@@ -306,6 +304,15 @@ namespace IdleGame.GameCore
                 Loot = save.Progress.Loot,
             });
         }
+
+        /// <summary>The deepest stage <see cref="SetStage"/> accepts — the ONE selection rule,
+        /// shared with the client's stage nav so the ▶ arrow and the reducer can't drift apart.
+        /// Campaign: HighestStage + 1, capped to the table. Campaign complete: the next
+        /// uncleared endless depth (Stages.Count + EndlessBest + 1).</summary>
+        public static int MaxSelectableStage(SaveState save, GameConfig cfg) =>
+            save.Progress.HighestStage >= cfg.Stages.Count
+                ? cfg.Stages.Count + save.Progress.EndlessBest + 1
+                : Math.Min(save.Progress.HighestStage + 1, cfg.Stages.Count);
 
         // Clone the save with a new ProgressState; everything else shares refs.
         private static SaveState WithProgress(SaveState save, ProgressState progress) => new SaveState

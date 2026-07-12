@@ -2524,14 +2524,9 @@ namespace IdleGame.Game
         private int _stageLabelStage = -1;
 
         /// <summary>Stage def lookup without the per-frame List.Find closure (it captured `this`
-        /// every OnGUI). Manual scan — the stage list is small and ordered.</summary>
-        private StageDef? FindStage(int stage)
-        {
-            var list = _cfg.Stages;
-            for (int i = 0; i < list.Count; i++)
-                if (list[i].Stage == stage) return list[i];
-            return null;
-        }
+        /// every OnGUI). Delegates to StageFor, which scans the table without a closure and
+        /// memo-hits endless rows — so this stays allocation-free per frame either way.</summary>
+        private StageDef? FindStage(int stage) => _cfg.StageFor(stage);
 
         private GUIStyle? _walletStyle;
         private void DrawWalletLine(float x, ref float y, string text, Color color, float w = 260f)
@@ -2550,15 +2545,28 @@ namespace IdleGame.Game
             if (_combat.Kind == EncounterKind.Farm)
             {
                 int cur = _save.Progress.CurrentStage;
-                int maxStage = Mathf.Min(_save.Progress.HighestStage + 1, _cfg.Stages.Count);
+                int maxStage = Progression.MaxSelectableStage(_save, _cfg); // the ONE selection rule (endless-aware)
 
                 var st = _stageNavStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
-                // "Stage N" re-interpolates only when the stage changes (a per-frame string
-                // otherwise — the steady-state farm HUD should allocate nothing).
-                if (_stageLabel == null || _stageLabelStage != cur) { _stageLabelStage = cur; _stageLabel = $"Stage {cur}"; }
+                // The label re-interpolates only when the stage changes (a per-frame string
+                // otherwise — the steady-state farm HUD should allocate nothing). Past the
+                // campaign table the chase is framed by DEPTH, matching EndlessBest.
+                if (_stageLabel == null || _stageLabelStage != cur)
+                {
+                    _stageLabelStage = cur;
+                    _stageLabel = cur > _cfg.Stages.Count ? $"Endless {cur - _cfg.Stages.Count}" : $"Stage {cur}";
+                }
                 GUI.Label(new Rect(cx - 90, 44, 180, 40), _stageLabel, st);
                 if (cur > 1 && Button(cx - 162, 46, 46, 38, "◀")) GoToStage(cur - 1);
-                if (cur < maxStage && Button(cx + 116, 46, 46, 38, "▶")) GoToStage(cur + 1);
+                if (cur < maxStage)
+                {
+                    // The frontier crossing gets its own beat: at a finished campaign's stage 100
+                    // the ▶ becomes the 10.8 "Push beyond…" affordance (same GoToStage underneath).
+                    bool frontier = cur == _cfg.Stages.Count;
+                    if (frontier ? Button(cx + 116, 46, 210, 38, "Push beyond…", BtnStyleSm)
+                                 : Button(cx + 116, 46, 46, 38, "▶"))
+                        GoToStage(cur + 1);
+                }
 
                 bool major = FindStage(cur)?.IsMajorBoss == true;
                 if (Button(cx - 185, 90, 370, 46, major ? "Challenge ★ Major Boss" : "Challenge Miniboss", BtnStyleSm)) ChallengeBoss();

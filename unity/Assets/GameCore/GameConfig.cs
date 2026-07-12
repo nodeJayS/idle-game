@@ -808,12 +808,15 @@ namespace IdleGame.GameCore
         /// AND no zones, which returns null so DerivedStats/Idle keep their empty-config guard.</summary>
         public StageDef? StageFor(int stage)
         {
-            var configured = Stages.Find(r => r.Stage == stage);
-            if (configured != null) return configured;
+            // Memo first: generated rows exist only for stages past the table, so this can't
+            // shadow a configured row — and it keeps repeat endless lookups (spawn paths,
+            // per-frame HUD reads) off the table scan entirely (10.12b).
+            if (_endlessRows.TryGetValue(stage, out var cached)) return cached;
+            for (int i = 0; i < Stages.Count; i++)          // manual scan — no closure alloc
+                if (Stages[i].Stage == stage) return Stages[i];
             if (Stages.Count == 0 && Zones.Count == 0) return null;
             if (Stages.Count > 0 && stage <= Stages[Stages.Count - 1].Stage)
                 return Stages[0]; // hole inside the table: legacy fallback, unchanged
-            if (_endlessRows.TryGetValue(stage, out var cached)) return cached;
 
             int tier = Balance.Tier(stage);
             var row = new StageDef
