@@ -48,7 +48,7 @@ before anyone acts on them:
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
 **NEXT UP: 10.12(e) laptop verify (USER) → (d) tiers → user pick
-(verdicts #2/#4-#8 waiting) → 10.6 juice / 10.8 endless.**
+(verdicts #2/#4-#8 waiting) → 10.6 juice / 10.9 audio / 10.10 SDF.**
 
 Self-contained briefs; slice order = shipping order, one verified slice
 per commit. Standing rules apply (GameCore-first; MS2 = heroes only; no
@@ -69,9 +69,8 @@ DISPLAY-ONLY (persisting a clamp taken against a transient mid-switch
 canvas size clobbers the user's layout — happened, Play-caught).
 Font: UIFont.ttf (+meta) DELIBERATELY untracked; importer fallbacks
 (HYWenHei → Segoe UI Symbol → Segoe UI → Arial) are machine-local —
-re-apply on fresh checkout. Glyph audit: 24/24 covered. Still
-hand-placed (deferred): Settings panel, TowerView, ModifierPanel,
-MainMenu — migrate opportunistically when next touched.
+re-apply on fresh checkout. Glyph audit: 24/24 covered. Still hand-
+placed (migrate when touched): Settings, TowerView, ModifierPanel, MainMenu.
 
 **10.5 Loot QoL 2.0 (legibility at scale)**
 **COMPLETE 2026-07-11** (all five slices in one day; ledger below,
@@ -121,7 +120,7 @@ pooled); (e) kill-streak feedback: N kills in 2s → small screen pulse +
 feed line; (f) sound mix bus: SFX ducking under big moments, volume
 sliders in Settings (foundation for 10.9).
 
-**10.8 Endless mode ("deepest stage") — IN PROGRESS**
+**10.8 Endless mode ("deepest stage") — COMPLETE 2026-07-12**
 (a) SHIPPED 2026-07-11: `GameConfig.StageFor` generates rows past the
 table (boot formulas, memoized; scaling continues at the gentle
 last-tier rates), zones cycle, EndlessBest in ProgressState (v3),
@@ -132,8 +131,10 @@ every 5th NEW depth (gold/XP/loot formulas already extend past the
 table). (d) SHIPPED 2026-07-12: BalanceSim `endless` mode; rate taper
 EndlessRateGrowth 1.02 past the table (raw ×2.2/tier OVERFLOWED long
 gold by depth ~200 — sim-caught); endgame entry power walls ~depth 91,
-economy ×2.3 over the push, idle-farmable to ~186. NEXT (e) record on
-the account panel + feed line.
+economy ×2.3 over the push, idle-farmable to ~186. (e) SHIPPED
+2026-07-12: depth record on the account chip (change-only poll) +
+record/milestone feed beats — Play-verified through a real depth-5
+clear (record line, +10 gems, chip label).
 
 **10.9 Audio identity (original, adaptive — NO MS2 music ever)**
 The game is silent between SFX. (a) pick/produce 3 original loop beds
@@ -232,16 +233,15 @@ impact language belongs to 10.6b). 10.11 COMPLETE.
 - 2026-07-07 10.11 complete: wardrobe browser, hero relooks
   (user-picked), FxKit procedural FX for all projectiles (`638d356`..)
 - 2026-07-07 Projectile release-frame launch (`b91359d`) · anim feel: wing flap + swing/cast stutter fix (`0c5e1d4`)
-- 2026-07-07 Balance sim (walls|sweep|farm) + wall findings (`4635483`)
-- 2026-07-07 Project audit: dead files, stale docs, clean sweep (`ed3d347`)
-- 2026-07-06 Crypt meta: keys, 3-floor runs, chest, boons (`7462d84`, `14ca7a5`)
-- 2026-07-06 Dungeon mode ×5 passes → packed maze + room aggro (`ba378d7`..`a10135a`)
+- 2026-07-07 Balance sim (walls|sweep|farm) + wall findings · project
+  audit (`4635483`, `ed3d347`)
+- 2026-07-06 Crypt meta (keys/runs/chests/boons) · dungeon mode ×5
+  passes → packed maze + room aggro (`7462d84`..`a10135a`)
 - 2026-07-05 Terrain slices 1+2 · presentation debt · ranged feel ·
   Tower gems/quest rework/modifier UX (`24cf528`..`92f8588`)
 - 2026-07-04/05 SDF blend-shell (shader → gaits → swamp trio) · party
   feel batch: formation, kite/peel, leader UI (`5f17ce1`..`8364850`)
-- 2026-07-03/04 Gacha MVP + Ice Mage banner · monster procedural anim ·
-  combat-feel/QoL batch
+- 2026-07-03/04 Gacha MVP + Ice Mage banner · monster anim · QoL batch
 
 ## Standing rules (short — CLAUDE.md has the full set)
 GameCore-first, one verified slice per commit. Monsters faceted only (MS2 =

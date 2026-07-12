@@ -16,8 +16,11 @@ namespace IdleGame.Game
         private Action _onMainMenu = () => { };
         private GameObject? _settings;
         private Text _nameLabel = null!;
+        private CombatView? _view;
+        private Text? _recordLabel;
+        private int _recordShown = -1;
 
-        public void Bind(CombatView view, Action onMainMenu) => _onMainMenu = onMainMenu;
+        public void Bind(CombatView view, Action onMainMenu) { _view = view; _onMainMenu = onMainMenu; }
 
         public void Open()
         {
@@ -36,8 +39,26 @@ namespace IdleGame.Game
                                      new Vector2(300, 30), Vector2.zero);
             Anchor((RectTransform)_nameLabel.transform, new Vector2(84, -30));
 
+            // 10.8e: the account chip carries the endless depth record (the Phase-C leaderboard
+            // seam). Hidden (empty) until the first endless clear; Update() polls change-only.
+            _recordLabel = UiKit.Label(canvas.transform, "", 15, TextAnchor.MiddleLeft,
+                                       new Vector2(300, 22), Vector2.zero);
+            _recordLabel.color = new Color(1f, 0.82f, 0.32f, 0.95f);
+            Anchor((RectTransform)_recordLabel.transform, new Vector2(84, -54));
+
             var gear = UiKit.TextButton(canvas.transform, "Settings", new Vector2(104, 34), Vector2.zero, ToggleSettings, 18);
             Anchor((RectTransform)gear.transform, new Vector2(Theme.HudPad, -80));
+        }
+
+        // Change-only poll: the record label re-interpolates its string ONLY when EndlessBest
+        // moves (the _stageLabel pattern — the steady-state HUD must allocate nothing).
+        private void Update()
+        {
+            if (_recordLabel == null || _view == null) return;
+            int r = _view.EndlessRecord;
+            if (r == _recordShown) return;
+            _recordShown = r;
+            _recordLabel.text = r > 0 ? $"Endless depth {r}" : "";
         }
 
         private static void Anchor(RectTransform rt, Vector2 pos)

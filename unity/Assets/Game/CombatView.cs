@@ -485,6 +485,9 @@ namespace IdleGame.Game
         public bool CanEditParty => _combat != null
             && _combat.Kind == EncounterKind.Farm && _combat.Status == CombatStatus.Running;
 
+        /// <summary>Deepest endless depth cleared — the TopBar account chip's record line (10.8e).</summary>
+        public int EndlessRecord => _save == null ? 0 : _save.Progress.EndlessBest;
+
         /// <summary>Apply a roster field/bench to the LIVE farm without restarting: persist the
         /// new save and hot-swap the party's combat entities in place so the run continues
         /// uninterrupted. Outside a running farm it only persists (the roster disables swaps
@@ -1207,11 +1210,24 @@ namespace IdleGame.Game
                 // FTUE snapshots (§7.4): the highest-stage crossing drives reveal toasts + the first-boss
                 // beat; the roster diff catches heroes granted by OnStageCleared's SyncHeroUnlocks path.
                 int highestBefore = _save.Progress.HighestStage;
+                int endlessBefore = _save.Progress.EndlessBest;
                 var heroesBefore = new HashSet<string>();
                 foreach (var hb in _save.Heroes) heroesBefore.Add(hb.Id);
 
                 _save = Progression.OnStageCleared(_save, cleared, _cfg); // also syncs modifiers to depth
-                _chat?.AddFeed($"Stage {cleared} cleared!", new Color(0.55f, 0.9f, 0.55f));
+                bool endless = cleared > _cfg.Stages.Count;
+                _chat?.AddFeed(endless ? $"Endless {cleared - _cfg.Stages.Count} cleared!"
+                                       : $"Stage {cleared} cleared!", new Color(0.55f, 0.9f, 0.55f));
+                // The 10.8 chase beat: a NEW depth record gets its own line (the Phase-C
+                // leaderboard voice), and every gem milestone surfaces its pay.
+                if (_save.Progress.EndlessBest > endlessBefore)
+                {
+                    _chat?.AddFeed($"New endless record — depth {_save.Progress.EndlessBest}!",
+                                   new Color(1f, 0.82f, 0.32f));
+                    if (_save.Progress.EndlessBest % Mathf.Max(1, _cfg.Balance.EndlessGemsEvery) == 0)
+                        _chat?.AddFeed($"+{_cfg.Balance.EndlessGemsPerMilestone} gems — endless milestone!",
+                                       new Color(0.65f, 0.85f, 1f));
+                }
                 Award(AchievementMetric.BossesKilled, 1);                          // stage boss down (Lever 4)
                 Award(AchievementMetric.HighestStage, _save.Progress.HighestStage); // deepest-stage milestone
 
