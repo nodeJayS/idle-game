@@ -48,9 +48,11 @@ namespace IdleGame.GameCore.Tests
         // authored spawns are seeded; the party-placement loop is a no-op), then inject synthetic
         // super-heroes at the entrance room centre (Clamp'd onto the grid) so the party can't lose. This
         // exercises the real spawn-seeding while keeping a guaranteed-steamroll party for the sweep test.
-        private static CombatState StrongDungeon(Dungeon d, int stage = 1, uint rngSeed = 1)
+        private static CombatState StrongDungeon(Dungeon d, int stage = 1, uint rngSeed = 1,
+                                                 double rewardMult = 1.0)
         {
-            var s = Combat.InitDungeon(new List<HeroInstance>(), stage, d, Roster, BossId, Cfg, new Rng(rngSeed));
+            var s = Combat.InitDungeon(new List<HeroInstance>(), stage, d, Roster, BossId, Cfg, new Rng(rngSeed),
+                                       rewardMult: rewardMult);
             s.Tactic = PartyTactic.Solo;
             var a = s.Dungeon!;
             var entrance = a.EntranceCentre();
@@ -776,6 +778,40 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(d.Chests.Count, opened.Distinct().Count());
             Assert.True(s.PendingDust > 0, "iron/golden chests must drop grave dust");
             Assert.True(expectedGold > 0);
+        }
+
+        [Fact]
+        public void DepthRewardMultScalesDustExactlyAndLeavesTheRollStreamAlone()
+        {
+            long Dust(double mult)
+            {
+                var d = GenChestFloor(3, mimicChance: 0, rewardRoom: true);
+                var s = StrongDungeon(d, rngSeed: 4, rewardMult: mult);
+                int steps = 0;
+                while (s.Status == CombatStatus.Running && steps < 120000)
+                { Combat.StepCombat(s, Combat.DefaultStepMs, Cfg, new Rng(4)); steps++; }
+                Assert.Equal(CombatStatus.Won, s.Status);
+                return s.PendingDust;
+            }
+
+            long baseline = Dust(1.0);
+            Assert.True(baseline > 0, "the baseline floor must drop dust to make the ratio meaningful");
+            // The mult applies AFTER RandInt, so the rng stream is identical between runs: the same
+            // seed opens the same chests with the same rolls, and an integer roll × integer mult
+            // floors losslessly — the scaled floor pays EXACTLY 4× the baseline's dust.
+            Assert.Equal(baseline * 4, Dust(4.0));
+
+            // Sub-1 mults clamp to 1 at init: the depth ramp only ever raises rewards.
+            var clamped = StrongDungeon(GenChestFloor(3, mimicChance: 0, rewardRoom: true),
+                                        rngSeed: 4, rewardMult: 0.5);
+            Assert.Equal(1.0, clamped.DungeonRewardMult, 12);
+
+            // Room-clear gold bakes the mult in at init (floored once, so within [4g, 4g+3]).
+            var g1 = StrongDungeon(GenChestFloor(3, mimicChance: 0, rewardRoom: true), rngSeed: 4);
+            var g4 = StrongDungeon(GenChestFloor(3, mimicChance: 0, rewardRoom: true),
+                                   rngSeed: 4, rewardMult: 4.0);
+            Assert.InRange(g4.DungeonRoomClearGold,
+                           g1.DungeonRoomClearGold * 4, g1.DungeonRoomClearGold * 4 + 3);
         }
 
         [Fact]

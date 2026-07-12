@@ -78,7 +78,7 @@ namespace IdleGame.BalanceSim
             var rng = new Rng(cellSeed);
             var s = Combat.InitDungeon(Scenarios.FieldedParty(save), stage, dungeon, roster, boss, cfg, rng,
                 hpMult: Crypt.FloorHpMult(depth, cfg), dmgMult: Crypt.FloorDmgMult(depth, cfg),
-                miniBoss: !final);
+                miniBoss: !final, rewardMult: Crypt.FloorRewardMult(depth, cfg));
             Combat.RefreshPartyStats(s, save, cfg); // fold in gear + account buffs, like the client's Begin
 
             int heroDowns = 0;

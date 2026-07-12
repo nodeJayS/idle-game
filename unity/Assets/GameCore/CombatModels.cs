@@ -233,6 +233,10 @@ namespace IdleGame.GameCore
         public HashSet<int> DungeonChestsOpened = new HashSet<int>();
         public List<CombatEntity> DungeonMimics = new List<CombatEntity>();
         public long PendingDust;
+        // §7.3 depth reward ramp (Crypt.FloorRewardMult at InitDungeon; 1 outside dungeons): chest
+        // dust rolls multiply by this so deep floors out-pay shallow ones per hour, not just per kill.
+        // Room-clear gold bakes the same mult in at init — this field only serves the dust roll.
+        public double DungeonRewardMult = 1.0;
 
         // ---- step scratch (10.12b) ----
         // Reused per-step buffers so the 30Hz StepCombat allocates nothing steady-state: each

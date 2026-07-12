@@ -15,7 +15,7 @@ push), 10 themed zones with terraced arenas, Tower, Crypt roguelite
 gems, gacha (live Ice Mage banner), and a balance simulator over pure
 GameCore. Roster: Knight / Fire Mage / Assassin / Priest (+ banner Ice
 Mage) on the MS2 skinned pipeline; monsters are faceted or SDF blend-shell.
-**715 GameCore tests green.** The 100-stage ladder is FIXED (10.1,
+**739 GameCore tests green.** The 100-stage ladder is FIXED (10.1,
 2026-07-09): stage 100 is a reachable prestige gate demanding
 near-mythic gear + maxed account stacks, sim-verified. FTUE shipped
 2026-07-10 (two-button open, five guided beats, staged HUD reveal).
@@ -31,12 +31,9 @@ before anyone acts on them:
 2. **Root casters during casts?** The last cast-cancel source: the sim
    moves a caster mid-cast and the clip travel-cancels. Rooting them is a
    sim/balance change (kiting implications).
-3. **Crypt tuning:** key cadence (1/UTC day too stingy?) and depth-ramp
-   steepness — both single Balance constants. New input, `crypt` sim
-   chart 2026-07-09: a stage-25/L50/rare party walls at depth 50, and
-   dust/hour DECAYS ~9× from depth 1→49 (floors lengthen ×12 while
-   floor rewards barely grow) — deeper runs pay strictly worse, so the
-   reward-growth constants want a look alongside the ramp.
+3. RESOLVED 2026-07-11: crypt ramp/reward tuning shipped (ledger below).
+   Key cadence left at 1/day, bank 2 (the crypt is finite — 60 floors
+   ever ≈ 20 runs): say if that feels stingy in play.
 4. **Crypt mood/brightness polish:** play & eyeball, then direct.
 5. **Terrain slice 3** (zone water/lava/void flavor + camera composition):
    wants your island-look eyeball before building.
@@ -49,12 +46,11 @@ before anyone acts on them:
    panic 1.8 / aggro 2.0), run-clip foot-slide at regroup-hustle 1.4×.
 8. **Housekeeping:** the live save still holds ~996 test crypt keys
    (2026-07-07 testing hack) — say when to restore the normal key economy.
-9. RESOLVED 2026-07-07: skill FX procedural; hero relooks shipped.
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
 **NEXT UP: 10.12(e) laptop verify (USER) → (d) tiers → user pick
-(crypt verdicts #2-#8 waiting) → 10.6 juice / 10.8 endless.**
+(verdicts #2/#4-#8 waiting) → 10.6 juice / 10.8 endless.**
 
 Self-contained briefs; slice order = shipping order, one verified slice
 per commit. Standing rules apply (GameCore-first; MS2 = heroes only; no
@@ -194,6 +190,10 @@ impact language belongs to 10.6b). 10.11 COMPLETE.
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-07-11 crypt tuning (call #3): ramp split (HpGrowth 1.045 /
+  DmgGrowth 1.05 — deep failure = wipe, never a run-timer slog) +
+  CryptRewardGrowth 1.06 on chest dust/room gold (dust/hour now RISES
+  with depth; was ~9× decay) · boon base 20→50 (finite-height economy).
 - 2026-07-11 10.5 Loot QoL 2.0 COMPLETE: per-slot loot filter + imprint
   guard · CompareCard compare-anywhere · SalvageMany + Select mode ·
   §6.2 set bonuses (30 gen'd, gate-tuned ≤8%) + tells · loadout

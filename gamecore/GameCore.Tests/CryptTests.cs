@@ -236,8 +236,14 @@ namespace IdleGame.GameCore.Tests
         {
             Assert.Equal(1.0, Crypt.FloorHpMult(1, Cfg), 12);
             Assert.Equal(1.0, Crypt.FloorDmgMult(1, Cfg), 12);
+            Assert.Equal(1.0, Crypt.FloorRewardMult(1, Cfg), 12);
             Assert.Equal(Cfg.Balance.CryptHpGrowth, Crypt.FloorHpMult(2, Cfg), 12);
+            Assert.Equal(Cfg.Balance.CryptRewardGrowth, Crypt.FloorRewardMult(2, Cfg), 12);
             Assert.True(Crypt.FloorHpMult(20, Cfg) > Crypt.FloorHpMult(10, Cfg));
+            // Tuning contract (2026-07-11): sweep time tracks the HP ramp on a pinned party, so the
+            // reward ramp must grow at least as fast or deeper floors pay worse PER HOUR — the exact
+            // inversion the 2026-07-09 sim caught. Weakening this needs a fresh crypt chart.
+            Assert.True(Cfg.Balance.CryptRewardGrowth >= Cfg.Balance.CryptHpGrowth);
         }
 
         [Fact]

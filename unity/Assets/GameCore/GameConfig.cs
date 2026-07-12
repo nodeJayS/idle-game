@@ -451,10 +451,23 @@ namespace IdleGame.GameCore
         public int CryptMaxDepth = 60;            // content height (like TowerFloors)
         public int CryptTierFloors = 10;          // floors per theme tier (crypt→molten→frost, cycling)
         public int CryptGemsPerFloor = 5;         // first-clear gem pay per NEW depth floor
-        public double CryptHpGrowth = 1.06;       // per-floor monster HP ramp (on top of stage scaling)
-        public double CryptDmgGrowth = 1.04;      // per-floor monster atk ramp
+        // Ramp split (tuned vs the BalanceSim crypt chart 2026-07-11): HP growth kept SOFT so deep
+        // floors stay brisk — sweep time tracks the HP mult on a pinned party, and 1.06 made depth-40
+        // floors 8-minute slogs that died to the run timer, not to monsters. Threat lives in the atk
+        // ramp instead: the wall reads as a WIPE ("get stronger"), never a timeout ("this is boring").
+        public double CryptHpGrowth = 1.045;      // per-floor monster HP ramp (on top of stage scaling)
+        public double CryptDmgGrowth = 1.05;      // per-floor monster atk ramp
+        // Depth reward ramp: chest dust + room-clear gold multiply by Growth^(floor-1). Deliberately
+        // ABOVE HpGrowth so dust/hour RISES with depth — pre-tune, flat chest tables made deeper runs
+        // pay strictly worse per hour (the 2026-07-09 sim finding this constant exists to fix).
+        public double CryptRewardGrowth = 1.06;
         public string CryptDustCurrency = "grave_dust";
-        public long CryptBoonBaseCost = 20;       // rank-0→1 boon cost (grave dust)
+        // Demand side of the dust economy, sized against LIFETIME supply: the crypt is finite (60
+        // floors, each cleared once), and the depth reward ramp pays ~20k dust across the full
+        // height — all 30 boon ranks at base 50 cost ~17k, so a full clear affords max boons with
+        // headroom for wipe-forfeits. (Base 20 dated from the flat chest tables, whose whole-height
+        // total ~1.2k couldn't fund the boons at all.) Rank 1 still lands off run one's vault.
+        public long CryptBoonBaseCost = 50;       // rank-0→1 boon cost (grave dust)
         public double CryptBoonCostGrowth = 1.5;  // geometric cost growth per rank
         public int CryptBoonMaxRank = 10;
         public double CryptBoonStatPct = 0.02;    // +2% of the boon's stat per rank

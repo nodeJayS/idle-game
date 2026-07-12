@@ -118,7 +118,8 @@ namespace IdleGame.Game
                 hpMult: Crypt.FloorHpMult(floor, cfg), dmgMult: Crypt.FloorDmgMult(floor, cfg),
                 // §7.3: only the run's FINAL floor (the one with the reward vault) fields the true
                 // boss; earlier floors get the elite-rank floor guardian.
-                miniBoss: !dungeon.Params.RewardRoom);
+                miniBoss: !dungeon.Params.RewardRoom,
+                rewardMult: Crypt.FloorRewardMult(floor, cfg));
 
             SwapWorldIn(dungeon, tier?.ThemeKey ?? "crypt");
             Active = true;

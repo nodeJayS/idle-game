@@ -188,6 +188,12 @@ namespace IdleGame.GameCore
         public static double FloorDmgMult(int floor, GameConfig cfg)
             => Math.Pow(cfg.Balance.CryptDmgGrowth, Math.Max(0, floor - 1));
 
+        /// <summary>Geometric reward multiplier for a floor's chest dust + room-clear gold (same
+        /// convention as HP). Grows FASTER than the HP ramp so deeper floors pay better per hour —
+        /// depth is aspirational, not a tax (2026-07-11 tuning; fed to Combat.InitDungeon).</summary>
+        public static double FloorRewardMult(int floor, GameConfig cfg)
+            => Math.Pow(cfg.Balance.CryptRewardGrowth, Math.Max(0, floor - 1));
+
         /// <summary>The depth tier a floor belongs to: CryptTierFloors-floor bands cycling the
         /// configured tiers (crypt → molten → frost → crypt…). Null when no tiers are configured.</summary>
         public static CryptTierDef? TierForFloor(int floor, GameConfig cfg)

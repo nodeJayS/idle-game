@@ -280,9 +280,11 @@ namespace IdleGame.GameCore
         /// </summary>
         public static CombatState InitDungeon(IReadOnlyList<HeroInstance> party, int stage, Dungeon d,
                                               IReadOnlyList<string> trashRoster, string bossId, GameConfig cfg, Rng rng,
-                                              double hpMult = 1.0, double dmgMult = 1.0, bool miniBoss = false)
+                                              double hpMult = 1.0, double dmgMult = 1.0, bool miniBoss = false,
+                                              double rewardMult = 1.0)
         {
             var s = new CombatState { Stage = stage, Kind = EncounterKind.Dungeon };
+            s.DungeonRewardMult = Math.Max(1.0, rewardMult);
             var arena = new DungeonArena(d, cfg.Balance.DungeonCorridorSight);
             s.Dungeon = arena;
             s.ArenaId = null; // the DungeonArena is the surface (ArenaOf returns it first)
@@ -306,14 +308,16 @@ namespace IdleGame.GameCore
 
             // §7.3 room-clear reward beat: a cleared room pays a gold burst worth
             // DungeonRoomClearMobEquiv average trash kills of THIS floor's roster, stage-scaled
-            // like every kill payout (balances floor — display rounding rule).
+            // like every kill payout (balances floor — display rounding rule). The depth reward
+            // ramp bakes in here, so chest gold (a mult of this burst) inherits it too.
             {
                 double avgGold = 0; int rosterN = 0;
                 foreach (var mid in trashRoster)
                     if (cfg.Monsters.TryGetValue(mid, out var md)) { avgGold += md.GoldReward; rosterN++; }
                 if (rosterN > 0)
                     s.DungeonRoomClearGold = (long)Math.Floor(
-                        avgGold / rosterN * cfg.Balance.KillRewardMult(stage) * cfg.Balance.DungeonRoomClearMobEquiv);
+                        avgGold / rosterN * cfg.Balance.KillRewardMult(stage) * cfg.Balance.DungeonRoomClearMobEquiv
+                        * s.DungeonRewardMult);
             }
 
             s.TimeMs = 0;
@@ -1676,7 +1680,9 @@ namespace IdleGame.GameCore
             long gold = (long)Math.Floor(s.DungeonRoomClearGold * b.DungeonChestGoldMult[tier]);
             if (gold > 0) s.PendingGold += gold;
             var (dmin, dmax) = b.DungeonChestDust[Math.Min(tier, b.DungeonChestDust.Length - 1)];
-            if (dmax > 0) s.PendingDust += rng.RandInt(dmin, dmax);
+            // Depth reward ramp: the roll is multiplied AFTER RandInt so the rng stream (and thus
+            // every later roll) is identical whatever the mult — determinism per seed. Balances floor.
+            if (dmax > 0) s.PendingDust += (long)Math.Floor(rng.RandInt(dmin, dmax) * s.DungeonRewardMult);
 
             double mythic = s.Dungeon?.Dungeon.Params.Encounter?.GoldenMythicChance ?? 0;
             foreach (var item in Loot.RollChestDrops(rng, s.Loot, cfg, ch.Tier, mythic))
