@@ -87,7 +87,7 @@ namespace IdleGame.Game
             UiKit.TextInput(panel.transform, Account.Name, new Vector2(280, 56), new Vector2(70, 248),
                 s => { Account.Name = s; _nameLabel.text = Account.Display; });
 
-            float y = 184f;
+            float y = 190f;
             SliderRow(panel.transform, "Master Volume", () => Settings.MasterVolume,
                 v => { Settings.MasterVolume = v; AudioListener.volume = v; }, ref y);
             SliderRow(panel.transform, "SFX Volume", () => Settings.SfxVolume,
@@ -100,10 +100,37 @@ namespace IdleGame.Game
             ToggleRow(panel.transform, "Projectiles", () => Settings.Projectiles, v => Settings.Projectiles = v, ref y);
             ToggleRow(panel.transform, "Spawn Animations", () => Settings.SpawnAnimations, v => Settings.SpawnAnimations = v, ref y);
 
-            UiKit.TextButton(panel.transform, "Main Menu", new Vector2(240, 60), new Vector2(-140, -210),
+            // Quality tier (10.12d): the weak-hardware levers, applied live via GraphicsQuality.
+            CycleRow(panel.transform, "Render Scale",
+                () => Settings.RenderScale >= 0.99f ? "100%" : Settings.RenderScale >= 0.74f ? "75%" : "60%",
+                () =>
+                {
+                    Settings.RenderScale = Settings.RenderScale >= 0.99f ? 0.75f
+                                         : Settings.RenderScale >= 0.74f ? 0.6f : 1f;
+                    GraphicsQuality.Apply();
+                }, ref y);
+            ToggleRow(panel.transform, "Shadows", () => Settings.Shadows,
+                v => { Settings.Shadows = v; GraphicsQuality.Apply(); }, ref y);
+            ToggleRow(panel.transform, "Post FX", () => Settings.PostFx,
+                v => { Settings.PostFx = v; GraphicsQuality.Apply(); }, ref y);
+
+            // One button row (the extra quality rows ate the old two-row layout's space).
+            UiKit.TextButton(panel.transform, "Main Menu", new Vector2(168, 56), new Vector2(-176, -290),
                 () => { Destroy(_settings); _settings = null; _onMainMenu(); });
-            UiKit.TextButton(panel.transform, "Exit Game", new Vector2(240, 60), new Vector2(140, -210), Quit);
-            UiKit.TextButton(panel.transform, "Close", new Vector2(220, 56), new Vector2(0, -290), ToggleSettings);
+            UiKit.TextButton(panel.transform, "Exit Game", new Vector2(168, 56), new Vector2(0, -290), Quit);
+            UiKit.TextButton(panel.transform, "Close", new Vector2(168, 56), new Vector2(176, -290), ToggleSettings);
+        }
+
+        /// <summary>A labelled cycle button (tap advances to the next option) laid out like
+        /// <see cref="ToggleRow"/> — for small enumerated settings (render scale steps).</summary>
+        private void CycleRow(Transform parent, string label, Func<string> current, Action advance, ref float y)
+        {
+            UiKit.Label(parent, label, 22, TextAnchor.MiddleLeft, new Vector2(320, 44), new Vector2(-90, y));
+            Text? t = null;
+            var btn = UiKit.TextButton(parent, current(), new Vector2(120, 44), new Vector2(180, y),
+                () => { advance(); if (t != null) t.text = current(); });
+            t = btn.GetComponentInChildren<Text>();
+            y -= 46f;
         }
 
         private void ToggleRow(Transform parent, string label, Func<bool> get, Action<bool> set, ref float y)
@@ -113,7 +140,7 @@ namespace IdleGame.Game
             var btn = UiKit.TextButton(parent, get() ? "On" : "Off", new Vector2(120, 44), new Vector2(180, y),
                 () => { set(!get()); if (t != null) t.text = get() ? "On" : "Off"; });
             t = btn.GetComponentInChildren<Text>();
-            y -= 52f;
+            y -= 46f; // tightened from 52 when the 10.12d quality rows joined the column
         }
 
         /// <summary>A labelled 0..1 volume slider row, laid out like <see cref="ToggleRow"/>: label
@@ -196,7 +223,7 @@ namespace IdleGame.Game
                 if (pct != null) pct.text = Mathf.RoundToInt(v * 100f) + "%";
             });
 
-            y -= 52f;
+            y -= 46f; // tightened from 52 when the 10.12d quality rows joined the column
         }
 
         private void Quit()

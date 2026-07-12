@@ -28,12 +28,10 @@ before anyone acts on them:
 1. SHIPPED 2026-07-09: 10.1 rebalance (ledger below; sim-proven curve).
 2. RESOLVED+SHIPPED 2026-07-12: casters ROOT during casts (CastRootMs
    700 — MoveToward no-ops; kiting cost accepted by the user).
-3-6, 8. RESOLVED 2026-07-11/12 (user verdicts): crypt tuning shipped ·
-   key cadence + ~996 test keys STAY as-is · crypt lighting fine ·
-   terrain look approved (slice 3 stays backlog, unscheduled) · gaits =
-   BOTH, shipped. NEW verdicts spawned two backlog items below: the
-   crypt gets its OWN depth curve (decoupled from campaign stage —
-   kills sandbagging) and alt modes get a 2× speed toggle.
+3-6, 8. RESOLVED 2026-07-11/12 (user verdicts): crypt tuning + OWN
+   depth curve + 2× alt-mode toggle all shipped · key cadence + ~996
+   test keys STAY · crypt lighting fine · terrain look approved
+   (slice 3 backlog, unscheduled) · gaits = BOTH, shipped.
 7. **Older feel list** (user: "later" — parked): arena sizes/roam,
    water colour, stair-tread chunkiness, terrace hop speed, caster
    MoveSpd vs follow floor (overworld), anim-end vs contact launch,
@@ -42,10 +40,13 @@ before anyone acts on them:
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
-**NEXT UP (user calls 2026-07-12): crypt own-depth curve → 2× toggle
-(alt modes) → perf self-verify (standalone profiling + 10.12(d)
-tiers; the user's laptop test becomes confirmation) → 10.10(d)
-Slither boss → 10.6 juice / 10.9 audio / 10.10(f).**
+**NEXT UP: 10.10(d) Slither boss → 10.6 juice / 10.9 audio /
+10.10(f). Perf SELF-VERIFIED 2026-07-12: `-benchmark` mode
+(save-sandboxed, uncapped, writes benchmark.json — run the exe on the
+laptop for a report); desktop\@720p 1.7-2.0ms avg, ~0 GC → GPU fill is
+the only weak-spec risk → 10.12(d) tiers SHIPPED. BUILD BUG fixed:
+code-only shaders were STRIPPED from standalone builds (the game had
+never been buildable) — custom shaders now live under Resources/.**
 
 **Crypt own-depth curve — SHIPPED 2026-07-12** (user verdict): floors
 anchor to `Crypt.StageEquivalent` (stage 8 at depth 1 → ~100 at 60,
@@ -106,11 +107,9 @@ bounds × scale (renderer.bounds is zero pre-render); cascades 4→2,
 dist 60 (Bootstrap consts). (c2) SHIPPED 2026-07-11 — Prewarm behind
 the MAIN MENU (campaign crossings have NO LoadingScreen): GroundDetail
 styles baked at boot; cold variants (FxAdditive, Lit+emission,
-SdfBlendShell, DungeonLit) compiled via real hidden-RT draws. NEXT:
-(d) Settings tiers (render scale, post, SDF fallback) — tune AFTER
-(e): the user plays the weak laptop (the real acceptance test).
-Acceptance: steady frame time at cap on the weak laptop, no first-use
-pop-in, thermals sane after 10 min idle-farming.
+SdfBlendShell, DungeonLit) compiled via real hidden-RT draws.
+(d) SHIPPED 2026-07-12 (quality tiers in Settings — see NEXT UP);
+(e) the user's laptop run of `-benchmark` = final confirmation.
 
 **10.6 Combat presentation pass (juice v2)**
 The sim reads honest; make it FELT. (a) hit-stop: 30–50ms time-scale

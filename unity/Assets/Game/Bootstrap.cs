@@ -36,13 +36,20 @@ namespace IdleGame.Game
 
             var cfg = GameConfig.Default();
             AudioListener.volume = Settings.MasterVolume; // apply persisted master volume at boot
-            new GameObject("FrameCap").AddComponent<FrameCap>(); // 10.12a: the game must never run uncapped
+            // Benchmark mode (10.12d tooling, user call 2026-07-12): `-benchmark` runs the scripted
+            // perf tour instead of the menu — uncapped (no FrameCap: true frame cost is the point,
+            // and the 10fps unfocused cap would poison an unattended run) and save-sandboxed.
+            bool benchmark = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-benchmark") >= 0;
+            if (!benchmark)
+                new GameObject("FrameCap").AddComponent<FrameCap>(); // 10.12a: the game must never run uncapped
             TrimShadows(); // 10.12c: the shadow pass re-drew ~1,500 scenery casters x4 cascades
             BuildEnvironment(cfg);
             // 10.12c2: bake the lazy caches (all GroundDetail styles, FxKit sprite) and render
             // each cold shader variant once, all hidden behind the main menu — the session
             // start has no LoadingScreen, so the menu IS the cover. See Prewarm.cs.
             Prewarm.Run();
+            GraphicsQuality.Apply(); // 10.12d: persisted quality tier (render scale/shadows/post)
+            if (benchmark) { RunBenchmark(cfg); return; }
             ShowMenu(cfg);
         }
 
@@ -54,7 +61,7 @@ namespace IdleGame.Game
         // again or restart to see the serialized numbers). Distance is a taste call — eyeball
         // shadow reach in Play and bump back toward 90 if distant shadows visibly pop in.
         private const int ShadowCascades = 2;
-        private const float ShadowDistance = 60f;
+        public const float ShadowDistance = 60f; // public: GraphicsQuality restores it on shadows-on
 
         private static void TrimShadows()
         {
@@ -79,6 +86,25 @@ namespace IdleGame.Game
             var save = Save.NewGame(Seed, cfg, NowMs());
             SaveStore.Save(save); // write immediately so Continue works next launch
             StartSession(cfg, save, new IdleReport());
+        }
+
+        /// <summary>Scripted perf benchmark (10.12d tooling): sandbox the save store FIRST — the
+        /// session writes saves on mode transitions and autosave ticks, and a benchmark must
+        /// never touch a real player's file — then run a mid-game session uncapped and hand the
+        /// tour to <see cref="Benchmark"/> (campaign full-pack farm → blob-dense crypt floor →
+        /// benchmark.json → quit). The party is deliberately UNLEVELED for stage 25: it wipes,
+        /// respawns, and the screen fills to MobCap — the worst-case density is the point.</summary>
+        private static void RunBenchmark(GameConfig cfg)
+        {
+            SaveStore.FileNameOverride = "save_benchmark.json";
+            SaveStore.Delete(); // a fresh sandbox every run
+            Application.targetFrameRate = -1;
+            QualitySettings.vSyncCount = 0;
+
+            var save = Save.NewGame(Seed, cfg, NowMs());
+            for (int st = 1; st < 25; st++) save = Progression.OnStageCleared(save, st, cfg);
+            var view = StartSession(cfg, save, new IdleReport());
+            view.gameObject.AddComponent<Benchmark>().Bind(view);
         }
 
         private static void Continue(GameConfig cfg)
@@ -106,8 +132,9 @@ namespace IdleGame.Game
         }
 
         // Everything for a play session lives under one "Session" root so Quit-to-Menu
-        // can tear it down cleanly (the EventSystem is separate and persists).
-        private static void StartSession(GameConfig cfg, SaveState save, IdleReport idleReport)
+        // can tear it down cleanly (the EventSystem is separate and persists). Returns the
+        // CombatView so the benchmark rig can attach; normal boots ignore it.
+        private static CombatView StartSession(GameConfig cfg, SaveState save, IdleReport idleReport)
         {
             var session = new GameObject("Session");
 
@@ -184,6 +211,7 @@ namespace IdleGame.Game
             }
 
             Debug.Log($"[Bootstrap] Session started at stage {save.Progress.CurrentStage}.");
+            return view;
         }
 
         private static void QuitToMenu(GameConfig cfg, GameObject session, CombatView view)

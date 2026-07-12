@@ -1522,6 +1522,10 @@ namespace IdleGame.Game
                            new Color(0.7f, 0.8f, 1f));
         }
 
+        /// <summary>Benchmark rig only (10.12d tooling): drive the crypt entry the UI would.
+        /// A fresh benchmark save's first TickKeys grants the key. Never called in normal play.</summary>
+        public void BenchmarkEnterCrypt() => EnterDungeonRun();
+
         /// <summary>Start a crypt RUN (Modes menu): tick the daily key recharge, consume a key, and
         /// LOAD into floor DepthRecord+1 — the world swap, the fresh dungeon CombatState, and the
         /// camera snap all run at full black. The campaign state is simply dropped (mode isolation).

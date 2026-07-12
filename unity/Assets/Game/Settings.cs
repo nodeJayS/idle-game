@@ -79,6 +79,14 @@ namespace IdleGame.Game
             set { PlayerPrefs.SetInt("autoEquip", value ? 1 : 0); PlayerPrefs.Save(); }
         }
 
+        // ---- Quality tier (10.12d): the weak-hardware levers, applied by GraphicsQuality ----
+        // Render scale is THE lever (the benchmark shows the game is GPU-fill-bound on weak
+        // machines, ~2ms/frame on a desktop at 720p): 1.0 = native, 0.75/0.6 trade sharpness
+        // for fill rate on the URP pipeline asset. Shadows/post are the secondary cuts.
+        public static float RenderScale { get => Mathf.Clamp(PlayerPrefs.GetFloat("gfxScale", 1f), 0.5f, 1f); set => SetF("gfxScale", Mathf.Clamp(value, 0.5f, 1f)); }
+        public static bool Shadows      { get => Get("gfxShadows");  set => Set("gfxShadows", value); }
+        public static bool PostFx       { get => Get("gfxPost");     set => Set("gfxPost", value); }
+
         private static bool Get(string key) => PlayerPrefs.GetInt(key, 1) != 0;
         private static void Set(string key, bool v) { PlayerPrefs.SetInt(key, v ? 1 : 0); PlayerPrefs.Save(); }
         private static void SetF(string key, float v) { PlayerPrefs.SetFloat(key, v); PlayerPrefs.Save(); }

@@ -23,7 +23,13 @@ namespace IdleGame.Game
             Formatting = Formatting.Indented,
         };
 
-        private static string Path => System.IO.Path.Combine(Application.persistentDataPath, "save.json");
+        /// <summary>Benchmark sandbox (10.12d tooling): `-benchmark` sessions redirect EVERY save
+        /// read/write to a throwaway file so the scripted run can never touch a real player's
+        /// save.json (CombatView writes on mode transitions; Autosave writes on a timer).</summary>
+        public static string? FileNameOverride;
+
+        private static string Path =>
+            System.IO.Path.Combine(Application.persistentDataPath, FileNameOverride ?? "save.json");
 
         public static bool Exists() => File.Exists(Path);
 
