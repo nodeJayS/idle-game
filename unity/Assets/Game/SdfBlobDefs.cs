@@ -63,6 +63,8 @@ namespace IdleGame.Game
                 // Molten + frost tier critters (10.10b) — same desaturation rule as the crypt trio.
                 { "magma_blob", MagmaBlob() },
                 { "frost_drifter", FrostDrifter() },
+                // Slither's first user (10.10c) — and the shape rehearsal for the (d) boss.
+                { "bone_serpent", BoneSerpent() },
             };
             foreach (var def in d.Values) def.Height = TopOf(def.Prims);
             return d;
@@ -257,9 +259,10 @@ namespace IdleGame.Game
             };
         }
 
-        /// <summary>Magma Blob — the molten tier's hopper: dark basalt mass with EMBER nubs — the
-        /// orange dominates its channels outright (the 10.10a desaturation lesson) so it glows
-        /// against the lava floors without any hot emission. "Pulse" gait is slice (c); Hop until.</summary>
+        /// <summary>Magma Blob — the molten tier's BEATING heart: dark basalt mass with EMBER nubs —
+        /// the orange dominates its channels outright (the 10.10a desaturation lesson) so it glows
+        /// against the lava floors without any hot emission. Pulse gait (10.10c): the mass swells
+        /// rhythmically — exactly the critter the family was named for.</summary>
         private static Def MagmaBlob()
         {
             // Play-tuned 2026-07-12: pass one's "cooled crust" brown was near-IDENTICAL to the
@@ -270,8 +273,8 @@ namespace IdleGame.Game
             Color core   = new Color(1.00f, 0.66f, 0.24f); // the top vent, brightest
             return new Def
             {
-                Family = SdfBlobAnimator.Family.Hop,
-                BoundsPadding = 0.6f, // hop arc + squash (the GraveOoze numbers)
+                Family = SdfBlobAnimator.Family.Pulse,
+                BoundsPadding = 0.6f, // beat swell + travel bounce fit inside the old hop margin
                 // GROUND RULE (see MireSlime): authored resting on y=0.
                 Prims = new List<SdfBlobRig.PrimitiveDef>
                 {
@@ -314,6 +317,39 @@ namespace IdleGame.Game
                             radius = 0.14f, halfLength = 0f, color = shard, blendK = 0.22f },
                     new() { name = "shard_R", localPosition = new Vector3(0.26f, 0.44f, -0.14f),
                             radius = 0.14f, halfLength = 0f, color = shard, blendK = 0.22f },
+                },
+            };
+        }
+
+        /// <summary>Bone Serpent — Slither's first user: a ground-hugging chain of five vertebrae
+        /// (seg0 = the skull, authored head-to-tail in prims order — the animator's chain order IS
+        /// the authoring order). Radii and ivory both taper toward the tail so the whip reads even
+        /// in stills; each segment rests ON y=0 (y = its radius, the ground rule). blendK generous
+        /// so the chain fuses into one worm, not a bead string. Head faces +Z (CombatView's facing
+        /// axis); the wave offsets local X.</summary>
+        private static Def BoneSerpent()
+        {
+            // The amalgam's bleached-bone family, tapering dark toward the tail (desaturation rule:
+            // ivory bright enough to survive the crypt's dim light).
+            Color skull = new Color(0.80f, 0.76f, 0.64f);
+            Color mid   = new Color(0.68f, 0.64f, 0.54f);
+            Color tail  = new Color(0.50f, 0.46f, 0.39f);
+            return new Def
+            {
+                Family = SdfBlobAnimator.Family.Slither,
+                BoundsPadding = 0.45f, // lateral whip (±SlitherAmp) + margin
+                Prims = new List<SdfBlobRig.PrimitiveDef>
+                {
+                    new() { name = "seg0", localPosition = new Vector3(0f, 0.24f, 0.55f),
+                            radius = 0.24f, halfLength = 0f, color = skull, blendK = 0.26f },
+                    new() { name = "seg1", localPosition = new Vector3(0f, 0.20f, 0.18f),
+                            radius = 0.20f, halfLength = 0f, color = mid, blendK = 0.28f },
+                    new() { name = "seg2", localPosition = new Vector3(0f, 0.17f, -0.16f),
+                            radius = 0.17f, halfLength = 0f, color = mid, blendK = 0.28f },
+                    new() { name = "seg3", localPosition = new Vector3(0f, 0.14f, -0.47f),
+                            radius = 0.14f, halfLength = 0f, color = tail, blendK = 0.28f },
+                    new() { name = "seg4", localPosition = new Vector3(0f, 0.11f, -0.74f),
+                            radius = 0.11f, halfLength = 0f, color = tail, blendK = 0.26f },
                 },
             };
         }

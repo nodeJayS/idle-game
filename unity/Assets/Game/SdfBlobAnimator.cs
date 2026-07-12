@@ -29,7 +29,7 @@ namespace IdleGame.Game
     [ExecuteAlways]
     public sealed class SdfBlobAnimator : MonoBehaviour, IMonsterAnim
     {
-        public enum Family { Walk, Hop, Float }
+        public enum Family { Walk, Hop, Float, Slither, Pulse }
 
         // ---- tunables (subtle — cozy ortho 45° diorama, mirrors MonsterAnimator amplitudes) ----
         private const float StrideBob      = 0.05f;  // body/head double-bounce bob amplitude (world units)
@@ -44,6 +44,21 @@ namespace IdleGame.Game
         private const float BreatheHz      = 0.5f;   // idle breathing frequency
         private const float FloatHover     = 0.15f;  // continuous whole-blob hover amplitude (world units)
         private const float FloatHz        = 0.55f;  // hover frequency (mirrors MonsterAnimator.PoseFloat)
+        // Slither (10.10c, user verdict #6 = BOTH families): a lateral wave travels HEAD -> TAIL
+        // down the seg* chain. Amplitude tapers up toward the tail (heads track, tails whip).
+        private const float SlitherAmp     = 0.16f;  // peak lateral offset at the tail (world units)
+        private const float SlitherWaveLen = 1.2f;   // ground units per wave (cadence = speed/this)
+        private const float SlitherSegLag  = 1.1f;   // phase lag per segment (radians) — the travel
+        private const float SlitherIdleHz  = 0.4f;   // ambient undulation when still (never rests)
+        private const float SlitherIdleAmp = 0.35f;  // idle amplitude as a fraction of SlitherAmp
+        // Pulse (10.10c): the whole mass beats — node radii swell (scale IS radius in the shell)
+        // and nodes push radially out from the authored centroid. Never rests; the beat quickens
+        // with movement and a small synced bounce carries travel (contraction propels — jellyfish).
+        private const float PulseScale     = 0.07f;  // ±radius swell fraction at the beat peak
+        private const float PulseOut       = 0.05f;  // radial position push at the beat peak (world units)
+        private const float PulseHzIdle    = 0.55f;  // resting beat
+        private const float PulseHzMoving  = 1.1f;   // beat while travelling
+        private const float PulseMoveBob   = 0.06f;  // whole-blob bounce synced to the moving beat
 
         // Attack telegraph (crouch then punch-out) and hit reaction (squash spring-back). A single
         // per-prim radius squash is impossible (the SDF carries one radius) — see MonsterAnimator's
@@ -77,6 +92,7 @@ namespace IdleGame.Game
         private readonly List<Node> _bodyNodes = new(); // "body"/"head" — bob + breathe
         private readonly List<Node> _legNodes  = new(); // names starting "leg" — swing about the hip
         private readonly List<Node> _allNodes  = new(); // every prim node — Hop translates ALL of them
+        private readonly List<Node> _segNodes  = new(); // "seg0".."segN" IN NAME ORDER — the slither chain
 
         [SerializeField] private Family _family = Family.Walk;
 
@@ -87,6 +103,8 @@ namespace IdleGame.Game
         private float _stridePhase;  // accumulated stride phase (radians) — accumulate, don't rescale _t
         private float _hopCycle;     // hops elapsed; fraction = progress through the current arc
         private float _hopLandT;     // final-touchdown squash timer (hop stop, item feel)
+        private float _wavePhase;    // Slither: accumulated travel phase (radians) — same rule as stride
+        private float _beatPhase;    // Pulse: accumulated beat phase — rate blends idle<->moving smoothly
 
         // Attack telegraph: a crouch during the lunge's anticipation, a stretch on the punch-out.
         private float _atkT, _atkDur;
@@ -194,6 +212,7 @@ namespace IdleGame.Game
             _bodyNodes.Clear();
             _legNodes.Clear();
             _allNodes.Clear();
+            _segNodes.Clear();
             if (_rig == null) return;
 
             foreach (var pd in _rig.prims)
@@ -217,6 +236,13 @@ namespace IdleGame.Game
                 string nm = pd.name;
                 if (nm == "body" || nm == "head") _bodyNodes.Add(node);
                 else if (nm.StartsWith("leg")) _legNodes.Add(node);
+                else if (nm.StartsWith("seg"))
+                {
+                    _segNodes.Add(node);
+                    // The chain's head also takes the attack/hit squash layer (a headless snake
+                    // would otherwise show no body language on a hit — flash alone reads flat).
+                    if (nm == "seg0") _bodyNodes.Add(node);
+                }
                 // Unknown prims (nubs/antennae) keep rest pose in Walk; in Hop they still ride the
                 // whole-blob arc because _allNodes holds every node.
             }
@@ -237,9 +263,11 @@ namespace IdleGame.Game
 
             switch (_family)
             {
-                case Family.Walk:  PoseWalk(dt);  break;
-                case Family.Hop:   PoseHop(dt);   break;
-                case Family.Float: PoseFloat();   break;
+                case Family.Walk:    PoseWalk(dt);    break;
+                case Family.Hop:     PoseHop(dt);     break;
+                case Family.Float:   PoseFloat();     break;
+                case Family.Slither: PoseSlither(dt); break;
+                case Family.Pulse:   PosePulse(dt);   break;
             }
 
             // Attack telegraph + hit squash layer ON TOP of the gait pose, both faked via body/head
@@ -461,6 +489,85 @@ namespace IdleGame.Game
                 n.t.localPosition = p;
                 n.t.localRotation = n.restRot;
                 n.t.localScale = n.restScale * shrink;
+            }
+        }
+
+        // ---- Slither: segment sine-chain (10.10c) ------------------------------------------------
+
+        /// <summary>Slither: a lateral wave travels HEAD → TAIL down the seg* chain (authored
+        /// seg0..segN in prims order; seg0 is the head). Each segment offsets on local X by a sine
+        /// lagged SlitherSegLag per segment; amplitude tapers UP toward the tail so the head tracks
+        /// and the tail whips. Travel phase ACCUMULATES from speed (the PoseWalk rule — rescaling
+        /// elapsed time would jump the pose on a speed change). Never fully rests: idle drops to a
+        /// slow ambient undulation (a snake is never a statue) — so no Breathe() here, ever.
+        /// Non-seg prims (spurs etc.) keep rest pose and ride the root like Walk's unknowns.</summary>
+        private void PoseSlither(float dt)
+        {
+            if (_segNodes.Count == 0) { Breathe(); return; } // mis-authored def: degrade gracefully
+
+            float amp;
+            if (_moving && _speed >= 0.05f)
+            {
+                _wavePhase += dt * (_speed / SlitherWaveLen) * Mathf.PI * 2f;
+                amp = SlitherAmp;
+            }
+            else
+            {
+                _wavePhase += dt * SlitherIdleHz * Mathf.PI * 2f;
+                amp = SlitherAmp * SlitherIdleAmp;
+            }
+
+            float w = _wavePhase + _phase;
+            int n = _segNodes.Count;
+            for (int i = 0; i < n; i++)
+            {
+                var s = _segNodes[i];
+                // Tail-weighted taper: head ~30% amplitude, tail 100% — the whip reads without the
+                // head skating sideways out from under CombatView's facing rotation.
+                float taper = 0.3f + 0.7f * (n <= 1 ? 1f : i / (float)(n - 1));
+                float lateral = Mathf.Sin(w - i * SlitherSegLag) * amp * taper;
+                var p = s.restPos;
+                p.x += lateral;
+                s.t.localPosition = p;
+                s.t.localRotation = s.restRot;
+                s.t.localScale = s.restScale;
+            }
+        }
+
+        // ---- Pulse: radial breathing (10.10c) ----------------------------------------------------
+
+        /// <summary>Pulse: the whole mass BEATS — every node's radius swells (node scale IS the SDF
+        /// radius, the one place that inflate is the point rather than the Breathe() bug) and nodes
+        /// push radially out from the authored centroid, so the blob visibly expands as one body.
+        /// Never rests; the beat rate blends idle↔moving on the ACCUMULATED phase (no pose jump),
+        /// and a small bounce synced to the moving beat carries travel — contraction propels,
+        /// jellyfish-style. Sharp-in/soft-out beat curve so it reads as a heartbeat, not a sine.</summary>
+        private void PosePulse(float dt)
+        {
+            bool travelling = _moving && _speed >= 0.05f;
+            float hz = travelling ? PulseHzMoving : PulseHzIdle;
+            _beatPhase += dt * hz * Mathf.PI * 2f;
+            float w = _beatPhase + _phase;
+
+            // Heartbeat shaping: |sin|^3 spends most of the cycle near rest with a punchy swell.
+            float s01 = Mathf.Abs(Mathf.Sin(w));
+            float beat = s01 * s01 * s01;
+
+            // Authored centroid (rest poses) — the fixed point the mass swells around.
+            Vector3 c = Vector3.zero;
+            foreach (var nd in _allNodes) c += nd.restPos;
+            if (_allNodes.Count > 0) c /= _allNodes.Count;
+
+            float bob = travelling ? beat * PulseMoveBob : 0f;
+            foreach (var nd in _allNodes)
+            {
+                Vector3 dir = nd.restPos - c;
+                Vector3 outward = dir.sqrMagnitude > 1e-6f ? dir.normalized * (PulseOut * beat) : Vector3.zero;
+                var p = nd.restPos + outward;
+                p.y += bob;
+                nd.t.localPosition = p;
+                nd.t.localRotation = nd.restRot;
+                nd.t.localScale = nd.restScale * (1f + PulseScale * beat);
             }
         }
 

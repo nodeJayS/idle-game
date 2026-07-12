@@ -1218,6 +1218,8 @@ namespace IdleGame.GameCore
             cfg.Monsters["grave_ooze"].SpawnStyle = "rise";
             // Bone Amalgam: the middling melee walker — a shambling knot of grave-bones.
             cfg.Monsters["bone_amalgam"] = Trash("bone_amalgam", "Bone Amalgam", 50, 4.5, 2, 2.4, 0.8, 0.02, 20, 5);
+            // Bone Serpent (10.10c): fast skirmisher — the Slither gait's first user.
+            cfg.Monsters["bone_serpent"] = Trash("bone_serpent", "Bone Serpent", 44, 5, 1, 3.2, 1.1, 0.05, 20, 5);
             // Crypt Wraith: fast, fragile, genuinely RANGED (the fen_spirit pattern — authored inline
             // for AttackRange > 2.0 and a projectile hint; the pale-ice bolt reads as a spectral mote).
             cfg.Monsters["crypt_wraith"] = new MonsterDef
@@ -1291,9 +1293,9 @@ namespace IdleGame.GameCore
             cfg.CryptTiers.Add(new CryptTierDef
             {
                 ThemeKey = "crypt",
-                // 10.10a: the SDF blob trio joins the crypt band (bat + shade stay) — five-mob
-                // roster like the swamp zone, so packs mix shells and faceted bodies.
-                TrashRoster = new List<string> { "cave_bat", "gloom_shade", "grave_ooze", "bone_amalgam", "crypt_wraith" },
+                // 10.10a/c: the SDF blobs join the crypt band (bat + shade stay) — packs mix
+                // shells and faceted bodies across six roster slots.
+                TrashRoster = new List<string> { "cave_bat", "gloom_shade", "grave_ooze", "bone_amalgam", "crypt_wraith", "bone_serpent" },
                 BossId = "nightmare_maw",
             });
             cfg.CryptTiers.Add(new CryptTierDef

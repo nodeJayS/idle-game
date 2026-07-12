@@ -35,8 +35,8 @@ before anyone acts on them:
 4. **Crypt mood/brightness polish:** play & eyeball, then direct.
 5. **Terrain slice 3** (zone water/lava/void flavor + camera composition):
    wants your island-look eyeball before building.
-6. **Backlog 10.10c gait pick:** Slither (segment sine-chain) vs Pulse
-   (radial breathing) as the next SDF gait family.
+6. RESOLVED 2026-07-12: user picked BOTH gaits — Slither + Pulse
+   shipped (10.10c ledger below).
 7. **Older feel list** (park or direct): arena sizes/roam, water colour,
    stair-tread chunkiness, terrace hop speed, caster MoveSpd vs follow
    floor (overworld), anim-end vs contact launch, corpse-linger, melee
@@ -160,8 +160,11 @@ outright or it reads as rock (three Play-tuned passes);
 (b) SHIPPED 2026-07-12: magma blob (obsidian + ember masses — the
 floor-match trap again) + frost drifter (dark-on-light inversion);
 every crypt tier now mixes SDF shells into its roster;
-(c) ONE new gait family in SdfBlobAnimator (Your calls #6: Slither or
-Pulse); keep the IMonsterAnim feed shape unchanged;
+(c) SHIPPED 2026-07-12 (verdict #6 = BOTH): Slither (head→tail wave
+over seg0..segN, tail-weighted, never rests; first user = crypt Bone
+Serpent, the (d) boss shape rehearsal) + Pulse (|sin|³ heartbeat, ±7%
+swell, quickens with travel; magma_blob on its named gait). Feed
+shape unchanged; both mechanics verified numerically in live combat;
 (d) an SDF ELITE/BOSS: one big multi-prim creature for a deep crypt
 tier — check the 16-prim uniform budget first (raise it or compose two
 rigs if a boss silhouette needs more);
@@ -201,14 +204,11 @@ impact language belongs to 10.6b). 10.11 COMPLETE.
   guard · CompareCard compare-anywhere · SalvageMany + Select mode ·
   §6.2 set bonuses (30 gen'd, gate-tuned ≤8%) + tells · loadout
   snapshots. 699 → 738 tests, all Play-verified.
-- 2026-07-11 10.12(a-c2) perf: FrameCap 60/10 · StepCombat scratch
-  (~31→11 KB/f) · scenery combine (~1,514→~486 batches) · Prewarm.
-  (d) tiers + (e) laptop verify remain, gated on the user's test.
-- 2026-07-10 10.4 Goals hub COMPLETE (design §7.5): `Goals.Claimables`/
-  `ClaimAll` read model + `DailyLogin.PreviewNext` (10 tests → 699);
-  Goals window (Today/Achievements/Login + claim-all + tomorrow
-  preview) on PanelKit; control-bar pip; Achievements button + panel
-  retired. Play-verified claim loop end-to-end.
+- 2026-07-11 10.12(a-c2) perf: FrameCap 60/10 · StepCombat scratch ·
+  scenery combine (~1,514→~486) · Prewarm; (d)+(e) laptop-gated.
+- 2026-07-10 10.4 Goals hub COMPLETE (§7.5): Claimables/ClaimAll read
+  model + PreviewNext; Goals window on PanelKit; control-bar pip;
+  Achievements panel retired. Play-verified claim loop end-to-end.
 - 2026-07-10/11 10.3 COMPLETE: Theme tokens + PanelKit layout-group kit
   (+Modal); Heroes, Inventory, and the three modals (outcome / idle
   claim / gacha reveal) migrated — zero positional literals; HUD
