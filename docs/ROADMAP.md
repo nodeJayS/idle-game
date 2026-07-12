@@ -165,9 +165,9 @@ Pulse); keep the IMonsterAnim feed shape unchanged;
 (d) an SDF ELITE/BOSS: one big multi-prim creature for a deep crypt
 tier — check the 16-prim uniform budget first (raise it or compose two
 rigs if a boss silhouette needs more);
-(e) profile at packed-maze density (78+ mobs live today): per-blob
-mesh + MPB cost, subdivision level, cull distance — the acceptance
-gate before blobs go wide in dungeon rosters;
+(e) PASSED 2026-07-12 (no knobs turned): 512-640 tris + ≤2.1µs MPB
+push + ZERO GC per blob; 120 live ≈ 0.26ms/frame; shadows match
+faceted mobs. Blobs cleared to go wide — (d)/(f) unblocked;
 (f) overworld backfill LAST (bog_horror, chaos_spawn) — faceted Tunic
 stays the art rule; SDF is a body style, not a restyle.
 
