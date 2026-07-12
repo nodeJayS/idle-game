@@ -335,7 +335,7 @@ namespace IdleGame.GameCore
         {
             // Stat scale mirrors a stage fight at the current stage — deeper players face tougher
             // floors. The optional multipliers stack the crypt's per-floor depth ramp on top
-            // (Crypt.FloorHpMult / FloorDmgMult — the roguelite difficulty ladder).
+            // (the crypt passes Crypt.StageEquivalent as the stage — its own depth ladder).
             var rt = cfg.StageFor(s.Stage)!;
             s.Loot = LootContext.ForStage(rt, cfg);
             double atkScale = StageScale(rt, cfg) * dmgMult, hpScale = HpScale(rt, cfg) * hpMult;

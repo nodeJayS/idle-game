@@ -22,10 +22,11 @@ namespace IdleGame.GameCore
     ///  - Dust buys BOONS (<see cref="BuyBoon"/>): permanent account-wide stat buffs with a
     ///    geometric cost curve, folded into hero stats via <see cref="ApplyBoons"/> exactly where
     ///    Tower's milestone buffs fold in.
-    ///  - Floors ramp difficulty geometrically (<see cref="FloorHpMult"/>/<see cref="FloorDmgMult"/>)
-    ///    ON TOP of current-stage monster scaling, and travel themed TIERS
-    ///    (<see cref="TierForFloor"/>: crypt → molten → frost, cycling) whose rosters/bosses feed
-    ///    Combat.InitDungeon.
+    ///  - Floors carry their OWN absolute difficulty (<see cref="StageEquivalent"/>: a linear
+    ///    depth→stage anchor on the campaign's tapered curves — user verdict 2026-07-12, replacing
+    ///    the old current-stage × geometric-ramp model that invited stage-sandbagging), and travel
+    ///    themed TIERS (<see cref="TierForFloor"/>: crypt → molten → frost, cycling) whose
+    ///    rosters/bosses feed Combat.InitDungeon.
     ///
     /// All reducers are pure (new SaveState, untouched siblings shared by ref; no-ops share the
     /// whole save ref) and take `now` as epoch ms — never the wall clock.
@@ -179,14 +180,27 @@ namespace IdleGame.GameCore
 
         // ---- per-floor difficulty + theme -----------------------------------
 
-        /// <summary>Geometric HP multiplier for a floor's monsters, applied ON TOP of the current-stage
-        /// scaling (a crypt floor tracks the player's power; the depth ladder adds ramp).</summary>
-        public static double FloorHpMult(int floor, GameConfig cfg)
-            => Math.Pow(cfg.Balance.CryptHpGrowth, Math.Max(0, floor - 1));
+        /// <summary>
+        /// The floor's ABSOLUTE difficulty anchor (user verdict 2026-07-12): a stage-equivalent
+        /// on the campaign's tapered curves, linear in depth from CryptStageBase (floor 1, easy
+        /// for anyone who has the mode) to ~the capstone at CryptMaxDepth. The crypt used to scale
+        /// to the player's CURRENT STAGE plus a geometric ramp — which made parking on a low
+        /// stage the optimal depth-push strategy; an own-curve crypt has nothing to sandbag.
+        /// Feeds Combat.InitDungeon as the stage, so monster stats, loot item level, and kill
+        /// gold/XP all ride the depth, not the player's position.
+        /// </summary>
+        public static int StageEquivalent(int floor, GameConfig cfg) =>
+            Math.Max(1, (int)Math.Round(
+                cfg.Balance.CryptStageBase + (Math.Max(1, floor) - 1) * cfg.Balance.CryptStagePerFloor));
 
-        /// <summary>Geometric atk multiplier for a floor's monsters (same convention as HP).</summary>
-        public static double FloorDmgMult(int floor, GameConfig cfg)
-            => Math.Pow(cfg.Balance.CryptDmgGrowth, Math.Max(0, floor - 1));
+        /// <summary>Flat monster-HP multiplier inside crypt floors (rooms are small fights, not
+        /// campaign packs — raw anchor HP made frontier floors timer slogs). Feeds InitDungeon.</summary>
+        public static double FloorHpMult(int floor, GameConfig cfg) => cfg.Balance.CryptHpDiscount;
+
+        /// <summary>Linear monster-atk pressure by depth: deep failure reads as a WIPE, never a
+        /// timeout (the campaign's tapered damage alone can't threaten one). Feeds InitDungeon.</summary>
+        public static double FloorDmgMult(int floor, GameConfig cfg) =>
+            1.0 + cfg.Balance.CryptDmgPressurePerFloor * Math.Max(0, floor - 1);
 
         /// <summary>Geometric reward multiplier for a floor's chest dust + room-clear gold (same
         /// convention as HP). Grows FASTER than the HP ramp so deeper floors pay better per hour —

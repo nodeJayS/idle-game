@@ -100,8 +100,8 @@ namespace IdleGame.Game
         /// state is built from scratch on entry and dropped wholesale on exit — nothing CAN leak.
         /// Runs AT FULL BLACK behind the LoadingScreen (the caller orchestrates), so neither the
         /// teardown nor the camera snap is ever on screen.
-        /// The FLOOR picks the depth tier's cast + theme and stacks the crypt difficulty ramp
-        /// (Crypt.FloorHpMult/FloorDmgMult) on the usual current-stage scaling.
+        /// The FLOOR picks the depth tier's cast + theme and carries its OWN absolute difficulty
+        /// (Crypt.StageEquivalent — the depth ladder; the player's campaign stage is irrelevant).
         /// <paramref name="rng"/> is threaded to the sim for the spawn stagger (never UnityEngine.Random).
         /// </summary>
         public static CombatState Enter(GameConfig cfg, System.Collections.Generic.IReadOnlyList<HeroInstance> party,
@@ -114,7 +114,9 @@ namespace IdleGame.Game
             string boss = tier?.BossId ?? BossId;
             if (!cfg.Monsters.ContainsKey(boss)) boss = "";
 
-            var state = Combat.InitDungeon(party, save.Progress.CurrentStage, dungeon, roster, boss, cfg, rng,
+            // Own-depth curve (user verdict 2026-07-12): the floor's stage-equivalent anchor IS the
+            // difficulty — the player's campaign position no longer matters (nothing to sandbag).
+            var state = Combat.InitDungeon(party, Crypt.StageEquivalent(floor, cfg), dungeon, roster, boss, cfg, rng,
                 hpMult: Crypt.FloorHpMult(floor, cfg), dmgMult: Crypt.FloorDmgMult(floor, cfg),
                 // §7.3: only the run's FINAL floor (the one with the reward vault) fields the true
                 // boss; earlier floors get the elite-rank floor guardian.

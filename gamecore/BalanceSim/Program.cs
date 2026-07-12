@@ -336,9 +336,9 @@ namespace IdleGame.BalanceSim
             {
                 var first = cleared[0];
                 var lastC = cleared[cleared.Count - 1];
-                double hpRamp = Crypt.FloorHpMult(lastC.Depth, cfg) / Crypt.FloorHpMult(first.Depth, cfg);
                 sb.AppendLine();
-                sb.AppendLine($"reward vs ramp (depth {first.Depth}→{lastC.Depth}, monster HP ×{hpRamp:0.0} over that span):");
+                sb.AppendLine($"reward vs ramp (depth {first.Depth}→{lastC.Depth}, stage-equiv "
+                              + $"{Crypt.StageEquivalent(first.Depth, cfg)}→{Crypt.StageEquivalent(lastC.Depth, cfg)} over that span):");
                 sb.AppendLine($"  sweep seconds {first.Seconds:0.0} → {lastC.Seconds:0.0}   "
                               + $"(×{(first.Seconds > 0 ? lastC.Seconds / first.Seconds : 0):0.00})");
                 sb.AppendLine($"  gold/min      {first.GoldPerMin:0} → {lastC.GoldPerMin:0}   "

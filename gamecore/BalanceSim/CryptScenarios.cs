@@ -12,8 +12,8 @@ namespace IdleGame.BalanceSim
     /// BalanceSim can chart difficulty-vs-reward as the depth ramp climbs on a fixed-power party.
     ///
     /// The party is PINNED by stage/level/gear (built once via <see cref="Scenarios.BuildSave"/>); the
-    /// only variable is the depth, which stacks the geometric <see cref="Crypt.FloorHpMult"/>/
-    /// <see cref="Crypt.FloorDmgMult"/> ramp on top of the current-stage monster scaling. Runs replicate
+    /// only variable is the depth, which drives the floor's OWN <see cref="Crypt.StageEquivalent"/>
+    /// anchor (user verdict 2026-07-12 — the party's stage pins only its build). Runs replicate
     /// the client's floor construction: RoomCount 12, Linear, the depth-tier theme/roster/boss, the
     /// depth-band encounter budget, the run-alignment reward vault on every CryptFloorsPerRun-th floor,
     /// and the mini-boss floor guardian on the others. Deterministic: the gen seed derives from the cell
@@ -76,7 +76,10 @@ namespace IdleGame.BalanceSim
             if (!cfg.Monsters.ContainsKey(boss)) boss = "";
 
             var rng = new Rng(cellSeed);
-            var s = Combat.InitDungeon(Scenarios.FieldedParty(save), stage, dungeon, roster, boss, cfg, rng,
+            // Own-depth curve (user verdict 2026-07-12): monsters scale to the floor's OWN
+            // stage-equivalent; the caller's stage now pins only the PARTY's build, not the floor.
+            var s = Combat.InitDungeon(Scenarios.FieldedParty(save), Crypt.StageEquivalent(depth, cfg),
+                dungeon, roster, boss, cfg, rng,
                 hpMult: Crypt.FloorHpMult(depth, cfg), dmgMult: Crypt.FloorDmgMult(depth, cfg),
                 miniBoss: !final, rewardMult: Crypt.FloorRewardMult(depth, cfg));
             Combat.RefreshPartyStats(s, save, cfg); // fold in gear + account buffs, like the client's Begin

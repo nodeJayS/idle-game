@@ -47,10 +47,13 @@ before anyone acts on them:
 tiers; the user's laptop test becomes confirmation) → 10.10(d)
 Slither boss → 10.6 juice / 10.9 audio / 10.10(f).**
 
-**Crypt own-depth curve (user verdict 2026-07-12).** Crypt monsters
-scale to CURRENT STAGE + depth ramp — parking low trivializes pushes.
-Verdict: the crypt gets its OWN absolute easy→hard depth curve (kills
-sandbagging). GameCore + BalanceSim retune; crypt chart = acceptance.
+**Crypt own-depth curve — SHIPPED 2026-07-12** (user verdict): floors
+anchor to `Crypt.StageEquivalent` (stage 8 at depth 1 → ~100 at 60,
+linear on the campaign's tapered curves) — the player's stage is
+irrelevant (nothing to sandbag); loot ilvl + kill gold/XP ride the
+depth (key-bounded). Feel shapers: HP ×0.6 (rooms stay brisk) + atk
++2%/floor (deep failure = WIPE, never a timeout). Chart: rare/L50
+walls at depth 31 by wipe; legendary/mid clears 60 at 200-400s sweeps.
 
 **2× speed toggle — alt modes (user verdict 2026-07-12).** Crypt +
 Tower get an idle-standard 2× button from mode unlock (campaign and
@@ -152,14 +155,11 @@ The proven pipeline (SdfBlendShell shader + SdfBlobRig + SdfBlobAnimator
 with Hop/Walk/Float gaits, seamless smin bodies under faceted normals)
 reaches only 3 of 30+ monsters — and the crypt, where packs are densest
 and monsters are seen closest, uses none of it. Slices:
-(a) SHIPPED 2026-07-12: grave ooze (Hop, rise-spawn, femur tell) /
-bone amalgam (Walk, skull + spur) / crypt wraith (Float, ranged) join
-the crypt tier's 5-mob roster. Palette lesson: the crypt's dim
-warm-grey light DESATURATES — a hue must dominate its channels
-outright or it reads as rock (three Play-tuned passes);
-(b) SHIPPED 2026-07-12: magma blob (obsidian + ember masses — the
-floor-match trap again) + frost drifter (dark-on-light inversion);
-every crypt tier now mixes SDF shells into its roster;
+(a) SHIPPED 2026-07-12: grave ooze / bone amalgam / crypt wraith join
+the crypt roster. Palette lesson: dungeon light DESATURATES — a hue
+must dominate its channels outright or it reads as rock;
+(b) SHIPPED 2026-07-12: magma blob (obsidian + ember contrast pair) +
+frost drifter (dark-on-light); every crypt tier mixes shells;
 (c) SHIPPED 2026-07-12 (verdict #6 = BOTH): Slither (head→tail wave
 over seg0..segN, tail-weighted, never rests; first user = crypt Bone
 Serpent, the (d) boss shape rehearsal) + Pulse (|sin|³ heartbeat, ±7%

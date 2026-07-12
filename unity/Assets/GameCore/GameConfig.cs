@@ -451,15 +451,22 @@ namespace IdleGame.GameCore
         public int CryptMaxDepth = 60;            // content height (like TowerFloors)
         public int CryptTierFloors = 10;          // floors per theme tier (crypt→molten→frost, cycling)
         public int CryptGemsPerFloor = 5;         // first-clear gem pay per NEW depth floor
-        // Ramp split (tuned vs the BalanceSim crypt chart 2026-07-11): HP growth kept SOFT so deep
-        // floors stay brisk — sweep time tracks the HP mult on a pinned party, and 1.06 made depth-40
-        // floors 8-minute slogs that died to the run timer, not to monsters. Threat lives in the atk
-        // ramp instead: the wall reads as a WIPE ("get stronger"), never a timeout ("this is boring").
-        public double CryptHpGrowth = 1.045;      // per-floor monster HP ramp (on top of stage scaling)
-        public double CryptDmgGrowth = 1.05;      // per-floor monster atk ramp
-        // Depth reward ramp: chest dust + room-clear gold multiply by Growth^(floor-1). Deliberately
-        // ABOVE HpGrowth so dust/hour RISES with depth — pre-tune, flat chest tables made deeper runs
-        // pay strictly worse per hour (the 2026-07-09 sim finding this constant exists to fix).
+        // Own-depth curve (user verdict 2026-07-12, replacing the current-stage × geometric-ramp
+        // model that invited stage-sandbagging): floor difficulty = a stage-equivalent anchor,
+        // linear in depth on the campaign's TAPERED curves. Base 8 keeps floor 1 friendly for
+        // anyone who has the mode; 8 + 59×1.56 ≈ 100 makes a full clear the campaign capstone's
+        // peer. Chart-tuned (BalanceSim crypt mode = the acceptance).
+        public int CryptStageBase = 8;
+        public double CryptStagePerFloor = 1.56;
+        // Feel shapers on the anchor (chart-tuned): rooms are 4-5-mob fights, not campaign packs,
+        // so raw stage-equivalent HP made frontier floors 10-minute timer slogs while the tapered
+        // campaign damage never threatened a wipe. The discount keeps sweeps brisk; the linear
+        // pressure makes deep failure read as a WIPE ("get stronger"), never a timeout.
+        public double CryptHpDiscount = 0.6;      // flat monster-HP multiplier inside crypt floors
+        public double CryptDmgPressurePerFloor = 0.02; // +2%/floor monster atk (×2.2 at depth 60)
+        // Depth reward ramp: chest dust + room-clear gold multiply by Growth^(floor-1) so deeper
+        // floors out-pay shallow ones per HOUR, not just per kill (the 2026-07-09 sim finding).
+        // Kill gold/XP/loot ilvl now also ride the stage-equivalent anchor on their own.
         public double CryptRewardGrowth = 1.06;
         public string CryptDustCurrency = "grave_dust";
         // Demand side of the dust economy, sized against LIFETIME supply: the crypt is finite (60

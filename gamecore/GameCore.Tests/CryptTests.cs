@@ -232,18 +232,21 @@ namespace IdleGame.GameCore.Tests
         // ---------------- difficulty + tiers ----------------
 
         [Fact]
-        public void FloorMultipliersAreGeometricAndFloorOneIsBaseline()
+        public void OwnDepthCurveAnchorsEasyToCapstoneAndRewardsStillRamp()
         {
-            Assert.Equal(1.0, Crypt.FloorHpMult(1, Cfg), 12);
-            Assert.Equal(1.0, Crypt.FloorDmgMult(1, Cfg), 12);
+            // Own-depth curve (user verdict 2026-07-12): floor 1 sits at the friendly base, the
+            // anchor climbs LINEARLY and monotonically, and a full clear peers the campaign
+            // capstone (±2 stages — the constants may retune, the SHAPE must not invert).
+            Assert.Equal(Cfg.Balance.CryptStageBase, Crypt.StageEquivalent(1, Cfg));
+            Assert.True(Crypt.StageEquivalent(30, Cfg) > Crypt.StageEquivalent(15, Cfg));
+            int cap = Crypt.StageEquivalent(Cfg.Balance.CryptMaxDepth, Cfg);
+            Assert.InRange(cap, Cfg.Stages.Count - 2, Cfg.Stages.Count + 2);
+
+            // Reward ramp: still geometric with a floor-1 baseline, still strictly rising —
+            // deeper floors must out-pay shallow ones per hour (the 2026-07-09 sim finding).
             Assert.Equal(1.0, Crypt.FloorRewardMult(1, Cfg), 12);
-            Assert.Equal(Cfg.Balance.CryptHpGrowth, Crypt.FloorHpMult(2, Cfg), 12);
             Assert.Equal(Cfg.Balance.CryptRewardGrowth, Crypt.FloorRewardMult(2, Cfg), 12);
-            Assert.True(Crypt.FloorHpMult(20, Cfg) > Crypt.FloorHpMult(10, Cfg));
-            // Tuning contract (2026-07-11): sweep time tracks the HP ramp on a pinned party, so the
-            // reward ramp must grow at least as fast or deeper floors pay worse PER HOUR — the exact
-            // inversion the 2026-07-09 sim caught. Weakening this needs a fresh crypt chart.
-            Assert.True(Cfg.Balance.CryptRewardGrowth >= Cfg.Balance.CryptHpGrowth);
+            Assert.True(Cfg.Balance.CryptRewardGrowth > 1.0);
         }
 
         [Fact]
