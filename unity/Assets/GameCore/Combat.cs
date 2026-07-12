@@ -865,6 +865,9 @@ namespace IdleGame.GameCore
                     if (e.SkillCdMs.TryGetValue(id, out var cd) && cd > 0)
                         e.SkillCdMs[id] = Math.Max(0, cd - dtMs);
                 }
+                // Cast root (user call 2026-07-12): a caster stands its ground for the cast's
+                // beat, so the client clip can finish instead of travel-cancelling.
+                if (e.RootMs > 0) e.RootMs = Math.Max(0, e.RootMs - dtMs);
                 for (int i = e.Buffs.Count - 1; i >= 0; i--)
                 {
                     e.Buffs[i].RemainingMs -= dtMs;
@@ -1406,7 +1409,7 @@ namespace IdleGame.GameCore
                     {
                         var target = PickDamageTarget(s, e, sk);
                         if (target == null) continue;
-                        CastStart(e, sk, target.Id, events);
+                        CastStart(e, sk, target.Id, events, cfg);
                         double mult = sk.DamageMult * rankFactor;
                         ApplyHit(s, e, target, cfg, rng, events, mult);
                         if (sk.AoeRadius > 0)
@@ -1422,7 +1425,7 @@ namespace IdleGame.GameCore
                     {
                         var ally = PickHealTarget(s, e, sk);
                         if (ally == null) continue;
-                        CastStart(e, sk, ally.Id, events);
+                        CastStart(e, sk, ally.Id, events, cfg);
                         double heal = Math.Max(1.0, e.EffectiveStat(StatKey.Atk) * sk.DamageMult * rankFactor);
                         ally.Hp = Math.Min(ally.MaxHp, ally.Hp + heal);
                         events.Add(new CombatEvent { Type = CombatEventType.Heal, SourceId = e.Id, TargetId = ally.Id, Amount = heal });
@@ -1436,13 +1439,13 @@ namespace IdleGame.GameCore
                         if (sk.Targeting == "party")
                         {
                             if (sk.BuffStat == StatKey.HpRegenPct && !AnyAllyInjured(s, e.Team)) continue;
-                            CastStart(e, sk, e.Id, events);
+                            CastStart(e, sk, e.Id, events, cfg);
                             foreach (var o in s.Entities)
                                 if (o.Team == e.Team && o.Alive)
                                     o.Buffs.Add(new ActiveBuff { Stat = sk.BuffStat, Amount = sk.BuffAmount * rankFactor, RemainingMs = sk.BuffDurationMs });
                             return true;
                         }
-                        CastStart(e, sk, e.Id, events);
+                        CastStart(e, sk, e.Id, events, cfg);
                         e.Buffs.Add(new ActiveBuff { Stat = sk.BuffStat, Amount = sk.BuffAmount * rankFactor, RemainingMs = sk.BuffDurationMs });
                         return true;
                     }
@@ -1463,7 +1466,7 @@ namespace IdleGame.GameCore
                         // wall into a parallel corridor (user-caught in the maze layout). Blocked ⇒
                         // skip the skill this step (walk there like everyone else).
                         if (s.Dungeon != null && !s.Dungeon.SegmentWalkable(e.Pos, landing)) continue;
-                        CastStart(e, sk, target.Id, events);
+                        CastStart(e, sk, target.Id, events, cfg);
                         e.Pos = arena != null ? arena.Clamp(landing) : landing; // never dash off the walkable region
                         ApplyHit(s, e, target, cfg, rng, events, sk.DamageMult * rankFactor);
                         return true;
@@ -1473,11 +1476,16 @@ namespace IdleGame.GameCore
             return false;
         }
 
-        private static void CastStart(CombatEntity e, SkillDef sk, string? targetId, List<CombatEvent> events)
+        private static void CastStart(CombatEntity e, SkillDef sk, string? targetId, List<CombatEvent> events,
+                                      GameConfig cfg)
         {
             // Attack speed also quickens casts: higher AtkSpd => shorter effective cooldown.
             double atkSpd = e.EffectiveStat(StatKey.AtkSpd);
             e.SkillCdMs[sk.Id] = sk.CooldownMs / (atkSpd > 0 ? atkSpd : 1.0);
+            // Root the caster for the cast's beat (user call 2026-07-12): MoveToward no-ops while
+            // RootMs runs, so the client clip completes instead of travel-cancelling. Max, not
+            // overwrite — back-to-back casts inside one root never SHORTEN it.
+            e.RootMs = Math.Max(e.RootMs, cfg.Balance.CastRootMs);
             events.Add(new CombatEvent { Type = CombatEventType.SkillCast, SourceId = e.Id, TargetId = targetId, SkillId = sk.Id });
         }
 
@@ -2146,6 +2154,11 @@ namespace IdleGame.GameCore
         /// </summary>
         private static void MoveToward(CombatEntity e, Vec2 dest, double maxStep, IArenaSurface? arena = null)
         {
+            // Cast root: a casting entity stands its ground (user call 2026-07-12 — the fix for
+            // clip travel-cancel; the kiting cost is accepted). Gating HERE covers every walk
+            // path (follow/kite/retreat/wander) with one rule; dash landings and separation
+            // pushes write Pos directly and stay exempt — root means "won't walk", not "bolted".
+            if (e.RootMs > 0) return;
             double dx = dest.X - e.Pos.X;
             double dy = dest.Y - e.Pos.Y;
             double dist = Math.Sqrt(dx * dx + dy * dy);

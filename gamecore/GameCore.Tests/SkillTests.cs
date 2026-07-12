@@ -54,6 +54,30 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void CastingRootsTheCasterUntilTheRootElapses()
+        {
+            // Enemy far enough that the caster WANTS to close the gap after casting, but inside
+            // firebolt's range 6 — so the cast fires on step one and the root pins the caster.
+            var caster = Mk("A", Team.Party, 0, skills: "firebolt");
+            var enemy = Mk("B", Team.Enemy, 5.0);
+            var s = St(caster, enemy);
+
+            Step(s); // casts — RootMs = CastRootMs
+            Assert.True(E(s, "A").RootMs > 0);
+            double xAfterCast = E(s, "A").Pos.X;
+
+            // While rooted: steps pass, the caster does not walk (user call 2026-07-12 — the
+            // clip travel-cancel fix; MoveToward no-ops under root).
+            int rootedSteps = (int)(Cfg.Balance.CastRootMs / Combat.DefaultStepMs) - 1;
+            for (int i = 0; i < rootedSteps; i++) Step(s);
+            Assert.Equal(xAfterCast, E(s, "A").Pos.X, 9);
+
+            // Root elapsed: the caster resumes normal movement decisions.
+            for (int i = 0; i < 4; i++) Step(s);
+            Assert.Equal(0, E(s, "A").RootMs, 9);
+        }
+
+        [Fact]
         public void SkillOnCooldownFallsBackToBasicAttack()
         {
             var caster = Mk("A", Team.Party, 0, skills: "firebolt");

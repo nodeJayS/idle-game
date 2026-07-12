@@ -471,6 +471,12 @@ namespace IdleGame.GameCore
         public double CryptBoonCostGrowth = 1.5;  // geometric cost growth per rank
         public int CryptBoonMaxRank = 10;
         public double CryptBoonStatPct = 0.02;    // +2% of the boon's stat per rank
+        // Cast root (user call 2026-07-12): a caster refuses to WALK for this long after starting
+        // a cast, so the client's cast clip completes instead of travel-cancelling (the last
+        // cast-cancel source). Sized to the longest hero cast clip beat; the kiting cost — a
+        // rooted caster can't panic-kite mid-cast — is the accepted tradeoff.
+        public double CastRootMs = 700;
+
         // Boss challenge (C1): pressing Challenge despawns the trash and the boss appears this far
         // ahead of the party on the SAME map (a step or two away — not a separate arena). After a
         // flee/fail, trash stays gone for BossFleeCooldownMs before repopulating, so spamming

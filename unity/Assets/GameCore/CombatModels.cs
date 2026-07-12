@@ -136,6 +136,10 @@ namespace IdleGame.GameCore
         public bool Aggro = true;
         public Vec2 WanderTarget;
         public double WanderCdMs;
+        // Cast root (user call 2026-07-12): while > 0 the entity refuses to WALK (MoveToward
+        // no-ops) so the client's cast clip finishes instead of travel-cancelling. Set by
+        // CastStart from Balance.CastRootMs; dashes and separation pushes ignore it.
+        public double RootMs;
 
         // Hero downing (M4.3): a party hero at 0 HP is "downed", not dead — it
         // respawns after RespawnMs counts down. RespawnDurationMs is the level-scaled

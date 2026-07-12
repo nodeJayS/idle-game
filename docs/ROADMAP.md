@@ -26,29 +26,36 @@ Nothing here blocks autonomous work elsewhere, but these need your verdict
 before anyone acts on them:
 
 1. SHIPPED 2026-07-09: 10.1 rebalance (ledger below; sim-proven curve).
-2. **Root casters during casts?** The last cast-cancel source: the sim
-   moves a caster mid-cast and the clip travel-cancels. Rooting them is a
-   sim/balance change (kiting implications).
-3. RESOLVED 2026-07-11: crypt ramp/reward tuning shipped (ledger below).
-   Key cadence left at 1/day, bank 2 (the crypt is finite — 60 floors
-   ever ≈ 20 runs): say if that feels stingy in play.
-4. **Crypt mood/brightness polish:** play & eyeball, then direct.
-5. **Terrain slice 3** (zone water/lava/void flavor + camera composition):
-   wants your island-look eyeball before building.
-6. RESOLVED 2026-07-12: user picked BOTH gaits — Slither + Pulse
-   shipped (10.10c ledger below).
-7. **Older feel list** (park or direct): arena sizes/roam, water colour,
-   stair-tread chunkiness, terrace hop speed, caster MoveSpd vs follow
-   floor (overworld), anim-end vs contact launch, corpse-linger, melee
-   spacing, priest FX in real combat, formation knobs (standoff 4.6 /
-   panic 1.8 / aggro 2.0), run-clip foot-slide at regroup-hustle 1.4×.
-8. **Housekeeping:** the live save still holds ~996 test crypt keys
-   (2026-07-07 testing hack) — say when to restore the normal key economy.
+2. RESOLVED+SHIPPED 2026-07-12: casters ROOT during casts (CastRootMs
+   700 — MoveToward no-ops; kiting cost accepted by the user).
+3-6, 8. RESOLVED 2026-07-11/12 (user verdicts): crypt tuning shipped ·
+   key cadence + ~996 test keys STAY as-is · crypt lighting fine ·
+   terrain look approved (slice 3 stays backlog, unscheduled) · gaits =
+   BOTH, shipped. NEW verdicts spawned two backlog items below: the
+   crypt gets its OWN depth curve (decoupled from campaign stage —
+   kills sandbagging) and alt modes get a 2× speed toggle.
+7. **Older feel list** (user: "later" — parked): arena sizes/roam,
+   water colour, stair-tread chunkiness, terrace hop speed, caster
+   MoveSpd vs follow floor (overworld), anim-end vs contact launch,
+   corpse-linger, melee spacing, priest FX in real combat, formation
+   knobs (standoff 4.6 / panic 1.8 / aggro 2.0), run-clip foot-slide.
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
-**NEXT UP: 10.12(e) laptop verify (USER) → (d) tiers → user pick
-(verdicts #2/#4-#8 waiting) → 10.6 juice / 10.9 audio / 10.10 SDF.**
+**NEXT UP (user calls 2026-07-12): crypt own-depth curve → 2× toggle
+(alt modes) → perf self-verify (standalone profiling + 10.12(d)
+tiers; the user's laptop test becomes confirmation) → 10.10(d)
+Slither boss → 10.6 juice / 10.9 audio / 10.10(f).**
+
+**Crypt own-depth curve (user verdict 2026-07-12).** Crypt monsters
+scale to CURRENT STAGE + depth ramp — parking low trivializes pushes.
+Verdict: the crypt gets its OWN absolute easy→hard depth curve (kills
+sandbagging). GameCore + BalanceSim retune; crypt chart = acceptance.
+
+**2× speed toggle — alt modes (user verdict 2026-07-12).** Crypt +
+Tower get an idle-standard 2× button from mode unlock (campaign and
+endless stay 1×); persisted client-side. Likely Time.timeScale while
+the mode runs (fixed-step sim just steps faster), reset on exit.
 
 Self-contained briefs; slice order = shipping order, one verified slice
 per commit. Standing rules apply (GameCore-first; MS2 = heroes only; no
@@ -58,30 +65,23 @@ drop-table hints · manual achievement-claim UX · BFS build-reveal anim ·
 tilt-shift band-blur · SDF jiggle-rope tail · crypt mid-run merchant/
 boon-draft (user cut 2026-07-07; never dilute dust's permanent role).
 
-**10.3 UI/UX foundation refactor — COMPLETE 2026-07-11** (ledger below;
-receipts in git). Kit lessons that BITE, kept here for future screens:
-rows pin flexibleHeight=0 + minHeight (force-expand HLGs report phantom
-flex to their parent) BUT force-expand also clamps CHILD flex to ≥1, so
-a fixed-height cell inside a row needs a non-expanding VStack slot;
-windows/modals scale match-0.5 (match-width leaves ~540 canvas units at
-21:9 — vanishing labels = height starvation); `KeepOnCanvas` heals are
-DISPLAY-ONLY (persisting a clamp taken against a transient mid-switch
-canvas size clobbers the user's layout — happened, Play-caught).
-Font: UIFont.ttf (+meta) DELIBERATELY untracked; importer fallbacks
-(HYWenHei → Segoe UI Symbol → Segoe UI → Arial) are machine-local —
-re-apply on fresh checkout. Glyph audit: 24/24 covered. Still hand-
-placed (migrate when touched): Settings, TowerView, ModifierPanel, MainMenu.
+**10.3 UI/UX foundation — COMPLETE 2026-07-11.** Kit lessons that BITE:
+rows pin flexibleHeight=0 + minHeight, BUT force-expand clamps CHILD
+flex to ≥1 (a fixed-height cell in a row needs a non-expanding VStack
+slot); windows/modals scale match-0.5 (match-width starves height at
+21:9); `KeepOnCanvas` heals are DISPLAY-ONLY (persisting a clamp taken
+against a transient mid-switch canvas size clobbers layout — happened).
+UIFont.ttf deliberately untracked; importer fallbacks machine-local —
+re-apply on fresh checkout. Hand-placed still: Settings, TowerView,
+ModifierPanel, MainMenu (migrate when touched).
 
-**10.5 Loot QoL 2.0 (legibility at scale)**
-**COMPLETE 2026-07-11** (all five slices in one day; ledger below,
-receipts in git). Durable lessons kept: the SWEEP CONTRACT (bulk verbs
-— SalvageMany, Loadouts.Apply — skip stale/guarded entries silently;
-single deliberate verbs throw; state which in the doc comment); flat
-set bonuses on multiplier-ish stats (CritDmg/AtkSpd) explode late-tier
-— the §6.2 ≤8% gate test is the tuner, not eyes; additive fields on
-hand-copied models (Item.SetId, HeroInstance.Loadout) MUST be threaded
+**10.5 Loot QoL 2.0 — COMPLETE 2026-07-11.** Durable lessons: the SWEEP
+CONTRACT (bulk verbs skip stale/guarded entries silently, single verbs
+throw — state which in the doc comment); flat set bonuses on
+multiplier-ish stats explode late-tier (the §6.2 ≤8% gate test is the
+tuner, not eyes); additive fields on hand-copied models MUST thread
 through every copy site or a reducer silently strips them — grep
-`new Item`/`new HeroInstance` when adding one.
+`new Item`/`new HeroInstance`/`new ProgressState` when adding one.
 
 **10.12 Performance & mobile-readiness (user report 2026-07-11: weak
 laptop OVERHEATS, textures pop in late; goal = playable on mobile)**
