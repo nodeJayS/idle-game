@@ -15,7 +15,7 @@ push), 10 themed zones with terraced arenas, Tower, Crypt roguelite
 gems, gacha (live Ice Mage banner), and a balance simulator over pure
 GameCore. Roster: Knight / Fire Mage / Assassin / Priest (+ banner Ice
 Mage) on the MS2 skinned pipeline; monsters are faceted or SDF blend-shell.
-**749 GameCore tests green.** The 100-stage ladder is FIXED (10.1,
+**750 GameCore tests green.** The 100-stage ladder is FIXED (10.1,
 2026-07-09): stage 100 is a reachable prestige gate demanding
 near-mythic gear + maxed account stacks, sim-verified. FTUE shipped
 2026-07-10 (two-button open, five guided beats, staged HUD reveal).
@@ -127,11 +127,11 @@ sliders in Settings (foundation for 10.9).
 (a) SHIPPED 2026-07-11: `GameConfig.StageFor` generates rows past the
 table (boot formulas, memoized; scaling continues at the gentle
 last-tier rates), zones cycle, EndlessBest in ProgressState (v3),
-SetStage opens endless after stage 100. (b) SHIPPED 2026-07-12:
-"Push beyond…" nav entry + "Endless N" label; `MaxSelectableStage` is
-the ONE selection rule (nav + reducer share it). NEXT (c) reward
-curve: scrap/gold mult per depth, first-clear gems every 5; (d)
-BalanceSim endless walls chart to depth 200; (e) account-panel record.
+SetStage opens endless after stage 100. (b) SHIPPED 2026-07-12: "Push
+beyond…" nav entry + "Endless N" label; `MaxSelectableStage` = the ONE
+selection rule (nav + reducer share it). (c) SHIPPED 2026-07-12: gems
+every 5th NEW depth (gold/XP/loot formulas already extend past the
+table). NEXT (d) endless walls chart to 200; (e) account-panel record.
 
 **10.9 Audio identity (original, adaptive — NO MS2 music ever)**
 The game is silent between SFX. (a) pick/produce 3 original loop beds

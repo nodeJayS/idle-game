@@ -176,7 +176,9 @@ namespace IdleGame.GameCore
         /// CurrentStage, and grant any hero unlocks now satisfied
         /// (<see cref="GameConfig.HeroUnlocks"/>) — each acquired once and auto-fielded into
         /// the first empty party slot. Replaying an already-cleared stage is fine —
-        /// HighestStage only moves forward and owned unlocks are skipped. Pure.
+        /// HighestStage only moves forward and owned unlocks are skipped. Endless first-clears
+        /// pay a gem drip every <see cref="BalanceConstants.EndlessGemsEvery"/>th NEW depth
+        /// (EndlessBest advance only — Tower/crypt-style receipts, re-clears grant nothing). Pure.
         /// </summary>
         public static SaveState OnStageCleared(SaveState save, int stage, GameConfig cfg)
         {
@@ -187,6 +189,9 @@ namespace IdleGame.GameCore
             int endlessBest = stage > cfg.Stages.Count
                 ? Math.Max(save.Progress.EndlessBest, stage - cfg.Stages.Count)
                 : save.Progress.EndlessBest;
+            long gems = endlessBest > save.Progress.EndlessBest
+                        && endlessBest % Math.Max(1, cfg.Balance.EndlessGemsEvery) == 0
+                ? cfg.Balance.EndlessGemsPerMilestone : 0;
             var next = WithProgress(save, new ProgressState
             {
                 HighestStage = highest,
@@ -199,7 +204,7 @@ namespace IdleGame.GameCore
                 Crypt = save.Progress.Crypt,
                 Intro = save.Progress.Intro,
                 Loot = save.Progress.Loot,
-            });
+            }, gems, cfg);
 
             next = SyncHeroUnlocks(next, cfg);
 
@@ -314,23 +319,35 @@ namespace IdleGame.GameCore
                 ? cfg.Stages.Count + save.Progress.EndlessBest + 1
                 : Math.Min(save.Progress.HighestStage + 1, cfg.Stages.Count);
 
-        // Clone the save with a new ProgressState; everything else shares refs.
-        private static SaveState WithProgress(SaveState save, ProgressState progress) => new SaveState
+        // Clone the save with a new ProgressState; everything else shares refs. A non-zero
+        // gems credit clones the currencies dict too (the Tower.WithFloor premium pattern).
+        private static SaveState WithProgress(SaveState save, ProgressState progress,
+                                              long gems = 0, GameConfig? cfg = null)
         {
-            Version = save.Version,
-            RngSeed = save.RngSeed,
-            RngCursor = save.RngCursor,
-            Heroes = save.Heroes,
-            Party = save.Party,
-            LeaderHeroId = save.LeaderHeroId,
-            Inventory = save.Inventory,
-            Currencies = save.Currencies,
-            Progress = progress,
-            Quests = save.Quests,
-            Modifiers = save.Modifiers,
-            GachaPity = save.GachaPity,
-            LastClaimAt = save.LastClaimAt,
-        };
+            var currencies = save.Currencies;
+            if (gems != 0 && cfg != null)
+            {
+                currencies = new Dictionary<string, long>(save.Currencies);
+                string key = cfg.Balance.PremiumCurrency;
+                currencies[key] = (currencies.TryGetValue(key, out var v) ? v : 0) + gems;
+            }
+            return new SaveState
+            {
+                Version = save.Version,
+                RngSeed = save.RngSeed,
+                RngCursor = save.RngCursor,
+                Heroes = save.Heroes,
+                Party = save.Party,
+                LeaderHeroId = save.LeaderHeroId,
+                Inventory = save.Inventory,
+                Currencies = currencies,
+                Progress = progress,
+                Quests = save.Quests,
+                Modifiers = save.Modifiers,
+                GachaPity = save.GachaPity,
+                LastClaimAt = save.LastClaimAt,
+            };
+        }
 
         // Equipped / SkillRanks / Loadout are unchanged here, so the new hero shares those refs.
         private static HeroInstance WithLevel(HeroInstance hero, int level, long xp) => new HeroInstance

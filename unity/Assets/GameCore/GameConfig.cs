@@ -590,6 +590,14 @@ namespace IdleGame.GameCore
         public int TowerMilestoneEvery = 10;         // permanent account buff every N floors cleared
         public double TowerMilestoneStatPct = 0.05;  // +5% Hp/Atk/Def (account-wide) per milestone
         public int TowerGemsPerFloor = 10;           // gems granted for each first-time floor clear (a steady gem drip)
+
+        // Endless mode (10.8): the post-100 chase pays a LEAN first-clear gem drip — every
+        // EndlessGemsEvery'th NEW depth (EndlessBest advance only; re-clears pay nothing).
+        // Lean deliberately: endless is unbounded, so ~2 gems/stage vs Tower's 10 over a
+        // finite 30 floors. Gold/XP/loot need no constants here — KillRewardMult, the idle
+        // rates, and StageFor's drop/ilvl formulas all extend past the table on their own.
+        public int EndlessGemsEvery = 5;
+        public int EndlessGemsPerMilestone = 10;
         public int TowerPackBase = 4;                // trash mobs on floor 1
         public int TowerPackPerFloors = 5;           // +1 mob every N floors (a slowly thickening pack)
 

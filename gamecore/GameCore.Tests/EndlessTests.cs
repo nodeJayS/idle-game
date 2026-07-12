@@ -114,6 +114,31 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void EndlessFirstClearsPayGemsEveryFifthDepthOnly()
+        {
+            string gemKey = Cfg.Balance.PremiumCurrency;
+            long Gems(SaveState s) => s.Currencies.TryGetValue(gemKey, out var v) ? v : 0;
+
+            var s = Fresh();
+            s.Progress.HighestStage = 100;
+            s.Progress.EndlessBest = 3;
+            s.Progress.CurrentStage = 104;
+
+            var d4 = Progression.OnStageCleared(s, 104, Cfg);      // depth 4: off-milestone
+            Assert.Equal(Gems(s), Gems(d4));
+            var d5 = Progression.OnStageCleared(d4, 105, Cfg);     // depth 5: milestone pays
+            Assert.Equal(Gems(d4) + Cfg.Balance.EndlessGemsPerMilestone, Gems(d5));
+
+            // A re-clear of depth 5 doesn't advance EndlessBest, so it pays nothing.
+            var again = Progression.OnStageCleared(d5, 105, Cfg);
+            Assert.Equal(Gems(d5), Gems(again));
+
+            // Campaign clears never touch the endless drip.
+            var campaign = Progression.OnStageCleared(Fresh(), 5, Cfg);
+            Assert.Equal(Gems(Fresh()), Gems(campaign));
+        }
+
+        [Fact]
         public void MaxSelectableStageIsTheOneSelectionRule()
         {
             // The client's stage nav reads this helper; it must agree with SetStage's acceptance.
