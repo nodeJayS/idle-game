@@ -743,8 +743,19 @@ namespace IdleGame.GameCore
         /// <summary>0-based difficulty tier: stages 1..N => 0, N+1..2N => 1, … (N = StagesPerTier).</summary>
         public int Tier(int stage) => Math.Max(0, (stage - 1) / StagesPerTier);
 
-        private double TierScale(int stage) =>
-            Math.Pow(RatePerStageMult, Math.Max(0, stage - 1)) * Math.Pow(RateTierMult, Tier(stage));
+        // Endless rate taper (10.8d, sim-caught): the raw curve (1.06^stage × 2.2^tier) OVERFLOWS
+        // long gold before endless depth 200. Rates ride the campaign curve to the table edge
+        // (keep EndlessRateTaperStage = the stage-table height), then one gentle exponent carries
+        // the endless chase — deeper still pays better, it just stops compounding the tier jump.
+        public int EndlessRateTaperStage = 100;
+        public double EndlessRateGrowth = 1.02;   // per-stage rate growth past the table
+
+        private double TierScale(int stage)
+        {
+            int capped = Math.Min(stage, EndlessRateTaperStage);
+            double scale = Math.Pow(RatePerStageMult, Math.Max(0, capped - 1)) * Math.Pow(RateTierMult, Tier(capped));
+            return stage > capped ? scale * Math.Pow(EndlessRateGrowth, stage - capped) : scale;
+        }
 
         public long GoldPerSec(int stage) => (long)Math.Floor(5 * TierScale(stage));
         public long XpPerSec(int stage) => (long)Math.Floor(3 * TierScale(stage));

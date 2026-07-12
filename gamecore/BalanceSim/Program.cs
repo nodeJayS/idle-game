@@ -26,6 +26,11 @@ namespace IdleGame.BalanceSim
     ///          reward as the depth ramp climbs — result, sweep seconds, rooms/chests, gold/dust/xp/
     ///          items/downs; then the crypt wall (first depth the party fails) and the reward-vs-ramp
     ///          trend. --stage/--level/--gear pin the party; depth is the only variable.
+    ///   endless [--depths 1-200] [--level 100] [--gear mythic] [--gearstage 100] [--stacks max]
+    ///          [--trials 3] [--window 120] [--csv path]
+    ///          Endless chart (10.8d): a party pinned at ENTRY power (gear at --gearstage's item
+    ///          level) vs rising depth — boss-gate winrate (the EndlessBest advance), farm window
+    ///          throughput, the wall, the idle-park frontier, and the gold/min economy trend.
     ///   pace   [--target 100] [--gear rare] [--seed 1] [--window 120] [--stacks …] [--csv path]
     ///          Simulated playthrough (10.1d): farm each stage's trash at the current level, spend the
     ///          measured XP/min to level up until the boss gate clears, then advance — charting the
@@ -46,7 +51,7 @@ namespace IdleGame.BalanceSim
 
             if (opts.ContainsKey("help") || mode == "help")
             {
-                Console.WriteLine("modes: walls (default) | sweep | farm | crypt | pace — see Program.cs header for options.");
+                Console.WriteLine("modes: walls (default) | sweep | farm | crypt | endless | pace — see Program.cs header for options.");
                 return 0;
             }
 
@@ -57,9 +62,10 @@ namespace IdleGame.BalanceSim
                 case "sweep": return Sweep(cfg, opts, seed);
                 case "farm": return Farm(cfg, opts, seed);
                 case "crypt": return CryptChart(cfg, opts, seed);
+                case "endless": return Endless(cfg, opts, seed);
                 case "pace": return Pace(cfg, opts, seed);
                 default:
-                    Console.Error.WriteLine($"unknown mode \"{mode}\" (walls | sweep | farm | crypt | pace)");
+                    Console.Error.WriteLine($"unknown mode \"{mode}\" (walls | sweep | farm | crypt | endless | pace)");
                     return 2;
             }
         }
@@ -450,6 +456,109 @@ namespace IdleGame.BalanceSim
             {
                 foreach (var r in rows)
                     w.WriteLine($"{r.Stage},{r.Req},{r.Level},{r.Hours.ToString("0.00", ci)},{r.Gold.ToString("0", ci)}");
+            });
+            return 0;
+        }
+
+        // ---- endless -----------------------------------------------------------------
+
+        private sealed class EndlessRow
+        {
+            public int Depth;
+            public bool Major;          // every 10th depth fields the ×MajorBossMult gate
+            public double BossWins;     // fraction of trials that cleared the boss gate
+            public double BossSeconds;
+            public double Kills, Downs, Gold, Xp, Hits, Seconds; // farm-window sums (averaged)
+            public double KillsPerMin => Seconds > 0 ? Kills * 60.0 / Seconds : 0;
+            public double GoldPerMin => Seconds > 0 ? Gold * 60.0 / Seconds : 0;
+            public double HitsPerKill => Kills > 0 ? Hits / Kills : double.NaN;
+        }
+
+        /// <summary>
+        /// Endless chart (10.8d): ONE party pinned at ENTRY power — gear rolled at --gearstage's
+        /// item level (default: the last campaign stage), NOT at the tested depth — asked how deep
+        /// it reaches. Per depth: the boss gate (what advances EndlessBest) and a farm window
+        /// (whether the depth still farms/idles after the push stalls). The walls mode answers a
+        /// different question (min LEVEL with gear-of-the-stage); this one is the content-lifetime
+        /// and economy lens the 10.8 acceptance names.
+        /// </summary>
+        private static int Endless(GameConfig cfg, Dictionary<string, string> opts, uint seed)
+        {
+            var (dFrom, dTo, dStep) = GetRange(opts, "depths", 1, 200, 1);
+            int level = GetInt(opts, "level", cfg.Balance.MaxLevel);
+            var gear = GetGears(opts, defaults: new Rarity?[] { Rarity.Mythic })[0];
+            int gearStage = GetInt(opts, "gearstage", cfg.Stages.Count);
+            int trials = GetInt(opts, "trials", 3);
+            int window = GetInt(opts, "window", 120);
+            var stacks = ParseStacks(opts, cfg);
+            int gearIndex = Array.IndexOf(Scenarios.GearPolicies, gear);
+            var ci = CultureInfo.InvariantCulture;
+
+            // One pinned save per trial, reused across every depth (the depth is the only variable).
+            var saves = new SaveState[trials];
+            var cellSeeds = new uint[trials];
+            for (int t = 0; t < trials; t++)
+            {
+                cellSeeds[t] = Scenarios.CellSeed(seed, gearStage, level, gearIndex, t);
+                saves[t] = Scenarios.BuildSave(cfg, gearStage, level, gear, cellSeeds[t], stacks);
+            }
+            double partyPower = Stats.ComputePartyPower(saves[0], cfg);
+
+            var rows = new List<EndlessRow>();
+            for (int d = dFrom; d <= dTo; d += dStep)
+            {
+                int stage = cfg.Stages.Count + d;
+                var row = new EndlessRow { Depth = d, Major = cfg.StageFor(stage)?.IsMajorBoss == true };
+                for (int t = 0; t < trials; t++)
+                {
+                    uint runSeed = unchecked(cellSeeds[t] + (uint)(d * 92821)); // per-depth stream
+                    var boss = Scenarios.RunBoss(cfg, saves[t], stage, runSeed);
+                    if (boss.Won) row.BossWins++;
+                    row.BossSeconds += boss.Seconds;
+                    var farm = Scenarios.RunFarm(cfg, saves[t], stage, window, runSeed ^ 0x9E3779B9u);
+                    row.Kills += farm.Kills; row.Downs += farm.HeroDowns; row.Gold += farm.Gold;
+                    row.Xp += farm.Xp; row.Hits += farm.HeroHits; row.Seconds += farm.WindowSeconds;
+                }
+                row.BossWins /= trials; row.BossSeconds /= trials; row.Downs /= trials;
+                rows.Add(row);
+                Console.Error.Write($"\rendless: depth {d}/{dTo}   ");
+            }
+            Console.Error.WriteLine();
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"Endless chart — entry power pinned at stage {gearStage} gear, level {level}, "
+                          + $"{Scenarios.GearName(gear)}, stacks {stacks.Label} (power {partyPower:0}; "
+                          + $"trials={trials}, window={window}s, seed={seed})");
+            sb.AppendLine("depth marks every 10th (major-boss gate) with '*'. boss = the gate that grows EndlessBest.");
+            sb.AppendLine();
+            sb.AppendLine(" depth   boss  boss_s  kills/m  hits/k   gold/m  downs");
+            foreach (var r in rows)
+                sb.AppendLine($"{(r.Major ? "*" : " ")}{r.Depth,5}  {(trials == 1 ? (r.BossWins >= 1 ? "  WIN" : " LOSS") : $"{r.BossWins * trials:0}/{trials}"),5}"
+                              + $"  {r.BossSeconds.ToString("0.0", ci),6}  {r.KillsPerMin.ToString("0.0", ci),7}"
+                              + $"  {r.HitsPerKill.ToString("0.0", ci),6}  {r.GoldPerMin.ToString("0", ci),7}  {r.Downs.ToString("0.0", ci),5}");
+
+            var wall = rows.FirstOrDefault(r => r.BossWins < 0.5);
+            var lastFarm = rows.LastOrDefault(r => r.KillsPerMin >= 1 && r.Downs < 1);
+            sb.AppendLine();
+            if (wall == null)
+                sb.AppendLine($"endless wall: none — the push clears every charted depth through {rows[rows.Count - 1].Depth}.");
+            else
+                sb.AppendLine($"endless wall: depth {(wall.Major ? "*" : "")}{wall.Depth} — the push stalls here at entry power"
+                              + $" (boss {wall.BossWins * trials:0}/{trials}, {wall.BossSeconds:0.0}s).");
+            if (lastFarm != null)
+                sb.AppendLine($"farmable through depth {lastFarm.Depth} (≥1 kill/min, <1 down/window) — the idle-park frontier.");
+            var first = rows[0];
+            var wallRow = wall ?? rows[rows.Count - 1];
+            if (first.GoldPerMin > 0)
+                sb.AppendLine($"economy: gold/min {first.GoldPerMin:0} → {wallRow.GoldPerMin:0} over depth "
+                              + $"{first.Depth}→{wallRow.Depth} (×{wallRow.GoldPerMin / first.GoldPerMin:0.0}).");
+            Console.Write(sb.ToString());
+
+            WriteCsv(opts, "depth,major,boss_winrate,boss_seconds,kills_per_min,hits_per_kill,gold_per_min,downs", w =>
+            {
+                foreach (var r in rows)
+                    w.WriteLine($"{r.Depth},{(r.Major ? 1 : 0)},{r.BossWins.ToString("0.00", ci)},{r.BossSeconds.ToString("0.0", ci)},"
+                                + $"{r.KillsPerMin.ToString("0.0", ci)},{r.HitsPerKill.ToString("0.0", ci)},{r.GoldPerMin.ToString("0", ci)},{r.Downs.ToString("0.0", ci)}");
             });
             return 0;
         }

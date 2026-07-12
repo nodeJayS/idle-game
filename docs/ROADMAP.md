@@ -15,12 +15,10 @@ push), 10 themed zones with terraced arenas, Tower, Crypt roguelite
 gems, gacha (live Ice Mage banner), and a balance simulator over pure
 GameCore. Roster: Knight / Fire Mage / Assassin / Priest (+ banner Ice
 Mage) on the MS2 skinned pipeline; monsters are faceted or SDF blend-shell.
-**750 GameCore tests green.** The 100-stage ladder is FIXED (10.1,
-2026-07-09): stage 100 is a reachable prestige gate demanding
-near-mythic gear + maxed account stacks, sim-verified. FTUE shipped
-2026-07-10 (two-button open, five guided beats, staged HUD reveal).
-UI foundation (10.3) COMPLETE 2026-07-11. Headline problem now:
-performance on weak/mobile hardware — see 10.12.
+**751 GameCore tests green.** The 100-stage ladder is FIXED (10.1):
+stage 100 = a reachable prestige gate, sim-verified. FTUE (10.2) and
+UI foundation (10.3) COMPLETE. Headline problem now: performance on
+weak/mobile hardware — see 10.12.
 
 ## Your calls — decisions waiting on the USER
 
@@ -131,7 +129,11 @@ SetStage opens endless after stage 100. (b) SHIPPED 2026-07-12: "Push
 beyond…" nav entry + "Endless N" label; `MaxSelectableStage` = the ONE
 selection rule (nav + reducer share it). (c) SHIPPED 2026-07-12: gems
 every 5th NEW depth (gold/XP/loot formulas already extend past the
-table). NEXT (d) endless walls chart to 200; (e) account-panel record.
+table). (d) SHIPPED 2026-07-12: BalanceSim `endless` mode; rate taper
+EndlessRateGrowth 1.02 past the table (raw ×2.2/tier OVERFLOWED long
+gold by depth ~200 — sim-caught); endgame entry power walls ~depth 91,
+economy ×2.3 over the push, idle-farmable to ~186. NEXT (e) record on
+the account panel + feed line.
 
 **10.9 Audio identity (original, adaptive — NO MS2 music ever)**
 The game is silent between SFX. (a) pick/produce 3 original loop beds
@@ -234,12 +236,10 @@ impact language belongs to 10.6b). 10.11 COMPLETE.
 - 2026-07-07 Project audit: dead files, stale docs, clean sweep (`ed3d347`)
 - 2026-07-06 Crypt meta: keys, 3-floor runs, chest, boons (`7462d84`, `14ca7a5`)
 - 2026-07-06 Dungeon mode ×5 passes → packed maze + room aggro (`ba378d7`..`a10135a`)
-- 2026-07-05 Terrain slices 1+2: arenas + terraces/water (`24cf528`, `839a0bc`)
-- 2026-07-05 Presentation debt: impact sounds, priest FX (`845c2b3`)
-- 2026-07-05 Ranged feel: speed, launch chain, anti-stutter (`1d67c7d`..`3b18ead`)
-- 2026-07-05 Tower floor gems + quest rework + modifier UX (`92f8588`)
-- 2026-07-04/05 SDF blend-shell: shader → gaits → swamp trio (`5f17ce1`..`ccfd9a9`)
-- 2026-07-04 Party feel batch: formation, kite/peel, leader UI (`208b435`..`8364850`)
+- 2026-07-05 Terrain slices 1+2 · presentation debt · ranged feel ·
+  Tower gems/quest rework/modifier UX (`24cf528`..`92f8588`)
+- 2026-07-04/05 SDF blend-shell (shader → gaits → swamp trio) · party
+  feel batch: formation, kite/peel, leader UI (`5f17ce1`..`8364850`)
 - 2026-07-03/04 Gacha MVP + Ice Mage banner · monster procedural anim ·
   combat-feel/QoL batch
 

@@ -142,7 +142,9 @@ namespace IdleGame.BalanceSim
         /// picked per slot by lowest BaseId so dictionary order can't leak in.</summary>
         public static SaveState EquipFullSet(SaveState save, GameConfig cfg, int stage, Rarity rarity, uint seed)
         {
-            var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
+            // StageFor, not a table Find: an endless stage must pin gear at ITS item level, not
+            // fall back to stage 1 (that fallback made every endless walls row read unclearable).
+            var rt = cfg.StageFor(stage) ?? cfg.Stages[0];
             int itemLevel = Math.Max(1, Math.Max(rt.AffixItemLevel, rt.MonsterLevel));
             var rng = new Rng(seed ^ 0x5F356495u); // gear rolls on their own stream
 

@@ -156,6 +156,25 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(106, Progression.MaxSelectableStage(deep, Cfg));
         }
 
+        [Fact]
+        public void RewardRatesTaperPastTheTableInsteadOfCompoundingTheTierJump()
+        {
+            // Within the table the curve is untouched (raw per-stage × tier formula).
+            double raw95 = Math.Pow(Cfg.Balance.RatePerStageMult, 94) * Math.Pow(Cfg.Balance.RateTierMult, Cfg.Balance.Tier(95));
+            Assert.Equal(raw95, Cfg.Balance.KillRewardMult(95), 6);
+
+            // Past it: one gentle exponent per stage — no 2.2× tier jump at 101/111/121…
+            double edge = Cfg.Balance.KillRewardMult(Cfg.Balance.EndlessRateTaperStage);
+            Assert.Equal(edge * Math.Pow(Cfg.Balance.EndlessRateGrowth, 11),
+                         Cfg.Balance.KillRewardMult(Cfg.Balance.EndlessRateTaperStage + 11), 6);
+
+            // The overflow guard with teeth: deep-endless per-kill gold must stay far inside
+            // long range (the untapered curve went NEGATIVE by depth ~200 — sim-caught).
+            double deep = Cfg.Balance.KillRewardMult(Cfg.Balance.EndlessRateTaperStage + 400);
+            Assert.True(deep > 0 && deep * 1000 < long.MaxValue,
+                $"KillRewardMult at taper+400 = {deep:e2} — endless economy re-exploded");
+        }
+
         // ---------------- migration ----------------
 
         [Fact]
