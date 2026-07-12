@@ -69,6 +69,12 @@ namespace IdleGame.Game
                 { "bone_serpent", BoneSerpent() },
                 // The (d) boss itself: the crypt tier's own vault guardian, 15 of the 16-prim budget.
                 { "ossuary_wyrm", OssuaryWyrm() },
+                // 10.10f overworld backfill: two FACETED ids whose blob fantasy outgrew their rigid
+                // FBX bodies (this branch outranks MonsterModel in CombatView; the fbx + animator
+                // rows stay behind as fallback). SDF is a body style, not a restyle — these two are
+                // genuinely amorphous; everything else overworld stays faceted Tunic.
+                { "bog_horror", BogHorror() },
+                { "chaos_spawn", ChaosSpawn() },
             };
             foreach (var def in d.Values) def.Height = TopOf(def.Prims);
             return d;
@@ -435,6 +441,110 @@ namespace IdleGame.Game
                     new() { name = "crest", localPosition = new Vector3(0f, 1.00f, 0.55f),
                             localEuler = new Vector3(-30f, 0f, 0f),
                             radius = 0.10f, halfLength = 0.22f, color = crest, blendK = 0.12f },
+                },
+            };
+        }
+
+        /// <summary>Bog Horror (10.10f) — the swamp ZONE BOSS as a heaving Pulse mound: the faceted
+        /// original's fantasy (layered muck, moss shoulders, pillar tendril-arms planted ahead, a
+        /// row of glowing sludge eyes) rebuilt as a seamless swelling mass. Boss-scale wyrm lessons
+        /// apply: details FAT and far-jutting, Subdivisions 12. Contrast on the swamp's mid-dark
+        /// mossy ground comes from HUE (warm peat brown vs green floor) + the bright sludge eyes;
+        /// eyes face +Z (CombatView's facing axis) and sit PROUD of the crown. 12/16 prims.</summary>
+        private static Def BogHorror()
+        {
+            // Play-tuned 2026-07-13: pass one's peat sat too close to the swamp's pale moss rocks
+            // (the match-the-floor "reads as a rock" trap) — darkened a step so the mound separates
+            // from the scenery by VALUE, with the oversized eyes carrying the identity.
+            Color peat  = new Color(0.30f, 0.25f, 0.16f); // warm peat — browner AND darker than the floor
+            Color muck  = new Color(0.23f, 0.20f, 0.13f); // darker under-mass
+            Color moss  = new Color(0.34f, 0.48f, 0.24f); // moss cladding — kept DEEP so the eyes own the brightness
+            Color eye   = new Color(0.90f, 0.92f, 0.38f); // glowing sludge — albedo only, no emission
+            Color maw   = new Color(0.12f, 0.11f, 0.08f); // the dark mouth notch
+            return new Def
+            {
+                Family = SdfBlobAnimator.Family.Pulse,
+                BoundsPadding = 0.6f, // beat swell + travel bounce (the MagmaBlob margin, boss-sized)
+                Subdivisions = 12,    // boss rule: spend verts to shrink seam membranes
+                Prims = new List<SdfBlobRig.PrimitiveDef>
+                {
+                    // The mound: three fat overlapping spheres for a WIDE base (a single radius
+                    // can't squash, so width comes from side-by-side masses), a crown, a cap.
+                    new() { name = "base_L", localPosition = new Vector3(-0.34f, 0.46f, 0f),
+                            radius = 0.48f, halfLength = 0f, color = muck, blendK = 0.34f },
+                    new() { name = "base_R", localPosition = new Vector3(0.34f, 0.46f, 0f),
+                            radius = 0.48f, halfLength = 0f, color = muck, blendK = 0.34f },
+                    new() { name = "body", localPosition = new Vector3(0f, 0.64f, -0.04f),
+                            radius = 0.55f, halfLength = 0f, color = peat, blendK = 0.34f },
+                    new() { name = "crown", localPosition = new Vector3(0f, 1.20f, -0.10f),
+                            radius = 0.38f, halfLength = 0f, color = peat, blendK = 0.30f },
+                    new() { name = "cap", localPosition = new Vector3(0.06f, 1.52f, -0.16f),
+                            radius = 0.26f, halfLength = 0f, color = moss, blendK = 0.24f },
+                    // Moss shoulder lump — colour variety breaking the peat mass.
+                    new() { name = "moss_L", localPosition = new Vector3(-0.38f, 1.24f, -0.18f),
+                            radius = 0.24f, halfLength = 0f, color = moss, blendK = 0.22f },
+                    // Pillar tendril-arms PLANTED ahead of the mound (fat, far-jutting — the wyrm
+                    // lesson). Tilted forward-out; tips reach the ground line.
+                    new() { name = "arm_L", localPosition = new Vector3(-0.74f, 0.52f, 0.34f),
+                            localEuler = new Vector3(-22f, 0f, 24f),
+                            radius = 0.19f, halfLength = 0.36f, color = muck, blendK = 0.14f },
+                    new() { name = "arm_R", localPosition = new Vector3(0.74f, 0.52f, 0.34f),
+                            localEuler = new Vector3(-22f, 0f, -24f),
+                            radius = 0.19f, halfLength = 0.36f, color = muck, blendK = 0.14f },
+                    // The uneven row of glowing sludge eyes over a dark maw, all PROUD of the
+                    // front surface (crisp blendK so they stay beads, not smears).
+                    // Eyes OVERSIZED for gameplay zoom (Play-caught: r 0.13 was a 6px speck at
+                    // ortho 7.2 — the identity feature must survive the real framing).
+                    new() { name = "eye_M", localPosition = new Vector3(0f, 1.26f, 0.46f),
+                            radius = 0.17f, halfLength = 0f, color = eye, blendK = 0.08f },
+                    new() { name = "eye_L", localPosition = new Vector3(-0.24f, 1.14f, 0.42f),
+                            radius = 0.13f, halfLength = 0f, color = eye, blendK = 0.08f },
+                    new() { name = "eye_R", localPosition = new Vector3(0.23f, 1.16f, 0.43f),
+                            radius = 0.14f, halfLength = 0f, color = eye, blendK = 0.08f },
+                    new() { name = "maw", localPosition = new Vector3(0f, 0.86f, 0.50f),
+                            radius = 0.17f, halfLength = 0f, color = maw, blendK = 0.12f },
+                },
+            };
+        }
+
+        /// <summary>Chaos Spawn (10.10f) — summit-zone trash as a throbbing Pulse mass: the faceted
+        /// original's lopsided lumps, MISMATCHED radiant/violet eyes, and one reaching tentacle,
+        /// now genuinely writhing. The summit floors are PALE gold, so the body goes dark void
+        /// violet (dark-on-light) with the radiant-gold eyes as the pop. Deliberately asymmetric —
+        /// nothing mirrors. 7 prims, trash budget.</summary>
+        private static Def ChaosSpawn()
+        {
+            Color body  = new Color(0.26f, 0.18f, 0.38f); // dark void violet
+            Color lump  = new Color(0.42f, 0.30f, 0.60f); // brighter violet lump
+            Color gold  = new Color(0.95f, 0.80f, 0.35f); // radiant eye
+            Color viol  = new Color(0.62f, 0.45f, 0.85f); // the OTHER eye — mismatched on purpose
+            return new Def
+            {
+                Family = SdfBlobAnimator.Family.Pulse,
+                BoundsPadding = 0.6f, // beat swell + travel bounce (the MagmaBlob numbers)
+                Prims = new List<SdfBlobRig.PrimitiveDef>
+                {
+                    // GROUND RULE (see MireSlime): resting on y=0.
+                    new() { name = "body", localPosition = new Vector3(0.02f, 0.44f, 0f),
+                            radius = 0.42f, halfLength = 0f, color = body, blendK = 0.32f },
+                    new() { name = "lump_T", localPosition = new Vector3(0.18f, 0.74f, -0.08f),
+                            radius = 0.25f, halfLength = 0f, color = lump, blendK = 0.26f },
+                    new() { name = "lump_S", localPosition = new Vector3(-0.28f, 0.38f, 0.10f),
+                            radius = 0.22f, halfLength = 0f, color = lump, blendK = 0.26f },
+                    // Mismatched eyes facing +Z — pushed well PROUD of the body surface (an eye
+                    // sitting ON the surface smears into a flat disc; the wyrm-disc trap).
+                    new() { name = "eye_A", localPosition = new Vector3(0.14f, 0.62f, 0.44f),
+                            radius = 0.11f, halfLength = 0f, color = gold, blendK = 0.08f },
+                    new() { name = "eye_B", localPosition = new Vector3(-0.13f, 0.48f, 0.44f),
+                            radius = 0.07f, halfLength = 0f, color = viol, blendK = 0.08f },
+                    // One reaching tentacle, up-and-out (fat + LONG enough to read as a limb).
+                    new() { name = "tentacle", localPosition = new Vector3(0.44f, 0.68f, 0.16f),
+                            localEuler = new Vector3(-18f, 0f, -52f),
+                            radius = 0.10f, halfLength = 0.30f, color = lump, blendK = 0.12f },
+                    // A stubby counter-lump low on the other flank so the mass reads lopsided,
+                    // never symmetric.
+                    new() { name = "nub", localPosition = new Vector3(-0.34f, 0.26f, -0.14f),
+                            radius = 0.16f, halfLength = 0f, color = body, blendK = 0.22f },
                 },
             };
         }

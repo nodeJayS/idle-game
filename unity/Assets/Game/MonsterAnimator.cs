@@ -47,6 +47,9 @@ namespace IdleGame.Game
         // ---- family table (client-side cosmetic; keyed by monster id / fbx name) ----
         // Verified against the zone rosters in GameConfig.cs (Monsters[...] + Zones): all 28
         // ids are real, none missing. Grouping is by silhouette/flavour, not by sim role.
+        // NOTE (10.10f): bog_horror + chaos_spawn render as SDF blobs now — CombatView's blob
+        // branch outranks MonsterModel, so their rows here are dormant fallback (kept on purpose:
+        // pulling a blob def must degrade to the old faceted body, never to a stranger).
         private static readonly Dictionary<string, Family> Families = new()
         {
             // Hop — bouncy blobs that arc off the ground.

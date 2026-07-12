@@ -40,7 +40,7 @@ before anyone acts on them:
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
-**NEXT UP: 10.6 juice / 10.9 audio / 10.10(f) overworld backfill.
+**NEXT UP: 10.6 combat juice / 10.9 audio (10.10 COMPLETE).
 Perf SELF-VERIFIED 2026-07-12 (`-benchmark` mode; desktop\@720p
 1.7-2.0ms avg, ~0 GC) — run the exe on the laptop for benchmark.json.
 BUILD BUG fixed: Shader.Find-only shaders get stripped from builds —
@@ -146,34 +146,6 @@ beds on mode swap, duck under boss stingers; (c) zone ambience one-shots
 (e) mixer panel in Settings (music/SFX/ambience sliders, persisted
 client-side).
 
-**10.10 SDF blend-shell monster expansion — dungeons first (user call
-2026-07-07)**
-The proven pipeline (SdfBlendShell shader + SdfBlobRig + SdfBlobAnimator
-with Hop/Walk/Float gaits, seamless smin bodies under faceted normals)
-reaches only 3 of 30+ monsters — and the crypt, where packs are densest
-and monsters are seen closest, uses none of it. Slices:
-(a) SHIPPED 2026-07-12: grave ooze / bone amalgam / crypt wraith join
-the crypt roster. Palette lesson: dungeon light DESATURATES — a hue
-must dominate its channels outright or it reads as rock;
-(b) SHIPPED 2026-07-12: magma blob (obsidian + ember contrast pair) +
-frost drifter (dark-on-light); every crypt tier mixes shells;
-(c) SHIPPED 2026-07-12 (verdict #6 = BOTH): Slither (head→tail wave
-over seg0..segN, tail-weighted, never rests; first user = crypt Bone
-Serpent, the (d) boss shape rehearsal) + Pulse (|sin|³ heartbeat, ±7%
-swell, quickens with travel; magma_blob on its named gait). Feed
-shape unchanged; both mechanics verified numerically in live combat;
-(d) SHIPPED 2026-07-13: Ossuary Wyrm, the crypt tier's OWN boss
-(nightmare_maw stays the campaign's; stats identical). 13/16 prims:
-z-lying capsule chain (sphere chains scallop at boss radii) + FAT
-far-jutting details riding the wave via the new nearest-seg rider
-binding; dark body + bleached skull (pale floors — contrast pairs);
-per-def Subdivisions (boss 12) shrinks seam membranes;
-(e) PASSED 2026-07-12 (no knobs turned): 512-640 tris + ≤2.1µs MPB
-push + ZERO GC per blob; 120 live ≈ 0.26ms/frame; shadows match
-faceted mobs. Blobs cleared to go wide — (f) unblocked;
-(f) overworld backfill LAST (bog_horror, chaos_spawn) — faceted Tunic
-stays the art rule; SDF is a body style, not a restyle.
-
 **10.11 Hero look & skill-FX identity (user-assigned 2026-07-07 — NEXT)**
 The shipped heroes wear arbitrary MS2 outfits ("ugly hats") instead of
 reading as their class stereotype, and projectiles/skill FX are glowing
@@ -196,6 +168,12 @@ impact language belongs to 10.6b). 10.11 COMPLETE.
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-07-12/13 10.10 SDF monster expansion COMPLETE: 8 new blob
+  critters across the crypt tiers (a/b) · Slither+Pulse gaits (c) ·
+  Ossuary Wyrm crypt boss + rider binding + per-def Subdivisions (d) ·
+  perf gate passed untouched (e) · bog_horror/chaos_spawn rebodied (f).
+  Art lessons live in SdfBlobDefs comments; faceted Tunic stays the
+  rule — SDF is a body style for genuinely amorphous monsters only.
 - 2026-07-11 crypt tuning (call #3): ramp split (HpGrowth 1.045 /
   DmgGrowth 1.05 — deep failure = wipe, never a run-timer slog) +
   CryptRewardGrowth 1.06 on chest dust/room gold (dust/hour now RISES
