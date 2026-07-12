@@ -231,7 +231,7 @@ namespace IdleGame.GameCore
                 newAffixes.Add(new Affix { Stat = a.Stat, Value = Math.Min(max, Math.Max(min, rolled)) });
             }
 
-            var newItem = new Item { Id = item.Id, BaseId = item.BaseId, Rarity = item.Rarity, ItemLevel = item.ItemLevel, Affixes = newAffixes, Enhance = item.Enhance, Locked = item.Locked };
+            var newItem = new Item { Id = item.Id, BaseId = item.BaseId, Rarity = item.Rarity, ItemLevel = item.ItemLevel, Affixes = newAffixes, Enhance = item.Enhance, Locked = item.Locked, SetId = item.SetId };
             var nextInventory = new List<Item>(save.Inventory);
             nextInventory[nextInventory.FindIndex(i => i.Id == itemId)] = newItem;
 
@@ -302,6 +302,7 @@ namespace IdleGame.GameCore
             {
                 Id = item.Id, BaseId = item.BaseId, Rarity = item.Rarity,
                 ItemLevel = item.ItemLevel, Affixes = item.Affixes, Enhance = level, Locked = item.Locked,
+                SetId = item.SetId,
             };
             var nextInventory = new List<Item>(save.Inventory);
             nextInventory[nextInventory.FindIndex(i => i.Id == itemId)] = newItem;
@@ -419,6 +420,7 @@ namespace IdleGame.GameCore
             {
                 Id = item.Id, BaseId = item.BaseId, Rarity = item.Rarity, ItemLevel = item.ItemLevel,
                 Affixes = item.Affixes, Enhance = item.Enhance, Locked = !item.Locked,
+                SetId = item.SetId,
             };
             var nextInventory = new List<Item>(save.Inventory);
             nextInventory[idx] = flipped;

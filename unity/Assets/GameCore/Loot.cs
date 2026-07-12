@@ -20,6 +20,12 @@ namespace IdleGame.GameCore
         // from the stage's zone in ForStage — Loot itself stays zone-unaware.
         public EquipSlot? FavoredSlot;
         public double FavoredSlotMult;
+        // §6.2 set bonuses: 1-BASED zone tier whose three sets a Rare+ drop here may join;
+        // 0 = no set roll. 1-based so a default-constructed context (LootContext is a
+        // struct — copies like the chest/rank paths take `var c = ctx;`) safely means
+        // "no sets", not "tier 0's sets". Every mode's context funnels through ForStage,
+        // so farm/boss/idle/tower/crypt drops all carry it.
+        public int SetBand;
 
         public static LootContext ForStage(StageDef stage, GameConfig cfg) => new LootContext
         {
@@ -28,6 +34,7 @@ namespace IdleGame.GameCore
             MaxRarity = Rarity.Rare, // trash/idle ceiling; Unique/Legendary/Mythic are boss-only
             FavoredSlot = cfg.ZoneForStage(stage.Stage)?.FavoredSlot,
             FavoredSlotMult = cfg.Balance.ZoneFavoredSlotMult,
+            SetBand = cfg.Balance.Tier(stage.Stage) + 1,
         };
     }
 
@@ -154,7 +161,26 @@ namespace IdleGame.GameCore
         public static Item RollContextItem(Rng rng, LootContext ctx, GameConfig cfg)
         {
             var rarity = RollRarity(rng, ctx, cfg);
-            return RollItem(rng, PickBaseId(rng, ctx, cfg), ctx.ItemLevel, rarity, cfg);
+            var item = RollItem(rng, PickBaseId(rng, ctx, cfg), ctx.ItemLevel, rarity, cfg);
+            RollSetMembership(rng, item, ctx, cfg);
+            return item;
+        }
+
+        /// <summary>
+        /// §6.2 set membership: a Rare-or-better drop from a context with a tier identity
+        /// joins one of the tier's three sets with <see cref="BalanceConstants.SetDropChance"/>
+        /// (uniform pick among a/b/c). Draws ride the drop's own <paramref name="rng"/>
+        /// immediately after assembly — same cursor discipline as every other roll, so a
+        /// membership can never be re-rolled. Ids are addressed by the set_t{tier}_{a|b|c}
+        /// convention (never dictionary iteration order — determinism). Zero rng draws for
+        /// sub-Rare drops or tierless contexts, so those paths keep their exact sequences.
+        /// </summary>
+        public static void RollSetMembership(Rng rng, Item item, LootContext ctx, GameConfig cfg)
+        {
+            if (ctx.SetBand <= 0 || item.Rarity < Rarity.Rare) return;
+            if (rng.Next() >= cfg.Balance.SetDropChance) return;
+            string id = $"set_t{ctx.SetBand - 1}_{(char)('a' + rng.RandInt(0, 2))}";
+            if (cfg.Sets.ContainsKey(id)) item.SetId = id; // unknown id (content trimmed) = no set
         }
 
         /// <summary>
@@ -178,7 +204,9 @@ namespace IdleGame.GameCore
                 var rarity = roll < b.BossMythicChance ? Rarity.Mythic
                            : roll < b.BossMythicChance + b.BossLegendaryChance ? Rarity.Legendary
                            : Rarity.Unique;
-                items.Add(RollItem(rng, PickBaseId(rng, ctx, cfg), ctx.ItemLevel, rarity, cfg));
+                var drop = RollItem(rng, PickBaseId(rng, ctx, cfg), ctx.ItemLevel, rarity, cfg);
+                RollSetMembership(rng, drop, ctx, cfg);
+                items.Add(drop);
             }
             for (int i = 0; i < extras; i++)
                 items.Add(RollContextItem(rng, ctx, cfg)); // ordinary extras (ctx caps at Rare)
@@ -209,7 +237,9 @@ namespace IdleGame.GameCore
                     Rarity rarity = tier >= ChestTier.Golden && rng.Next() < goldenMythicChance
                         ? Rarity.Mythic
                         : (Rarity)Math.Max((int)RollRarity(rng, headline, cfg), (int)floor);
-                    items.Add(RollItem(rng, PickBaseId(rng, ctx, cfg), ctx.ItemLevel, rarity, cfg));
+                    var head = RollItem(rng, PickBaseId(rng, ctx, cfg), ctx.ItemLevel, rarity, cfg);
+                    RollSetMembership(rng, head, ctx, cfg);
+                    items.Add(head);
                 }
                 else items.Add(RollContextItem(rng, ctx, cfg));
             }

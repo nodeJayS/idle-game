@@ -39,6 +39,26 @@ namespace IdleGame.GameCore
                     result[affix.Stat] = result.Get(affix.Stat) + affix.Value;
             }
 
+            // Set bonuses (§6.2): count equipped pieces per set — 2 add Piece2, 4 add Piece4
+            // ON TOP (2pc stays active at 4). Flat adds through the same seam as affixes, so
+            // DerivedStats / PowerScore / CompareCard price sets with zero extra wiring.
+            Dictionary<string, int>? setCounts = null;
+            foreach (var item in equipped)
+                if (item.SetId != null)
+                {
+                    setCounts ??= new Dictionary<string, int>();
+                    setCounts[item.SetId] = (setCounts.TryGetValue(item.SetId, out var n) ? n : 0) + 1;
+                }
+            if (setCounts != null)
+                foreach (var kv in setCounts)
+                {
+                    if (!cfg.Sets.TryGetValue(kv.Key, out var set)) continue; // stale id: content trimmed
+                    if (kv.Value >= 2)
+                        foreach (var s in set.Piece2) result[s.Key] = result.Get(s.Key) + s.Value;
+                    if (kv.Value >= 4)
+                        foreach (var s in set.Piece4) result[s.Key] = result.Get(s.Key) + s.Value;
+                }
+
             // Passive skill nodes: each invested rank adds StatPerRank to its PassiveStat, with the
             // MaxRank mastery bump (§7.2) via EffectiveRank. This is the single stat seam, so a
             // ranked passive flows on into DerivedStats, DPS/Eff-Life, and the Lever 2 power

@@ -64,6 +64,21 @@ namespace IdleGame.GameCore
         public Rarity RarityFloor;
     }
 
+    /// <summary>A gear set (§6.2): 2 equipped pieces add <see cref="Piece2"/>, 4 add
+    /// <see cref="Piece4"/> ON TOP. Flat StatBlock adds only — sets sweeten a build, they
+    /// don't multiply it; the affix hunt stays the main chase. Content-as-data: three per
+    /// zone tier, generated in <see cref="GameConfig.Default"/> off the tier's item level.
+    /// Ids follow the convention <c>set_t{tier}_{a|b|c}</c> so the drop roll can address a
+    /// tier's sets directly instead of depending on dictionary iteration order.</summary>
+    public sealed class SetDef
+    {
+        public string Id = "";
+        public string Name = "";
+        public int Tier;               // 0-based, same band Balance.Tier(stage) yields
+        public StatBlock Piece2 = new StatBlock();
+        public StatBlock Piece4 = new StatBlock();
+    }
+
     public sealed class MonsterDef
     {
         public string Id = "";
@@ -636,6 +651,11 @@ namespace IdleGame.GameCore
         // capped at Rare (TrashRarityCap); Unique+ comes only from boss bundles below.
         public double DropChance = 0.12;
 
+        // §6.2 set bonuses: chance a Rare-or-better drop belongs to one of its tier's three
+        // sets. Rolled on the drop's own rng right after assembly (cursor discipline — a
+        // membership can't be re-rolled).
+        public double SetDropChance = 0.25;
+
         // Highest rarity a common/trash/idle drop can roll. Unique/Legendary/Mythic are
         // boss-exclusive (guaranteed bundles), so the open-world ceiling is Rare.
         public Rarity TrashRarityCap = Rarity.Rare;
@@ -742,6 +762,8 @@ namespace IdleGame.GameCore
         // Gacha banners (roadmap 3 — the gem SINK), keyed by banner id. Empty in Default() for slice 1
         // (no live content); the Ice Mage comeback banner arrives in slice 3. See Gacha.cs.
         public Dictionary<string, GachaBannerDef> Banners = new Dictionary<string, GachaBannerDef>();
+        // Gear sets (§6.2), keyed by id (set_t{tier}_{a|b|c}). Three per zone tier; see SetDef.
+        public Dictionary<string, SetDef> Sets = new Dictionary<string, SetDef>();
         // Crypt (roguelite) depth tiers + boon tracks. Tiers theme the floor bands (crypt → molten →
         // frost, cycling); boons are the grave-dust sink. See Crypt.cs.
         public List<CryptTierDef> CryptTiers = new List<CryptTierDef>();
@@ -1696,6 +1718,48 @@ namespace IdleGame.GameCore
                     new GachaPoolEntry { HeroDefId = "priest_basic",     Weight = 3 },
                 },
             };
+
+            // ---- gear sets (§6.2): three per zone tier, derived, not hand-tuned ----------
+            // Identity triples per tier: offense (a), defense (b), utility (c). Magnitudes
+            // come from the AffixPool so sets track the same power curve as rolled gear:
+            // Piece2 ≈ ONE mid-roll affix at the tier's mid-stage item level, Piece4 ≈ two
+            // affixes' worth of a complementary stat. The §6.2 gate (full set ≤ ~8% power
+            // over equal setless gear) is asserted by SetBonusTests, not tuned by eye.
+            double AffixMid(StatKey k)
+            {
+                var def = cfg.AffixPool.Find(a => a.Stat == k)
+                    ?? throw new InvalidOperationException($"set gen: stat {k} not in AffixPool");
+                return (def.ValueMinPerItemLevel + def.ValueMaxPerItemLevel) * 0.5;
+            }
+            for (int tier = 0; tier < cfg.Zones.Count; tier++)
+            {
+                // The tier's representative item level: its mid stage's AffixItemLevel
+                // (stages are 1-based; tier t covers t*10+1 .. t*10+10).
+                int midStage = tier * 10 + 5;
+                var stageDef = cfg.Stages.Find(s => s.Stage == midStage);
+                double il = stageDef != null ? stageDef.AffixItemLevel : midStage;
+                string zone = cfg.Zones[tier].Name;
+
+                void AddSet(char suffix, string title, StatKey p2Stat, StatKey p4Stat)
+                {
+                    var id = $"set_t{tier}_{suffix}";
+                    cfg.Sets[id] = new SetDef
+                    {
+                        Id = id, Name = $"{zone} {title}", Tier = tier,
+                        // ~One mid affix of TOTAL budget (0.35 at 2pc + 0.7 at 4pc): the
+                        // SetBonusTests gate (≤ ~8% power over equal setless gear) rejected
+                        // both 1×/2× (15-33%) and 0.5×/1× (10-11%) — flat adds on the
+                        // multiplier-ish stats (CritDmg/AtkSpd) also explode late-tier, so
+                        // the identities stay on the linear families. Sets sweeten; affixes
+                        // stay the chase (§6.2).
+                        Piece2 = new StatBlock { [p2Stat] = AffixMid(p2Stat) * il * 0.35 },
+                        Piece4 = new StatBlock { [p4Stat] = AffixMid(p4Stat) * il * 0.7 },
+                    };
+                }
+                AddSet('a', "Battlegear", StatKey.Atk, StatKey.Atk);      // offense
+                AddSet('b', "Bulwark",    StatKey.Hp,  StatKey.Def);      // defense
+                AddSet('c', "Reliquary",  StatKey.CritChance, StatKey.MoveSpd); // utility
+            }
 
             return cfg;
         }

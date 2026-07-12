@@ -105,6 +105,10 @@ namespace IdleGame.GameCore
         // works on bag AND equipped gear (an equipped item stays locked when unequipped).
         // Absent in old saves => false (System.Text.Json defaults it), so no SaveVersion bump.
         public bool Locked;
+        // Gear-set membership (§6.2): a SetDef id, rolled once at drop time on the drop's own
+        // rng (never re-rolled — Reforge/Enhance copy it through). Absent in old saves => null
+        // = no set, so no SaveVersion bump (the Item.Locked precedent).
+        public string? SetId;
     }
 
     public sealed class ProgressState

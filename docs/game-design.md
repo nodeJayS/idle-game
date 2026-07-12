@@ -251,6 +251,24 @@ level climbs. It's a gold/currency **sink** and a later monetization hook (prote
 likely only lands once end-game players have run dry on natural upgrades. Mechanics to refine
 later; whenever it's built, put it on the same seeded `Rng` so it's deterministic/server-verifiable.
 
+### 6.2 Set bonuses — *design locked 2026-07-11 (roadmap 10.5d)*
+Sets give mid-bag drops a second axis of value ("two more pieces…") without new slots.
+- **Content**: 3 themed sets per zone tier (30 total), named from the tier's zone flavor.
+  Defs live in `GameConfig.Sets` (content-as-data, generated per tier in `Default()` —
+  values scale off the tier's item level, not 30 hand-tuned blocks). Seeds at New Game.
+- **Membership**: a **Rare-or-better** drop from tier T rolls set membership at
+  `Balance.SetDropChance` (start 0.25) on the SAME seeded rng path as its other rolls
+  (cursor discipline — a set can't be re-rolled). `Item.SetId` is an additive save field
+  (absent = no set; no version bump).
+- **Bonus**: `ComputeHeroStats` counts a hero's equipped pieces per set; **2pc** adds a
+  flat StatBlock worth ≈ one mid affix at tier ilvl, **4pc** ≈ two affixes of a
+  complementary stat. Flat adds only — sets sweeten, they don't multiply; the affix hunt
+  stays the main chase (same principle as §6.1's "loot stays the upgrade path").
+- **Balance gate**: BalanceSim must show the 10.1 curve holds with sets ON (full-set
+  power ≤ ~8% over equal setless gear; soft wall stays ~80-90 on-curve).
+- **Tells**: item card shows "«Set name» (n/4)" + the bonus lines; equipping flows
+  through ComputeHeroStats so CompareCard/PowerScore price sets automatically.
+
 ---
 
 ## 7. Suggestions to make it actually good

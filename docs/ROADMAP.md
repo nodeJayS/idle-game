@@ -27,9 +27,7 @@ performance on weak/mobile hardware — see 10.12.
 Nothing here blocks autonomous work elsewhere, but these need your verdict
 before anyone acts on them:
 
-1. SHIPPED 2026-07-09: 10.1 The Great Rebalance (intents §5.3) — thorns
-   capped mirror; per-tier HP + damage + major-boss taper; gear/level
-   ~50/50. Sim-proven: on-curve soft wall ~80-90, mythic+stacks → 100.
+1. SHIPPED 2026-07-09: 10.1 rebalance (ledger below; sim-proven curve).
 2. **Root casters during casts?** The last cast-cancel source: the sim
    moves a caster mid-cast and the clip travel-cancels. Rooting them is a
    sim/balance change (kiting implications).
@@ -51,8 +49,7 @@ before anyone acts on them:
    panic 1.8 / aggro 2.0), run-clip foot-slide at regroup-hustle 1.4×.
 8. **Housekeeping:** the live save still holds ~996 test crypt keys
    (2026-07-07 testing hack) — say when to restore the normal key economy.
-9. RESOLVED 2026-07-07: skill FX go PROCEDURAL (user pick after the
-   10.11e spike); hero relooks all picked and shipped the same day.
+9. RESOLVED 2026-07-07: skill FX procedural; hero relooks shipped.
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
@@ -92,10 +89,12 @@ DPS/EHP, raw rows, benched fallback) in the bag pane; Heroes screen
 gains the cross-hero "▲ for X instead" line. (c) SHIPPED 2026-07-11 —
 `SalvageMany` (sweep contract: skips guarded/stale ids silently vs
 SalvageItem's throw; 720 tests) + bag Select mode (tap-toggle, sweep
-only SELECTS, guarded tiles get no relay). (d) set bonuses (§6.1): 3 sets
-per zone tier, 2pc/4pc bonuses as flat StatBlock adds in
-ComputeHeroStats (content-as-data, seeds at New Game); (e) per-hero
-gear loadout snapshots (save/apply, bag-integrity checked).
+only SELECTS, guarded tiles get no relay). (d) design locked §6.2;
+CORE SHIPPED 2026-07-11 (30 generated sets, Rare+ roll on the drop
+rng, 2pc/4pc flat adds in ComputeHeroStats; the ≤8% gate test FAILED
+1×/2× affix budgets — shipped 0.35×/0.7×; 733 tests); UI tells
+("«Set» n/4" + bonus lines) still to come. (e) per-hero gear
+loadout snapshots (save/apply, bag-integrity checked).
 
 **10.12 Performance & mobile-readiness (user report 2026-07-11: weak
 laptop OVERHEATS, textures pop in late; goal = playable on mobile)**
