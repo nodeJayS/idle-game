@@ -62,7 +62,7 @@ namespace IdleGame.GameCore
         /// </summary>
         public static double StageReferenceHit(GameConfig cfg, int stage)
         {
-            var rt = cfg.Stages.Find(r => r.Stage == stage) ?? (cfg.Stages.Count > 0 ? cfg.Stages[0] : null);
+            var rt = cfg.StageFor(stage);
             if (rt == null) return 1.0;
             double scale = cfg.Balance.MonsterDmgMult(rt.MonsterLevel);
             double baseAtk = cfg.Monsters.TryGetValue(rt.BossId, out var boss) ? boss.BaseStats.Get(StatKey.Atk) : 1.0;

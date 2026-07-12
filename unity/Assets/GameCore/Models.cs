@@ -122,6 +122,11 @@ namespace IdleGame.GameCore
         public int HighestStage = 0;
         public int CurrentStage = 1;
         public int AccountLevel = 1;
+        // Endless mode (10.8): deepest endless DEPTH cleared, where depth = stage - Stages.Count
+        // (1 = the first stage past the campaign table). HighestStage caps at the table height;
+        // this carries the uncapped push. A flat scalar, so every `new ProgressState{}` reducer
+        // must thread it forward (grep `new ProgressState`) — missing one silently wipes it.
+        public int EndlessBest = 0;
         // Tower of Ascension (alt mode) progress. Nested here so it rides the existing
         // `Progress` reference-threading — only the handful of `new ProgressState{}` reducers
         // (7 as of 10.5a; grep before adding a field) must carry each sub-state, and the

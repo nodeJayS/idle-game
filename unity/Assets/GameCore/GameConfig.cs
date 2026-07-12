@@ -757,7 +757,7 @@ namespace IdleGame.GameCore
         public Dictionary<string, MonsterDef> Monsters = new Dictionary<string, MonsterDef>();
         public List<StageDef> Stages = new List<StageDef>();
         // Themed zones, one per StagesPerTier band ascending (zone[0] = stages 1..10, …).
-        // Deeper stages than the table clamp to the last zone. See ZoneForStage.
+        // Deeper stages than the table cycle back through the zone list. See ZoneForStage.
         public List<ZoneDef> Zones = new List<ZoneDef>();
         // Per-stage arena layouts (M8 slice 1), keyed by arena id. A zone points at one via
         // ZoneDef.ArenaId; empty/missing => the open plane (legacy behavior). See ArenaForStage.
@@ -786,12 +786,45 @@ namespace IdleGame.GameCore
         public BalanceConstants Balance = new BalanceConstants();
 
         /// <summary>The zone a stage belongs to: one zone per StagesPerTier band (the same
-        /// tier the rate/modifier curves use), clamped to the last zone for stages past the
-        /// table. null when no zones are defined (legacy configs — spawns fall back).</summary>
+        /// tier the rate/modifier curves use). Tiers within the table map straight through;
+        /// deeper (endless) tiers cycle back through the list. null when no zones are defined
+        /// (legacy configs — spawns fall back).</summary>
         public ZoneDef? ZoneForStage(int stage)
         {
             if (Zones.Count == 0) return null;
-            return Zones[Math.Clamp(Balance.Tier(stage), 0, Zones.Count - 1)];
+            int tier = Balance.Tier(stage);
+            return Zones[tier < Zones.Count ? tier : tier % Zones.Count];
+        }
+
+        // Memoized endless rows so repeated per-pack lookups return the SAME StageDef
+        // instance (10.12b: no steady-state allocation churn). Keyed by stage number.
+        private readonly Dictionary<int, StageDef> _endlessRows = new Dictionary<int, StageDef>();
+
+        /// <summary>Resolve a stage's row. Returns the configured table row when present; for a
+        /// hole inside the table (stage ≤ the last configured Stage) returns Stages[0] — the
+        /// legacy fallback, unchanged. Past the table it GENERATES an endless row from the same
+        /// boot-loop formulas (tier/level/pack/drop/ilvl scale on) and memoizes it, so callers on
+        /// the spawn path share one instance. Total and never-null EXCEPT a config with no stages
+        /// AND no zones, which returns null so DerivedStats/Idle keep their empty-config guard.</summary>
+        public StageDef? StageFor(int stage)
+        {
+            var configured = Stages.Find(r => r.Stage == stage);
+            if (configured != null) return configured;
+            if (Stages.Count == 0 && Zones.Count == 0) return null;
+            if (Stages.Count > 0 && stage <= Stages[Stages.Count - 1].Stage)
+                return Stages[0]; // hole inside the table: legacy fallback, unchanged
+            if (_endlessRows.TryGetValue(stage, out var cached)) return cached;
+
+            int tier = Balance.Tier(stage);
+            var row = new StageDef
+            {
+                Stage = stage, MonsterLevel = stage, PackCount = 3 + stage / 5,
+                BossId = ZoneForStage(stage)?.BossId ?? (Stages.Count > 0 ? Stages[0].BossId : ""),
+                DropRateMult = 1 + Balance.DropRatePerStage * (stage - 1) + Balance.DropRateTierBonus * tier,
+                AffixItemLevel = stage + Balance.ItemLevelTierBonus * tier,
+            };
+            _endlessRows[stage] = row;
+            return row;
         }
 
         /// <summary>The arena layout a stage is fought on: resolve the stage's zone, return its

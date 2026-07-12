@@ -10,7 +10,10 @@ namespace IdleGame.GameCore
         // v2 (2026-07-03): mana removed. StatKey values 9/10 (MaxMana/ManaRegen) retired;
         // v1 saved items can't carry them as affixes (the affix pool never rolled mana), but
         // Migrate defensively strips any affix whose StatKey no longer exists.
-        public const int SaveVersion = 2;
+        // v3 (2026-07-11): endless mode — ProgressState.EndlessBest field + CurrentStage may
+        // exceed the stage table. No data transform (EndlessBest deserializes to 0); the bump
+        // exists so an endless save can't silently load in an old build that would cap it.
+        public const int SaveVersion = 3;
         public const int PartySize = 3; // fielded party slots; the bag holds the rest
         public const string StarterHeroDef = "warrior_basic";
         public const string StarterMageDef = "magician_basic";
@@ -117,6 +120,11 @@ namespace IdleGame.GameCore
                     item.Affixes?.RemoveAll(a => !Enum.IsDefined(typeof(StatKey), a.Stat));
                 save.Version = 2;
             }
+
+            // v2 -> v3 (endless mode): no data transform. EndlessBest deserializes to 0 on a
+            // v2 payload; stamping the version keeps a v3 save from loading in a pre-endless build.
+            if (save.Version < 3)
+                save.Version = 3;
             save.Currencies ??= new Dictionary<string, long>();
             save.Progress ??= new ProgressState();
             save.Progress.Tower ??= new TowerState(); // older saves predate the Tower mode

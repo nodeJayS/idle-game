@@ -68,7 +68,7 @@ namespace IdleGame.GameCore
             s.ArenaId = cfg.ArenaForStage(stage)?.Id;
             AddParty(s, party, cfg);
 
-            var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
+            var rt = cfg.StageFor(stage)!;
             s.Loot = LootContext.ForStage(rt, cfg);
             double scale = StageScale(rt, cfg);
 
@@ -102,7 +102,7 @@ namespace IdleGame.GameCore
             if (activeModifiers != null) s.ActiveModifiers = new List<ModifierInstance>(activeModifiers);
             AddParty(s, party, cfg);
 
-            var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
+            var rt = cfg.StageFor(stage)!;
             s.Loot = LootContext.ForStage(rt, cfg);
 
             int initial = Math.Min(cfg.Balance.SpawnBatchSize, cfg.Balance.MobCap);
@@ -124,7 +124,7 @@ namespace IdleGame.GameCore
             s.ArenaId = cfg.ArenaForStage(stage)?.Id;
             AddParty(s, party, cfg);
 
-            var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
+            var rt = cfg.StageFor(stage)!;
             s.Loot = LootContext.ForStage(rt, cfg);
 
             if (cfg.Monsters.TryGetValue(rt.BossId, out var boss))
@@ -149,7 +149,7 @@ namespace IdleGame.GameCore
             s.Entities.RemoveAll(e => e.Team == Team.Enemy); // trash despawns
             RestoreParty(s);
 
-            var rt = cfg.Stages.Find(r => r.Stage == s.Stage) ?? cfg.Stages[0];
+            var rt = cfg.StageFor(s.Stage)!;
             s.Loot = LootContext.ForStage(rt, cfg);
             if (cfg.Monsters.TryGetValue(rt.BossId, out var boss))
             {
@@ -187,7 +187,7 @@ namespace IdleGame.GameCore
             s.ArenaId = cfg.ArenaForStage(floor)?.Id;
             // Tower kills pay no farm income (HandleDeath gates on Kind), but set a coherent loot
             // context anyway — every Init* does, and a zeroed struct would be a trap for future code.
-            var rt = cfg.Stages.Find(r => r.Stage == floor) ?? cfg.Stages[0];
+            var rt = cfg.StageFor(floor)!;
             s.Loot = LootContext.ForStage(rt, cfg);
             AddParty(s, party, cfg);
 
@@ -246,7 +246,7 @@ namespace IdleGame.GameCore
             s.Entities.RemoveAll(e => e.Team == Team.Enemy); // boss / leftovers despawn
             RestoreParty(s);
 
-            var rt = cfg.Stages.Find(r => r.Stage == stage) ?? cfg.Stages[0];
+            var rt = cfg.StageFor(stage)!;
             s.Stage = stage;
             s.Loot = LootContext.ForStage(rt, cfg);
             s.Kind = EncounterKind.Farm;
@@ -336,7 +336,7 @@ namespace IdleGame.GameCore
             // Stat scale mirrors a stage fight at the current stage — deeper players face tougher
             // floors. The optional multipliers stack the crypt's per-floor depth ramp on top
             // (Crypt.FloorHpMult / FloorDmgMult — the roguelite difficulty ladder).
-            var rt = cfg.Stages.Find(r => r.Stage == s.Stage) ?? cfg.Stages[0];
+            var rt = cfg.StageFor(s.Stage)!;
             s.Loot = LootContext.ForStage(rt, cfg);
             double atkScale = StageScale(rt, cfg) * dmgMult, hpScale = HpScale(rt, cfg) * hpMult;
 
@@ -838,7 +838,7 @@ namespace IdleGame.GameCore
                     int n = Math.Min(cfg.Balance.SpawnBatchSize, room);
                     if (n > 0)
                     {
-                        var rt = cfg.Stages.Find(r => r.Stage == s.Stage) ?? cfg.Stages[0];
+                        var rt = cfg.StageFor(s.Stage)!;
                         SpawnPack(s, rt, cfg, rng, n, arena);
                     }
                     s.SpawnTimerMs = cfg.Balance.SpawnIntervalMs;
@@ -1610,7 +1610,7 @@ namespace IdleGame.GameCore
                 // trash uses the scarce per-kill chance.
                 if (target.IsBoss)
                 {
-                    bool isMajor = (cfg.Stages.Find(st => st.Stage == s.Stage)?.IsMajorBoss) ?? false;
+                    bool isMajor = (cfg.StageFor(s.Stage)?.IsMajorBoss) ?? false;
                     foreach (var drop in Loot.RollBossDrops(rng, lootCtx, cfg, isMajor))
                     {
                         s.PendingLoot.Add(drop);

@@ -17,7 +17,7 @@ namespace IdleGame.GameCore.Tests
             new[] { new HeroInstance { Id = "h1", DefId = "warrior_basic", Level = 1 } };
 
         [Fact]
-        public void ZoneForStageMapsTenStageBandsAndClamps()
+        public void ZoneForStageMapsTenStageBandsAndCycles()
         {
             Assert.Equal(10, Cfg.Zones.Count); // one per 10-stage tier across the 100-stage ladder
 
@@ -25,7 +25,8 @@ namespace IdleGame.GameCore.Tests
             Assert.Same(Cfg.Zones[0], Cfg.ZoneForStage(10));   // band edge stays in zone 1
             Assert.Same(Cfg.Zones[1], Cfg.ZoneForStage(11));   // next band
             Assert.Same(Cfg.Zones[9], Cfg.ZoneForStage(100));  // last band
-            Assert.Same(Cfg.Zones[9], Cfg.ZoneForStage(250));  // past the table clamps to the last zone
+            Assert.Same(Cfg.Zones[0], Cfg.ZoneForStage(101));  // endless wraps back to zone 0
+            Assert.Same(Cfg.Zones[4], Cfg.ZoneForStage(250));  // tier 24 % 10 => zone 4
         }
 
         [Fact]

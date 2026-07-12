@@ -15,7 +15,7 @@ push), 10 themed zones with terraced arenas, Tower, Crypt roguelite
 gems, gacha (live Ice Mage banner), and a balance simulator over pure
 GameCore. Roster: Knight / Fire Mage / Assassin / Priest (+ banner Ice
 Mage) on the MS2 skinned pipeline; monsters are faceted or SDF blend-shell.
-**739 GameCore tests green.** The 100-stage ladder is FIXED (10.1,
+**748 GameCore tests green.** The 100-stage ladder is FIXED (10.1,
 2026-07-09): stage 100 is a reachable prestige gate demanding
 near-mythic gear + maxed account stacks, sim-verified. FTUE shipped
 2026-07-10 (two-button open, five guided beats, staged HUD reveal).
@@ -123,15 +123,15 @@ pooled); (e) kill-streak feedback: N kills in 2s → small screen pulse +
 feed line; (f) sound mix bus: SFX ducking under big moments, volume
 sliders in Settings (foundation for 10.9).
 
-**10.8 Endless mode ("deepest stage")**
-The post-100 chase once 10.1 makes 100 reachable. (a) GameCore:
-endless stage generator past MaxStage (reuse zone cycling + geometric
-scaling with a gentler exponent; EndlessBest in ProgressState, v3
-migration); (b) entry via stage nav at 100 ("Push beyond…");
-(c) reward curve: scrap/gold multiplier per depth, first-clear gems
-every 5 (mirror Tower/crypt receipts); (d) BalanceSim endless mode
-(walls chart to depth 200 = tuning acceptance); (e) depth record on
-the account panel + feed line (leaderboard seam for Phase C).
+**10.8 Endless mode ("deepest stage") — IN PROGRESS**
+(a) SHIPPED 2026-07-11: `GameConfig.StageFor` generates rows past the
+table (boot formulas, memoized; scaling continues at the gentle
+last-tier rates), zones cycle, EndlessBest in ProgressState (v3),
+SetStage opens endless after stage 100. (b) NEXT: entry via stage nav
+at 100 ("Push beyond…"); (c) reward curve: scrap/gold multiplier per
+depth, first-clear gems every 5 (mirror Tower/crypt receipts);
+(d) BalanceSim endless mode (walls chart to depth 200 = tuning
+acceptance); (e) depth record on the account panel + feed line.
 
 **10.9 Audio identity (original, adaptive — NO MS2 music ever)**
 The game is silent between SFX. (a) pick/produce 3 original loop beds

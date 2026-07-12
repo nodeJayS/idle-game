@@ -86,10 +86,16 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
-        public void StageReferenceHitFallsBackForUnknownStage()
+        public void StageReferenceHitScalesEndlessAndFallsBackForEmptyConfig()
         {
-            // No stage 999 — falls back to the first stage's reference rather than throwing.
-            Assert.Equal(DerivedStats.StageReferenceHit(Cfg, 1), DerivedStats.StageReferenceHit(Cfg, 999), 9);
+            // A stage past the table is a real endless row now (10.8): it scales UP, not back to stage 1.
+            Assert.True(DerivedStats.StageReferenceHit(Cfg, 999) > DerivedStats.StageReferenceHit(Cfg, 100));
+
+            // An empty config (no stages AND no zones) has no row to scale — falls back to 1.0, not throwing.
+            var empty = GameConfig.Default();
+            empty.Stages.Clear();
+            empty.Zones.Clear();
+            Assert.Equal(1.0, DerivedStats.StageReferenceHit(empty, 5), 9);
         }
 
         [Fact]

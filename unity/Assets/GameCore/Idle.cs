@@ -76,7 +76,7 @@ namespace IdleGame.GameCore
             int highest = save.Progress.HighestStage;
             if (report.LootCount > 0)
             {
-                var stage = cfg.Stages.Find(s => s.Stage == highest);
+                var stage = cfg.StageFor(highest);
                 if (stage != null)
                 {
                     var ctx = LootContext.ForStage(stage, cfg);

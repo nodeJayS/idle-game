@@ -115,6 +115,7 @@ namespace IdleGame.GameCore
                     HighestStage = save.Progress.HighestStage,
                     CurrentStage = save.Progress.CurrentStage,
                     AccountLevel = save.Progress.AccountLevel,
+                    EndlessBest = save.Progress.EndlessBest,
                     Tower = save.Progress.Tower,
                     Achievements = save.Progress.Achievements,
                     Daily = daily,

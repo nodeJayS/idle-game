@@ -180,12 +180,19 @@ namespace IdleGame.GameCore
         /// </summary>
         public static SaveState OnStageCleared(SaveState save, int stage, GameConfig cfg)
         {
-            int highest = Math.Max(save.Progress.HighestStage, stage);
+            // HighestStage caps at the campaign table height; endless depth (stage past the
+            // table) rides EndlessBest, which never regresses. CurrentStage stays uncapped so
+            // the party keeps advancing into endless.
+            int highest = Math.Max(save.Progress.HighestStage, Math.Min(stage, cfg.Stages.Count));
+            int endlessBest = stage > cfg.Stages.Count
+                ? Math.Max(save.Progress.EndlessBest, stage - cfg.Stages.Count)
+                : save.Progress.EndlessBest;
             var next = WithProgress(save, new ProgressState
             {
                 HighestStage = highest,
                 CurrentStage = stage + 1,
                 AccountLevel = save.Progress.AccountLevel,
+                EndlessBest = endlessBest,
                 Tower = save.Progress.Tower,
                 Achievements = save.Progress.Achievements,
                 Daily = save.Progress.Daily,
@@ -270,13 +277,17 @@ namespace IdleGame.GameCore
         }
 
         /// <summary>
-        /// Select the stage to play (farm or retry). Valid range is
-        /// 1 ≤ stage ≤ HighestStage + 1 (you may attempt the next uncleared stage but
-        /// can't skip ahead), further capped to the number of defined stages.
+        /// Select the stage to play (farm or retry). Within the campaign the valid range is
+        /// 1 ≤ stage ≤ HighestStage + 1 (attempt the next uncleared stage, can't skip ahead),
+        /// capped to the number of defined stages. Once the campaign is complete
+        /// (HighestStage ≥ Stages.Count) endless opens: the ceiling becomes
+        /// Stages.Count + EndlessBest + 1 (the next uncleared endless depth).
         /// </summary>
         public static SaveState SetStage(SaveState save, int stage, GameConfig cfg)
         {
-            int maxSelectable = Math.Min(save.Progress.HighestStage + 1, cfg.Stages.Count);
+            int maxSelectable = save.Progress.HighestStage >= cfg.Stages.Count
+                ? cfg.Stages.Count + save.Progress.EndlessBest + 1
+                : Math.Min(save.Progress.HighestStage + 1, cfg.Stages.Count);
             if (stage < 1 || stage > maxSelectable)
                 throw new ArgumentOutOfRangeException(nameof(stage),
                     $"SetStage: {stage} out of range (1..{maxSelectable})");
@@ -286,6 +297,7 @@ namespace IdleGame.GameCore
                 HighestStage = save.Progress.HighestStage,
                 CurrentStage = stage,
                 AccountLevel = save.Progress.AccountLevel,
+                EndlessBest = save.Progress.EndlessBest,
                 Tower = save.Progress.Tower,
                 Achievements = save.Progress.Achievements,
                 Daily = save.Progress.Daily,
