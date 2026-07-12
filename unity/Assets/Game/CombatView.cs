@@ -326,6 +326,9 @@ namespace IdleGame.Game
             if (_juice == null) return;
             if (Settings.DamageNumbers) _juice.DamageNumber(at, amount, crit);
             if (crit && Settings.ScreenShake && !secondary) _rig?.Shake(0.15f);
+            // 10.6a: the dip lands HERE — with the number/shake on the felt impact (projectile
+            // arrival / melee contact), not at the sim event that scheduled them.
+            if (crit && !secondary) RequestHitStop(HitStopCritSec);
             float vol = crit ? 0.6f : 0.45f;
             if (secondary) vol *= 0.5f;
             SoundFx.Play(sound ?? "Hit_SwordDefault", vol);
@@ -826,12 +829,22 @@ namespace IdleGame.Game
         private void Update()
         {
             if (_combat == null) return;
-            // 2× speed for alt modes (user call 2026-07-12): timeScale doubles the sim accumulator
-            // AND every view animation coherently (all view code runs on scaled deltaTime; the
-            // fixed-step sim just steps twice as often — determinism untouched). Applied every
-            // frame so NO mode transition can leak a scaled clock back into the campaign.
-            Time.timeScale = _altSpeed2x && (_combat.Kind == EncounterKind.Dungeon
+            // ONE timeScale writer: the alt-mode 2× speed (user call 2026-07-12) × the 10.6a
+            // hit-stop dip. timeScale drives every VIEW animation coherently; the SIM accumulator
+            // below deliberately runs on REAL time × mode speed instead of scaled deltaTime, so a
+            // hit-stop freezes the presentation only — an idle game must never tax kills/hour for
+            // juice (a naive scaled accumulator would have cost ~5-14% income in heavy combat).
+            float simSpeed = _altSpeed2x && (_combat.Kind == EncounterKind.Dungeon
                                              || _combat.Kind == EncounterKind.Tower) ? 2f : 1f;
+            // Hit-stop bookkeeping decays on REAL time (a dip that decayed on scaled time could
+            // never end). unscaledDeltaTime is UNCLAMPED, so re-apply the maximumDeltaTime hitch
+            // guard scaled deltaTime used to give us — a window drag or domain-reload hiccup must
+            // not leap the sim forward.
+            float realDt = Mathf.Min(Time.unscaledDeltaTime, Time.maximumDeltaTime);
+            if (_hitStopCooldown > 0f) _hitStopCooldown -= realDt;
+            float dip = 1f;
+            if (_hitStopT > 0f) { _hitStopT -= realDt; dip = HitStopScale; }
+            Time.timeScale = simSpeed * dip;
             // Load boundary: while the loading screen covers the swap, the sim holds its breath —
             // the destination map takes its first step only once the player can see it (otherwise
             // dungeon mobs converge under the shroud and entry reads as "pre-aggroed", user-caught).
@@ -855,7 +868,10 @@ namespace IdleGame.Game
 
             if (_combat.Status == CombatStatus.Running)
             {
-                _accMs += Time.deltaTime * 1000.0;
+                // REAL time × mode speed, NOT scaled deltaTime: identical when no hit-stop is in
+                // flight (deltaTime == min(real, maximumDeltaTime) × timeScale), and immune to the
+                // dip when one is (see the timeScale comment above).
+                _accMs += realDt * simSpeed * 1000.0;
                 int steps = 0;
                 while (_accMs >= Combat.DefaultStepMs && _combat.Status == CombatStatus.Running && steps < MaxStepsPerFrame)
                 {
@@ -1514,6 +1530,28 @@ namespace IdleGame.Game
         // Loaded in Init, not a field initializer — Unity APIs off the constructor path.
         private bool _altSpeed2x;
 
+        // ---- 10.6a hit-stop: a few-frame presentation freeze on big moments (crit impacts,
+        // kills, boss defeats). Both timers are REAL seconds (decayed in Update on unscaled
+        // time); the sim clock is immune by construction — see Update's timeScale comment.
+        private float _hitStopT;        // remaining dip
+        private float _hitStopCooldown; // anti-slideshow gap until the next dip may fire
+        private const float HitStopScale   = 0.12f;  // not a full 0: view clocks keep crawling, so
+                                                     // scaled WaitForSeconds coroutines never wedge
+        private const float HitStopCritSec = 0.035f; // crit impact (rides PlayImpact, ON the felt hit)
+        private const float HitStopKillSec = 0.05f;  // killing blow (view detach = visually immediate)
+        private const float HitStopBossSec = 0.09f;  // boss down — rare, so it may bypass the gap
+        private const float HitStopGapSec  = 0.28f;  // min REAL gap between dips (packs must not slideshow)
+
+        /// <summary>Ask for a hit-stop of <paramref name="sec"/> REAL seconds. Frequency-capped by
+        /// <see cref="HitStopGapSec"/> unless <paramref name="force"/> (boss beats); an in-flight
+        /// dip is extended, never shortened.</summary>
+        private void RequestHitStop(float sec, bool force = false)
+        {
+            if (!force && _hitStopCooldown > 0f) return;
+            _hitStopT = Mathf.Max(_hitStopT, sec);
+            _hitStopCooldown = HitStopGapSec;
+        }
+
         private void ToggleAltSpeed()
         {
             _altSpeed2x = !_altSpeed2x;
@@ -2080,6 +2118,7 @@ namespace IdleGame.Game
                                 (deathPos ??= new Dictionary<string, Vector3>())[ev.EntityId] = v.Go.transform.position;
                                 _views.Remove(ev.EntityId);
                                 enemyKills++;
+                                RequestHitStop(HitStopKillSec); // 10.6a: killing blows land heavy
                                 SoundFx.Play("BadWood_Dead", 0.4f);
                                 // Faceted monster models die per-family (topple / poof) on their body
                                 // animator, which now owns the whole detached object and self-destructs.
@@ -2103,6 +2142,7 @@ namespace IdleGame.Game
                         break;
                     case CombatEventType.BossDefeated:
                         if (Settings.ScreenShake) _rig?.Shake(0.4f);
+                        RequestHitStop(HitStopBossSec, force: true); // 10.6a: rare — allowed past the gap
                         break;
                     // ---- §7.3 crypt room progression beats (clamp-free; no door visuals) ----
                     case CombatEventType.RoomCleared:

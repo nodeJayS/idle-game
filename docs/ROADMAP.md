@@ -110,8 +110,12 @@ SdfBlendShell, DungeonLit) compiled via real hidden-RT draws.
 (e) the user's laptop run of `-benchmark` = final confirmation.
 
 **10.6 Combat presentation pass (juice v2)**
-The sim reads honest; make it FELT. (a) hit-stop: 30–50ms time-scale
-dip on crits/kills (client-only, cap frequency so packs don't slideshow);
+The sim reads honest; make it FELT. (a) SHIPPED 2026-07-13: hit-stop
+on crit impacts (35ms, rides PlayImpact) / kills (50ms) / boss
+defeats (90ms, bypasses the cap), 0.28s frequency cap, dip scale
+0.12. Sim accumulator moved to REAL time × mode speed so the dip
+freezes presentation only — kills/hour provably untaxed (probed:
++1200ms sim in 60 frames with and without a forced dip);
 (b) per-element impact language: fire=ember burst, ice=shard ring +
 brief tint, holy=flash column — one reusable burst API keyed off
 AttackFx/skill sprite; (c) frost VFX retune (reads white under bloom —
