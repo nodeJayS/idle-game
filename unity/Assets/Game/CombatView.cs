@@ -197,13 +197,16 @@ namespace IdleGame.Game
                 GroundRing(GroundAt(tgt), 1.2f, new Color(0.75f, 0.85f, 1f), 0.35f);
             };
 
-            // Ice Mage Blizzard: a pale-blue AoE flourish AT THE TARGET — a wide expanding
+            // Ice Mage Blizzard: a DEEP-blue AoE flourish AT THE TARGET — a wide expanding
             // ground ring sized to the skill's AoeRadius, plus a smaller brighter inner ring
             // for a frosty double-pulse. No screen shake (that stays the boss quake's identity).
+            // 10.6c retune: the old pale blues (0.6-0.8 red channel) × the 2.2 glow clipped every
+            // channel under bloom — a WHITE ring. Deep saturated blues + a 1.4 glow keep blue
+            // dominant all the way through the post stack.
             _skillFx["blizzard"] = (src, tgt) =>
             {
-                GroundRing(GroundAt(tgt), 2.6f, new Color(0.6f, 0.85f, 1f), 0.45f);
-                GroundRing(GroundAt(tgt), 1.4f, new Color(0.8f, 0.93f, 1f), 0.35f);
+                GroundRing(GroundAt(tgt), 2.6f, new Color(0.18f, 0.45f, 0.95f), 0.45f, glowMult: 1.4f);
+                GroundRing(GroundAt(tgt), 1.4f, new Color(0.35f, 0.62f, 1f), 0.35f, glowMult: 1.4f);
                 // a ring of crystals erupts with the pulse and melts away (10.11f ice kit)
                 var c = GroundAt(tgt);
                 for (int i = 0; i < 6; i++)
@@ -294,15 +297,18 @@ namespace IdleGame.Game
         // rides the platform instead of sinking to world-0.
         private static Vector3 GroundAt(View v) { var p = v.Go.transform.position; p.y = v.TerrainY + 0.06f; return p; }
 
-        /// <summary>A flat disc that expands outward and fades — a shockwave on the ground.</summary>
-        private void GroundRing(Vector3 at, float radius, Color color, float life)
+        /// <summary>A flat disc that expands outward and fades — a shockwave on the ground.
+        /// <paramref name="glowMult"/> scales the emission (default = the historical 2.2): cool
+        /// palettes need LESS — bloom + the warm split-tone white out any channel that clips, so
+        /// a pale blue at ×2.2 reads as a white ring (the 10.6c frost complaint).</summary>
+        private void GroundRing(Vector3 at, float radius, Color color, float life, float glowMult = 2.2f)
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
             go.name = "GroundRing";
             go.transform.position = at;
             Paint(go, color);
-            Glow(go, color * 2.2f);
+            Glow(go, color * glowMult);
             // Cylinder is 2 units tall at scale 1 and 1 unit wide; flatten it to a disc.
             var from = new Vector3(0.4f, 0.02f, 0.4f);
             var to = new Vector3(radius * 2f, 0.02f, radius * 2f);

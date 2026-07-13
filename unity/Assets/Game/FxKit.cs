@@ -159,7 +159,9 @@ namespace IdleGame.Game
                              * Vector3.forward * Random.Range(2.2f, 2.9f));
                     for (int i = 0; i < parts.Length; i++)
                         parts[i].rotation = Quaternion.FromToRotation(Vector3.up, vel[i].normalized);
-                    Halo(root, 0.62f, new Color(0.5f, 0.75f, 1f, 0.28f));
+                    // 10.6c: deep blue, low alpha — the first pass (0.5,0.75,1 @ 0.28) bloomed to
+                    // a white core; the blue must dominate its channels to survive the post stack.
+                    Halo(root, 0.55f, new Color(0.25f, 0.5f, 1f, 0.20f));
                     root.AddComponent<FxScatter>().Configure(parts, vel, 0.32f, 0f);
                     break;
                 }

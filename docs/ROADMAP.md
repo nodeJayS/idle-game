@@ -120,8 +120,10 @@ freezes presentation only — kills/hour provably untaxed (probed:
 ice=shard ring + cool flash, holy=flash column, physical=subtle
 chips) keyed off AttackFx/skill sprite via memoized ElementOf;
 primary hits only; rides PlayImpact's felt moment. Old generic
-Burst deleted; (c) frost VFX retune (reads white under bloom — the
-ice burst HALO core still blooms white; drop the ×2.5–3 glow clamps); (d) projectile trails (TrailRenderer,
+Burst deleted; (c) SHIPPED 2026-07-13: frost retune — blizzard rings
+deep-blue (0.18/0.35 red channel) at glowMult 1.4 (GroundRing's new
+per-call knob; pale blue × 2.2 clipped to white), ice burst halo
+deepened (blue must DOMINATE its channels through bloom+split-tone); (d) projectile trails (TrailRenderer,
 pooled); (e) kill-streak feedback: N kills in 2s → small screen pulse +
 feed line; (f) sound mix bus: SFX ducking under big moments, volume
 sliders in Settings (foundation for 10.9).
