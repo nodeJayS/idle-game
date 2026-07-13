@@ -110,7 +110,7 @@ namespace IdleGame.Game
                 go.name = "Fireball";
                 SoundFx.Play("Skill_Wizard_FireBall_Ball", 0.4f);
                 go.AddComponent<Projectile>().Launch(from, to, 14f,
-                    () => PlayImpact(to, amount, crit, sound: "Skill_Wizard_Fireball_Destroy"));
+                    () => PlayImpact(to, amount, crit, sound: "Skill_Wizard_Fireball_Destroy", fxKey: "fireball"));
             };
 
             // Priest basic attack: a bright holy bolt (warm white-gold, so it reads as
@@ -122,7 +122,8 @@ namespace IdleGame.Game
                 var go = FxKit.LightShard(crit ? 1.3f : 1f);
                 go.name = "HolyBolt";
                 go.transform.rotation = Quaternion.LookRotation((to - from).normalized);
-                go.AddComponent<Projectile>().Launch(from, to, 15f, () => PlayImpact(to, amount, crit));
+                go.AddComponent<Projectile>().Launch(from, to, 15f,
+                    () => PlayImpact(to, amount, crit, fxKey: "holybolt"));
             };
 
             // Magician firebolt: a fat, hot meteor lobbed at the target. Routed through the
@@ -135,8 +136,9 @@ namespace IdleGame.Game
                 var go = FxKit.FireChunk(2.4f);
                 go.name = "Meteor";
                 go.GetComponent<FxSpin>().Configure(new Vector3(0.8f, 0.3f, 0.6f).normalized, 340f);
+                // 10.6b: the ember ImpactBurst replaced the old generic orange Burst here.
                 go.AddComponent<Projectile>().Launch(from, to, 16f,
-                    () => { PlayImpact(to, amount, crit, sound: "Skill_Wizard_Fireball_Destroy"); Burst(to, 1.0f, new Color(1f, 0.5f, 0.15f)); }, arc: 2.5f);
+                    () => PlayImpact(to, amount, crit, sound: "Skill_Wizard_Fireball_Destroy", fxKey: "firebolt"), arc: 2.5f);
             };
 
             // Ice Mage basic attack: a spinning crystal shard fired straight (no arc) — the
@@ -151,7 +153,7 @@ namespace IdleGame.Game
                 go.name = "IceBolt";
                 go.transform.rotation = Quaternion.LookRotation((to - from).normalized);
                 go.AddComponent<Projectile>().Launch(from, to, 15f,
-                    () => PlayImpact(to, amount, crit, sound: "Skill_Wizard_IceStrike_Splash"));
+                    () => PlayImpact(to, amount, crit, sound: "Skill_Wizard_IceStrike_Splash", fxKey: "icebolt"));
             };
 
             // Ice Mage Frostbolt skill: a fat crystal shard lobbed at the target — the frost
@@ -163,8 +165,10 @@ namespace IdleGame.Game
                 var go = FxKit.IceShard(1.8f);
                 go.name = "FrostShard";
                 go.GetComponent<FxSpin>().Configure(new Vector3(0.7f, 0.2f, 0.7f).normalized, 300f);
+                // 10.6b: the shard-ring ImpactBurst replaced the old generic white-blue Burst
+                // here (which read pure WHITE under bloom — the 10.6c complaint).
                 go.AddComponent<Projectile>().Launch(from, to, 16f,
-                    () => { PlayImpact(to, amount, crit, sound: "Skill_Wizard_IceStrike_Splash"); Burst(to, 0.9f, new Color(0.75f, 0.92f, 1f)); }, arc: 2.5f);
+                    () => PlayImpact(to, amount, crit, sound: "Skill_Wizard_IceStrike_Splash", fxKey: "frostbolt"), arc: 2.5f);
             };
         }
 
@@ -305,23 +309,12 @@ namespace IdleGame.Game
             go.AddComponent<TransientFx>().Configure(life, from, to);
         }
 
-        /// <summary>A quick bright pop at a point (skill impact flash).</summary>
-        private void Burst(Vector3 at, float size, Color color)
-        {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
-            go.name = "Burst";
-            go.transform.position = at;
-            Paint(go, color);
-            Glow(go, color * 3f);
-            go.AddComponent<TransientFx>().Configure(0.3f, Vector3.one * (size * 0.4f), Vector3.one * (size * 1.6f));
-        }
-
         /// <summary>Impact feedback (damage number + crit shake/flash + one impact clang), each
         /// per its toggle. <paramref name="secondary"/> = a splash/chain/thorns hit riding the
         /// same swing: the number still pops, but the clang is quieter (~0.5×) so a swing into a
         /// pack reads as one hit with echoes, not a wall of full-volume clangs.</summary>
-        private void PlayImpact(Vector3 at, double amount, bool crit, bool secondary = false, string? sound = null)
+        private void PlayImpact(Vector3 at, double amount, bool crit, bool secondary = false, string? sound = null,
+                                string? fxKey = null)
         {
             if (_juice == null) return;
             if (Settings.DamageNumbers) _juice.DamageNumber(at, amount, crit);
@@ -329,6 +322,10 @@ namespace IdleGame.Game
             // 10.6a: the dip lands HERE — with the number/shake on the felt impact (projectile
             // arrival / melee contact), not at the sim event that scheduled them.
             if (crit && !secondary) RequestHitStop(HitStopCritSec);
+            // 10.6b: the per-element burst rides the SAME felt moment, primary hits only —
+            // splash/chain echoes get the quiet clang but no debris (a pack swing must read as
+            // one hit + echoes, not five firework mortars).
+            if (!secondary) FxKit.ImpactBurst(at, FxKit.ElementOf(fxKey), crit);
             float vol = crit ? 0.6f : 0.45f;
             if (secondary) vol *= 0.5f;
             SoundFx.Play(sound ?? "Hit_SwordDefault", vol);
@@ -339,16 +336,17 @@ namespace IdleGame.Game
         /// Presentation-only — the sim already applied the damage. Caches the world point at
         /// schedule time (the victim may die/move before contact). Falls through to an immediate
         /// pop when there's no meaningful delay (0 = projectile/skill paths already time it).</summary>
-        private void ScheduleImpact(Vector3 at, double amount, bool crit, float delaySec, bool secondary, string? sound = null)
+        private void ScheduleImpact(Vector3 at, double amount, bool crit, float delaySec, bool secondary, string? sound = null,
+                                    string? fxKey = null)
         {
-            if (delaySec <= 0.001f) { PlayImpact(at, amount, crit, secondary, sound); return; }
-            StartCoroutine(ImpactAfter(at, amount, crit, delaySec, secondary, sound));
+            if (delaySec <= 0.001f) { PlayImpact(at, amount, crit, secondary, sound, fxKey); return; }
+            StartCoroutine(ImpactAfter(at, amount, crit, delaySec, secondary, sound, fxKey));
         }
 
-        private System.Collections.IEnumerator ImpactAfter(Vector3 at, double amount, bool crit, float delaySec, bool secondary, string? sound)
+        private System.Collections.IEnumerator ImpactAfter(Vector3 at, double amount, bool crit, float delaySec, bool secondary, string? sound, string? fxKey)
         {
             yield return new WaitForSeconds(delaySec);
-            PlayImpact(at, amount, crit, secondary, sound);
+            PlayImpact(at, amount, crit, secondary, sound, fxKey);
         }
 
         /// <summary>Launch a ranged projectile at the source's cast/swing RELEASE frame
@@ -2025,7 +2023,8 @@ namespace IdleGame.Game
                                 // An AoE skill's per-victim ticks: first at full volume, the rest
                                 // quieter so a big cast reads as one boom + echoes, not N clangs.
                                 bool skPrimary = (swung ??= new HashSet<string>()).Add("sk:" + ev.SourceId);
-                                PlayImpact(head, ev.Amount, ev.Crit, secondary: !skPrimary, sound: ImpactSoundFor(ev.SourceId));
+                                PlayImpact(head, ev.Amount, ev.Crit, secondary: !skPrimary, sound: ImpactSoundFor(ev.SourceId),
+                                    fxKey: skKey);
                             }
                             break;
                         }
@@ -2056,7 +2055,7 @@ namespace IdleGame.Game
                         else
                         {
                             ScheduleImpact(head, ev.Amount, ev.Crit, ContactDelayFor(ev.SourceId), secondary: !primary,
-                                sound: ImpactSoundFor(ev.SourceId));
+                                sound: ImpactSoundFor(ev.SourceId), fxKey: fx);
                         }
                         break;
                     }
@@ -2073,8 +2072,12 @@ namespace IdleGame.Game
                             bool isProjectile = isDamage && sk.AoeRadius <= 0 && sk.Targeting != "aoe"
                                                 && _projectileFx.ContainsKey(key);
 
+                            // Store the key for area skills too (10.6b): the Hit branch launches
+                            // only when the key resolves in _projectileFx (single-target bolts);
+                            // area sprites (blizzard, quake…) miss that lookup and the key rides
+                            // on as the element hint for their per-victim impact bursts.
                             if (isDamage && ev.SourceId != null)
-                                (skillHitFx ??= new Dictionary<string, string?>())[ev.SourceId] = isProjectile ? key : null;
+                                (skillHitFx ??= new Dictionary<string, string?>())[ev.SourceId] = key;
 
                             // Instant/area flourish drawn now (projectile skills draw on impact).
                             // A skillId-keyed entry overrides the sprite-keyed one so a specific

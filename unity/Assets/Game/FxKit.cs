@@ -96,6 +96,124 @@ namespace IdleGame.Game
             go.AddComponent<TransientFx>().Configure(life, Vector3.one * scale, Vector3.one * 0.05f);
         }
 
+        // ---- per-element impact language (10.6b) -----------------------------------
+
+        public enum ImpactElement { Physical, Fire, Ice, Holy }
+
+        // Memoized key -> element map: AttackFx keys ("icebolt", "fireball"…) and skill sprite
+        // hints ("blizzard", "holysmite"…) are a small closed set, so the substring probe runs
+        // once per distinct key ever seen (ToLowerInvariant + Contains allocate; impacts are hot).
+        private static readonly Dictionary<string, ImpactElement> _elementMemo = new();
+
+        /// <summary>Element for an AttackFx / skill-sprite key ("frostbolt" → Ice). Null/unknown
+        /// keys are Physical — melee stays understated by design.</summary>
+        public static ImpactElement ElementOf(string? key)
+        {
+            if (string.IsNullOrEmpty(key)) return ImpactElement.Physical;
+            if (_elementMemo.TryGetValue(key!, out var hit)) return hit;
+            string k = key!.ToLowerInvariant();
+            ImpactElement el =
+                  k.Contains("fire") || k.Contains("meteor") || k.Contains("flame") || k.Contains("ember")
+                    ? ImpactElement.Fire
+                : k.Contains("ice") || k.Contains("frost") || k.Contains("blizzard")
+                    ? ImpactElement.Ice
+                : k.Contains("holy") || k.Contains("smite") || k.Contains("sanctify")
+                    ? ImpactElement.Holy
+                : ImpactElement.Physical;
+            _elementMemo[key!] = el;
+            return el;
+        }
+
+        /// <summary>The ONE impact-burst API (10.6b): a short per-element flourish at the felt
+        /// hit point. fire = ember scatter (hot chips, gravity), ice = flat shard ring + a cool
+        /// halo flash (the "frost coat" read WITHOUT touching the victim's material — tints are
+        /// stateful rank/mod tells, never safe to borrow), holy = a vertical flash column,
+        /// physical = three understated dust chips. All parts share cached meshes/materials;
+        /// the mover is <see cref="FxScatter"/> on the root (renderer-less, so it can never
+        /// trip TransientFx-style shared-material fades). Crit scales the whole burst.</summary>
+        public static void ImpactBurst(Vector3 at, ImpactElement el, bool crit = false)
+        {
+            float s = crit ? 1.35f : 1f;
+            switch (el)
+            {
+                case ImpactElement.Fire:
+                {
+                    // Ember burst: hot chips thrown in an upward cone, pulled down hard — coals.
+                    var root = NewBurstRoot(at, s);
+                    var mat = CrystalMat(new Color(0.30f, 0.14f, 0.07f), new Color(1f, 0.35f, 0.08f) * 0.9f);
+                    var (parts, vel) = Chips(root, 5, Crystal(0.03f, 0.05f, 0.03f), mat,
+                        i => (Quaternion.Euler(0f, i * 72f + Random.Range(-20f, 20f), 0f)
+                              * new Vector3(0.6f, 1.3f, 0f)).normalized * Random.Range(2.6f, 3.6f));
+                    Halo(root, 0.55f, new Color(1f, 0.45f, 0.12f, 0.30f));
+                    root.AddComponent<FxScatter>().Configure(parts, vel, 0.38f, 9f);
+                    break;
+                }
+                case ImpactElement.Ice:
+                {
+                    // Shard ring: flat crystals bursting outward, each pointing along its flight
+                    // (mesh long axis = +Y), plus the cool flash that reads as a brief frost coat.
+                    var root = NewBurstRoot(at, s);
+                    var mat = CrystalMat(new Color(0.20f, 0.48f, 0.90f), new Color(0.05f, 0.2f, 0.7f) * 0.4f);
+                    var (parts, vel) = Chips(root, 5, Crystal(0.035f, 0.09f, 0.05f), mat,
+                        i => Quaternion.Euler(0f, i * 72f + Random.Range(-14f, 14f), 0f)
+                             * Vector3.forward * Random.Range(2.2f, 2.9f));
+                    for (int i = 0; i < parts.Length; i++)
+                        parts[i].rotation = Quaternion.FromToRotation(Vector3.up, vel[i].normalized);
+                    Halo(root, 0.62f, new Color(0.5f, 0.75f, 1f, 0.28f));
+                    root.AddComponent<FxScatter>().Configure(parts, vel, 0.32f, 0f);
+                    break;
+                }
+                case ImpactElement.Holy:
+                {
+                    // Flash column: one tall billboarded beam + a ground-level glow; no debris —
+                    // light is clean (the LightShard rule).
+                    var root = NewBurstRoot(at, s);
+                    var beam = Halo(root, 1f, new Color(1f, 0.9f, 0.55f, 0.4f));
+                    beam.transform.localScale = new Vector3(0.4f, 2.2f, 1f);
+                    beam.transform.localPosition = Vector3.up * 0.7f;
+                    Halo(root, 0.7f, new Color(1f, 0.85f, 0.45f, 0.3f));
+                    root.AddComponent<FxScatter>().Configure(
+                        System.Array.Empty<Transform>(), System.Array.Empty<Vector3>(), 0.30f, 0f);
+                    break;
+                }
+                default:
+                {
+                    // Physical: three understated dust chips, low and fast — a thud, not a spell.
+                    var root = NewBurstRoot(at, s);
+                    var mat = CrystalMat(new Color(0.55f, 0.50f, 0.44f), Color.black);
+                    var (parts, vel) = Chips(root, 3, Crystal(0.025f, 0.04f, 0.025f), mat,
+                        i => (Quaternion.Euler(0f, i * 120f + Random.Range(-30f, 30f), 0f)
+                              * new Vector3(0.9f, 0.7f, 0f)).normalized * Random.Range(1.8f, 2.4f));
+                    root.AddComponent<FxScatter>().Configure(parts, vel, 0.25f, 10f);
+                    break;
+                }
+            }
+        }
+
+        private static GameObject NewBurstRoot(Vector3 at, float scale)
+        {
+            var root = new GameObject("ImpactBurst");
+            root.transform.position = at;
+            root.transform.localScale = Vector3.one * scale;
+            return root;
+        }
+
+        /// <summary>Spawn <paramref name="count"/> chip children sharing one cached mesh/material,
+        /// each with a launch velocity from <paramref name="dirFor"/> (LOCAL units/sec).</summary>
+        private static (Transform[] parts, Vector3[] vel) Chips(
+            GameObject root, int count, Mesh mesh, Material mat, System.Func<int, Vector3> dirFor)
+        {
+            var parts = new Transform[count];
+            var vel = new Vector3[count];
+            for (int i = 0; i < count; i++)
+            {
+                var chip = Part(root, mesh, mat);
+                parts[i] = chip.transform;
+                vel[i] = dirFor(i);
+            }
+            return (parts, vel);
+        }
+
         // ---- building blocks -----------------------------------------------------
 
         private static GameObject Part(GameObject root, Mesh mesh, Material mat)
@@ -208,6 +326,45 @@ namespace IdleGame.Game
             t.Apply();
             _softDot = t;
             return t;
+        }
+    }
+
+    /// <summary>Impact-burst mover (10.6b): flings chip children outward in LOCAL space (so the
+    /// root's crit scale multiplies cleanly), pulls them down by gravity, shrinks the whole root
+    /// out over the last 40% of life, then destroys it. Lives on a renderer-LESS root on purpose:
+    /// it never touches materials, so cached FxKit materials stay pristine (TransientFx fades
+    /// sharedMaterial emission — handing it a cached mat would corrupt every user).</summary>
+    public sealed class FxScatter : MonoBehaviour
+    {
+        private Transform[] _parts = System.Array.Empty<Transform>();
+        private Vector3[] _vel = System.Array.Empty<Vector3>();
+        private float _t, _life = 0.35f, _gravity;
+        private Vector3 _baseScale = Vector3.one;
+
+        public void Configure(Transform[] parts, Vector3[] vel, float life, float gravity)
+        {
+            _parts = parts;
+            _vel = vel;
+            _life = Mathf.Max(0.01f, life);
+            _gravity = gravity;
+            _baseScale = transform.localScale;
+        }
+
+        private void Update()
+        {
+            _t += Time.deltaTime;
+            float a = Mathf.Clamp01(_t / _life);
+            for (int i = 0; i < _parts.Length; i++)
+            {
+                var p = _parts[i];
+                if (p == null) continue;
+                _vel[i] += Vector3.down * (_gravity * Time.deltaTime);
+                p.localPosition += _vel[i] * Time.deltaTime;
+            }
+            // Shrink out over the last 40% so chips melt away instead of popping off.
+            float shrink = a < 0.6f ? 1f : 1f - (a - 0.6f) / 0.4f;
+            transform.localScale = _baseScale * Mathf.Max(0.02f, shrink);
+            if (a >= 1f) Destroy(gameObject);
         }
     }
 

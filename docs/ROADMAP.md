@@ -116,10 +116,12 @@ defeats (90ms, bypasses the cap), 0.28s frequency cap, dip scale
 0.12. Sim accumulator moved to REAL time × mode speed so the dip
 freezes presentation only — kills/hour provably untaxed (probed:
 +1200ms sim in 60 frames with and without a forced dip);
-(b) per-element impact language: fire=ember burst, ice=shard ring +
-brief tint, holy=flash column — one reusable burst API keyed off
-AttackFx/skill sprite; (c) frost VFX retune (reads white under bloom —
-drop the ×2.5–3 glow clamps); (d) projectile trails (TrailRenderer,
+(b) SHIPPED 2026-07-13: FxKit.ImpactBurst (fire=ember scatter,
+ice=shard ring + cool flash, holy=flash column, physical=subtle
+chips) keyed off AttackFx/skill sprite via memoized ElementOf;
+primary hits only; rides PlayImpact's felt moment. Old generic
+Burst deleted; (c) frost VFX retune (reads white under bloom — the
+ice burst HALO core still blooms white; drop the ×2.5–3 glow clamps); (d) projectile trails (TrailRenderer,
 pooled); (e) kill-streak feedback: N kills in 2s → small screen pulse +
 feed line; (f) sound mix bus: SFX ducking under big moments, volume
 sliders in Settings (foundation for 10.9).
