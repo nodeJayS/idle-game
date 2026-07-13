@@ -1581,6 +1581,7 @@ namespace IdleGame.Game
             if (n < 4 || n <= _streakPeak || n % 2 != 0) return;    // fire at 4, 6, 8, …
             _streakPeak = n;
             if (Settings.ScreenShake) _rig?.Pulse(n >= 8 ? 0.05f : n >= 6 ? 0.04f : 0.03f);
+            if (n >= 6) SoundFx.Duck(0.5f, 0.5f); // 10.6f: the bigger beats get sonic space too
             string label = n >= 8 ? "MASSACRE!" : n >= 6 ? "Slaughter!" : "Rampage!";
             _chat?.AddFeed($"{label} {n} kills in a blink", new Color(1f, 0.62f, 0.3f));
         }
@@ -2182,6 +2183,7 @@ namespace IdleGame.Game
                     case CombatEventType.BossDefeated:
                         if (Settings.ScreenShake) _rig?.Shake(0.4f);
                         RequestHitStop(HitStopBossSec, force: true); // 10.6a: rare — allowed past the gap
+                        SoundFx.Duck(0.35f, 0.9f); // 10.6f: the clang wall parts for the moment (10.9 stinger slots in exempt)
                         break;
                     // ---- §7.3 crypt room progression beats (clamp-free; no door visuals) ----
                     case CombatEventType.RoomCleared:

@@ -40,7 +40,7 @@ before anyone acts on them:
 
 ## Backlog — pre-sliced majors (brainstormed 2026-07-07)
 
-**NEXT UP: 10.6 combat juice / 10.9 audio (10.10 COMPLETE).
+**NEXT UP: 10.9 audio identity (10.6 + 10.10 COMPLETE).
 Perf SELF-VERIFIED 2026-07-12 (`-benchmark` mode; desktop\@720p
 1.7-2.0ms avg, ~0 GC) — run the exe on the laptop for benchmark.json.
 BUILD BUG fixed: Shader.Find-only shaders get stripped from builds —
@@ -109,30 +109,6 @@ SdfBlendShell, DungeonLit) compiled via real hidden-RT draws.
 (d) SHIPPED 2026-07-12 (quality tiers in Settings — see NEXT UP);
 (e) the user's laptop run of `-benchmark` = final confirmation.
 
-**10.6 Combat presentation pass (juice v2)**
-The sim reads honest; make it FELT. (a) SHIPPED 2026-07-13: hit-stop
-on crit impacts (35ms, rides PlayImpact) / kills (50ms) / boss
-defeats (90ms, bypasses the cap), 0.28s frequency cap, dip scale
-0.12. Sim accumulator moved to REAL time × mode speed so the dip
-freezes presentation only — kills/hour provably untaxed (probed:
-+1200ms sim in 60 frames with and without a forced dip);
-(b) SHIPPED 2026-07-13: FxKit.ImpactBurst (fire=ember scatter,
-ice=shard ring + cool flash, holy=flash column, physical=subtle
-chips) keyed off AttackFx/skill sprite via memoized ElementOf;
-primary hits only; rides PlayImpact's felt moment. Old generic
-Burst deleted; (c) SHIPPED 2026-07-13: frost retune — blizzard rings
-deep-blue (0.18/0.35 red channel) at glowMult 1.4 (GroundRing's new
-per-call knob; pale blue × 2.2 clipped to white), ice burst halo
-deepened (blue must DOMINATE its channels through bloom+split-tone);
-(d) SHIPPED 2026-07-13: element-coloured trail ribbons on all five
-projectiles (cached trail mats, never per-shot; Projectile releases
-the tail on impact via timed destroy so it lingers; peak 8 live /
-settles 0 in heavy fire); (e) SHIPPED 2026-07-13: rolling 2s kill
-window → Rampage/Slaughter/MASSACRE feed beats at 4/6/8 (once per
-level per streak) + CameraRig.Pulse zoom punch (shake-gated,
-unscaled-time envelope); (f) sound mix bus: SFX ducking under big
-moments, volume sliders in Settings (foundation for 10.9).
-
 **10.8 Endless mode ("deepest stage") — COMPLETE 2026-07-12**
 (a) SHIPPED 2026-07-11: `GameConfig.StageFor` generates rows past the
 table (boot formulas, memoized; scaling continues at the gentle
@@ -181,6 +157,12 @@ impact language belongs to 10.6b). 10.11 COMPLETE.
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-07-13 10.6 combat juice COMPLETE: hit-stop (income provably
+  untaxed — sim accumulator on REAL time × mode speed) · per-element
+  ImpactBursts (one API off AttackFx/skill keys) · frost de-whited
+  (deep blues + GroundRing glowMult) · element trail ribbons ·
+  kill-streak beats (feed + zoom pulse) · SFX duck bus with a
+  duckExempt hook for 10.9 stingers. All Play-probed on the live rig.
 - 2026-07-12/13 10.10 SDF monster expansion COMPLETE: 8 new blob
   critters across the crypt tiers (a/b) · Slither+Pulse gaits (c) ·
   Ossuary Wyrm crypt boss + rider binding + per-def Subdivisions (d) ·

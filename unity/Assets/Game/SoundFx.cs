@@ -50,14 +50,42 @@ namespace IdleGame.Game
             return _sets;
         }
 
-        public static void Play(string set, float volume = 0.5f)
+        // ---- 10.6f duck bus: big moments (boss down, massacre streak) briefly pull every
+        // OTHER one-shot down so the beat gets sonic space. No Update loop — the envelope is
+        // computed lazily from unscaled timestamps at each Play. A 10.9 stinger will play with
+        // duckExempt: true so it rides ON TOP of the hole it just carved.
+        private static float _duckStart = -999f, _duckEnd = -999f, _duckDepth = 1f;
+
+        /// <summary>Duck subsequent one-shots to <paramref name="depth"/> (0..1 gain), recovering
+        /// linearly over <paramref name="sec"/>. A deeper duck replaces a shallower in-flight one;
+        /// a shallower request never cuts an active deep duck short.</summary>
+        public static void Duck(float depth, float sec)
+        {
+            float now = Time.unscaledTime;
+            if (now < _duckEnd && _duckDepth <= depth) return;
+            _duckStart = now;
+            _duckEnd = now + Mathf.Max(0.05f, sec);
+            _duckDepth = Mathf.Clamp01(depth);
+        }
+
+        /// <summary>Current duck gain: instant drop to depth, linear recovery to 1.</summary>
+        public static float DuckGain()
+        {
+            float now = Time.unscaledTime;
+            if (now >= _duckEnd) return 1f;
+            return Mathf.Lerp(_duckDepth, 1f, Mathf.InverseLerp(_duckStart, _duckEnd, now));
+        }
+
+        public static void Play(string set, float volume = 0.5f, bool duckExempt = false)
         {
             if (!Sets().TryGetValue(set, out var clips) || clips.Length == 0) return;
             if (_lastPlay.TryGetValue(set, out var t) && Time.unscaledTime - t < MinRepeatSec) return;
             _lastPlay[set] = Time.unscaledTime;
-            // SFX slider composes on top of the master (AudioListener) attenuation.
+            // SFX slider composes on top of the master (AudioListener) attenuation; the duck
+            // bus composes on top of both (exempt = the big moment's own voice).
             Channel(ref _fx, "SoundFx", loop: false)
-                .PlayOneShot(clips[Random.Range(0, clips.Length)], volume * Settings.SfxVolume);
+                .PlayOneShot(clips[Random.Range(0, clips.Length)],
+                             volume * Settings.SfxVolume * (duckExempt ? 1f : DuckGain()));
         }
     }
 }
