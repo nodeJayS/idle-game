@@ -127,9 +127,11 @@ deepened (blue must DOMINATE its channels through bloom+split-tone);
 (d) SHIPPED 2026-07-13: element-coloured trail ribbons on all five
 projectiles (cached trail mats, never per-shot; Projectile releases
 the tail on impact via timed destroy so it lingers; peak 8 live /
-settles 0 in heavy fire); (e) kill-streak feedback: N kills in 2s →
-small screen pulse + feed line; (f) sound mix bus: SFX ducking under
-big moments, volume sliders in Settings (foundation for 10.9).
+settles 0 in heavy fire); (e) SHIPPED 2026-07-13: rolling 2s kill
+window → Rampage/Slaughter/MASSACRE feed beats at 4/6/8 (once per
+level per streak) + CameraRig.Pulse zoom punch (shake-gated,
+unscaled-time envelope); (f) sound mix bus: SFX ducking under big
+moments, volume sliders in Settings (foundation for 10.9).
 
 **10.8 Endless mode ("deepest stage") — COMPLETE 2026-07-12**
 (a) SHIPPED 2026-07-11: `GameConfig.StageFor` generates rows past the

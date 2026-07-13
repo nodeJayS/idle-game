@@ -83,6 +83,20 @@ namespace IdleGame.Game
 
         public void Shake(float magnitude) => _shake = Mathf.Max(_shake, magnitude);
 
+        // 10.6e kill-streak pulse: a quick zoom punch (fraction of orthographicSize) with a sin
+        // spring-back — a "felt beat" distinct from Shake's positional rattle.
+        private float _pulseT;    // 1 -> 0 over PulseSec
+        private float _pulseMag;  // peak fractional zoom-in
+        private const float PulseSec = 0.25f;
+
+        /// <summary>Punch the zoom in by <paramref name="magnitude"/> (0.03 ≈ subtle) and spring
+        /// back over ~0.25s. A stronger pulse replaces a weaker in-flight one, never stacks.</summary>
+        public void Pulse(float magnitude)
+        {
+            _pulseMag = Mathf.Max(_pulseT > 0f ? _pulseMag : 0f, magnitude);
+            _pulseT = 1f;
+        }
+
         /// <summary>Teleport the view: park focus AND target on <paramref name="worldFocus"/> with no
         /// glide (velocity cleared). For LOAD boundaries only (mode transitions behind the loading
         /// screen) — a cross-map SetFocus would smooth-damp the camera diagonally across the world,
@@ -110,7 +124,15 @@ namespace IdleGame.Game
 
             // Ortho zoom: the visible extent is orthographicSize, tied to _distance so the zoom
             // range (Min/MaxDistance) maps to the same framing as the old perspective push-in.
-            _cam.orthographicSize = _distance * SizePerDistance;
+            // The 10.6e pulse composes on top: a brief punch-IN and spring back (sin envelope),
+            // decayed on UNSCALED time so it plays through a hit-stop dip.
+            float pulse = 1f;
+            if (_pulseT > 0f)
+            {
+                _pulseT = Mathf.Max(0f, _pulseT - Time.unscaledDeltaTime / PulseSec);
+                pulse = 1f - _pulseMag * Mathf.Sin(Mathf.PI * (1f - _pulseT));
+            }
+            _cam.orthographicSize = _distance * SizePerDistance * pulse;
 
             // Dead-zone follow: while T sits within DeadRadius of F the camera does not move
             // at all (rock-still during combat shuffle). When T escapes, glide F just far

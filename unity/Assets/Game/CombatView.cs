@@ -1561,6 +1561,30 @@ namespace IdleGame.Game
             _hitStopCooldown = HitStopGapSec;
         }
 
+        // ---- 10.6e kill-streak: N kills inside a rolling REAL-time window → a felt beat.
+        // Escalates every 2 kills past the entry threshold, once per streak level (a streak
+        // that keeps rolling re-fires at 6, 8, 10… but never repeats a level).
+        private readonly Queue<float> _killTimes = new Queue<float>();
+        private int _streakPeak;
+        private const float StreakWindowSec = 2f;
+
+        /// <summary>Called on every enemy death. Prunes the window, detects threshold crossings,
+        /// and fires the pulse (gated by the ScreenShake setting — it IS camera motion) + feed
+        /// line. Real (unscaled) time so hit-stop dips can't stretch a streak.</summary>
+        private void RecordKillStreak()
+        {
+            float now = Time.unscaledTime;
+            _killTimes.Enqueue(now);
+            while (_killTimes.Count > 0 && now - _killTimes.Peek() > StreakWindowSec) _killTimes.Dequeue();
+            if (_killTimes.Count <= 1) { _streakPeak = 0; return; } // fresh streak
+            int n = _killTimes.Count;
+            if (n < 4 || n <= _streakPeak || n % 2 != 0) return;    // fire at 4, 6, 8, …
+            _streakPeak = n;
+            if (Settings.ScreenShake) _rig?.Pulse(n >= 8 ? 0.05f : n >= 6 ? 0.04f : 0.03f);
+            string label = n >= 8 ? "MASSACRE!" : n >= 6 ? "Slaughter!" : "Rampage!";
+            _chat?.AddFeed($"{label} {n} kills in a blink", new Color(1f, 0.62f, 0.3f));
+        }
+
         private void ToggleAltSpeed()
         {
             _altSpeed2x = !_altSpeed2x;
@@ -2133,6 +2157,7 @@ namespace IdleGame.Game
                                 _views.Remove(ev.EntityId);
                                 enemyKills++;
                                 RequestHitStop(HitStopKillSec); // 10.6a: killing blows land heavy
+                                RecordKillStreak();             // 10.6e: pack-clear beats
                                 SoundFx.Play("BadWood_Dead", 0.4f);
                                 // Faceted monster models die per-family (topple / poof) on their body
                                 // animator, which now owns the whole detached object and self-destructs.
