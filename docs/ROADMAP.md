@@ -123,10 +123,13 @@ primary hits only; rides PlayImpact's felt moment. Old generic
 Burst deleted; (c) SHIPPED 2026-07-13: frost retune — blizzard rings
 deep-blue (0.18/0.35 red channel) at glowMult 1.4 (GroundRing's new
 per-call knob; pale blue × 2.2 clipped to white), ice burst halo
-deepened (blue must DOMINATE its channels through bloom+split-tone); (d) projectile trails (TrailRenderer,
-pooled); (e) kill-streak feedback: N kills in 2s → small screen pulse +
-feed line; (f) sound mix bus: SFX ducking under big moments, volume
-sliders in Settings (foundation for 10.9).
+deepened (blue must DOMINATE its channels through bloom+split-tone);
+(d) SHIPPED 2026-07-13: element-coloured trail ribbons on all five
+projectiles (cached trail mats, never per-shot; Projectile releases
+the tail on impact via timed destroy so it lingers; peak 8 live /
+settles 0 in heavy fire); (e) kill-streak feedback: N kills in 2s →
+small screen pulse + feed line; (f) sound mix bus: SFX ducking under
+big moments, volume sliders in Settings (foundation for 10.9).
 
 **10.8 Endless mode ("deepest stage") — COMPLETE 2026-07-12**
 (a) SHIPPED 2026-07-11: `GameConfig.StageFor` generates rows past the

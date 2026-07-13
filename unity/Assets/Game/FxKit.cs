@@ -216,6 +216,39 @@ namespace IdleGame.Game
             return (parts, vel);
         }
 
+        // ---- projectile trails (10.6d) ---------------------------------------------
+
+        private static readonly Dictionary<Color, Material> _trailMats = new();
+
+        /// <summary>Cached additive trail material (no texture — FxAdditive's _BaseMap defaults
+        /// white, so the tint IS the trail). Cached per colour: a material per SHOT would be the
+        /// scenery leak all over again.</summary>
+        private static Material TrailMat(Color tint)
+        {
+            if (_trailMats.TryGetValue(tint, out var cached)) return cached;
+            var m = new Material(Shader.Find("IdleGame/FxAdditive"));
+            m.SetColor("_BaseColor", tint);
+            _trailMats[tint] = m;
+            return m;
+        }
+
+        /// <summary>Attach an element-coloured ribbon trail to a projectile root. Fade comes from
+        /// the width taper (FxAdditive ignores vertex colours, so a colour gradient would be a
+        /// no-op); Projectile releases the trail on impact so the tail lingers past the hit.</summary>
+        public static void AddTrail(GameObject root, Color tint, float width = 0.09f, float time = 0.22f)
+        {
+            var go = new GameObject("Trail");
+            go.transform.SetParent(root.transform, false);
+            var tr = go.AddComponent<TrailRenderer>();
+            tr.time = time;
+            tr.minVertexDistance = 0.06f;
+            tr.startWidth = width;
+            tr.endWidth = 0f;
+            tr.sharedMaterial = TrailMat(tint);
+            tr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            tr.receiveShadows = false;
+        }
+
         // ---- building blocks -----------------------------------------------------
 
         private static GameObject Part(GameObject root, Mesh mesh, Material mat)

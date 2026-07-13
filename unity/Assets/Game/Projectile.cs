@@ -39,6 +39,15 @@ namespace IdleGame.Game
             if (a >= 1f)
             {
                 _onImpact?.Invoke();
+                // 10.6d: release any trail before the body dies so the ribbon lingers past the
+                // hit instead of vanishing on the same frame. Timed destroy, not autodestruct —
+                // deterministic even if the detached trail never gets another movement edge.
+                foreach (var tr in GetComponentsInChildren<TrailRenderer>())
+                {
+                    tr.transform.SetParent(null, true);
+                    tr.emitting = false;
+                    Destroy(tr.gameObject, tr.time + 0.1f);
+                }
                 Destroy(gameObject);
             }
         }

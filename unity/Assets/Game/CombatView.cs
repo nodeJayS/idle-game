@@ -108,6 +108,7 @@ namespace IdleGame.Game
             {
                 var go = FxKit.FireChunk(crit ? 1.35f : 1f);
                 go.name = "Fireball";
+                FxKit.AddTrail(go, new Color(1f, 0.45f, 0.12f, 0.35f)); // 10.6d ember ribbon
                 SoundFx.Play("Skill_Wizard_FireBall_Ball", 0.4f);
                 go.AddComponent<Projectile>().Launch(from, to, 14f,
                     () => PlayImpact(to, amount, crit, sound: "Skill_Wizard_Fireball_Destroy", fxKey: "fireball"));
@@ -121,6 +122,7 @@ namespace IdleGame.Game
                 // default impact clang — no holy impact clip extracted yet.
                 var go = FxKit.LightShard(crit ? 1.3f : 1f);
                 go.name = "HolyBolt";
+                FxKit.AddTrail(go, new Color(1f, 0.85f, 0.45f, 0.35f)); // 10.6d light ribbon
                 go.transform.rotation = Quaternion.LookRotation((to - from).normalized);
                 go.AddComponent<Projectile>().Launch(from, to, 15f,
                     () => PlayImpact(to, amount, crit, fxKey: "holybolt"));
@@ -135,6 +137,7 @@ namespace IdleGame.Game
                 // reads violent; lands with the existing orange burst.
                 var go = FxKit.FireChunk(2.4f);
                 go.name = "Meteor";
+                FxKit.AddTrail(go, new Color(1f, 0.45f, 0.12f, 0.4f), width: 0.16f, time: 0.28f); // fat meteor ribbon
                 go.GetComponent<FxSpin>().Configure(new Vector3(0.8f, 0.3f, 0.6f).normalized, 340f);
                 // 10.6b: the ember ImpactBurst replaced the old generic orange Burst here.
                 go.AddComponent<Projectile>().Launch(from, to, 16f,
@@ -151,6 +154,7 @@ namespace IdleGame.Game
             {
                 var go = FxKit.IceShard(crit ? 1.3f : 1f);
                 go.name = "IceBolt";
+                FxKit.AddTrail(go, new Color(0.3f, 0.55f, 1f, 0.35f)); // 10.6d frost ribbon (deep blue, the (c) rule)
                 go.transform.rotation = Quaternion.LookRotation((to - from).normalized);
                 go.AddComponent<Projectile>().Launch(from, to, 15f,
                     () => PlayImpact(to, amount, crit, sound: "Skill_Wizard_IceStrike_Splash", fxKey: "icebolt"));
@@ -164,6 +168,7 @@ namespace IdleGame.Game
             {
                 var go = FxKit.IceShard(1.8f);
                 go.name = "FrostShard";
+                FxKit.AddTrail(go, new Color(0.3f, 0.55f, 1f, 0.4f), width: 0.14f, time: 0.28f); // fat frost ribbon
                 go.GetComponent<FxSpin>().Configure(new Vector3(0.7f, 0.2f, 0.7f).normalized, 300f);
                 // 10.6b: the shard-ring ImpactBurst replaced the old generic white-blue Burst
                 // here (which read pure WHITE under bloom — the 10.6c complaint).
