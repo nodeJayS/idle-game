@@ -603,6 +603,17 @@ namespace IdleGame.GameCore
         public int TowerMilestoneEvery = 10;         // permanent account buff every N floors cleared
         public double TowerMilestoneStatPct = 0.05;  // +5% Hp/Atk/Def (account-wide) per milestone
         public int TowerGemsPerFloor = 10;           // gems granted for each first-time floor clear (a steady gem drip)
+        // Per-floor first-clear BUNDLE (gold + boss loot), banked once in Tower.RecordClear — the single
+        // exploit-proof gate (Tower kills pay NOTHING, so a failed grind earns nothing). Anchored to the
+        // floor's DIFFICULTY-EQUIVALENT stage (Tower.StageEquivalent), not the floor number.
+        public double TowerLootStagePerFloor = 3.4;  // difficulty-equivalence slope. Floor F fights stage-F
+                                                     // monsters additionally ×TowerHpGrowth^(F-1)=1.5^(F-1);
+                                                     // ladder growth ~1.18/stage catches a 1.5 factor in ~2.45
+                                                     // stages, so floor F ≈ stage 3.45F−2.45. The linear anchor
+                                                     // 1+(F−1)·3.4 approximates that (floor 1→1, floor 10→32,
+                                                     // floor 30→~100 = endgame).
+        public double TowerGoldBundleMinutes = 10.0; // gold bundle = this many minutes of idle-rate gold at the
+                                                     // equivalent stage (NO OfflineRate discount — active-play reward)
 
         // Endless mode (10.8): the post-100 chase pays a LEAN first-clear gem drip — every
         // EndlessGemsEvery'th NEW depth (EndlessBest advance only; re-clears pay nothing).

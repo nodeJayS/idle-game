@@ -87,10 +87,12 @@ namespace IdleGame.Game
             prev.color = new Color(0.86f, 0.80f, 0.72f); prev.supportRichText = true;
             AnchorTL(prev, new Vector2(22f, -160f));
 
-            // Next-floor reward preview: the flat gem bounty, plus the two big milestone perks when they
-            // apply — a milestone floor grants the account buff, and a rare-mod unlock floor hands over a
-            // prefix/suffix mod pair. Kept to one muted line beside the floor/enter UI.
-            string reward = $"Clear: +{_cfg.Balance.TowerGemsPerFloor} gems";
+            // Next-floor reward preview, one muted line beside the floor/enter UI: the flat gem drip, the
+            // one-time gold bundle (Tower.GoldBundle — the same formula RecordClear banks, at the floor's
+            // difficulty-equivalent stage), a boss loot bundle (MAJOR on guardian/milestone floors), plus
+            // the milestone account buff and any rare-mod pair unlock when they apply.
+            string reward = $"Clear: +{_cfg.Balance.TowerGemsPerFloor} gems · ~{Num.CompactFloor(Tower.GoldBundle(next, _cfg))} gold · "
+                          + (milestone ? "major boss bundle" : "boss loot bundle");
             if (milestone) reward += " · account buff";
             bool unlocksMod = false;
             foreach (var kv in _cfg.Modifiers)

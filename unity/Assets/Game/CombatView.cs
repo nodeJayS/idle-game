@@ -1332,13 +1332,30 @@ namespace IdleGame.Game
                 if (_combat.Status == CombatStatus.Won)
                 {
                     int before = Tower.MilestonesCleared(_save, _cfg);
-                    _save = Tower.RecordClear(_save, floor, _cfg);
+                    _save = Tower.RecordClear(_save, floor, _cfg, out var reward);
                     // A Tower clear can unlock a tower-gated modifier (e.g. Volatile at floor 10) on top
                     // of the milestone account buff — resync owned mods from the new floor and announce it.
                     var ownedBefore = new HashSet<string>(_save.Modifiers.Owned.Keys);
                     _save = Modifiers.SyncToStage(_save, _cfg);
                     Combat.RefreshPartyStats(_combat, _save, _cfg); // a new milestone buff applies at once
                     _chat?.AddFeed($"Tower floor {floor} cleared!", new Color(0.6f, 0.85f, 1f));
+                    // First-clear bundle (gold + boss loot, banked inside RecordClear — the single
+                    // exploit-proof gate). Announce the gold + item count, then each kept drop with its
+                    // rarity colour (mirrors the loot-rain feed). Gold displays CompactFloor (balances
+                    // floor) and counts toward quests/achievements exactly like banked PendingGold.
+                    if (reward != null)
+                    {
+                        int items = reward.Stored.Count + reward.Salvaged.Count;
+                        _chat?.AddFeed($"Floor bundle: +{Num.CompactFloor(reward.Gold)} gold · {items} item{(items == 1 ? "" : "s")}",
+                                       new Color(0.9f, 0.8f, 0.45f));
+                        foreach (var it in reward.Stored)
+                            _chat?.AddFeed($"{StatDisplay.ItemName(it, _cfg)} (i{it.ItemLevel})", Palette.Rarity(it.Rarity));
+                        if (reward.ScrapGained > 0)
+                            _chat?.AddFeed($"Auto-salvaged {reward.Salvaged.Count} → +{reward.ScrapGained} scrap.",
+                                           new Color(0.7f, 0.75f, 0.82f));
+                        AdvanceQuest(QuestKind.EarnGold, reward.Gold);
+                        Award(AchievementMetric.GoldEarned, reward.Gold); // lifetime ladder, like PendingGold
+                    }
                     Award(AchievementMetric.HighestTowerFloor, floor); // highest-floor milestone (Lever 4)
                     if (Tower.MilestonesCleared(_save, _cfg) > before)
                         _chat?.AddFeed($"Ascension buff! +{Tower.AccountBuffPct(_save, _cfg) * 100:0}% account power (Hp/Atk/Def).",

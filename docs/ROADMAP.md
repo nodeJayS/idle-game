@@ -17,7 +17,7 @@ achievements/daily gems, gacha (live Ice Mage banner), combat juice
 sound family, and a balance simulator over pure GameCore. Roster:
 Knight / Fire Mage / Assassin / Priest (+ banner Ice Mage) on the MS2
 skinned pipeline; monsters are faceted or SDF blend-shell.
-**753 GameCore tests green.** The 100-stage ladder is FIXED (10.1):
+**760 GameCore tests green.** The 100-stage ladder is FIXED (10.1):
 stage 100 = a reachable prestige gate, sim-verified. Headline gaps:
 music (10.9a, needs the user) and weak-hardware confirmation (10.12e,
 deferred).
@@ -171,6 +171,13 @@ impact language belongs to 10.6b). 10.11 COMPLETE.
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-07-14 Tower per-floor reward bundles: each floor's FIRST clear now
+  banks a one-time gold + boss-loot bundle on top of the gem drip, gated
+  in `Tower.RecordClear` (the exploit-proof gate — Tower kills still pay
+  nothing). Anchored to `Tower.StageEquivalent` (floor 1→stage 1, floor
+  30→~100); gold = 10 min of idle-rate gold there; milestone floors pay a
+  MAJOR boss bundle. Persisted-cursor roll (no re-roll); auto-salvage
+  filter applies. Feed + TowerView preview line; +7 tests (760 green).
 - 2026-07-13 10.6 combat juice COMPLETE: hit-stop (income provably
   untaxed — sim accumulator on REAL time × mode speed) · per-element
   ImpactBursts (one API off AttackFx/skill keys) · frost de-whited
