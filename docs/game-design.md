@@ -214,7 +214,7 @@ walls chart is the acceptance):
   farm mod, gear imprints). It can never one-shot; **sustain (lifesteal, Priest) is the
   intended counter-build**, so thorns bosses become a build check instead of a math wall.
 - **Curve pacing — soft wall at ~80.** The per-stage growth exponent tapers by tier so
-  on-curve play (level + reasonable gear) reaches ~stage 80; **81–100 is the prestige band**,
+  on-curve play (level + reasonable gear) reaches ~stage 80; **81–100 is the endgame band**,
   expecting near-mythic gear plus the account-wide stacks (tower buffs, crypt boons, enhance).
   Endless mode's stage-100 entry is therefore an elite unlock by design. Two-tier acceptance:
   on-curve gear columns green to ~80, the mythic column green to 100 (the sim must first
@@ -239,7 +239,9 @@ walls chart is the acceptance):
 8. **Daily/weekly quests + login rewards** — retention backbone.
 9. **Auto-progression / auto-push.**
 10. **Unlock heroes 2–4** through progression milestones (pre-gacha).
-11. **Prestige / "rebirth"** — reset for permanent multiplier; design economy with it in mind.
+11. ~~Prestige / "rebirth"~~ — **CUT 2026-07-14 (user verdict, final):** no reset loop, ever —
+    this is an idle ARPG, not an incremental. Long-run retention comes from the mobile arc
+    (§8 Phase M): codex/collection, events, endgame sinks. Never re-pitch.
 12. **Account level, achievements, codex/collection.**
 13. *(Later)* **Gacha layer** — heroes *and* weapons (see §9). *(Much later)* Arena/PvP, guilds, events.
 
@@ -302,7 +304,7 @@ makes a thin loop easier to navigate, it can't make it fun. For an **idle auto-b
 (the player mostly watches), "fun" comes from two questions: *is the screen interesting
 to watch?* and *is there a reason to keep going?* These four levers, roughly in order of
 build value, are the long-run plan; **all four are goals.** Don't reach for QoL or
-big-architecture (prestige) until the minute-to-minute is fun.
+big-architecture (cloud accounts, live-ops) until the minute-to-minute is fun.
 
 1. **Combat variety** *(✅ shipped — and grew into the core loop).* (a) elite/rare **ranks** —
    tougher, highlighted mobs with better loot; (b) **monster modifiers** — a player-controlled
@@ -332,7 +334,7 @@ big-architecture (prestige) until the minute-to-minute is fun.
    decision for the hero-gacha arc.
 4. **Progression hooks.** Milestone rewards, escalating goals, a "one more stage" pull
    (goal-ladder slices 3–4). Pulls you forward but *relies on the core fight already
-   being fun* — hence last. See §8 "Prestige & retention".
+   being fun* — hence last. See §8 "Retention".
 
 ### 7.2 Hero template — the 2+2 kit (locked 2026-07-01)
 
@@ -508,9 +510,30 @@ single-player, local game), **Depth** (build variety + retention), **Live-servic
 | **Social / chat IA** | Pre-release shows **System only**; Global · Friends · Guild and per-person **Whispers** (DMs) stay hidden until the server (Phase C) so players aren't shown dead features. Target IA + the re-enable seam are documented in `ChatPanel`. | ◑ |
 | **Crafting / sets / loot filter** | **Item Reforge** (affix-value re-roll gamble) + **modifier shop** shipped; set bonuses, loot filter, enhancement scrolls (§6.1) still open. | ◑ |
 | **Alt modes** | **Tower of Ascension** ✅ playable — its own one-clear-per-floor track, steeper curve, no idle income, permanent account-wide buff every 10 floors, and the **gate for the rare modifier pairs** (`Tower.cs` + `TowerState` under `ProgressState`), with per-floor reward bundles ✅ (gold + boss loot at the floor's difficulty-equivalent stage, banked once in `Tower.RecordClear`). **Crypt (roguelite)** ✅ playable — procedural packed-maze floors (Dungeon Forge aesthetic), fully isolated mode state, room-scoped aggro. Meta (locked 2026-07-06): **1 key/UTC day** (bank 2) per **3-floor run** starting at the depth record +1; every first clear pays gems; completing the run opens a **grave-dust chest** (wipe forfeits the chest, keeps drops); dust buys permanent **boon** tracks (Hp/Atk/Def, Tower-buff sibling); floors ramp geometrically on current-stage scaling and travel **themed tiers** (crypt→molten→frost per 10 depths, zone casts reused) (`Crypt.cs` + `CryptState` under `ProgressState`). Also planned: Endless ("deepest stage"); later party / co-op. | ◑ |
-| **Prestige & retention** | Rebirth multiplier; daily/weekly quests, login rewards, achievements, codex. | |
+| **Retention** | Daily/weekly quests ✅, login rewards ✅, achievements ✅ (all surfaced in the Goals hub); codex/collection → Phase M. **Prestige/rebirth CUT 2026-07-14 (user verdict, final)** — no reset loop, ever; this is an idle ARPG, not an incremental. | ◑ |
 | **UI/UX polish pass** | Dedicated pass **after the gameplay depth above** — the current screens are functional placeholders (IMGUI HUD + code-built uGUI, hand-placed coords). The real fix is a **uGUI layout-group refactor**; plus glyph/font audit, theming, real item/hero art hooks. | deferred |
 | **Balance sim (tooling)** | ✅ `gamecore/BalanceSim` console runner over pure `GameCore` (`dotnet run --project gamecore/BalanceSim -- walls\|sweep\|farm`): min-clear-level wall chart per stage × gear tier, stage×level win grids, farm throughput (kills/min, hits-per-kill one-shot signal, XP/gold rates). Deterministic per cell seed; scenario saves are built through the live reducers (unlocks, skill invest, equip). First run found real walls — see ROADMAP backlog 10.1. | ✅ |
+
+### Phase M — Mobile launch (locked 2026-07-14; pre-sliced briefs = ROADMAP 10.13+)
+
+The arc that turns the desktop prototype into a best-in-class **mobile** idle: respect a
+30-second session, always show the next goal, stay generous for months. Explicitly cut by
+the same verdict: **prestige/rebirth** (never — not an incremental) and **offline-depth
+expansion** (the 12h idle claim stays as-is). **Social-lite** (friend codes, share cards,
+platform leaderboards) is deferred-later, not cut.
+
+| Milestone | Deliverable |
+|-----------|-------------|
+| **MM1 – Touch-first UI reflow** | Portrait-vs-landscape verdict, thumb-zone bottom nav, panels → bottom-sheets, 44pt targets, safe-area; the IMGUI control bar retires. |
+| **MM2 – 30-second session** | Three session shapes (30s claim / 5min push / 30min binge); one-tap Claim All sweep; "Manage" super-verb; cold boot → dopamine < 5s. |
+| **MM3 – Codex / collection** | Monster kill-tier codex, gear-set gallery, zone ledgers; small permanent account drips; there is never zero visible next-goal. |
+| **MM4 – Live-ops events** | Time-windowed `GameConfig` drops (weekend mutators, Tower rush) + a season track (free first); countdowns ceil (rounding rule). |
+| **MM5 – Endgame sinks** | Enhancement scrolls (§6.1) + hero dupe ascension (star-ups); BalanceSim must show ~6 months of weekly spend targets. |
+| **MM6 – Cloud save & identity** | Platform auth (Play Games / Game Center), save sync, conflict UX showing both summaries; versioned saves + `Migrate` are the base. |
+| **MM7 – Telemetry & remote config** | Privacy-light funnel events (FTUE beats, session length, wall positions); remote `GameConfig` seam so tuning skips store review. |
+| **MM8 – Accessibility & l10n foundation** | Rarity shape/border language (not colour-only), text scale, reduced-motion, haptics toggle; extract the string table EARLY. |
+| **MM9 – Monetization charter (design-only)** | What we sell (roster breadth, time-respect, cosmetics) and never sell (power past designed walls); pity/rate disclosure standards. Written BEFORE any real-money work un-parks. |
+| **MM10 – Handheld feel pass** | Haptic vocabulary, thermal-aware auto-tiering (extends 10.12 tiers), 30fps battery mode, cold start < 5s. Ships last. |
 
 ### Phase C — Live-service (server + global)
 | Milestone | Deliverable |
@@ -585,11 +608,11 @@ archetype backbone (Knight/Fire Mage/Assassin/Priest), and a months-long hero-le
 curve are in. Gameplay-first, next:
 - **Content & polish (current focus):** more heroes/classes, enemy variety, more mods & stages;
   balance/tuning; combat juice + sound.
-- **Progression hooks (Lever 4, §7.1 #4):** milestone rewards, dailies/logins, achievements/codex,
-  then prestige/rebirth.
-- **Gear depth (remaining):** set bonuses, loot filter, enhancement scrolls (§6.1).
-- **Alt modes:** endless ("deepest stage"), then party/co-op.
-- **Then** gacha + live-service per §8/§9.
+- **Progression hooks (Lever 4, §7.1 #4):** milestone rewards ✅, dailies/logins ✅,
+  achievements ✅ (Goals hub); codex/collection lands in Phase M (no prestige — cut).
+- **Gear depth (remaining):** enhancement scrolls (§6.1, Phase M MM5); sets + loot filter ✅.
+- **Alt modes:** endless ✅; party/co-op later.
+- **Then** the mobile arc (§8 Phase M / ROADMAP 10.13+), then live-service per §9.
 
 **UI/UX polish is its own milestone, sequenced *after* the depth gameplay above** — today's
 screens are functional placeholders (IMGUI HUD + code-built uGUI, hand-placed coords); the fix
