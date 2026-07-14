@@ -459,7 +459,10 @@ namespace IdleGame.Game
 
             var btn = go.AddComponent<Button>();
             btn.targetGraphic = img;
-            btn.onClick.AddListener(() => onClick());
+            // 10.9d UI sound language: EVERY button clicks through this factory (PanelKit.
+            // ButtonCell wraps it), so the one family lands everywhere. Disabled cells never
+            // fire (interactable = false), so dead buttons stay silent.
+            btn.onClick.AddListener(() => { SoundFx.Play("System_SubButton_Click", 0.3f); onClick(); });
 
             var rt = (RectTransform)go.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);

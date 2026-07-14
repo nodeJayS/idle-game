@@ -660,11 +660,13 @@ namespace IdleGame.Game
         {
             if (!Inventory.CanReforge(_save, itemId, _cfg))
             {
+                SoundFx.Play("System_Password_Fail", 0.45f); // 10.9d: the one deny sound
                 _chat?.AddFeed("Not enough gold + scrap to reforge that item.", new Color(0.9f, 0.6f, 0.5f));
                 return;
             }
             var item = _save.Inventory.Find(i => i.Id == itemId);
             _save = Inventory.Reforge(_save, itemId, _cfg);
+            SoundFx.Play("System_Shop_buy", 0.4f); // 10.9d: the spend beat (reforge = the gamble verb)
             if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg); // reforged worn gear applies at once
             string nm = item != null ? StatDisplay.ItemName(item, _cfg) : "item";
             _chat?.AddFeed($"Reforged {nm} — its affixes re-rolled.", new Color(0.7f, 0.8f, 1f));
@@ -683,6 +685,8 @@ namespace IdleGame.Game
             _save = r.Save;
             var item = _save.Inventory.Find(i => i.Id == itemId);
             string name = item != null ? StatDisplay.ItemName(item, _cfg) : "item";
+            // 10.9d: the upgrade pair — one success chime, one fail thud (drop or kept).
+            SoundFx.Play(r.Success ? "System_Enchant_Success" : "System_Enchant_Fail", 0.5f);
             if (r.Success)
                 _chat?.AddFeed($"⚒ Enhanced: {name}", new Color(0.55f, 0.9f, 0.55f));
             else if (r.Dropped)
@@ -1119,6 +1123,7 @@ namespace IdleGame.Game
             _save = next;
             // Premium currency must never be lost to a quit before the 30s autosave — flush now.
             SaveStore.Save(Save.Touch(_save, now));
+            SoundFx.Play("System_StampReward_get", 0.5f); // 10.9d: the one claim chime (covers Claim-all too)
             _chat?.AddFeed($"Daily reward — day {streak} streak!  +{Num.CompactFloor(gems)} gems",
                            new Color(0.6f, 0.85f, 1f));
         }
@@ -2952,7 +2957,10 @@ namespace IdleGame.Game
 
                 // whole chip is a click target -> opens this hero's equipment
                 if (GUI.Button(new Rect(x, y, w, rowH), GUIContent.none, GUIStyle.none))
+                {
+                    SoundFx.Play("System_Shift_Click", 0.3f); // 10.9d tile tick (a chip, not a button)
                     _equipment?.Toggle(heroId);
+                }
             }
         }
 
@@ -3148,11 +3156,21 @@ namespace IdleGame.Game
             }
         }
 
-        private bool Button(float x, float y, float w, float h, string label) =>
-            GUI.Button(new Rect(x, y, w, h), label, BtnStyle);
+        // 10.9d: the IMGUI half of the one UI sound family — every control-bar/HUD button
+        // routes through these two helpers, mirroring UiKit.TextButton's wrapped click.
+        private bool Button(float x, float y, float w, float h, string label)
+        {
+            bool hit = GUI.Button(new Rect(x, y, w, h), label, BtnStyle);
+            if (hit) SoundFx.Play("System_SubButton_Click", 0.3f);
+            return hit;
+        }
 
-        private bool Button(float x, float y, float w, float h, string label, GUIStyle style) =>
-            GUI.Button(new Rect(x, y, w, h), label, style);
+        private bool Button(float x, float y, float w, float h, string label, GUIStyle style)
+        {
+            bool hit = GUI.Button(new Rect(x, y, w, h), label, style);
+            if (hit) SoundFx.Play("System_SubButton_Click", 0.3f);
+            return hit;
+        }
 
         private void DrawRect(float x, float y, float w, float h, Color c)
         {

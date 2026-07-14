@@ -138,8 +138,12 @@ all 10 zones + 3 crypt tiers, idempotent SetZone/SetDungeon off
 DressZone + DungeonMode.Enter, 1.6s crossfade on unscaled time,
 Ambience Volume slider. AUDIBILITY UNCONFIRMED — this editor
 session's audio engine is wedged (dspTime frozen; AudioSettings.Reset
-revived isPlaying) — user ears it next session; (d) UI sound language
-pass (one family for click/claim/error/upgrade — replace defaults);
+revived isPlaying) — user ears it next session; (d) SHIPPED 2026-07-13: one UI family from
+the MS2 UI bank — click (BOTH button factories: UiKit.TextButton +
+CombatView's IMGUI helpers), tile tick, popup open/close pair
+(PanelKit.Window), claim chime (daily login, 2 variants), deny
+(reforge afford-fail), spend (reforge), enchant success/fail pair.
+Audibility rides the same wedged-editor caveat as (c);
 (e) mixer panel: Master/SFX/Ambience sliders DONE, music slider when
 (a) lands.
 

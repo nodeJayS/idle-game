@@ -160,7 +160,7 @@ namespace IdleGame.Game
                 else
                 {
                     var btn = tile.AddComponent<Button>();
-                    btn.onClick.AddListener(() => ShowDetail(save, it));
+                    btn.onClick.AddListener(() => { SoundFx.Play("System_Shift_Click", 0.3f); ShowDetail(save, it); }); // 10.9d tile tick
                     UiKit.Hover(tile, () => ShowDetail(save, it));
                 }
             }

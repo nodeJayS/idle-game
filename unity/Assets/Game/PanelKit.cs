@@ -56,10 +56,15 @@ namespace IdleGame.Game
             vlg.childForceExpandWidth = true;
             vlg.childForceExpandHeight = false;
 
-            // Header: flexible title, fixed Close on the right.
+            // Header: flexible title, fixed Close on the right. 10.9d: the window pops open
+            // audibly (built per-open) and the Close verb pops shut — the popup pair of the
+            // one UI sound family. Other close paths (control-bar toggles) stay silent.
+            SoundFx.Play("System_PopUpOpen_new", 0.35f);
             var header = Row(prt, Theme.BtnH);
             TextCell(header, title, Theme.FsTitle, Theme.TextBright, TextAnchor.MiddleLeft, flex: 1f);
-            ButtonCell(header, "Close", onClose, width: Theme.CloseW, fontSize: Theme.FsH1);
+            ButtonCell(header, "Close",
+                () => { SoundFx.Play("System_PopUpClose_new", 0.35f); onClose(); },
+                width: Theme.CloseW, fontSize: Theme.FsH1);
 
             body = Flex(prt);
             return canvas.gameObject;
