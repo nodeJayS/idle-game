@@ -11,14 +11,16 @@ its sections — prune, don't raise the budget.
 
 Shipped and playable: the full core loop (farm ladder → loot → build →
 push), 10 themed zones with terraced arenas, Tower, Crypt roguelite
-(packed-maze floors, daily keys, dust boons), quests/achievements/daily
-gems, gacha (live Ice Mage banner), and a balance simulator over pure
-GameCore. Roster: Knight / Fire Mage / Assassin / Priest (+ banner Ice
-Mage) on the MS2 skinned pipeline; monsters are faceted or SDF blend-shell.
-**751 GameCore tests green.** The 100-stage ladder is FIXED (10.1):
-stage 100 = a reachable prestige gate, sim-verified. FTUE (10.2) and
-UI foundation (10.3) COMPLETE. Headline problem now: performance on
-weak/mobile hardware — see 10.12.
+(own-depth curve, daily keys, dust boons, SDF boss), Endless, quests/
+achievements/daily gems, gacha (live Ice Mage banner), combat juice
+(hit-stop / element bursts / trails / streaks), zone ambience + a UI
+sound family, and a balance simulator over pure GameCore. Roster:
+Knight / Fire Mage / Assassin / Priest (+ banner Ice Mage) on the MS2
+skinned pipeline; monsters are faceted or SDF blend-shell.
+**753 GameCore tests green.** The 100-stage ladder is FIXED (10.1):
+stage 100 = a reachable prestige gate, sim-verified. Headline gaps:
+music (10.9a, needs the user) and weak-hardware confirmation (10.12e,
+deferred).
 
 ## Your calls — decisions waiting on the USER
 
