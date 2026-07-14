@@ -524,7 +524,7 @@ platform leaderboards) is deferred-later, not cut.
 
 | Milestone | Deliverable |
 |-----------|-------------|
-| **MM1 – Touch-first UI reflow** | Portrait-vs-landscape verdict, thumb-zone bottom nav, panels → bottom-sheets, 44pt targets, safe-area; the IMGUI control bar retires. |
+| **MM1 – Touch-first UI reflow** | **LANDSCAPE (locked 2026-07-14)**; thumb-reach nav at the bottom corners, panels → touch sheets, 44pt targets, safe-area; the IMGUI control bar retires. |
 | **MM2 – 30-second session** | Three session shapes (30s claim / 5min push / 30min binge); one-tap Claim All sweep; "Manage" super-verb; cold boot → dopamine < 5s. |
 | **MM3 – Codex / collection** | Monster kill-tier codex, gear-set gallery, zone ledgers; small permanent account drips; there is never zero visible next-goal. |
 | **MM4 – Live-ops events** | Time-windowed `GameConfig` drops (weekend mutators, Tower rush) + a season track (free first); countdowns ceil (rounding rule). |

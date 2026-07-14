@@ -33,9 +33,9 @@ laptop-gated), the user's ears pass on ambience/UI sounds.
    MoveSpd vs follow floor (overworld), anim-end vs contact launch,
    corpse-linger, melee spacing, priest FX in real combat, formation
    knobs (standoff 4.6 / panic 1.8 / aggro 2.0), run-clip foot-slide.
-9. **Mobile arc kickoff (NEW 2026-07-14):** (a) portrait or landscape?
-   (10.13's gating verdict — recommendation: PORTRAIT, one-hand play);
-   (b) which milestone opens the arc (recommendation: 10.13 → 10.14).
+9. **Mobile arc kickoff:** (a) RESOLVED 2026-07-14 — **LANDSCAPE**
+   (user verdict; two-hand framing, keeps the diorama camera's current
+   read); (b) which milestone opens the arc (rec: 10.13 → 10.14).
 10. Still owed from earlier sessions: ears pass (ambience beds / UI
    sounds / juice feel), astral-bed music-or-not verdict, laptop
    `-benchmark` run (10.12e).
@@ -54,13 +54,14 @@ Also parked, deliberately not goals: real-money gems · server authority
 build-reveal anim · tilt-shift band-blur · SDF jiggle-rope tail · crypt
 mid-run merchant/boon-draft (never dilute dust's permanent role).
 
-**10.13 Touch-first UI reflow (MM1) — the arc's foundation.** Portrait
-verdict first (call #9a). Slices: (a) input abstraction + safe-area
-insets; (b) thumb-zone bottom nav replacing the IMGUI control bar
-(IMGUI retires — no touch semantics); (c) windows → bottom-sheets on
-PanelKit, 44pt minimum targets; (d) hand-placed stragglers migrate
-(Settings, TowerView, ModifierPanel, MainMenu). The 10.3 kit lessons
-below BITE here — read them before slice (c).
+**10.13 Touch-first UI reflow (MM1) — the arc's foundation.**
+**LANDSCAPE (locked 2026-07-14, call #9a).** Slices: (a) input
+abstraction + safe-area insets (notch/rounded corners); (b) thumb-reach
+nav at the bottom corners replacing the IMGUI control bar (IMGUI
+retires — no touch semantics); (c) windows → touch sheets on PanelKit,
+44pt minimum targets; (d) hand-placed stragglers migrate (Settings,
+TowerView, ModifierPanel, MainMenu). The 10.3 kit lessons below BITE
+here — read them before slice (c).
 
 **10.14 The 30-second session (MM2).** Design the three session shapes
 (30s claim / 5min push / 30min binge) and optimize the first
