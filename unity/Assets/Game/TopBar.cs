@@ -92,6 +92,8 @@ namespace IdleGame.Game
                 v => { Settings.MasterVolume = v; AudioListener.volume = v; }, ref y);
             SliderRow(panel.transform, "SFX Volume", () => Settings.SfxVolume,
                 v => Settings.SfxVolume = v, ref y);
+            SliderRow(panel.transform, "Ambience Volume", () => Settings.AmbienceVolume,
+                v => Settings.AmbienceVolume = v, ref y); // 10.9c beds read this live
 
             y -= 8f; // small gap before the effect toggles
             ToggleRow(panel.transform, "Damage Numbers", () => Settings.DamageNumbers, v => Settings.DamageNumbers = v, ref y);

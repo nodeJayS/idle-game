@@ -36,6 +36,14 @@ namespace IdleGame.Game
             set => SetF("volSfx", Mathf.Clamp01(value));
         }
 
+        /// <summary>Ambience-bed volume (0..1, default 0.6) — the 10.9c zone beds, independent of
+        /// one-shot SFX so either can be turned down without losing the other.</summary>
+        public static float AmbienceVolume
+        {
+            get => Mathf.Clamp01(PlayerPrefs.GetFloat("volAmb", 0.6f));
+            set => SetF("volAmb", Mathf.Clamp01(value));
+        }
+
         public static bool DamageNumbers   { get => Get("fxDamage");      set => Set("fxDamage", value); }
         public static bool ScreenShake     { get => Get("fxShake");       set => Set("fxShake", value); }
         public static bool LootFeed        { get => Get("fxToasts");      set => Set("fxToasts", value); }

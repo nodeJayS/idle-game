@@ -124,6 +124,7 @@ namespace IdleGame.Game
                 rewardMult: Crypt.FloorRewardMult(floor, cfg));
 
             SwapWorldIn(dungeon, tier?.ThemeKey ?? "crypt");
+            Ambience.SetDungeon(tier?.ThemeKey ?? "crypt"); // 10.9c: the depth tier's bed (exit swaps back via DressZone)
             Active = true;
             return state;
         }

@@ -128,12 +128,20 @@ clear (record line, +10 gems, chip label).
 **10.9 Audio identity (original, adaptive — NO MS2 music ever)**
 The game is silent between SFX. (a) pick/produce 3 original loop beds
 (overworld calm / combat sim-intensity layer / crypt dread) — royalty-
-free or commissioned, NEVER MS2; (b) client AudioDirector: crossfade
-beds on mode swap, duck under boss stingers; (c) zone ambience one-shots
-(wind, embers, frost) keyed off ZoneDef; (d) UI sound language pass
-(one family for click/claim/error/upgrade — replace defaults);
-(e) mixer panel in Settings (music/SFX/ambience sliders, persisted
-client-side).
+free or commissioned, NEVER MS2, NEEDS THE USER; (b) client
+AudioDirector: crossfade beds on mode swap, duck under boss stingers
+(the Ambience crossfade host + 10.6f duckExempt are the scaffolds);
+(c) SHIPPED 2026-07-13: zone ambience BEDS (better than the one-shots
+spec'd — the MS2 AMB bank has real environmental loops; SFX-rule
+compliant, BGM banks untouched): 16 curated clips, theme→bed map for
+all 10 zones + 3 crypt tiers, idempotent SetZone/SetDungeon off
+DressZone + DungeonMode.Enter, 1.6s crossfade on unscaled time,
+Ambience Volume slider. AUDIBILITY UNCONFIRMED — this editor
+session's audio engine is wedged (dspTime frozen; AudioSettings.Reset
+revived isPlaying) — user ears it next session; (d) UI sound language
+pass (one family for click/claim/error/upgrade — replace defaults);
+(e) mixer panel: Master/SFX/Ambience sliders DONE, music slider when
+(a) lands.
 
 **10.11 Hero look & skill-FX identity (user-assigned 2026-07-07 — NEXT)**
 The shipped heroes wear arbitrary MS2 outfits ("ugly hats") instead of

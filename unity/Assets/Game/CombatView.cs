@@ -1481,6 +1481,12 @@ namespace IdleGame.Game
         /// farm start/resume.</summary>
         private void DressZone(int stageOrFloor)
         {
+            // Ambience is set from the CURRENT zone every call (its own key no-ops repeats) —
+            // deliberately NOT gated on ZoneDress's changed-only return, because a dungeon exit
+            // re-dresses the SAME zone (Sync no-ops) while the bed still needs to swap back from
+            // the crypt's.
+            Ambience.SetZone(_cfg.ZoneForStage(stageOrFloor)?.PropSet);
+
             var zone = ZoneDress.Sync(_cfg, stageOrFloor);
             if (zone == null) return;
             var accent = new Color((float)zone.AccentR, (float)zone.AccentG, (float)zone.AccentB);
