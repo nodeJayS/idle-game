@@ -234,15 +234,10 @@ a reducer silently strips them — grep `new Item` / `new HeroInstance`
   persistence+resume+summary, BalanceSim `crypt` chart (10.7a–g).
 - 2026-07-07 10.11 hero look & FX COMPLETE: wardrobe browser, hero
   relooks (user-picked), FxKit procedural FX for every projectile.
-- 2026-07-07 Projectile release-frame launch · anim feel fixes ·
-  balance sim (walls|sweep|farm) + wall findings · project audit.
-- 2026-07-06 Crypt meta (keys/runs/chests/boons) · dungeon mode ×5
-  passes → packed maze + room aggro.
-- 2026-07-05 Terrain slices 1+2 · presentation debt · ranged feel ·
-  Tower gems/quest rework/modifier UX.
-- 2026-07-04/05 SDF blend-shell (shader → gaits → swamp trio) · party
-  feel batch: formation, kite/peel, leader UI.
-- 2026-07-03/04 Gacha MVP + Ice Mage banner · monster anim · QoL batch.
+- 2026-07-03..07 foundation week (receipts in git): gacha MVP + Ice
+  Mage banner · SDF blend-shell + party feel · terrain slices + Tower
+  gems/quest rework · crypt meta + packed maze · balance sim + audit ·
+  projectile release-frame launch · anim feel fixes.
 
 ## Standing rules (short — CLAUDE.md has the full set)
 GameCore-first, one verified slice per commit. Monsters faceted only (MS2 =
