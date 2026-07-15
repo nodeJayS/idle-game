@@ -69,11 +69,11 @@ non-guarded item, any rarity — NOT the loot filter), so any aggregate
 touching it must equip-sweep FIRST (worn gear is salvage-immune) or it
 destroys upgrades — `Session.Apply` locks that ordering with a test.
 
-**10.15 Codex / collection (MM3).** Monster kill-tier codex, gear-set
-gallery, zone completion ledgers; each tier pays a small permanent
-account drip (Tower-buff/boon sibling). The retention layer BETWEEN
-power walls — there is never zero visible next-goals. GameCore-first:
-derive from lifetime counters where possible (achievements pattern).
+**10.15 Codex / collection (MM3) — COMPLETE 2026-07-15 (ledger).**
+Durable lessons: cfg-aware retro-grants (SyncFromInventory) live
+beside SyncHeroUnlocks at LOAD, never in the cfg-less Save.Migrate;
+loot-path reducers legitimately RE-WRAP nested Progress state, so
+threading sweeps assert VALUE survival, not ref identity.
 
 **10.16 Live-ops events + season track (MM4).** Time-windowed
 `GameConfig` drops (weekend zone boosts, mutated crypt, Tower rush) +
@@ -151,6 +151,15 @@ a reducer silently strips them — grep `new Item` / `new HeroInstance`
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-07-15 10.15 codex/collection COMPLETE: CodexState (per-monster
+  lifetime kills via CombatState.PendingKills + Codex.BankKills tier
+  crossings; set-slot discovery stamped at AddLoot BEFORE the salvage
+  decision — seen is seen; zones derived from HighestStage). Every
+  completed tier pays +0.1% Hp/Atk/Def (~+16% at full completion,
+  ceiling-tested ≤25%), folded beside the Tower/boon buffs. Goals hub
+  gains the Codex tab (pips + progress; reveals with Achievements);
+  Bronze/Silver/Gold + set-collected feed beats; pre-codex bags
+  retro-stamped at load (Codex.SyncFromInventory). 794 tests.
 - 2026-07-15 10.14 the 30-second session COMPLETE: `Session.Arrive`
   (idle + daily as ONE atomic boot payoff — the two boot modals became
   one arrival card, idle previewed-not-claimed until Collect) +

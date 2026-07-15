@@ -29,7 +29,7 @@ namespace IdleGame.Game
         private GameConfig _cfg = null!;
 
         private GameObject? _panel;
-        private enum Tab { Today, Achievements, Login }
+        private enum Tab { Today, Achievements, Codex, Login }
         private Tab _tab = Tab.Today;
 
         public bool IsOpen => _panel != null;
@@ -60,7 +60,11 @@ namespace IdleGame.Game
             // Tabs — the Achievements tab hides until its FTUE reveal (§7.5); the button outside
             // reveals with the earliest member system, so a fresh save can be here without it.
             var tabs = new List<(Tab tab, string label)> { (Tab.Today, "Today") };
-            if (Progression.FeatureUnlocked(Feature.Achievements, save)) tabs.Add((Tab.Achievements, "Achievements"));
+            if (Progression.FeatureUnlocked(Feature.Achievements, save))
+            {
+                tabs.Add((Tab.Achievements, "Achievements"));
+                tabs.Add((Tab.Codex, "Codex")); // the codex is achievement-family — same FTUE reveal (10.15)
+            }
             tabs.Add((Tab.Login, "Login"));
             if (tabs.FindIndex(t => t.tab == _tab) < 0) _tab = Tab.Today; // selected tab currently hidden
             var labels = new string[tabs.Count];
@@ -88,6 +92,7 @@ namespace IdleGame.Game
             switch (_tab)
             {
                 case Tab.Achievements: BuildAchievements(body, save); break;
+                case Tab.Codex:        BuildCodex(body, save);        break;
                 case Tab.Login:        BuildLogin(body, save, now);   break;
                 default:               BuildToday(body, save);        break;
             }
@@ -168,6 +173,79 @@ namespace IdleGame.Game
             if (t.RewardScrap > 0) bits.Add($"{Num.CompactFloor(t.RewardScrap)}s");
             if (t.RewardXp > 0) bits.Add($"{Num.CompactFloor(t.RewardXp)}xp");
             return bits.Count > 0 ? "+ " + string.Join("  ", bits) : "";
+        }
+
+        // ---- Codex: the collection browse surface (monsters / sets / zones) ----
+
+        // A compact, non-interactive codex row: name on the left, a status string on the right. The
+        // codex is a long browse list (§7.5 sibling of the achievement ladder), so rows are text-only
+        // and short — no bars, no buttons.
+        private const float CodexRowH = 26f;
+
+        private static void CodexRow(RectTransform list, string name, string status, Color statusColor)
+        {
+            var row = PanelKit.Row(list, CodexRowH);
+            PanelKit.TextCell(row, name, Theme.FsSmall, Theme.TextBody, TextAnchor.MiddleLeft, flex: 1f);
+            PanelKit.TextCell(row, status, Theme.FsSmall, statusColor, TextAnchor.MiddleRight, flex: 1f);
+        }
+
+        // A section divider inside the scroll list (MONSTERS / SETS / ZONES).
+        private static void CodexHeader(RectTransform list, string title)
+        {
+            var row = PanelKit.Row(list, 22f);
+            PanelKit.TextCell(row, title, Theme.FsLabel, Theme.TextMuted, TextAnchor.MiddleLeft, flex: 1f);
+        }
+
+        private void BuildCodex(RectTransform body, SaveState save)
+        {
+            // Header: the derived account drip + how many tiers feed it (gold accent, achievement-family).
+            double pct = Codex.AccountBuffPct(save, _cfg) * 100.0;
+            int tiers = Codex.CompletedTiers(save, _cfg);
+            var head = PanelKit.Row(body, HeadRowH);
+            PanelKit.TextCell(head, $"Codex bonus: +{pct:0.0}% Hp / Atk / Def  ({tiers} tiers completed)",
+                Theme.FsLabel, Theme.AccentGold, TextAnchor.MiddleLeft, flex: 1f);
+
+            var list = UiKit.ScrollColumnFill(body, spacing: Theme.GapS);
+
+            // MONSTERS: lifetime kills, filled/empty tier pips, and progress to the next threshold.
+            CodexHeader(list, "MONSTERS");
+            int killTiers = _cfg.Balance.CodexKillTiers.Length;
+            foreach (var m in Codex.MonsterEntries(save, _cfg))
+            {
+                string status;
+                Color col;
+                if (m.Maxed)
+                {
+                    status = new string('●', killTiers) + "  MAX";
+                    col = Theme.TextDim;
+                }
+                else
+                {
+                    string pips = new string('●', m.TiersCompleted) + new string('○', killTiers - m.TiersCompleted);
+                    status = $"{pips}  {Num.CompactFloor(m.Kills)}/{Num.CompactCeil(m.NextThreshold)}";
+                    col = m.TiersCompleted > 0 ? Theme.AccentGoldWarm : Theme.TextMuted;
+                }
+                CodexRow(list, m.Name, status, col);
+            }
+
+            // SETS: reachable slots seen vs required, with a teal COMPLETE tag when the set is whole.
+            CodexHeader(list, "SETS");
+            foreach (var s in Codex.SetEntries(save, _cfg))
+            {
+                string status = s.Complete
+                    ? $"{s.SlotsSeen}/{s.SlotsRequired} slots  ·  COMPLETE"
+                    : $"{s.SlotsSeen}/{s.SlotsRequired} slots";
+                CodexRow(list, s.Name, status, s.Complete ? Theme.SetBonus : Theme.TextMuted);
+            }
+
+            // ZONES: entered/cleared, derived from HighestStage.
+            CodexHeader(list, "ZONES");
+            foreach (var z in Codex.ZoneEntries(save, _cfg))
+            {
+                string status = z.Cleared ? "Cleared" : z.Entered ? "Entered" : "—";
+                Color col = z.Cleared ? Theme.Good : z.Entered ? Theme.TextBody : Theme.TextDim;
+                CodexRow(list, z.Name, status, col);
+            }
         }
 
         // ---- Login: streak state, the one manual claim, tomorrow's preview ----

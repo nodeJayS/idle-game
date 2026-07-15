@@ -76,6 +76,9 @@ namespace IdleGame.Game
 
         private const float SpawnAnimSec = 0.35f;
 
+        // Codex kill-tier labels (10.15) — index into a CodexTierCross.TierIndex for the toast.
+        private static readonly string[] CodexTierNames = { "Bronze", "Silver", "Gold" };
+
         // MonsterDef.SpawnStyle -> spawn-in animation. ADD-ON POINT: register new styles
         // (spider, ghost, shark, …) here and set the monster's SpawnStyle in GameConfig.
         private readonly Dictionary<string, System.Action<View, float>> _spawnEffects = new();
@@ -1318,6 +1321,20 @@ namespace IdleGame.Game
                 _save = loot.Save;
                 _combat.PendingLoot.Clear();
 
+                // Codex set-completion beat (10.15): AddLoot stamps set-slot discovery, so a drop can
+                // finish a set here. A completed set is a codex tier — toast it and refresh the account
+                // drip. (The idle path's AddLoot runs INSIDE Session.Arrive/Idle.Claim and doesn't surface
+                // its LootResult, so it gets no beat — the Codex tab still shows the completion.)
+                if (loot.SetsCompleted.Count > 0)
+                {
+                    foreach (var setId in loot.SetsCompleted)
+                    {
+                        string sName = _cfg.Sets.TryGetValue(setId, out var sd) ? sd.Name : setId;
+                        _chat?.AddFeed($"Set collected: {sName}!", Theme.SetBonus); // §6.2 set-teal
+                    }
+                    Combat.RefreshPartyStats(_combat, _save, _cfg); // a completed set is a codex tier
+                }
+
                 AdvanceQuest(QuestKind.FindRarePlus, rarePlus);
                 AdvanceQuest(QuestKind.SalvageItems, loot.Salvaged.Count); // auto-salvaged this batch
                 Award(AchievementMetric.RarePlusFound, rarePlus);          // lifetime ladder (Lever 4)
@@ -1388,6 +1405,28 @@ namespace IdleGame.Game
                 // §7.3 chest dust: bank straight into the grave-dust currency (the boon wallet).
                 _save = Progression.GrantCurrency(_save, _cfg.Balance.CryptDustCurrency, _combat.PendingDust);
                 _combat.PendingDust = 0;
+            }
+            // Codex kill banking (10.15): fold this run's per-monster kills into the lifetime tally,
+            // toasting every kill TIER a monster's count just crossed. Gate on Count > 0 — BankKills
+            // allocates a report list, so bank only when there's something to bank (the same cadence
+            // gold banks at; empty input would share the ref, but skip the churn entirely).
+            if (_combat.PendingKills.Count > 0)
+            {
+                var (nextCodex, crossed) = Codex.BankKills(_save, _combat.PendingKills, _cfg);
+                _save = nextCodex;
+                _combat.PendingKills.Clear();
+                if (crossed.Count > 0)
+                {
+                    foreach (var c in crossed)
+                    {
+                        string mName = _cfg.Monsters.TryGetValue(c.MonsterId, out var md) ? md.Name : c.MonsterId;
+                        string tier = CodexTierNames[Mathf.Clamp(c.TierIndex, 0, CodexTierNames.Length - 1)];
+                        _chat?.AddFeed($"Codex: {mName} — {tier}!", new Color(1f, 0.82f, 0.32f)); // achievement gold
+                    }
+                    // A crossed tier bumps the account drip (Codex.ApplyAccountBuffs) — refresh live
+                    // party stats, mirroring how a Tower milestone crossing re-applies its buffs.
+                    Combat.RefreshPartyStats(_combat, _save, _cfg);
+                }
             }
             if (xp) Award(AchievementMetric.HeroLevel, MaxHeroLevel()); // a level-up may complete a milestone
             return xp;

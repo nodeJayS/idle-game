@@ -130,6 +130,7 @@ namespace IdleGame.Game
             // so their order relative to the deferred claim is immaterial.
             var save = Modifiers.SyncToStage(loaded, cfg); // align owned modifiers to farm depth (pre-stage-model saves)
             save = Progression.SyncHeroUnlocks(save, cfg); // retro-grant unlocks ≤ HighestStage; drop shelved heroes
+            save = Codex.SyncFromInventory(save, cfg);     // retro-stamp set discovery from gear predating the codex (10.15)
             save = Inventory.PruneUnknownGear(save, cfg);  // dissolve gear from deleted slots/bases into scrap
             StartSession(cfg, save);
         }
