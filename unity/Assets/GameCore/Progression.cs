@@ -205,6 +205,7 @@ namespace IdleGame.GameCore
                 Intro = save.Progress.Intro,
                 Loot = save.Progress.Loot,
                 Codex = save.Progress.Codex,
+                Season = save.Progress.Season,
             }, gems, cfg);
 
             next = SyncHeroUnlocks(next, cfg);
@@ -309,6 +310,7 @@ namespace IdleGame.GameCore
                 Intro = save.Progress.Intro,
                 Loot = save.Progress.Loot,
                 Codex = save.Progress.Codex,
+                Season = save.Progress.Season,
             });
         }
 

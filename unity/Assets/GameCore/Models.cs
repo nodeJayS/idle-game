@@ -154,6 +154,13 @@ namespace IdleGame.GameCore
         // CodexState via the field initializer, and Save.Migrate backfills it defensively — so NO
         // SaveVersion bump (the AchievementState / Item.SetId precedent).
         public CodexState Codex = new CodexState();
+        // Season track (10.16, mobile arc MM4): the calendar-month battle pass — points from completed
+        // quests, ~30 auto-paying free tiers. Nested here for the same threading reason as its siblings
+        // (the ProgressState constructors carry it; the ~20 SaveState copy sites get it free). Purely
+        // ADDITIVE (absent in older json ⇒ fresh SeasonState via the field initializer, and Save.Migrate
+        // backfills it) — NO SaveVersion bump (the CodexState precedent). A dropped copy site would wipe
+        // season progress, so the threading is guarded by the same sweep test as Codex.
+        public SeasonState Season = new SeasonState();
     }
 
     /// <summary>10.5a loot filter: per-slot auto-salvage floors + the imprint guard.
@@ -269,6 +276,24 @@ namespace IdleGame.GameCore
     {
         public Dictionary<string, long> Kills = new Dictionary<string, long>(); // monster id -> lifetime kills
         public Dictionary<string, int> SetSeen = new Dictionary<string, int>(); // set id -> bitmask of EquipSlots seen
+    }
+
+    /// <summary>
+    /// Season track state (10.16, mobile arc MM4 — the calendar-month battle pass). <see cref="Id"/> is
+    /// the "yyyy-MM" (UTC) season this progress belongs to; when it differs from the current month every
+    /// reader treats the progress as fresh (lazy rollover — a lapsed month starts over, no back-pay), and
+    /// <see cref="Season.AwardPoints"/> stamps the reset on its next write. <see cref="Points"/> accrue
+    /// from COMPLETED quests only (<see cref="BalanceConstants.SeasonPointsPerQuest"/> each);
+    /// <see cref="TiersPaid"/> records how many of the ~<see cref="BalanceConstants.SeasonTierCount"/>
+    /// tiers have already auto-paid, so a reward mints exactly once. Nested under
+    /// <see cref="ProgressState"/> (like <see cref="CodexState"/> / <see cref="DailyLoginState"/>) so it
+    /// rides the existing Progress reference-threading.
+    /// </summary>
+    public sealed class SeasonState
+    {
+        public string Id = "";  // "yyyy-MM" (UTC) of this progress; "" = never touched (any month resets it)
+        public long Points;     // points earned this season (from completed quests)
+        public int TiersPaid;   // tiers already auto-paid out (0..SeasonTierCount)
     }
 
     /// <summary>

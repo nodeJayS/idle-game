@@ -414,7 +414,14 @@ namespace IdleGame.GameCore.Tests
             var s = Fresh();
             s.Progress.Codex.Kills["marker"] = 5;
             long Marker(SaveState x) => x.Progress.Codex.Kills.TryGetValue("marker", out var v) ? v : 0;
+            // Season (10.16) rides the same ProgressState threading — a marker must survive it too.
+            s.Progress.Season = new SeasonState { Id = "2024-01", Points = 9 };
+            long SeasonMarker(SaveState x) => x.Progress.Season.Points;
 
+            Assert.Equal(9, SeasonMarker(Progression.SetStage(s, 1, Cfg)));
+            Assert.Equal(9, SeasonMarker(Tower.RecordClear(s, 1, Cfg)));
+            Assert.Equal(9, SeasonMarker(Crypt.RecordFloorClear(s, 1, Cfg)));
+            Assert.Equal(9, SeasonMarker(DailyLogin.Claim(s, Cfg, Now).save));
             Assert.Equal(5, Marker(Progression.SetStage(s, 1, Cfg)));
             Assert.Equal(5, Marker(Progression.OnStageCleared(s, 3, Cfg)));
             Assert.Equal(5, Marker(Tower.RecordClear(s, 1, Cfg)));

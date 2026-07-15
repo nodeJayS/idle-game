@@ -61,11 +61,14 @@ namespace IdleGame.GameCore
             return (index % 2 == 0) ? cfg.Monsters["slime"] : cfg.Monsters["goblin"];
         }
 
-        /// <summary>Build the initial battle: party (left) vs the stage's pack + boss (right).</summary>
-        public static CombatState InitCombat(IReadOnlyList<HeroInstance> party, int stage, GameConfig cfg, Rng rng)
+        /// <summary>Build the initial battle: party (left) vs the stage's pack + boss (right).
+        /// <paramref name="nowMs"/> (0 = no clock ⇒ no live-ops events; keeps every legacy call site +
+        /// test identical) snapshots the weekend zone boost for this fight.</summary>
+        public static CombatState InitCombat(IReadOnlyList<HeroInstance> party, int stage, GameConfig cfg, Rng rng, long nowMs = 0)
         {
             var s = new CombatState { Stage = stage, Kind = EncounterKind.Encounter };
             s.ArenaId = cfg.ArenaForStage(stage)?.Id;
+            ApplyZoneBoost(s, stage, cfg, nowMs);
             AddParty(s, party, cfg);
 
             var rt = cfg.StageFor(stage)!;
@@ -95,10 +98,11 @@ namespace IdleGame.GameCore
         /// and only a full party wipe loses.
         /// </summary>
         public static CombatState InitFarm(IReadOnlyList<HeroInstance> party, int stage, GameConfig cfg, Rng rng,
-                                           IReadOnlyList<ModifierInstance>? activeModifiers = null)
+                                           IReadOnlyList<ModifierInstance>? activeModifiers = null, long nowMs = 0)
         {
             var s = new CombatState { Stage = stage, Kind = EncounterKind.Farm };
             s.ArenaId = cfg.ArenaForStage(stage)?.Id;
+            ApplyZoneBoost(s, stage, cfg, nowMs); // live-ops weekend zone boost (0 = no clock ⇒ off)
             if (activeModifiers != null) s.ActiveModifiers = new List<ModifierInstance>(activeModifiers);
             AddParty(s, party, cfg);
 
@@ -241,7 +245,7 @@ namespace IdleGame.GameCore
         /// or a longer anti-spam cooldown after a flee/fail so packs can't be refreshed on demand by
         /// spamming challenge→flee. Mutates s.
         /// </summary>
-        public static void ResumeFarm(CombatState s, int stage, GameConfig cfg, double spawnDelayMs)
+        public static void ResumeFarm(CombatState s, int stage, GameConfig cfg, double spawnDelayMs, long nowMs = 0)
         {
             s.Entities.RemoveAll(e => e.Team == Team.Enemy); // boss / leftovers despawn
             RestoreParty(s);
@@ -250,6 +254,9 @@ namespace IdleGame.GameCore
             s.Stage = stage;
             s.Loot = LootContext.ForStage(rt, cfg);
             s.Kind = EncounterKind.Farm;
+            // A stage hop can cross into (or out of) the boosted zone — re-snapshot the boost for the new
+            // stage (0 = no clock ⇒ clears to the 1.0 no-op).
+            ApplyZoneBoost(s, stage, cfg, nowMs);
             s.TimeMs = 0;
             s.Status = CombatStatus.Running;
             s.SpawnTimerMs = spawnDelayMs; // lull before the next pack (no instant respawn)
@@ -281,7 +288,7 @@ namespace IdleGame.GameCore
         public static CombatState InitDungeon(IReadOnlyList<HeroInstance> party, int stage, Dungeon d,
                                               IReadOnlyList<string> trashRoster, string bossId, GameConfig cfg, Rng rng,
                                               double hpMult = 1.0, double dmgMult = 1.0, bool miniBoss = false,
-                                              double rewardMult = 1.0)
+                                              double rewardMult = 1.0, long nowMs = 0)
         {
             var s = new CombatState { Stage = stage, Kind = EncounterKind.Dungeon };
             s.DungeonRewardMult = Math.Max(1.0, rewardMult);
@@ -318,6 +325,27 @@ namespace IdleGame.GameCore
                     s.DungeonRoomClearGold = (long)Math.Floor(
                         avgGold / rosterN * cfg.Balance.KillRewardMult(stage) * cfg.Balance.DungeonRoomClearMobEquiv
                         * s.DungeonRewardMult);
+            }
+
+            // Live-ops MUTATED CRYPT (10.16): while the Wed–Fri event is live, every floor wears ONE
+            // extra modifier from the cycle (picked DETERMINISTICALLY off depth + week — no rng, so no
+            // save-cursor games) at full strength, and chests pay +EventCryptDustMult dust (via s.Events,
+            // read in PayChest). Depth key = `stage` (the crypt passes Crypt.StageEquivalent(floor), which
+            // is monotonic in floor, so it's a faithful depth proxy). nowMs 0 = no clock ⇒ event off, so
+            // every legacy InitDungeon call site + test is unaffected. Applied to the live enemies AND the
+            // not-yet-released pending waves / mimics so a mutated floor is uniformly mutated.
+            if (nowMs > 0)
+            {
+                string? mutId = Events.MutationModifierId(cfg, stage, nowMs);
+                if (mutId != null && cfg.Modifiers.TryGetValue(mutId, out var mutDef))
+                {
+                    void Mutate(CombatEntity e) => ApplyModifier(e, mutDef, 1, 1.0, cfg, behaviorOnly: false);
+                    foreach (var e in s.Entities) if (e.Team == Team.Enemy) Mutate(e);
+                    foreach (var e in s.DungeonPendingWaves) Mutate(e);
+                    foreach (var e in s.DungeonMimics) Mutate(e);
+                }
+                if (Events.CryptMutation(cfg, nowMs) != null)
+                    s.Events = new EventMults { DustBonus = cfg.Balance.EventCryptDustMult };
             }
 
             s.TimeMs = 0;
@@ -748,6 +776,31 @@ namespace IdleGame.GameCore
             }
 
             e.ModTypes.Add(def.Id);
+        }
+
+        /// <summary>
+        /// Snapshot the live-ops weekend zone boost onto a FARM-family fight (10.16): when the event is
+        /// live and <paramref name="stage"/> falls in the currently-boosted zone, set the fight's
+        /// <see cref="CombatState.Events"/> to +EventZoneBoostMult gold/xp/drop. Campaign farm surfaces
+        /// only (InitCombat/InitFarm/ResumeFarm) — Tower/Dungeon are deliberately excluded, and IDLE
+        /// accrual is NOT boosted (offline time is clock-gameable). <paramref name="nowMs"/> 0 = no clock:
+        /// clears to the 1.0 no-op (legacy call sites + tests stay identical). The fight's zone index is
+        /// derived the SAME way ZoneForStage maps a stage → zone (Tier % zoneCount), so a boosted-band
+        /// fight matches and an adjacent-band one doesn't. Always ASSIGNS (not OR) so a re-init out of the
+        /// boosted zone resets the boost off.
+        /// </summary>
+        private static void ApplyZoneBoost(CombatState s, int stage, GameConfig cfg, long nowMs)
+        {
+            s.Events = default; // no event = the 1.0 no-op (additive-bonus struct default)
+            if (nowMs <= 0) return;
+            var boost = Events.ZoneBoost(cfg, nowMs);
+            if (boost == null) return;
+            int zoneCount = cfg.Zones.Count;
+            if (zoneCount <= 0) return;
+            int fightZone = ((cfg.Balance.Tier(stage) % zoneCount) + zoneCount) % zoneCount;
+            if (fightZone != boost.Value.ZoneIndex) return;
+            double b = cfg.Balance.EventZoneBoostMult;
+            s.Events = new EventMults { GoldBonus = b, XpBonus = b, DropBonus = b };
         }
 
         /// <summary>Make the stage's boss exhibit its inherent modifier (the source you fight +
@@ -1607,9 +1660,12 @@ namespace IdleGame.GameCore
             {
                 // Elites/rares pay out a multiple of a normal kill; active modifiers add their
                 // thematic reward buff (gold/XP folded here, drop-rate into the loot context below).
+                // Live-ops zone boost folds in beside the rank/modifier mults (s.Events.* == 1.0 when no
+                // event was snapshotted). Floor per the balances-floor display rule — the rounded payout
+                // is exactly ⌊base × 1.1⌋ under a +10% boost.
                 double mult = cfg.Balance.KillRewardMult(s.Stage) * RankRewardMult(target.Rank, cfg);
-                s.PendingXp += (long)Math.Floor(mdef.XpReward * mult * target.XpMult);
-                s.PendingGold += (long)Math.Floor(mdef.GoldReward * mult * target.GoldMult);
+                s.PendingXp += (long)Math.Floor(mdef.XpReward * mult * target.XpMult * s.Events.XpMult);
+                s.PendingGold += (long)Math.Floor(mdef.GoldReward * mult * target.GoldMult * s.Events.GoldMult);
 
                 // Codex (10.15): tally the lifetime-kill collection alongside XP/gold. TryGetValue idiom
                 // (no LINQ) — this is the hot death path, so respect the 10.12b GC discipline: the only
@@ -1619,6 +1675,7 @@ namespace IdleGame.GameCore
 
                 var lootCtx = s.Loot;
                 if (target.DropRateBonus > 0) lootCtx.DropRateMult *= (1.0 + target.DropRateBonus);
+                if (s.Events.DropBonus != 0) lootCtx.DropRateMult *= s.Events.DropMult; // live-ops zone boost (1.0 when off)
 
                 // Bosses drop a guaranteed Unique+ bundle (+ ordinary extras),
                 // sized by boss tier; elites/rares drop a boosted Rare-capped bundle; ordinary
@@ -1695,9 +1752,10 @@ namespace IdleGame.GameCore
             long gold = (long)Math.Floor(s.DungeonRoomClearGold * b.DungeonChestGoldMult[tier]);
             if (gold > 0) s.PendingGold += gold;
             var (dmin, dmax) = b.DungeonChestDust[Math.Min(tier, b.DungeonChestDust.Length - 1)];
-            // Depth reward ramp: the roll is multiplied AFTER RandInt so the rng stream (and thus
-            // every later roll) is identical whatever the mult — determinism per seed. Balances floor.
-            if (dmax > 0) s.PendingDust += (long)Math.Floor(rng.RandInt(dmin, dmax) * s.DungeonRewardMult);
+            // Depth reward ramp × live-ops mutated-crypt dust bonus (s.Events.DustMult == 1.0 off-event):
+            // both applied AFTER RandInt so the rng stream (and every later roll) is identical whatever the
+            // mults — determinism per seed. Balances floor.
+            if (dmax > 0) s.PendingDust += (long)Math.Floor(rng.RandInt(dmin, dmax) * s.DungeonRewardMult * s.Events.DustMult);
 
             double mythic = s.Dungeon?.Dungeon.Params.Encounter?.GoldenMythicChance ?? 0;
             foreach (var item in Loot.RollChestDrops(rng, s.Loot, cfg, ch.Tier, mythic))

@@ -141,6 +141,7 @@ namespace IdleGame.GameCore
             save.Progress.Codex ??= new CodexState(); // older saves predate the codex/collection (10.15); empty = nothing collected
             save.Progress.Codex.Kills ??= new Dictionary<string, long>();
             save.Progress.Codex.SetSeen ??= new Dictionary<string, int>();
+            save.Progress.Season ??= new SeasonState(); // older saves predate the season track (10.16); Id="" ⇒ any month resets it
             // (Retroactive set discovery for pre-codex bags lives in Codex.SyncFromInventory — it needs
             // cfg to resolve slots through ItemBases, which Migrate deliberately doesn't take. The client
             // runs it at load beside SyncHeroUnlocks/SyncToStage, the other cfg-aware retro-grants.)

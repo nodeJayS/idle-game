@@ -638,6 +638,37 @@ namespace IdleGame.GameCore
                                                            // A gate test (CodexTests) locks the max attainable ≤ 0.25;
                                                            // raise consciously, not by accidentally adding content.
 
+        // Live-ops events (10.16, mobile arc MM4) — two RECURRING events on pure UTC schedule rules
+        // (see Events.cs; no persisted state, no server — the seam remote config replaces in §9). User
+        // verdict 2026-07-15: SMALL magnitudes (10%), explicitly NOT the 50% that was pitched and rejected.
+        public double EventZoneBoostMult = 0.10;  // weekend zone boost: +10% gold, XP AND drop rate in ONE
+                                                  // rotating zone (Sat 00:00–Mon 00:00 UTC). Farm-only.
+        public double EventCryptDustMult = 0.10;  // mutated-crypt bonus grave dust (+10%) while the Wed–Fri
+                                                  // window is live; the crypt also wears one extra cycle modifier.
+
+        // Season track (10.16, mobile arc MM4) — a calendar-MONTH battle pass, points from COMPLETED
+        // QUESTS only, ~30 free tiers, auto-pay on tier cross (the Achievements no-Claimables philosophy).
+        // Config-as-data ladder (Season.Ladder), like the set/boon tables. State = ProgressState.Season.
+        public int SeasonPointsPerQuest = 10;     // points a single completed quest awards (the ONE knob points ride on)
+        public int SeasonTierCount = 30;          // free tiers in a season (tier 30 = the capstone)
+        public int SeasonPointsPerTier = 40;      // linear threshold: tier N completes at N×this.
+                                                  // ATTAINABILITY MATH: 30 tiers × 40 = 1200 pts ÷ 10/quest
+                                                  // = 120 quests to max. The quest board is 3 slots with
+                                                  // INSTANT refill (Quests.Advance rolls a replacement on
+                                                  // completion — there is NO timed reroll cadence, so daily
+                                                  // throughput is play-driven, not rate-capped). A daily
+                                                  // player "finishing most of the board" clears the 3 slots
+                                                  // ~1.5–2× a day ≈ 4.3–5.5 quests/day ⇒ 120 ÷ 4.3 ≈ 28 days
+                                                  // (upper) and 120 ÷ 5.5 ≈ 22 days (lower): tier 30 lands
+                                                  // inside the day 22–28 target across that plausible range.
+                                                  // SeasonTests pins those bounds so tuning content can't
+                                                  // silently drift the pass out of a month.
+        public int SeasonGemsPerMilestone = 10;   // gems paid on every 5th tier INSTEAD of gold (the gem drip)
+        public int SeasonMilestoneEvery = 5;      // a gem tier every N tiers; the rest pay gold
+        public double SeasonTierGoldMult = 5.0;   // a gold tier pays this × a CONTEMPORARY quest's gold reward
+                                                  // (Quests.NextQuest: ~45s of stage income) — a chunky bonus
+                                                  // on top of the quest payouts, scaled to the player's stage.
+
         // Modifiers (Lever 1, the risk/reward farm knob) — acquisition + upgrade are driven by FARM
         // DEPTH (highest stage reached), not hero level: you unlock a new modifier every
         // ModifierNewEveryStages and ALL owned modifiers gain +1 strength every ModifierUpgradeEvery

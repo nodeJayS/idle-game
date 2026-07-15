@@ -201,6 +201,13 @@ namespace IdleGame.GameCore
         // by the client via Codex.BankKills (the PendingGold/PendingXp idiom). Transient; never persisted.
         public Dictionary<string, int> PendingKills = new Dictionary<string, int>();
 
+        // Live-ops event multipliers (10.16, mobile arc MM4): the boosts a Combat.Init* snapshotted for
+        // THIS fight from the schedule (Events.cs) — zone boost fills Gold/Xp/Drop, mutated crypt fills
+        // Dust. Read in HandleDeath (kill gold/xp + drop-rate context) and PayChest (chest dust). Default
+        // value = all-1.0 (EventMults stores additive bonuses, 0 = no event), so a hand-built state / a
+        // no-clock init is a clean no-op. Transient; never persisted.
+        public EventMults Events;
+
         // Farm-mode spawning (M8): countdown to the next trash spawn, and a monotonic
         // counter used for unique entity ids + slime/goblin alternation.
         public double SpawnTimerMs;
