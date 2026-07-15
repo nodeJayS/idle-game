@@ -173,6 +173,16 @@ namespace IdleGame.Game
             var nav = director.AddComponent<NavBar>();
             nav.Bind(view, cfg);
 
+            // The mode-select window + the top-centre verb strip (10.13e — the last interactive IMGUI,
+            // now uGUI). ModesWindow is a toggled window (bound so the nav's Modes button targets it);
+            // TopControls is a persistent HUD strip in the NavBar mold (built at Bind, polls change-only).
+            var modesWindow = director.AddComponent<ModesWindow>();
+            modesWindow.Bind(view, cfg);
+            view.BindModes(modesWindow);
+
+            var topControls = director.AddComponent<TopControls>();
+            topControls.Bind(view, cfg);
+
             var topbar = new GameObject("TopBar").AddComponent<TopBar>();
             topbar.transform.SetParent(session.transform);
             topbar.Bind(view, () => QuitToMenu(cfg, session, view));

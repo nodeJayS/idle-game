@@ -450,6 +450,7 @@ namespace IdleGame.Game
         private TowerView? _towerView;
         private GachaPanel? _gachaPanel;
         private GoalsPanel? _goals;
+        private ModesWindow? _modesWindow; // 10.13e: the uGUI mode-select window (was the IMGUI _modesOpen menu)
         private readonly Dictionary<string, View> _views = new Dictionary<string, View>();
 
         // Persistent in-world leader marker (party-feel batch): a thin flat gold disc that sits on
@@ -530,6 +531,7 @@ namespace IdleGame.Game
         public void BindTower(TowerView panel) => _towerView = panel;
         public void BindGacha(GachaPanel panel) => _gachaPanel = panel;
         public void BindGoals(GoalsPanel panel) => _goals = panel;
+        public void BindModes(ModesWindow panel) => _modesWindow = panel;
 
         // ---- NavBar seam (10.13b) --------------------------------------------------------------
         // The bottom-corner uGUI nav replaced the IMGUI control bar. These internal members are its
@@ -545,9 +547,75 @@ namespace IdleGame.Game
         internal void NavToggleInventory() => _inventory?.Toggle();
         internal void NavToggleHeroes() => _equipment?.ToggleDefault();
         internal void NavToggleModifiers() => _modifierPanel?.Toggle();
-        internal void NavToggleModes() => _modesOpen = !_modesOpen;
+        internal void NavToggleModes() => _modesWindow?.Toggle();   // 10.13e: was `_modesOpen = !_modesOpen`
         internal void NavToggleSummon() => _gachaPanel?.Toggle();
         internal void NavToggleGoals() => _goals?.Toggle();
+
+        // ---- TopControls + ModesWindow seam (10.13e) ------------------------------------------
+        // The top-centre uGUI verb strip (TopControls) replaced the IMGUI DrawTopControls, and the
+        // ModesWindow replaced the IMGUI DrawModesPanel. Same shape as the NavBar seam above: read-only
+        // state polled change-only, plus one Nav* wrapper per verb that routes to the private control
+        // method (the methods themselves stay private). The save reference changes on every reducer, so
+        // both consumers read it fresh through CurrentSave each frame — they never cache SaveState.
+        internal EncounterKind CurrentKind => _combat.Kind;   // only read when TopControlsVisible (combat non-null)
+        internal int CurrentTowerFloor => _combat.TowerFloor; // live tower floor for the "Exit Tower — Floor N" verb
+        internal bool AltSpeed2x => _altSpeed2x;
+        internal bool AutoAdvanceArmed => _autoAdvance;
+        internal int CryptRunFloorsLeft => _cryptRunFloorsLeft; // ModesWindow's live-crypt depth line
+        /// <summary>The shelved auto-advance gate (const OFF today) folded into one seam so re-enabling
+        /// it lights the TopControls row up untouched. Reads <see cref="_save"/> fresh via the FTUE rule.</summary>
+        internal bool AutoAdvanceAvailable => AutoAdvanceEnabled && Progression.FeatureUnlocked(Feature.AutoAdvance, _save);
+        /// <summary>Whether ANY full-screen management panel owns the screen — the ModesWindow polls this
+        /// to yield (close itself), exactly as the IMGUI DrawModesPanel bailed on <see cref="AnyPanelOpen"/>.</summary>
+        internal bool AnyManagementPanelOpen => AnyPanelOpen;
+
+        /// <summary>Whole top-strip visibility — the EXACT guard the IMGUI DrawTopControls bailed on
+        /// (a panel is open OR the fight isn't running), mirrored so the uGUI TopControls SetActives
+        /// itself change-only (doc-parallel to <see cref="ControlBarVisible"/>). Null-safe: false before
+        /// combat exists, so <see cref="CurrentKind"/> is only ever read once this is true.</summary>
+        internal bool TopControlsVisible => _combat != null
+            && _combat.Status == CombatStatus.Running && !AnyPanelOpen;
+
+        internal void NavGoToStage(int stage) => GoToStage(stage);
+        internal void NavChallengeBoss() => ChallengeBoss();
+        internal void NavFlee() => FleeToFarm();
+        internal void NavExitCrypt() => AbandonDungeonRun();
+        internal void NavExitTower() => AbandonTowerRun();
+        internal void NavToggleAltSpeed() => ToggleAltSpeed();
+        internal void NavToggleAutoAdvance() => ToggleAutoAdvance();
+        internal void NavEnterDungeonRun() => EnterDungeonRun(); // closes the window itself past its key/complete guard
+        internal void NavOpenTower() => _towerView?.Toggle();    // ModesWindow's "Choose Floor" (after it Closes itself)
+
+        /// <summary>Tick the crypt key recharge while the ModesWindow is open — the IMGUI DrawModesPanel's
+        /// per-frame TickKeys, lifted to a seam. A no-op ref-share on most frames; when a key actually
+        /// lands, flush the save (like the daily claim) and report true so the window relabels its rows.</summary>
+        internal bool NavTickCryptKeys()
+        {
+            long now = NowMs();
+            var ticked = Crypt.TickKeys(_save, _cfg, now);
+            if (ReferenceEquals(ticked, _save)) return false;
+            _save = ticked;
+            SaveStore.Save(Save.Touch(_save, now));
+            return true;
+        }
+
+        /// <summary>Buy one crypt boon rank (ModesWindow boon shop) — the reducer routing lifted verbatim
+        /// from the IMGUI DrawCryptBoons: persist, refresh live party stats (boons bite immediately, folded
+        /// in beside the Tower buffs), and post the feed line. Returns whether a rank was actually bought so
+        /// the window rebuilds (rank / cost / dust all moved).</summary>
+        internal bool NavBuyBoon(string boonId)
+        {
+            var (next, bought) = Crypt.BuyBoon(_save, boonId, _cfg);
+            if (!bought) return false;
+            _save = next;
+            SaveStore.Save(Save.Touch(_save, NowMs()));
+            Combat.RefreshPartyStats(_combat, _save, _cfg); // boons bite immediately
+            int rank = Crypt.BoonRank(_save, boonId);        // post-buy rank == the IMGUI's pre-buy rank + 1
+            string name = boonId;
+            foreach (var b in _cfg.CryptBoons) if (b.Id == boonId) { name = b.Name; break; }
+            _chat?.AddFeed($"Boon bought: {name} rank {rank}.", new Color(1f, 0.85f, 0.4f));
+            return true;
+        }
 
         /// <summary>The player's premium-currency (gem) balance — read-only surface the GachaPanel reads to
         /// show affordability. The gems SINK (a roll) still routes through <see cref="RollGacha"/>.</summary>
@@ -1666,7 +1734,7 @@ namespace IdleGame.Game
             (_save, _) = Crypt.StartRun(_save, _cfg); // consume a key
 
             CommitPending(); // bank campaign loot/xp before the state is dropped
-            _modesOpen = false;
+            _modesWindow?.Close();
             _cryptRunFloorsLeft = _cfg.Balance.CryptFloorsPerRun - 1;
             ResetRunSummary();
             int floor = Crypt.NextFloor(_save);
@@ -1738,7 +1806,7 @@ namespace IdleGame.Game
         {
             if (_combat.Kind != EncounterKind.Dungeon || LoadingScreen.Busy) return;
             _chat?.AddFeed("Crypt run abandoned — the chest is forfeit.", new Color(1f, 0.72f, 0.5f));
-            _modesOpen = false;
+            _modesWindow?.Close();
             _save = Crypt.EndRun(_save, _cfg); // §7.3: an explicit abandon ends the run (no resume)
             SaveStore.Save(Save.Touch(_save, NowMs()));
             ReturnToCampThroughLoad();
@@ -1750,7 +1818,7 @@ namespace IdleGame.Game
         {
             if (_combat.Kind != EncounterKind.Tower || LoadingScreen.Busy) return;
             _chat?.AddFeed($"Tower floor {_combat.TowerFloor} abandoned.", new Color(1f, 0.72f, 0.5f));
-            _modesOpen = false;
+            _modesWindow?.Close();
             ReturnToCampThroughLoad();
         }
 
@@ -2561,10 +2629,9 @@ namespace IdleGame.Game
 
             DrawHealthBars(s);
             DrawHud(s);
-            DrawTopControls(s);
             DrawPartyHud(s);
-            // The bottom control bar is now the persistent uGUI NavBar (10.13b) — no IMGUI draw here.
-            DrawModesPanel(s); // last: the mode-select menu overlays the HUD when open
+            // The bottom nav (10.13b), the top-centre verb strip and the mode-select menu (10.13e:
+            // TopControls / ModesWindow) are all persistent uGUI now — nothing to draw here for them.
 
             GUI.matrix = prevMatrix;
         }
@@ -2628,7 +2695,7 @@ namespace IdleGame.Game
             bool major = FindStage(_combat.Stage)?.IsMajorBoss == true;
             // Boss challenge: a top-centre context line naming the stage + its modifier (the
             // boss exhibits and grants it — Lever 1). Farm needs no centre line: the wallet
-            // moved top-left (below) and the stage shows in DrawTopControls.
+            // moved top-left (below) and the stage shows in the uGUI TopControls strip (10.13e).
             if (_combat.Kind == EncounterKind.BossChallenge)
             {
                 string bossMod = "";
@@ -2685,10 +2752,8 @@ namespace IdleGame.Game
         // GUI.skin, so construction must stay lazy inside OnGUI) + the stage-nav label cache.
         private GUIStyle? _hudCtxStyle;      // DrawHud top-centre context line
         private GUIStyle? _bossTimerStyle;   // boss-challenge countdown (color mutated per frame)
-        private GUIStyle? _stageNavStyle;    // DrawTopControls "Stage N"
         private GUIStyle? _downedWorldStyle; // DrawHealthBars downed "↻ Ns" tag
-        private string? _stageLabel;         // "Stage N", re-built only when N changes
-        private int _stageLabelStage = -1;
+        // (_stageNavStyle / _stageLabel / _stageLabelStage retired in 10.13e — the stage nav is uGUI TopControls now.)
 
         /// <summary>Stage def lookup without the per-frame List.Find closure (it captured `this`
         /// every OnGUI). Delegates to StageFor, which scans the table without a closure and
@@ -2703,228 +2768,11 @@ namespace IdleGame.Game
             y += 24f;
         }
 
-        /// <summary>Top-centre stage nav + boss challenge/flee, under the context line.</summary>
-        private void DrawTopControls(float s)
-        {
-            if (AnyPanelOpen || _combat.Status != CombatStatus.Running) return;
-            float cx = Screen.width / s / 2f;
-
-            if (_combat.Kind == EncounterKind.Farm)
-            {
-                int cur = _save.Progress.CurrentStage;
-                int maxStage = Progression.MaxSelectableStage(_save, _cfg); // the ONE selection rule (endless-aware)
-
-                var st = _stageNavStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
-                // The label re-interpolates only when the stage changes (a per-frame string
-                // otherwise — the steady-state farm HUD should allocate nothing). Past the
-                // campaign table the chase is framed by DEPTH, matching EndlessBest.
-                if (_stageLabel == null || _stageLabelStage != cur)
-                {
-                    _stageLabelStage = cur;
-                    _stageLabel = cur > _cfg.Stages.Count ? $"Endless {cur - _cfg.Stages.Count}" : $"Stage {cur}";
-                }
-                GUI.Label(new Rect(cx - 90, 44, 180, 40), _stageLabel, st);
-                if (cur > 1 && Button(cx - 162, 46, 46, 38, "◀")) GoToStage(cur - 1);
-                if (cur < maxStage)
-                {
-                    // The frontier crossing gets its own beat: at a finished campaign's stage 100
-                    // the ▶ becomes the 10.8 "Push beyond…" affordance (same GoToStage underneath).
-                    bool frontier = cur == _cfg.Stages.Count;
-                    if (frontier ? Button(cx + 116, 46, 210, 38, "Push beyond…", BtnStyleSm)
-                                 : Button(cx + 116, 46, 46, 38, "▶"))
-                        GoToStage(cur + 1);
-                }
-
-                bool major = FindStage(cur)?.IsMajorBoss == true;
-                if (Button(cx - 185, 90, 370, 46, major ? "Challenge ★ Major Boss" : "Challenge Miniboss", BtnStyleSm)) ChallengeBoss();
-                // (Crypt entry moved to the Modes menu on the control bar.)
-            }
-            else if (_combat.Kind == EncounterKind.BossChallenge)
-            {
-                if (Button(cx - 90, 90, 180, 44, "Flee")) FleeToFarm();
-            }
-            // Alt modes put an EXIT where the campaign's Challenge button lives (user call
-            // 2026-07-06): the way home is always in the same spot. The 2× toggle (user call
-            // 2026-07-12, idle-standard; alt modes only — never the campaign) sits beside it,
-            // available from the moment the mode is, persisted client-side.
-            else if (_combat.Kind == EncounterKind.Dungeon)
-            {
-                if (Button(cx - 185, 90, 370, 46, "Exit Crypt", BtnStyleSm)) AbandonDungeonRun();
-                if (Button(cx + 195, 90, 70, 46, _altSpeed2x ? "2x" : "1x", BtnStyleSm)) ToggleAltSpeed();
-            }
-            else if (_combat.Kind == EncounterKind.Tower)
-            {
-                if (Button(cx - 185, 90, 370, 46, $"Exit Tower — Floor {_combat.TowerFloor}", BtnStyleSm)) AbandonTowerRun();
-                if (Button(cx + 195, 90, 70, 46, _altSpeed2x ? "2x" : "1x", BtnStyleSm)) ToggleAltSpeed();
-            }
-
-            // Auto-push toggle — always available while running so it can be armed or cancelled
-            // mid-fight. When on it chains boss challenges automatically until one fails.
-            // (Shelved: hidden unless AutoAdvanceEnabled — see the field's note.) Also FTUE-gated (§7.4):
-            // revealed at S2 for armed saves (a no-op today since the toggle is shelved, correct when re-enabled).
-            if (AutoAdvanceEnabled && Progression.FeatureUnlocked(Feature.AutoAdvance, _save))
-            {
-                var autoStyle = new GUIStyle(BtnStyleSm);
-                if (_autoAdvance) autoStyle.normal.textColor = new Color(0.55f, 0.9f, 0.6f);
-                if (Button(cx - 130, 144, 260, 36, _autoAdvance ? "■ Stop Auto-Advance" : "▶ Auto-Advance", autoStyle))
-                    ToggleAutoAdvance();
-            }
-        }
-
-        // ---- Modes menu (campaign / crypt) --------------------------------------------
-
-        private bool _modesOpen;
-
-        /// <summary>The mode-select menu (control-bar "Modes"): one row per ALT mode (Tower, Crypt)
-        /// with an active marker and the entry action, plus the crypt boon shop. No Campaign row
-        /// (user call 2026-07-09: redundant — leaving a mode is the top-centre Exit button's job).
-        /// Every mode is a FULLY SEPARATE state reached through the loading screen — switching
-        /// always builds the destination fresh (see EnterDungeonRun / the Abandon* returns).</summary>
-        private void DrawModesPanel(float s)
-        {
-            if (!_modesOpen) return;
-            if (AnyPanelOpen) { _modesOpen = false; return; } // a uGUI panel takes the screen — yield
-
-            // Key recharge ticks whenever the menu is on screen (a no-op ref-share on most frames;
-            // flush the save only when a key actually landed, like the daily claim).
-            long now = NowMs();
-            var ticked = Crypt.TickKeys(_save, _cfg, now);
-            if (!ReferenceEquals(ticked, _save))
-            {
-                _save = ticked;
-                SaveStore.Save(Save.Touch(_save, now));
-            }
-
-            float sw = Screen.width / s, sh = Screen.height / s;
-            float w = 620f, h = 514f, x = sw / 2f - w / 2f, y = sh / 2f - h / 2f;
-            DrawRect(x - 2, y - 2, w + 4, h + 4, new Color(0.55f, 0.48f, 0.75f, 0.95f)); // violet frame
-            DrawRect(x, y, w, h, new Color(0.09f, 0.09f, 0.13f, 0.98f));
-
-            var t = new GUIStyle(GUI.skin.label) { fontSize = 26, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
-            t.normal.textColor = new Color(0.92f, 0.9f, 1f);
-            GUI.Label(new Rect(x, y + 14, w, 34), "Game Modes", t);
-
-            bool inDungeon = _combat.Kind == EncounterKind.Dungeon;
-            bool inTower = _combat.Kind == EncounterKind.Tower;
-            bool inCampaign = !inDungeon && !inTower;
-
-            DrawModeRow(x + 20, y + 66, w - 40, $"Tower of Ascension  (F{Tower.HighestFloor(_save)})",
-                inTower ? $"Climbing floor {_combat.TowerFloor} — clear it or exit up top."
-                        : "One-clear floors on a brutal curve; milestones pay permanent buffs.",
-                active: inTower,
-                buttonLabel: inCampaign ? "Choose Floor" : null,
-                onClick: () => { _modesOpen = false; _towerView?.Toggle(); });
-
-            int keys = Crypt.Keys(_save), bank = _cfg.Balance.CryptKeyBank;
-            string cryptDesc;
-            if (inDungeon)
-                cryptDesc = $"Depth {Crypt.NextFloor(_save)} — clear every monster, " +
-                            $"{_cryptRunFloorsLeft} floor{(_cryptRunFloorsLeft == 1 ? "" : "s")} beyond this one.";
-            else
-            {
-                cryptDesc = $"Keys {keys}/{bank}";
-                if (keys < bank)
-                {
-                    // Countdown to the next daily key — display-ceil (a countdown never under-promises).
-                    long hrs = (Crypt.NextKeyAtMs(_save) - now + 3_599_999) / 3_600_000;
-                    cryptDesc += $" (next in {hrs}h)";
-                }
-                cryptDesc += $"  ·  {_cfg.Balance.CryptFloorsPerRun}-floor runs  ·  wipe = no chest";
-            }
-            DrawModeRow(x + 20, y + 172, w - 40, $"Crypt  (Depth {Crypt.DepthRecord(_save)})",
-                cryptDesc,
-                active: inDungeon,
-                buttonLabel: !inCampaign ? null
-                           : Crypt.IsComplete(_save, _cfg) ? "Cleared!"
-                           : keys > 0 ? "Enter  (1 Key)" : "No Keys",
-                onClick: EnterDungeonRun);
-
-            DrawCryptBoons(x + 20, y + 278, w - 40);
-
-            if (Button(x + w / 2f - 70, y + h - 48, 140, 36, "Close", BtnStyleSm)) _modesOpen = false;
-        }
-
-        /// <summary>The crypt Boon shop (inside the Modes panel): one line per boon track — rank,
-        /// effect, and a Buy button priced from the geometric curve. Grave dust comes only from the
-        /// end-of-run chest, so this is the crypt's own progression lane. A purchase applies to the
-        /// live party immediately (RefreshPartyStats folds boons in beside the Tower buffs).</summary>
-        private void DrawCryptBoons(float x, float y, float w)
-        {
-            DrawRect(x, y, w, 176f, new Color(0.13f, 0.13f, 0.18f, 0.95f));
-
-            var head = new GUIStyle(GUI.skin.label) { fontSize = 17, fontStyle = FontStyle.Bold };
-            head.normal.textColor = new Color(1f, 0.85f, 0.4f);
-            GUI.Label(new Rect(x + 16, y + 8, w - 220, 24),
-                $"Crypt Boons — Grave Dust: {Num.CompactFloor(Crypt.Dust(_save, _cfg))}", head);
-
-            var lbl = new GUIStyle(GUI.skin.label) { fontSize = 15 };
-            lbl.normal.textColor = new Color(0.85f, 0.87f, 0.92f);
-            var dim = new GUIStyle(lbl);
-            dim.normal.textColor = new Color(0.55f, 0.57f, 0.62f);
-
-            float ry = y + 38;
-            foreach (var boon in _cfg.CryptBoons)
-            {
-                int rank = Crypt.BoonRank(_save, boon.Id);
-                bool maxed = rank >= _cfg.Balance.CryptBoonMaxRank;
-                double pct = rank * _cfg.Balance.CryptBoonStatPct * 100;
-                GUI.Label(new Rect(x + 16, ry + 7, w - 260, 24),
-                    $"{boon.Name}  (+{pct:0}% {boon.Stat})   rank {rank}/{_cfg.Balance.CryptBoonMaxRank}", lbl);
-
-                if (maxed)
-                    GUI.Label(new Rect(x + w - 200, ry + 7, 184, 24), "MAX", dim);
-                else
-                {
-                    long cost = Crypt.BoonCost(rank, _cfg);
-                    bool afford = Crypt.Dust(_save, _cfg) >= cost;
-                    if (afford)
-                    {
-                        if (Button(x + w - 200, ry + 2, 184, 34, $"Buy  ({Num.CompactCeil(cost)} dust)", BtnStyleSm))
-                        {
-                            var (next, bought) = Crypt.BuyBoon(_save, boon.Id, _cfg);
-                            if (bought)
-                            {
-                                _save = next;
-                                SaveStore.Save(Save.Touch(_save, NowMs()));
-                                Combat.RefreshPartyStats(_combat, _save, _cfg); // boons bite immediately
-                                _chat?.AddFeed($"Boon bought: {boon.Name} rank {rank + 1}.",
-                                               new Color(1f, 0.85f, 0.4f));
-                            }
-                        }
-                    }
-                    else
-                        GUI.Label(new Rect(x + w - 200, ry + 7, 184, 24), $"{Num.CompactCeil(cost)} dust", dim);
-                }
-                ry += 44;
-            }
-        }
-
-        /// <summary>One Modes row: name + green "● Active" marker (or the switch button), and a
-        /// one-line description. <paramref name="buttonLabel"/> null = this mode is current.</summary>
-        private void DrawModeRow(float x, float y, float w, string name, string desc,
-                                 bool active, string? buttonLabel, System.Action onClick)
-        {
-            const float rowH = 92f;
-            DrawRect(x, y, w, rowH, new Color(0.13f, 0.13f, 0.18f, 0.95f));
-
-            var nameStyle = new GUIStyle(GUI.skin.label) { fontSize = 21, fontStyle = FontStyle.Bold };
-            nameStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(x + 16, y + 10, 300, 26), name, nameStyle);
-
-            if (active)
-            {
-                var on = new GUIStyle(GUI.skin.label) { fontSize = 16, fontStyle = FontStyle.Bold };
-                on.normal.textColor = new Color(0.55f, 0.9f, 0.6f);
-                GUI.Label(new Rect(x + 16 + 130, y + 13, 140, 22), "● Active", on);
-            }
-
-            var d = new GUIStyle(GUI.skin.label) { fontSize = 15, wordWrap = true };
-            d.normal.textColor = new Color(0.72f, 0.74f, 0.82f);
-            GUI.Label(new Rect(x + 16, y + 40, w - 240, 46), desc, d);
-
-            if (buttonLabel != null && Button(x + w - 224, y + rowH / 2f - 21, 208, 42, buttonLabel, BtnStyleSm))
-                onClick();
-        }
+        // DrawTopControls (the top-centre stage nav + boss/alt-mode verbs) and the Modes-menu family
+        // (DrawModesPanel / DrawModeRow / DrawCryptBoons, plus the _modesOpen bool) were retired in
+        // 10.13e — the last interactive IMGUI. They now live as persistent uGUI in TopControls.cs and
+        // ModesWindow.cs, routed through the Nav* seam above (NavGoToStage / NavChallengeBoss / NavFlee
+        // / NavExitCrypt / NavExitTower / NavToggleAltSpeed / NavEnterDungeonRun / NavBuyBoon / …).
 
         /// <summary>
         /// Party status panel, bottom-right: an HP bar per party hero, read live from the
