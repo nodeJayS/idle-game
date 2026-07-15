@@ -343,6 +343,7 @@ namespace IdleGame.GameCore
                     Crypt = crypt,
                     Intro = save.Progress.Intro,
                     Loot = save.Progress.Loot,
+                    Codex = save.Progress.Codex,
                 },
                 Quests = save.Quests,
                 Modifiers = save.Modifiers,

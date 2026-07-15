@@ -147,6 +147,13 @@ namespace IdleGame.GameCore
         // Loot filter (10.5a): per-slot auto-salvage floors + the imprint guard. Nested here for
         // the same threading reason as its siblings.
         public LootFilterState Loot = new LootFilterState();
+        // Codex/collection (10.15, mobile arc MM3): lifetime monster kills + gear-set discovery, the
+        // retention layer BETWEEN power walls. Nested here for the same threading reason as its
+        // siblings — the ProgressState constructors carry it forward, so the ~20 SaveState copy sites
+        // get it free. Purely ADDITIVE: absent in older json deserializes to a fresh (empty)
+        // CodexState via the field initializer, and Save.Migrate backfills it defensively — so NO
+        // SaveVersion bump (the AchievementState / Item.SetId precedent).
+        public CodexState Codex = new CodexState();
     }
 
     /// <summary>10.5a loot filter: per-slot auto-salvage floors + the imprint guard.
@@ -242,6 +249,26 @@ namespace IdleGame.GameCore
     {
         public Dictionary<AchievementMetric, long> Counters = new Dictionary<AchievementMetric, long>(); // metric -> lifetime value
         public Dictionary<string, int> Claimed = new Dictionary<string, int>();                          // achId -> tiers paid out
+    }
+
+    /// <summary>
+    /// Codex/collection progress (10.15, mobile arc MM3 — the retention layer between power walls,
+    /// sibling of the Tower milestone buffs and crypt boons). Two lifetime collection tallies:
+    /// <see cref="Kills"/> = monster id → lifetime kills (banked from combat's transient
+    /// CombatState.PendingKills via <see cref="Codex.BankKills"/>), and <see cref="SetSeen"/> =
+    /// gear-set id → a BITMASK of the equip slots that set has ever been seen on (bit per
+    /// <see cref="EquipSlot"/>, stamped at the one loot-commit path in <see cref="Inventory.AddLoot"/>).
+    /// Every COMPLETED collection tier pays a small permanent account-wide stat drip, DERIVED from
+    /// this state (nothing claimable — the auto-pay philosophy of <see cref="AchievementState"/>).
+    /// Nested under <see cref="ProgressState"/> (like <see cref="TowerState"/> / <see cref="AchievementState"/>)
+    /// so it rides the existing Progress reference-threading — only the ProgressState constructors carry
+    /// it, not every SaveState copy site. A dropped copy site would silently wipe collection progress
+    /// (the 10.5d SetId bug class), so the threading is guarded by a sweep test.
+    /// </summary>
+    public sealed class CodexState
+    {
+        public Dictionary<string, long> Kills = new Dictionary<string, long>(); // monster id -> lifetime kills
+        public Dictionary<string, int> SetSeen = new Dictionary<string, int>(); // set id -> bitmask of EquipSlots seen
     }
 
     /// <summary>

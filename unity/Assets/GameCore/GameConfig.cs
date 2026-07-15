@@ -625,6 +625,19 @@ namespace IdleGame.GameCore
         public int TowerPackBase = 4;                // trash mobs on floor 1
         public int TowerPackPerFloors = 5;           // +1 mob every N floors (a slowly thickening pack)
 
+        // Codex/collection (10.15, mobile arc MM3) — the retention layer BETWEEN power walls, a
+        // sibling of the Tower milestone buffs / crypt boons. Three collection families (monster
+        // kills, gear-set discovery, zone clears); every COMPLETED tier pays a small permanent
+        // account-wide stat drip, auto-derived from state (nothing claimable — the achievements
+        // auto-pay philosophy).
+        public long[] CodexKillTiers = { 10, 100, 1000 };  // per-monster lifetime-kill thresholds (bronze/silver/gold)
+        public double CodexTierStatPct = 0.001;            // +0.1% account Hp/Atk/Def per COMPLETED codex tier — ONE knob
+                                                           // for all three families. Ceiling: ~40 monsters × 3 tiers
+                                                           // + 30 sets × 1 + 10 zones × 1 ≈ 160 tiers ≈ +16% at full
+                                                           // completion — sits beside Tower's +15% and the boon tracks.
+                                                           // A gate test (CodexTests) locks the max attainable ≤ 0.25;
+                                                           // raise consciously, not by accidentally adding content.
+
         // Modifiers (Lever 1, the risk/reward farm knob) — acquisition + upgrade are driven by FARM
         // DEPTH (highest stage reached), not hero level: you unlock a new modifier every
         // ModifierNewEveryStages and ALL owned modifiers gain +1 strength every ModifierUpgradeEvery

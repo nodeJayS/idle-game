@@ -204,6 +204,7 @@ namespace IdleGame.GameCore
                 Crypt = save.Progress.Crypt,
                 Intro = save.Progress.Intro,
                 Loot = save.Progress.Loot,
+                Codex = save.Progress.Codex,
             }, gems, cfg);
 
             next = SyncHeroUnlocks(next, cfg);
@@ -307,6 +308,7 @@ namespace IdleGame.GameCore
                 Crypt = save.Progress.Crypt,
                 Intro = save.Progress.Intro,
                 Loot = save.Progress.Loot,
+                Codex = save.Progress.Codex,
             });
         }
 

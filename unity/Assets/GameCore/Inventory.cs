@@ -32,6 +32,9 @@ namespace IdleGame.GameCore
             public List<Item> Salvaged = new List<Item>();  // auto-salvaged to scrap (loot filter)
             public List<Item> Rejected = new List<Item>();  // bag full + kept by the filter => left behind
             public long ScrapGained;
+            // Codex (10.15): set ids whose slot bitmask reached ALL of a set's slots in THIS commit
+            // (the last piece landed) — for the client's "set complete" toast. Empty on most commits.
+            public List<string> SetsCompleted = new List<string>();
             public bool BagFull => Rejected.Count > 0;
         }
 
@@ -67,8 +70,33 @@ namespace IdleGame.GameCore
             int cap = cfg.Balance.InventoryCap;
             long scrap = 0;
 
+            // Codex set discovery (10.15): the ONE loot-commit path stamps every incoming set piece's
+            // slot bit. Cloned lazily — only when a genuinely new bit lands — so a commit with no new
+            // discovery shares the Codex ref (the pure-reducer convention). completeMask = every slot a
+            // set can be collected across (derived from the SETS' actual slots — see Codex.SetCompleteMask).
+            Dictionary<string, int>? setSeen = null;
+            int completeMask = Codex.SetCompleteMask(cfg);
+
             foreach (var item in items)
             {
+                // Stamp BEFORE the salvage decision: seen is seen, so a set piece the filter
+                // AUTO-SALVAGES still counts as discovered (deliberate). Needs the base to resolve the
+                // slot; an item whose base is unknown can't be classified, so it's skipped.
+                if (item.SetId != null && cfg.ItemBases.TryGetValue(item.BaseId, out var setBase))
+                {
+                    var cur = setSeen ?? save.Progress.Codex.SetSeen;
+                    int had = cur.TryGetValue(item.SetId, out var m) ? m : 0;
+                    int bit = 1 << (int)setBase.Slot;
+                    if ((had & bit) == 0)
+                    {
+                        setSeen ??= new Dictionary<string, int>(save.Progress.Codex.SetSeen);
+                        int now = had | bit;
+                        setSeen[item.SetId] = now;
+                        // Completion crossing: the piece that lands the final slot flips the set complete.
+                        if (had != completeMask && now == completeMask) result.SetsCompleted.Add(item.SetId);
+                    }
+                }
+
                 if (WouldAutoSalvage(save, item, cfg))
                 {
                     scrap += cfg.Balance.ScrapValue(item.Rarity, item.ItemLevel);
@@ -87,7 +115,12 @@ namespace IdleGame.GameCore
             }
 
             result.ScrapGained = scrap;
-            result.Save = Build(save, nextInventory, AddScrap(save.Currencies, scrap));
+            var nextCurrencies = AddScrap(save.Currencies, scrap);
+            // Thread the new Codex only when a new set bit actually landed (else share the ref via Build).
+            result.Save = setSeen == null
+                ? Build(save, nextInventory, nextCurrencies)
+                : BuildWithCodex(save, nextInventory, nextCurrencies,
+                    new CodexState { Kills = save.Progress.Codex.Kills, SetSeen = setSeen });
             return result;
         }
 
@@ -182,6 +215,7 @@ namespace IdleGame.GameCore
                 Crypt = save.Progress.Crypt,
                 Intro = save.Progress.Intro,
                 Loot = loot,
+                Codex = save.Progress.Codex,
             },
             Quests = save.Quests,
             Modifiers = save.Modifiers,
@@ -643,6 +677,40 @@ namespace IdleGame.GameCore
             Inventory = nextInventory,
             Currencies = nextCurrencies,
             Progress = save.Progress,
+            Quests = save.Quests,
+            Modifiers = save.Modifiers,
+            GachaPity = save.GachaPity,
+            LastClaimAt = save.LastClaimAt,
+        };
+
+        /// <summary>Like <see cref="Build"/>, but swaps in a new <see cref="CodexState"/> under a cloned
+        /// ProgressState (its siblings share refs) — the AddLoot set-discovery stamp path. Only used when
+        /// a set piece actually revealed a new slot bit (else Build shares the whole Progress ref).</summary>
+        private static SaveState BuildWithCodex(SaveState save, List<Item> nextInventory,
+                                                Dictionary<string, long> nextCurrencies, CodexState codex) => new SaveState
+        {
+            Version = save.Version,
+            RngSeed = save.RngSeed,
+            RngCursor = save.RngCursor,
+            Heroes = save.Heroes,
+            Party = save.Party,
+            LeaderHeroId = save.LeaderHeroId,
+            Inventory = nextInventory,
+            Currencies = nextCurrencies,
+            Progress = new ProgressState
+            {
+                HighestStage = save.Progress.HighestStage,
+                CurrentStage = save.Progress.CurrentStage,
+                AccountLevel = save.Progress.AccountLevel,
+                EndlessBest = save.Progress.EndlessBest,
+                Tower = save.Progress.Tower,
+                Achievements = save.Progress.Achievements,
+                Daily = save.Progress.Daily,
+                Crypt = save.Progress.Crypt,
+                Intro = save.Progress.Intro,
+                Loot = save.Progress.Loot,
+                Codex = codex,
+            },
             Quests = save.Quests,
             Modifiers = save.Modifiers,
             GachaPity = save.GachaPity,

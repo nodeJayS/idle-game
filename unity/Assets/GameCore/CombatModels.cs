@@ -197,6 +197,9 @@ namespace IdleGame.GameCore
         public List<Item> PendingLoot = new List<Item>(); // drops accrued this run (M2)
         public long PendingXp;                            // XP accrued this run (M3); long for deep-stage scaling
         public long PendingGold;                          // gold accrued this run (M8)
+        // Codex kills accrued this run (10.15): monster id -> count, banked into SaveState.Progress.Codex
+        // by the client via Codex.BankKills (the PendingGold/PendingXp idiom). Transient; never persisted.
+        public Dictionary<string, int> PendingKills = new Dictionary<string, int>();
 
         // Farm-mode spawning (M8): countdown to the next trash spawn, and a monotonic
         // counter used for unique entity ids + slime/goblin alternation.

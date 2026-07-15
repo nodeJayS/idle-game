@@ -444,6 +444,7 @@ namespace IdleGame.GameCore
                 var stats = Stats.ComputeHeroStats(hero, cfg, Stats.ResolveEquipped(save, hero));
                 stats = Tower.ApplyAccountBuffs(stats, save, cfg); // permanent Tower milestone buffs (account-wide)
                 stats = Crypt.ApplyBoons(stats, save, cfg);        // permanent crypt boons (grave-dust track)
+                stats = Codex.ApplyAccountBuffs(stats, save, cfg); // permanent codex/collection drip (10.15)
                 double oldMax = e.MaxHp;
                 double newMax = stats.Get(StatKey.Hp);
 
@@ -1609,6 +1610,12 @@ namespace IdleGame.GameCore
                 double mult = cfg.Balance.KillRewardMult(s.Stage) * RankRewardMult(target.Rank, cfg);
                 s.PendingXp += (long)Math.Floor(mdef.XpReward * mult * target.XpMult);
                 s.PendingGold += (long)Math.Floor(mdef.GoldReward * mult * target.GoldMult);
+
+                // Codex (10.15): tally the lifetime-kill collection alongside XP/gold. TryGetValue idiom
+                // (no LINQ) — this is the hot death path, so respect the 10.12b GC discipline: the only
+                // allocation is the first dict entry per monster id, nothing on the steady path.
+                s.PendingKills.TryGetValue(target.RefId, out var kc);
+                s.PendingKills[target.RefId] = kc + 1;
 
                 var lootCtx = s.Loot;
                 if (target.DropRateBonus > 0) lootCtx.DropRateMult *= (1.0 + target.DropRateBonus);

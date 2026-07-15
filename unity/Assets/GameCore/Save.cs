@@ -138,6 +138,12 @@ namespace IdleGame.GameCore
             save.Progress.Intro.IntroClaimed ??= new Dictionary<string, bool>();
             save.Progress.Loot ??= new LootFilterState(); // older saves predate the loot filter (imprint guard defaults ON)
             save.Progress.Loot.SalvageMaxBySlot ??= new Dictionary<EquipSlot, Rarity>();
+            save.Progress.Codex ??= new CodexState(); // older saves predate the codex/collection (10.15); empty = nothing collected
+            save.Progress.Codex.Kills ??= new Dictionary<string, long>();
+            save.Progress.Codex.SetSeen ??= new Dictionary<string, int>();
+            // (Retroactive set discovery for pre-codex bags lives in Codex.SyncFromInventory — it needs
+            // cfg to resolve slots through ItemBases, which Migrate deliberately doesn't take. The client
+            // runs it at load beside SyncHeroUnlocks/SyncToStage, the other cfg-aware retro-grants.)
             save.Quests ??= new QuestBoard(); // EnsureBoard (client, needs cfg) backfills the goals
             save.Modifiers ??= new MonsterModifiers(); // none owned on older saves until a boss grants one
             save.Modifiers.Tuning ??= new Dictionary<string, double>(); // modifier-shop tuning (new field)
