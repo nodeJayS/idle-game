@@ -43,11 +43,9 @@ laptop-gated), the user's ears pass on ambience/UI sounds.
 ## Backlog — pre-sliced majors
 
 **NEXT UP: the MOBILE ARC (Phase M, locked 2026-07-14 — durable scope
-in design-doc §8 Phase M; this file owns priority + slicing). CUT by
-the same verdict (final — never re-pitch): prestige/rebirth (this is
-an idle ARPG, NOT an incremental) and offline-depth expansion (the 12h
-idle claim stays as-is). Social-lite (friend codes / share cards /
-platform leaderboards) = later, not cut.**
+in design-doc §8; this file owns priority + slicing). CUT by the same
+verdict (final — never re-pitch): prestige/rebirth (idle ARPG, NOT an
+incremental) and offline-depth expansion. Social-lite = later, not cut.**
 
 Also parked, deliberately not goals: real-money gems · server authority
 (§9) · zone drop-table hints · manual achievement-claim UX · BFS
@@ -151,14 +149,11 @@ a reducer silently strips them — grep `new Item` / `new HeroInstance`
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
-- 2026-07-15 10.16 live-ops events + season COMPLETE (user verdicts:
-  10% magnitudes, monthly quest-fed season): weekend zone boost
-  [Sat,Mon) rotating by week + mutated crypt [Wed,Fri) (+1 modifier,
-  +10% dust), pure-function schedule rules, effects snapshot at fight
-  init; season = monthly 30-tier free track (10 pts/quest via the
-  AdvanceQuest choke point, auto-pay, gold + gems-every-5th), Goals
-  hub Season tab + Today live-events section + boot banners (ceil'd
-  countdowns). 823 tests; Play-verified on the LIVE Wednesday window.
+- 2026-07-15 10.16 live-ops COMPLETE (user: 10% magnitudes, monthly):
+  weekend zone boost [Sat,Mon) rotating weekly + mutated crypt
+  [Wed,Fri) (+1 modifier, +10% dust); monthly 30-tier free season
+  (10 pts/quest, auto-pay, gems every 5th); Season tab + Today
+  live-events + boot banners. 823 tests; verified on the live window.
 - 2026-07-15 10.15 codex/collection COMPLETE: CodexState (per-monster
   lifetime kills via CombatState.PendingKills + Codex.BankKills tier
   crossings; set-slot discovery stamped at AddLoot BEFORE the salvage
