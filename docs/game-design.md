@@ -463,8 +463,9 @@ waiting, two HUD buttons retired.
   Reward previews come from GameCore helpers (never recomputed client-side).
 - **FTUE**: the button reveals with `Feature.DailyLogin` (S3); the
   Achievements tab hides until `Feature.Achievements` (S5). Unarmed saves see
-  all, as everywhere. The launch DailyLoginModal stays (same idempotent
-  reducer; the modal is arrival juice, the tab is the durable home).
+  all, as everywhere. *(Updated 2026-07-15, MM2)*: the launch DailyLoginModal
+  folded into the ONE boot arrival card (`Session.Arrive`: idle + daily in a
+  single tap); the Goals tab remains the durable mid-session home.
 
 ---
 

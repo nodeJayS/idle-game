@@ -35,10 +35,10 @@ namespace IdleGame.Game
 
         private IEnumerator Run()
         {
-            // The daily-login modal greets a fresh save — dismiss it so the tour renders the game,
-            // not a dimmed overlay.
-            var daily = GameObject.Find("DailyLoginModal");
-            if (daily != null) Destroy(daily);
+            // The boot arrival card (10.14b: idle + daily folded into one IdleClaimModal) greets a fresh
+            // save — dismiss it so the tour renders the game, not a dimmed overlay.
+            var arrival = GameObject.Find("IdleClaimModal");
+            if (arrival != null) Destroy(arrival);
 
             var results = new List<Phase>();
             yield return Sample("campaign_farm_stage25_mobcap", settleSec: 10f, sampleSec: 30f, results);

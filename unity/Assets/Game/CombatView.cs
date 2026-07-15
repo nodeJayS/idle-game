@@ -586,6 +586,40 @@ namespace IdleGame.Game
         internal void NavEnterDungeonRun() => EnterDungeonRun(); // closes the window itself past its key/complete guard
         internal void NavOpenTower() => _towerView?.Toggle();    // ModesWindow's "Choose Floor" (after it Closes itself)
 
+        /// <summary>The Manage verb (10.14b — the mid-session chore sweep): apply claim-all, then the
+        /// auto-equip sweep, then salvage the loose remainder, in ONE tap via <see cref="Session.Apply"/>,
+        /// then persist. Feeds each action in the established voices — the auto-equip line per upgrade
+        /// (mirrors <see cref="CommitPending"/>), one honest salvage summary (mirrors <see cref="SalvageAll"/>),
+        /// one claim line per goal (mirrors <see cref="ClaimDailyLogin"/>) — so <see cref="ManageModal"/> can
+        /// just close afterwards. The salvage is NUCLEAR (it eats every loose unlocked item; see Session.cs),
+        /// which the confirm card states honestly up front. Returns whether anything happened plus a short
+        /// summary; <c>now</c> dates the daily claim.</summary>
+        internal (bool applied, string summary) NavManageApply(long now)
+        {
+            var (next, report) = Session.Apply(_save, _cfg, now);
+            if (report.IsEmpty) return (false, "Nothing needed doing.");
+            _save = next;
+            // Gems + newly-equipped gear + scrap must survive a quit before the 30s autosave — flush now.
+            SaveStore.Save(Save.Touch(_save, now));
+
+            foreach (var e in report.Equipped)
+                _chat?.AddFeed($"Auto-equipped {StatDisplay.ItemName(e.Item, _cfg)} → {HeroDisplayName(e.HeroId)} ({UpgradeTell.Pct(e.DeltaPercent)})",
+                               UpgradeTell.Up);
+            if (report.SalvagedCount > 0)
+                _chat?.AddFeed($"Salvaged {report.SalvagedCount} item{(report.SalvagedCount == 1 ? "" : "s")}  (+{Num.CompactFloor(report.ScrapGained)} scrap)",
+                               new Color(0.7f, 0.8f, 1f));
+            if (report.Claimed.Count > 0)
+            {
+                SoundFx.Play("System_StampReward_get", 0.5f);
+                foreach (var c in report.Claimed)
+                    _chat?.AddFeed($"{c.Label}  +{Num.CompactFloor(c.Gems)} gems", new Color(0.6f, 0.85f, 1f));
+            }
+            // Equipping moved worn stats — refresh the live party (claim/salvage never touch hero stats).
+            if (report.Equipped.Count > 0 && _combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg);
+
+            return (true, $"Managed: {report.Claimed.Count} claim, {report.Equipped.Count} equip, {report.SalvagedCount} salvage.");
+        }
+
         /// <summary>Tick the crypt key recharge while the ModesWindow is open — the IMGUI DrawModesPanel's
         /// per-frame TickKeys, lifted to a seam. A no-op ref-share on most frames; when a key actually
         /// lands, flush the save (like the daily claim) and report true so the window relabels its rows.</summary>
@@ -793,7 +827,7 @@ namespace IdleGame.Game
                 return;
             }
             _save = next;
-            _chat?.AddFeed($"Salvaged {count} items  (+{Num.CompactFloor(scrap)} scrap)",
+            _chat?.AddFeed($"Salvaged {count} item{(count == 1 ? "" : "s")}  (+{Num.CompactFloor(scrap)} scrap)",
                            new Color(0.7f, 0.8f, 1f));
         }
 
@@ -1201,7 +1235,8 @@ namespace IdleGame.Game
 
         /// <summary>Claim today's daily-login reward (Lever 4 — premium currency): advance the streak
         /// and credit gems via the GameCore reducer, announced in the feed. No-op if already claimed
-        /// today. Called by <see cref="DailyLoginModal"/> on Collect; <c>now</c> is epoch ms.</summary>
+        /// today. Called by the Goals hub's per-login Claim (10.14b retired the boot DailyLoginModal;
+        /// the boot path now runs through <see cref="ArriveClaim"/>); <c>now</c> is epoch ms.</summary>
         public void ClaimDailyLogin(long now)
         {
             var (next, gems, streak, claimed) = DailyLogin.Claim(_save, _cfg, now);
@@ -1212,6 +1247,45 @@ namespace IdleGame.Game
             SoundFx.Play("System_StampReward_get", 0.5f); // 10.9d: the one claim chime (covers Claim-all too)
             _chat?.AddFeed($"Daily reward — day {streak} streak!  +{Num.CompactFloor(gems)} gems",
                            new Color(0.6f, 0.85f, 1f));
+        }
+
+        /// <summary>Apply the WHOLE boot arrival (10.14b — the 30-second session): offline idle accrual
+        /// PLUS every pending goal claim, in ONE tap via <see cref="Session.Arrive"/>, persisted
+        /// atomically so idle + daily land together. Called by the arrival card's Collect; <c>now</c> is
+        /// the boot timestamp the card PREVIEWED against — idle's LastClaimAt is untouched until here, so
+        /// passing the boot now makes the grant match the displayed numbers exactly, deterministically,
+        /// regardless of when Collect fires. Runs on the LIVE <see cref="_save"/> (loot banked while the
+        /// card sat open is preserved). The card is the idle report, so no idle feed line; the daily
+        /// lines mirror the Goals-hub voice (<see cref="ClaimDailyLogin"/>).</summary>
+        internal void ArriveClaim(long now)
+        {
+            var (next, report) = Session.Arrive(_save, _cfg, now);
+            if (report.IsEmpty) return; // both halves no-op'd (e.g. a race re-claimed the day) — nothing to bank
+            _save = next;
+            // Premium currency + offline loot must survive a quit before the 30s autosave — flush now.
+            SaveStore.Save(Save.Touch(_save, now));
+            if (report.GoalsClaimed.Count > 0)
+            {
+                SoundFx.Play("System_StampReward_get", 0.5f); // 10.9d: the one claim chime (covers the daily)
+                foreach (var c in report.GoalsClaimed)
+                    _chat?.AddFeed($"{c.Label}  +{Num.CompactFloor(c.Gems)} gems", new Color(0.6f, 0.85f, 1f));
+            }
+            // Idle XP may have leveled a fielded hero — refresh live party stats.
+            if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg);
+        }
+
+        /// <summary>Bank offline idle accrual ALONE (10.14b), no card and no feed — the pre-reveal boot
+        /// path where the arrival card is FTUE-suppressed (< S3) but the old load-time
+        /// <see cref="Idle.Claim"/> still had to run so away-income is never dropped. We can't run
+        /// <see cref="Session.Arrive"/> here because it would also claim the daily, whose popup S3 gates;
+        /// the daily stays unclaimed until the card first greets the player (streaks start then).</summary>
+        internal void BankIdleSilently(long now)
+        {
+            var (next, report) = Idle.Claim(_save, _cfg, now);
+            if (report.IsEmpty) return;
+            _save = next;
+            SaveStore.Save(Save.Touch(_save, now));
+            if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg);
         }
 
         /// <summary>Goals-hub "Claim all" (§7.5): apply every pending manual claim by routing each

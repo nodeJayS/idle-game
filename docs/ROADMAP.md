@@ -63,12 +63,11 @@ BEFORE adding rows or every child collapses to a centered zero-size
 blob (Play-caught); Modal's body ALREADY carries the layout group —
 never Stack it (double-add).
 
-**10.14 The 30-second session (MM2).** Design the three session shapes
-(30s claim / 5min push / 30min binge) and optimize the first
-ruthlessly: cold boot → "while you were away" → ONE Claim-All sweep
-(idle + goals + daily), plus a "Manage" super-verb (claim, salvage-all,
-auto-equip upgrades in one confirm). Acceptance: time-to-first-dopamine
-< 5s from cold boot. `Goals.Claimables` is the seed.
+**10.14 The 30-second session (MM2) — COMPLETE 2026-07-15 (ledger).**
+Durable lesson: `Inventory.SalvageAll` is NUCLEAR (every loose unlocked
+non-guarded item, any rarity — NOT the loot filter), so any aggregate
+touching it must equip-sweep FIRST (worn gear is salvage-immune) or it
+destroys upgrades — `Session.Apply` locks that ordering with a test.
 
 **10.15 Codex / collection (MM3).** Monster kill-tier codex, gear-set
 gallery, zone completion ledgers; each tier pays a small permanent
@@ -152,6 +151,13 @@ a reducer silently strips them — grep `new Item` / `new HeroInstance`
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-07-15 10.14 the 30-second session COMPLETE: `Session.Arrive`
+  (idle + daily as ONE atomic boot payoff — the two boot modals became
+  one arrival card, idle previewed-not-claimed until Collect) +
+  `Session.Preview/Apply` (the Manage super-verb: claim → equip sweep →
+  nuclear salvage, one confirm card + nav pip). Taps-to-payoff at boot:
+  2. Preview==Apply by construction; 10 tests (770 green); Play-verified
+  grant-matches-display to the gold.
 - 2026-07-14/15 10.13 touch-first UI reflow COMPLETE: SafeArea
   plumbing + pinch zoom (a) · uGUI thumb-reach NavBar replaced the
   IMGUI control bar (b) · 44pt floors + safe-inset panels over

@@ -85,7 +85,7 @@ namespace IdleGame.Game
         {
             var save = Save.NewGame(Seed, cfg, NowMs());
             SaveStore.Save(save); // write immediately so Continue works next launch
-            StartSession(cfg, save, new IdleReport());
+            StartSession(cfg, save);
         }
 
         /// <summary>Scripted perf benchmark (10.12d tooling): sandbox the save store FIRST — the
@@ -103,7 +103,7 @@ namespace IdleGame.Game
 
             var save = Save.NewGame(Seed, cfg, NowMs());
             for (int st = 1; st < 25; st++) save = Progression.OnStageCleared(save, st, cfg);
-            var view = StartSession(cfg, save, new IdleReport());
+            var view = StartSession(cfg, save);
             view.gameObject.AddComponent<Benchmark>().Bind(view);
         }
 
@@ -116,25 +116,28 @@ namespace IdleGame.Game
             // (per-slot loot filter). If the legacy global pref is still set and this save has
             // no floors yet, seed every slot from it and clear the pref — it was a PlayerPrefs
             // global that leaked into New Game; it now survives only as this migration source.
-            // Runs right after Save.Migrate (inside Load) and BEFORE Idle.Claim, so the offline
-            // drops below respect the carried filter.
+            // Runs right after Save.Migrate (inside Load) and BEFORE the sync/prune below.
             if (Settings.AutoSalvageMax != null && loaded.Progress.Loot.SalvageMaxBySlot.Count == 0)
             {
                 loaded = Inventory.SetSalvageFloorAll(loaded, Settings.AutoSalvageMax);
                 Settings.AutoSalvageMax = null;
             }
 
-            var (save, report) = Idle.Claim(loaded, cfg, NowMs()); // real offline gap
-            save = Modifiers.SyncToStage(save, cfg); // align owned modifiers to farm depth (covers pre-stage-model saves)
+            // 10.14b: offline idle is NO LONGER claimed at load — the boot arrival card previews it and
+            // Session.Arrive banks it on one tap (see StartSession). LastClaimAt stays put until then, so
+            // a quit before Collect just re-previews the same accrual next launch (nothing is lost). The
+            // sync/prune reducers below don't depend on the idle grant (idle only adds gold/xp/valid loot),
+            // so their order relative to the deferred claim is immaterial.
+            var save = Modifiers.SyncToStage(loaded, cfg); // align owned modifiers to farm depth (pre-stage-model saves)
             save = Progression.SyncHeroUnlocks(save, cfg); // retro-grant unlocks ≤ HighestStage; drop shelved heroes
             save = Inventory.PruneUnknownGear(save, cfg);  // dissolve gear from deleted slots/bases into scrap
-            StartSession(cfg, save, report);
+            StartSession(cfg, save);
         }
 
         // Everything for a play session lives under one "Session" root so Quit-to-Menu
         // can tear it down cleanly (the EventSystem is separate and persists). Returns the
         // CombatView so the benchmark rig can attach; normal boots ignore it.
-        private static CombatView StartSession(GameConfig cfg, SaveState save, IdleReport idleReport)
+        private static CombatView StartSession(GameConfig cfg, SaveState save)
         {
             var session = new GameObject("Session");
 
@@ -198,31 +201,34 @@ namespace IdleGame.Game
             quests.Open();
             view.BindQuests(quests);
 
-            // FTUE (§7.4): the idle-claim popup is hidden until its reveal stage (S3). The offline
-            // rewards were ALREADY banked into `save` by Idle.Claim in Continue — this modal is only the
-            // "while you were away" REPORT, so suppressing it pre-reveal loses nothing (armed saves only;
-            // unarmed saves are unlocked for everything and keep today's behavior).
-            if (!idleReport.IsEmpty && Progression.FeatureUnlocked(Feature.IdleClaim, save))
-            {
-                var modal = new GameObject("IdleClaimModal");
-                modal.transform.SetParent(session.transform);
-                modal.AddComponent<IdleClaimModal>().Show(view, idleReport);
-                Debug.Log($"[Bootstrap] Idle claim: {idleReport.Gold} gold, {idleReport.Xp} XP, " +
-                          $"{idleReport.Items.Count} item(s) over {idleReport.ElapsedMs / 3600_000.0:F1}h.");
-            }
-
-            // Daily-login reward (Lever 4 — premium currency): if a claim is available today, greet the
-            // player with the streak modal (renders above the idle-claim modal via a higher sort order).
+            // 10.14b — the 30-second-session ARRIVAL (mobile arc MM2): ONE card replaces the old idle +
+            // daily modals. IdleClaim and DailyLogin reveal TOGETHER at S3 (Progression.FeatureRevealStage),
+            // so DailyLogin's reveal gates the whole arrival card. The goals half (daily) is date-driven
+            // and NOT FTUE-gated inside GameCore (Goals.Claimables keys off the calendar), so we gate it
+            // client-side here — exactly what the old DailyLoginModal boot check did.
             long now = NowMs();
-            // FTUE (§7.4): hide the daily-login popup until its reveal stage (S3). Unlike idle claim, the
-            // reward is granted by the modal's Collect, not at load — so this gates ONLY the popup:
-            // DailyLogin.CanClaim stays true, so the day isn't consumed and the modal simply greets the
-            // player on a later launch once DailyLogin is revealed (streaks still start when first claimed).
-            if (DailyLogin.CanClaim(save, now) && Progression.FeatureUnlocked(Feature.DailyLogin, save))
+            if (Progression.FeatureUnlocked(Feature.DailyLogin, save))
             {
-                var daily = new GameObject("DailyLoginModal");
-                daily.transform.SetParent(session.transform);
-                daily.AddComponent<DailyLoginModal>().Show(view, cfg, now);
+                // PREVIEW both halves (no grant yet); the card's Collect applies the whole thing atomically
+                // via Session.Arrive against this same `now`, so the shown numbers ARE what it banks.
+                var idlePreview = Idle.Preview(save, cfg, now);
+                var claims = Goals.Claimables(save, cfg, now); // safe: DailyLogin revealed
+                if (!idlePreview.IsEmpty || claims.Count > 0)
+                {
+                    var card = new GameObject("IdleClaimModal");
+                    card.transform.SetParent(session.transform);
+                    card.AddComponent<IdleClaimModal>().Show(view, idlePreview, claims, now);
+                    Debug.Log($"[Bootstrap] Arrival: {idlePreview.Gold} gold, {idlePreview.Xp} XP, " +
+                              $"{idlePreview.Items.Count} item(s), {claims.Count} bonus claim(s).");
+                }
+            }
+            else if (!Idle.Preview(save, cfg, now).IsEmpty)
+            {
+                // Pre-reveal (< S3): the arrival card is suppressed, but offline income must still bank —
+                // the old boot claimed idle at load unconditionally. We can't run Session.Arrive here (it
+                // would also claim the daily, whose popup S3 gates), so bank idle ALONE and silently. The
+                // daily stays unclaimed until the card first greets the player (streaks start then).
+                view.BankIdleSilently(now);
             }
 
             Debug.Log($"[Bootstrap] Session started at stage {save.Progress.CurrentStage}.");

@@ -33,6 +33,7 @@ namespace IdleGame.Game
         private const float BtnH = 52f;
         private const int NavFont = 22;
         private const float PipInterval = 0.5f; // claim-pip poll cadence (Goals.Claimables allocates)
+        private const float ManagePipInterval = 1f; // Manage pip: Session.Preview plans the whole gear sweep (heavier)
 
         // Modes label tint while an alt-mode run is live — the violet migrated verbatim from the old
         // bar's ModesActiveStyle (0.8, 0.68, 1) so the way home reads the same.
@@ -40,6 +41,7 @@ namespace IdleGame.Game
 
         private GameObject _root = null!;    // full-stretch container toggled for whole-nav visibility
         private GameObject _heroesBtn = null!;
+        private GameObject _manageBtn = null!;
         private GameObject _modifiersBtn = null!;
         private GameObject _modesBtn = null!;
         private GameObject _summonBtn = null!;
@@ -48,6 +50,7 @@ namespace IdleGame.Game
         private Text _modText = null!;
         private Text _modesText = null!;
         private GameObject _pipDot = null!;
+        private GameObject _managePipDot = null!;
 
         // Change-only poll state (sentinels force a first apply on the first visible frame).
         private bool? _lastVisible;
@@ -58,6 +61,8 @@ namespace IdleGame.Game
         private int _lastAlt = -1;
         private bool _lastPip;
         private float _pipTimer;
+        private bool _lastManagePip;
+        private float _managePipTimer;
 
         public void Bind(CombatView view, GameConfig cfg)
         {
@@ -79,11 +84,15 @@ namespace IdleGame.Game
             rrt.anchorMin = Vector2.zero; rrt.anchorMax = Vector2.one;
             rrt.offsetMin = rrt.offsetMax = Vector2.zero;
 
-            // Bottom-LEFT: the everyday pair, matching the old bar's leftmost order.
+            // Bottom-LEFT: the everyday cluster — [Inventory][Heroes][Manage] (10.14b added Manage, the
+            // mid-session chore sweep, after Heroes so the two loadout verbs sit together on the left).
             var left = Cluster(rrt, new Vector2(0f, 0f));
             var invBtn = NavButton(left, "Inventory", 160f, _view.NavToggleInventory);
             _invText = invBtn.GetComponentInChildren<Text>();
             _heroesBtn = NavButton(left, "Heroes", 120f, _view.NavToggleHeroes).gameObject;
+            _manageBtn = NavButton(left, "Manage", 120f, OpenManage).gameObject;
+            // Manage pip: the same gold dot as Goals', lit when Session.Preview finds pending chores.
+            _managePipDot = AddPip(_manageBtn);
 
             // Bottom-RIGHT: system panels, Goals last so it lands at the corner (rightmost) with the pip.
             var right = Cluster(rrt, new Vector2(1f, 0f));
@@ -96,18 +105,34 @@ namespace IdleGame.Game
             _summonBtn = NavButton(right, "Summon", 130f, _view.NavToggleSummon).gameObject;
             _goalsBtn = NavButton(right, "Goals", 120f, _view.NavToggleGoals).gameObject;
 
-            // Claim pip: a small gold dot overlaid at the Goals button's top-right corner, toggled by
-            // SetActive. Gold matches the old bar's (1, 0.85, 0.4). Not a layout child of the cluster
-            // (it hangs off the button), so it never perturbs the reflow.
-            var pip = UiKit.Label(_goalsBtn.transform, "●", 18, TextAnchor.MiddleCenter,
+            // Claim pip on the Goals button (10.14b factored it into AddPip, now shared with Manage).
+            _pipDot = AddPip(_goalsBtn);
+        }
+
+        // A small gold dot overlaid at a button's top-right corner, toggled by SetActive, starting off.
+        // Gold matches the old control bar's (1, 0.85, 0.4). Not a layout child of the cluster (it hangs
+        // off the button), so it never perturbs the reflow. Non-raycasting so it never eats a tap.
+        private static GameObject AddPip(GameObject btn)
+        {
+            var pip = UiKit.Label(btn.transform, "●", 18, TextAnchor.MiddleCenter,
                                   new Vector2(22f, 22f), Vector2.zero);
             pip.color = new Color(1f, 0.85f, 0.4f);
             pip.raycastTarget = false;
             var prt = (RectTransform)pip.transform;
             prt.anchorMin = prt.anchorMax = prt.pivot = new Vector2(1f, 1f);
             prt.anchoredPosition = new Vector2(-2f, -2f);
-            _pipDot = pip.gameObject;
-            _pipDot.SetActive(false);
+            pip.gameObject.SetActive(false);
+            return pip.gameObject;
+        }
+
+        // Open the Manage confirm card (a transient PanelKit.Modal, like the boot arrival card — not a
+        // bound panel, so the NavBar owns spawning it rather than routing through a CombatView toggle).
+        // Its dimming backdrop covers the nav, blocking a second tap while open, so no re-open guard.
+        private void OpenManage()
+        {
+            var go = new GameObject("ManageModal");
+            go.transform.SetParent(transform, false);
+            go.AddComponent<ManageModal>().Show(_view, _cfg);
         }
 
         // A corner-anchored horizontal cluster that reflows as buttons hide: a HorizontalLayoutGroup
@@ -171,6 +196,9 @@ namespace IdleGame.Game
             {
                 _lastBag = bag; _lastFtue = ftue;
                 _heroesBtn.SetActive(!bag);
+                // Manage shares the Goals FTUE gate (bit 8 = DailyLogin || Achievements): by that reveal
+                // the player has retention systems worth sweeping (claims, upgrades, salvage-worthy loot).
+                _manageBtn.SetActive(!bag && (ftue & 8) != 0);
                 _modifiersBtn.SetActive(!bag && (ftue & 1) != 0);
                 _modesBtn.SetActive(!bag && (ftue & 2) != 0);
                 _summonBtn.SetActive(!bag && (ftue & 4) != 0);
@@ -192,6 +220,19 @@ namespace IdleGame.Game
                 _pipTimer = PipInterval;
                 bool pip = Goals.Claimables(save, _cfg, _view.NowMillis).Count > 0;
                 if (pip != _lastPip) { _lastPip = pip; _pipDot.SetActive(pip); }
+            }
+
+            // Manage pip: Session.Preview plans the whole gear sweep (heavier than Claimables), so poll on
+            // a coarser 1s cadence, and only while the Manage button is revealed (bit 8) to skip the alloc.
+            if ((ftue & 8) != 0)
+            {
+                _managePipTimer -= Time.unscaledDeltaTime;
+                if (_managePipTimer <= 0f)
+                {
+                    _managePipTimer = ManagePipInterval;
+                    bool mpip = !Session.Preview(save, _cfg, _view.NowMillis).IsEmpty;
+                    if (mpip != _lastManagePip) { _lastManagePip = mpip; _managePipDot.SetActive(mpip); }
+                }
             }
         }
     }
