@@ -117,7 +117,10 @@ namespace IdleGame.Game
             help.color = new Color(0.58f, 0.62f, 0.70f);
             AnchorTL(help, new Vector2(22f, -70f));
 
-            var close = UiKit.TextButton(panel.transform, "Close", new Vector2(84f, 30f), Vector2.zero, Close, 15);
+            // 10.13c touch floor: Close bumped 30 -> 44 tall and widened 84 -> 120 (no sliver). Anchored
+            // top-right, it grows downward into the header band; net/help sit left-aligned below, so the
+            // extra height stays clear in practice (this panel fully migrates to PanelKit in 10.13d).
+            var close = UiKit.TextButton(panel.transform, "Close", new Vector2(120f, 44f), Vector2.zero, Close, 15);
             AnchorTR((RectTransform)close.transform, new Vector2(-14f, -14f));
 
             if (rowCount == 0)
@@ -190,7 +193,8 @@ namespace IdleGame.Game
 
             // ON/OFF (rightmost). Lock OFF rows only when THIS mod's own pool is full (per-pool cap).
             bool full = !active && Modifiers.PoolFull(save, _cfg, def);
-            var btn = UiKit.TextButton(parent, active ? "ON" : (full ? "FULL" : "OFF"), new Vector2(60f, 32f), Vector2.zero,
+            // 10.13c: 32 -> 44 tall (touch floor). Grows downward inside the 64-unit row, clear of the row below.
+            var btn = UiKit.TextButton(parent, active ? "ON" : (full ? "FULL" : "OFF"), new Vector2(60f, 44f), Vector2.zero,
                 full ? (System.Action)(() => { }) : () => { _view.SetModifierActive(def.Id, !active); Rebuild(); }, 14);
             btn.interactable = !full;
             var img = btn.GetComponent<Image>();
@@ -214,7 +218,7 @@ namespace IdleGame.Game
             // affordability; the label spells the cost out ("Tune ▲  {gold}g+{scrap}s").
             var (g, s) = Modifiers.UpgradeCost(save, _cfg, def.Id);
             bool canUp = Modifiers.CanUpgrade(save, _cfg, def.Id);
-            var up = UiKit.TextButton(parent, $"Tune ▲  {Num.CompactCeil(g)}g+{Num.CompactCeil(s)}s", new Vector2(150f, 32f), Vector2.zero,
+            var up = UiKit.TextButton(parent, $"Tune ▲  {Num.CompactCeil(g)}g+{Num.CompactCeil(s)}s", new Vector2(150f, 44f), Vector2.zero, // 10.13c: 32 -> 44 tall (touch floor)
                 canUp ? () => { _view.UpgradeModifier(def.Id); Rebuild(); } : (System.Action)(() => { }), 12);
             up.interactable = canUp;
             var upImg = up.GetComponent<Image>();
@@ -226,7 +230,8 @@ namespace IdleGame.Game
             // Reset (free, but forfeits gambled tuning → two-click arm/confirm, mirroring the bag's
             // "Salvage all". First click arms ("sure?"), auto-disarms after a few seconds; second resets.
             bool armed = _confirmResetId == def.Id;
-            var reset = UiKit.TextButton(parent, armed ? "sure?" : "↺", new Vector2(58f, 32f), Vector2.zero,
+            // 10.13c: 32 -> 44 tall (touch floor); 58 wide already clears it.
+            var reset = UiKit.TextButton(parent, armed ? "sure?" : "↺", new Vector2(58f, 44f), Vector2.zero,
                 () => OnResetClick(def.Id), 14);
             var rImg = reset.GetComponent<Image>();
             if (rImg != null) rImg.color = armed ? new Color(0.62f, 0.22f, 0.22f) : new Color(0.30f, 0.28f, 0.34f);

@@ -122,8 +122,16 @@ namespace IdleGame.Game
         public const float Gap = 12f;
         public const float GapS = 8f;
         public const float GapXs = 4f;
-        public const float RowH = 32f;
-        public const float RowHs = 30f;
+        // 44 = the touch floor for INTERACTIVE rows (10.13c; ROADMAP 44pt rule) — ListRow and any
+        // Row that carries a Button reads its height from RowH. RowHs is the COMPACT tier for
+        // secondary controls and non-button rows; anything Button-bearing built on RowHs must pin
+        // its own >= TouchMin height (40 alone is under the floor).
+        public const float RowH = 44f;
+        public const float RowHs = 40f;
+        /// <summary>The touch-target floor (10.13c; ROADMAP 44pt rule): an interactive control must
+        /// never size under this on either axis. Rows built on the compact <see cref="RowHs"/> that
+        /// carry a Button pin THIS as their height where no other Theme constant (BtnH/BtnHs) fits.</summary>
+        public const float TouchMin = 44f;
         public const float BtnH = 48f;
         public const float BtnHs = 44f;
         public const float CloseW = 140f;

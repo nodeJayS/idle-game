@@ -63,10 +63,11 @@ namespace IdleGame.Game
             _canvas = canvasGo.GetComponent<Canvas>();
             _panel = body.GetComponent<Image>();
 
-            // Header: title left, Close right.
+            // Header: title left, Close right. The row rides Theme.RowH (now the 44 touch floor, 10.13c),
+            // so Close is 44 tall for free; widen it to 120 so it's a proper target, not a sliver.
             var header = PanelKit.Row(body, Theme.RowH);
             PanelKit.TextCell(header, "Summon", Theme.FsH1, Theme.GachaGold, TextAnchor.MiddleLeft, flex: 1f);
-            PanelKit.ButtonCell(header, "Close", Close, width: 100f, fontSize: Theme.FsBody);
+            PanelKit.ButtonCell(header, "Close", Close, width: 120f, fontSize: Theme.FsBody);
 
             long gems = _view.Gems;
             var wallet = PanelKit.Label(body, $"Gems: <color=#a6d8ff>{Num.CompactFloor(gems)}</color>",

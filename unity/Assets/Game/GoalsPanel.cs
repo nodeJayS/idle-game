@@ -74,7 +74,7 @@ namespace IdleGame.Game
             var claimables = Goals.Claimables(save, _cfg, now);
             long totalGems = 0;
             foreach (var c in claimables) totalGems += c.Gems;
-            var strip = PanelKit.Row(body, Theme.RowHs);
+            var strip = PanelKit.Row(body, Theme.TouchMin); // "Claim all" button: pin the 44 touch floor (10.13c)
             string stripText = claimables.Count == 0
                 ? "Nothing waiting — quests and achievements pay out automatically."
                 : claimables.Count == 1

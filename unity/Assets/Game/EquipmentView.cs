@@ -101,6 +101,13 @@ namespace IdleGame.Game
             string? leaderId = Party.EffectiveLeader(save, _cfg); // ★ marks who leads the formation
 
             var party = PanelKit.Section(rail, $"Party  ·  {fielded}/{save.Party.Length}");
+            // 10.13c: the rail's ListRows would default to the new 44 touch floor, but this rail is a
+            // NON-scrolling fixed column (party + full roster + optional swap stack). At 44 an 8-hero
+            // roster overflows the ~528-unit rail and the window's RectMask2D crops the bottom rows
+            // (Part 2 starvation trap). Pinned to 40 as the sanctioned anti-starvation trade — a hair
+            // under the floor but still comfortably tappable; the real fix (a roster scroll) is a
+            // future slice. (Flagged: even 40 clips at >= ~8 heroes; the live roster fits.)
+            const float RailRowH = 40f;
             for (int i = 0; i < save.Party.Length; i++)
             {
                 string? id = save.Party[i];
@@ -109,7 +116,7 @@ namespace IdleGame.Game
                     ? $"{i + 1}.  {(id == leaderId ? "★ " : "")}{HeroName(save, id)}"
                     : $"{i + 1}.  — empty —";
                 PanelKit.ListRow(party, label, () => { if (filled) SelectHero(id!); },
-                    selected: filled && id == _heroId, muted: !filled);
+                    selected: filled && id == _heroId, muted: !filled, height: RailRowH);
             }
 
             var roster = PanelKit.Section(rail, "All heroes");
@@ -118,7 +125,8 @@ namespace IdleGame.Game
                 var id = hero.Id;
                 bool isFielded = Array.IndexOf(save.Party, id) >= 0;
                 PanelKit.ListRow(roster, isFielded ? HeroName(save, id) : HeroName(save, id) + "  (B)",
-                    () => SelectHero(id), selected: id == _heroId, muted: !isFielded, fontSize: Theme.FsBody);
+                    () => SelectHero(id), selected: id == _heroId, muted: !isFielded, fontSize: Theme.FsBody,
+                    height: RailRowH);
             }
 
             // Party FULL (§3): a benched, selected hero swaps in for a fielded one. One "↔ <Name>"
@@ -136,7 +144,7 @@ namespace IdleGame.Game
                     string outgoing = fid;
                     PanelKit.ListRow(swap, $"↔  {HeroName(save, outgoing)}",
                         () => { _view.ApplyPartyEdit(Party.SwapHero(save, _heroId!, outgoing)); Rebuild(); },
-                        enabled: _view.CanEditParty, fontSize: Theme.FsLabel);
+                        enabled: _view.CanEditParty, fontSize: Theme.FsLabel, height: RailRowH);
                 }
             }
         }
@@ -283,7 +291,7 @@ namespace IdleGame.Game
             // Loadout snapshot verbs (10.5e): Save remembers this outfit; Wear re-equips every
             // surviving piece (never strips a slot — stale pieces skip, see Loadouts.Apply).
             var heroId = _heroId!;
-            var lRow = PanelKit.Row(section, Theme.RowHs);
+            var lRow = PanelKit.Row(section, Theme.TouchMin); // Button-bearing (Save/Wear): pin the 44 touch floor (10.13c)
             PanelKit.ButtonCell(lRow, "Save loadout",
                 () => { _view.SaveLoadout(heroId); Rebuild(); }, fontSize: Theme.FsSmall);
             PanelKit.ButtonCell(lRow, "Wear loadout",
@@ -491,7 +499,7 @@ namespace IdleGame.Game
             PanelKit.TextCell(titleRow, $"+1 pt / {_cfg.Balance.SkillPointsEveryLevels} levels", Theme.FsSmall, Theme.TextDim2, TextAnchor.MiddleRight, flex: 1f);
 
             // Skill points + respec row: spend a point to rank a skill up (rank 5 = mastery).
-            var pointsRow = PanelKit.Row(right, Theme.RowHs);
+            var pointsRow = PanelKit.Row(right, Theme.TouchMin); // Respec button: pin the 44 touch floor (10.13c)
             PanelKit.TextCell(pointsRow, $"Skill Points: {points}", Theme.FsBody,
                 points > 0 ? Theme.AccentGold : Theme.TextDim2, TextAnchor.MiddleLeft, flex: 1f);
             PanelKit.ButtonCell(pointsRow, "Respec",

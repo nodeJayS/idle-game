@@ -30,12 +30,18 @@ namespace IdleGame.Game
             // match 0.5: scale by both axes so ultrawide screens keep enough canvas HEIGHT for the
             // window — match-width alone leaves ~540 units at 21:9 and the rows crush to nothing.
             var canvas = UiKit.CreateCanvas(canvasName, parent, sortOrder, match: 0.5f);
+            // Asymmetric safe-area (10.13c): the dimming backdrop stays FULL-BLEED on the raw canvas so
+            // it covers the notch / rounded-corner region — a dim that stopped at the safe edge reads
+            // broken. Only the PANEL insets under SafeRoot, so its content clears the notch. WindowSizer
+            // then sizes against the SafeRoot rect (its parent) — the wanted inset on a notched device,
+            // a provable no-op on desktop where SafeRoot == the canvas rect.
             UiKit.FullScreen(canvas.transform, Theme.Backdrop);
+            var safe = UiKit.SafeRoot(canvas);
 
             // The panel is the one centered rect in the kit — WindowSizer keeps it centred and
             // clamps it to max as the canvas resizes (everything inside is layout-driven).
             var panelGo = new GameObject("Panel", typeof(RectTransform));
-            panelGo.transform.SetParent(canvas.transform, false);
+            panelGo.transform.SetParent(safe, false);
             var panelImg = panelGo.AddComponent<Image>();
             panelImg.color = Theme.BgPanel;
             // Clip children at the panel edge: on a height-starved canvas (extreme aspect) any
@@ -86,16 +92,20 @@ namespace IdleGame.Game
             // don't crush to nothing (match-width alone leaves ~540 units at 21:9).
             var canvas = UiKit.CreateCanvas(canvasName, parent, sortOrder, match: 0.5f);
             // Only add a backdrop when asked: a null backdrop leaves clicks outside the panel
-            // falling through to the game (no invisible raycast blocker).
+            // falling through to the game (no invisible raycast blocker). Asymmetric safe-area (10.13c),
+            // mirroring Window: the backdrop dims FULL-BLEED on the raw canvas (a dim that stopped at the
+            // notch reads broken), while the panel / border wrapper insets under SafeRoot so its content
+            // clears the notch. WindowSizer then sizes against the SafeRoot rect (no-op on desktop).
             if (backdrop != null) UiKit.FullScreen(canvas.transform, backdrop.Value);
+            var safe = UiKit.SafeRoot(canvas);
 
             // Optional border: an outer image carries the sizer; the panel insets 2px inside it so
             // the color reads as a thin frame. Without a border the panel carries the sizer itself.
-            Transform panelParent = canvas.transform;
+            Transform panelParent = safe;
             if (border != null)
             {
                 var borderGo = new GameObject("Border", typeof(RectTransform));
-                borderGo.transform.SetParent(canvas.transform, false);
+                borderGo.transform.SetParent(safe, false);
                 borderGo.AddComponent<Image>().color = border.Value;
                 var bs = borderGo.AddComponent<WindowSizer>();
                 bs.Margin = new Vector2(Theme.Gap * 5f, Theme.PadL);

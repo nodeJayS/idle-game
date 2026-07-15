@@ -173,7 +173,9 @@ namespace IdleGame.Game
             // Footer: rarity color reference (since names no longer carry the rarity word —
             // color is the cue), then Sort (persisted order: the inventory list IS the display
             // order, so Sort survives reopen) and the mass-salvage verb.
-            var footer = PanelKit.Row(body, FooterH);
+            // The window's primary action row (Select / Sort / Salvage all) — raised past the 44 touch
+            // floor to BtnH=48 (10.13c). The grid Flex above absorbs the extra height, so no starvation.
+            var footer = PanelKit.Row(body, Theme.BtnH);
             BuildRarityLegend(footer);
             PanelKit.FlexSpacer(footer);
             BuildSelectToggle(footer);
@@ -381,7 +383,7 @@ namespace IdleGame.Game
         private void BuildLockToggle(SaveState save, Item item)
         {
             if (_detail == null) return;
-            var row = PanelKit.Row(_detail, Theme.RowHs);
+            var row = PanelKit.Row(_detail, Theme.TouchMin); // Lock/Locked button: pin the 44 touch floor (10.13c)
             PanelKit.FlexSpacer(row);
             var btn = PanelKit.ButtonCell(row, item.Locked ? "Locked" : "Lock", () =>
                 {
