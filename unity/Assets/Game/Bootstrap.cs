@@ -168,6 +168,11 @@ namespace IdleGame.Game
             goals.Bind(view, cfg);
             view.BindGoals(goals);
 
+            // The persistent bottom-corner nav (10.13b) — built at Bind, AFTER every panel it toggles
+            // exists, so its verbs route to live bindings.
+            var nav = director.AddComponent<NavBar>();
+            nav.Bind(view, cfg);
+
             var topbar = new GameObject("TopBar").AddComponent<TopBar>();
             topbar.transform.SetParent(session.transform);
             topbar.Bind(view, () => QuitToMenu(cfg, session, view));

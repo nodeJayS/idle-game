@@ -531,6 +531,24 @@ namespace IdleGame.Game
         public void BindGacha(GachaPanel panel) => _gachaPanel = panel;
         public void BindGoals(GoalsPanel panel) => _goals = panel;
 
+        // ---- NavBar seam (10.13b) --------------------------------------------------------------
+        // The bottom-corner uGUI nav replaced the IMGUI control bar. These internal members are its
+        // ONLY window into CombatView: read-only state accessors it polls change-only, plus one verb
+        // per button that routes to the panel field (the fields themselves stay private). A NowMs
+        // reuse for the claim-pip poll. Kept internal (not public) so the seam is nav-scoped.
+        internal bool BagOpen => _inventory != null && _inventory.IsOpen;
+        internal bool AltModeLive => _combat != null
+            && (_combat.Kind == EncounterKind.Dungeon || _combat.Kind == EncounterKind.Tower);
+        internal int ActiveModifierCount => _save.Modifiers.Active.Count;
+        internal long NowMillis => NowMs();
+
+        internal void NavToggleInventory() => _inventory?.Toggle();
+        internal void NavToggleHeroes() => _equipment?.ToggleDefault();
+        internal void NavToggleModifiers() => _modifierPanel?.Toggle();
+        internal void NavToggleModes() => _modesOpen = !_modesOpen;
+        internal void NavToggleSummon() => _gachaPanel?.Toggle();
+        internal void NavToggleGoals() => _goals?.Toggle();
+
         /// <summary>The player's premium-currency (gem) balance — read-only surface the GachaPanel reads to
         /// show affordability. The gems SINK (a roll) still routes through <see cref="RollGacha"/>.</summary>
         public long Gems => _save.Currencies.TryGetValue(_cfg.Balance.PremiumCurrency, out var g) ? g : 0;
@@ -2545,7 +2563,7 @@ namespace IdleGame.Game
             DrawHud(s);
             DrawTopControls(s);
             DrawPartyHud(s);
-            DrawControlBar();
+            // The bottom control bar is now the persistent uGUI NavBar (10.13b) — no IMGUI draw here.
             DrawModesPanel(s); // last: the mode-select menu overlays the HUD when open
 
             GUI.matrix = prevMatrix;
@@ -3053,90 +3071,23 @@ namespace IdleGame.Game
             }
         }
 
-        /// <summary>Mirrors <see cref="DrawControlBar"/>'s own early-outs — the ONE place the
-        /// bar's visibility is decided, so other bottom-corner draws (party HUD) can reserve the
-        /// bar band exactly when it's actually there. Note: when inventory is open the bar shrinks
-        /// to "Close Bag" but still occupies the band; the party HUD returns on AnyPanelOpen in
-        /// that case anyway, so whenever the party HUD draws at all the bar is drawing full.</summary>
-        private bool ControlBarVisible => !(_equipment != null && _equipment.IsOpen)
+        /// <summary>THE one place the bottom nav's visibility is decided (10.13b: the uGUI
+        /// <see cref="NavBar"/> reads it change-only to SetActive itself; the party-HUD band lift
+        /// below still reads it to reserve the bar band exactly when it's there). Hidden while a
+        /// full-screen window (Heroes/Goals) owns the screen. Note: when inventory is open the nav
+        /// shrinks to "Close Bag" but still occupies the band; the party HUD returns on AnyPanelOpen
+        /// in that case anyway, so whenever the party HUD draws at all the nav is present full.</summary>
+        internal bool ControlBarVisible => !(_equipment != null && _equipment.IsOpen)
                                        && !(_goals != null && _goals.IsOpen);
 
-        private void DrawControlBar()
-        {
-            // Full-screen windows own the screen (their own Close dismisses them) — the bar would
-            // draw OVER their bottom edge otherwise (IMGUI renders above every uGUI canvas).
-            if (!ControlBarVisible) return;
-            const float h = Theme.HudBarH, pad = Theme.HudPad, gap = Theme.HudGap;
-            float sh = Screen.height / UiScale();
-            float y = sh - h - pad;
-            float x = pad;
-            bool invOpen = _inventory != null && _inventory.IsOpen;
-
-            if (Button(x, y, 260, h, invOpen ? "Close Bag" : "Inventory")) _inventory?.Toggle();
-            if (invOpen) return; // keep the bar uncluttered while the bag is open
-            x += 260 + gap;
-
-            if (Button(x, y, 170, h, "Heroes")) _equipment?.ToggleDefault();
-            x += 170 + gap * 4; // wider gap: everyday pair (bag/heroes) | system panels
-
-            // The gated buttons below are HIDDEN (absent, not greyed) until their FTUE reveal stage
-            // (§7.4, Progression.FeatureUnlocked) — unarmed saves are unlocked for everything, so this is
-            // a no-op for them. Each hidden button skips its own `x` advance, so the row reflows with no gap.
-
-            // Monster modifiers (Lever 1): the risk/reward knob. Shows a count when any are active.
-            if (Progression.FeatureUnlocked(Feature.Modifiers, _save))
-            {
-                int activeMods = _save.Modifiers.Active.Count;
-                string modLabel = activeMods > 0 ? $"Modifiers ({activeMods})" : "Modifiers";
-                if (Button(x, y, 230, h, modLabel)) _modifierPanel?.Toggle();
-                x += 230 + gap;
-            }
-
-            // Game modes (campaign / tower / crypt): the mode-select menu — the Tower's standalone
-            // button folded in here (user call 2026-07-06). Violet label while an alt-mode run is
-            // live so the way home is obvious.
-            if (Progression.FeatureUnlocked(Feature.Modes, _save))
-            {
-                bool altMode = _combat.Kind == EncounterKind.Dungeon || _combat.Kind == EncounterKind.Tower;
-                if (Button(x, y, 170, h, "Modes", altMode ? ModesActiveStyle : BtnStyle))
-                    _modesOpen = !_modesOpen;
-                x += 170 + gap;
-            }
-
-            // Hero gacha (roadmap 3): only surfaces once a banner with a real pool exists AND its FTUE
-            // reveal stage (S12) is reached. cfg.Banners is empty until slice 3 seeds the Ice Mage banner.
-            if (AnyLiveBanner && Progression.FeatureUnlocked(Feature.Gacha, _save))
-            {
-                if (Button(x, y, 190, h, "Summon")) _gachaPanel?.Toggle();
-                x += 190 + gap;
-            }
-
-            // Goals hub (§7.5): quests + achievements + daily login in one window (replaced the
-            // Achievements button). Reveals with the EARLIEST member system (DailyLogin, S3); the
-            // Achievements TAB inside gates separately on its own reveal (S5).
-            if (Progression.FeatureUnlocked(Feature.DailyLogin, _save)
-                || Progression.FeatureUnlocked(Feature.Achievements, _save))
-            {
-                const float goalsW = 170f;
-                if (Button(x, y, goalsW, h, "Goals")) _goals?.Toggle();
-                // Gold pip: a manual claim is waiting (today: the daily login). Drawn at the
-                // button's top-right from the rect we just used — a derived anchor, and cheap
-                // enough to check every OnGUI (one DayIndex compare).
-                if (Goals.Claimables(_save, _cfg, NowMs()).Count > 0)
-                {
-                    var prevColor = GUI.color;
-                    GUI.color = new Color(1f, 0.85f, 0.4f); // feed-accent gold (IMGUI bar idiom)
-                    GUI.Label(new Rect(x + goalsW - 30, y + 2, 26, 26), "●", PipStyle);
-                    GUI.color = prevColor;
-                }
-            }
-            // (The party always moves as a group now; stage nav + Challenge live in the
-            // top-centre HUD — see DrawTopControls.)
-        }
+        // DrawControlBar() was deleted in 10.13b — the bottom nav is now the persistent uGUI
+        // NavBar, which reads the internal seams above (BagOpen / AltModeLive / ActiveModifierCount /
+        // AnyLiveBanner / ControlBarVisible / NowMillis) and routes each verb through a Nav* method.
 
         /// <summary>True when at least one configured banner has a non-empty pool — the ONLY condition
-        /// under which the control-bar Summon button appears (cfg.Banners is empty until slice 3).</summary>
-        private bool AnyLiveBanner
+        /// under which the nav's Summon button appears (cfg.Banners is empty until slice 3). Internal
+        /// for <see cref="NavBar"/>.</summary>
+        internal bool AnyLiveBanner
         {
             get
             {
@@ -3153,25 +3104,8 @@ namespace IdleGame.Game
         private GUIStyle BtnStyleSm => _btnStyleSm ??= new GUIStyle(GUI.skin.button)
         { fontSize = 20, fontStyle = FontStyle.Bold };
 
-        // The claim-waiting pip on the Goals button (tinted via GUI.color at draw time).
-        private GUIStyle? _pipStyle;
-        private GUIStyle PipStyle => _pipStyle ??= new GUIStyle(GUI.skin.label)
-        { fontSize = 22, fontStyle = FontStyle.Bold, alignment = TextAnchor.UpperRight };
-
-        // "Modes" bar button while a crypt run is live — violet, matching the dungeon feed lines.
-        private GUIStyle? _modesActiveStyle;
-        private GUIStyle ModesActiveStyle
-        {
-            get
-            {
-                if (_modesActiveStyle == null)
-                {
-                    _modesActiveStyle = new GUIStyle(BtnStyle);
-                    _modesActiveStyle.normal.textColor = new Color(0.8f, 0.68f, 1f);
-                }
-                return _modesActiveStyle;
-            }
-        }
+        // (PipStyle and ModesActiveStyle were deleted in 10.13b along with DrawControlBar — the
+        // only callers. The claim pip and the violet alt-mode tint now live on the uGUI NavBar.)
 
         // 10.9d: the IMGUI half of the one UI sound family — every control-bar/HUD button
         // routes through these two helpers, mirroring UiKit.TextButton's wrapped click.
