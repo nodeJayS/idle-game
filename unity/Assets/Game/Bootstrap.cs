@@ -232,6 +232,15 @@ namespace IdleGame.Game
                 view.BankIdleSilently(now);
             }
 
+            // Live-ops banner (10.16b, mobile arc MM4): announce every event live right now, one feed
+            // line each. Events.Active already names the boosted zone (weekend boost) / "Mutated Crypt".
+            // Countdown display-CEILs the hours from EndMs — the crypt-key countdown rule (ModesWindow).
+            foreach (var ev in Events.Active(cfg, now))
+            {
+                long hrs = (ev.EndMs - now + 3_599_999) / 3_600_000; // ceil to whole hours (never under-promise)
+                chat.AddFeed($"{ev.Name} — ends in {hrs}h", Theme.GachaGold);
+            }
+
             Debug.Log($"[Bootstrap] Session started at stage {save.Progress.CurrentStage}.");
             return view;
         }

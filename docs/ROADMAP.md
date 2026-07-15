@@ -75,11 +75,11 @@ beside SyncHeroUnlocks at LOAD, never in the cfg-less Save.Migrate;
 loot-path reducers legitimately RE-WRAP nested Progress state, so
 threading sweeps assert VALUE survival, not ref identity.
 
-**10.16 Live-ops events + season track (MM4).** Time-windowed
-`GameConfig` drops (weekend zone boosts, mutated crypt, Tower rush) +
-a season track (free track first, premium seam later). The real build
-is the SCHEDULING seam: windowed config + one track reducer; event
-countdowns ceil (rounding rule). Server-optional now, §9-ready later.
+**10.16 Live-ops events + season track (MM4) — COMPLETE 2026-07-15
+(ledger).** Durable: schedule rules are PURE functions of nowMs (the
+§9 remote-config stand-in); event effects snapshot AT FIGHT INIT via
+optional `nowMs = 0` params (0 = legacy all-off, no call-site churn);
+the crypt mutation keys off StageEquivalent + the window's EndMs.
 
 **10.17 Endgame sinks (MM5).** Enhancement scrolls (§6.1: enhanceLevel
 gamble, rising risk/cost, seeded rng + persisted cursor) + hero dupe
@@ -151,6 +151,14 @@ a reducer silently strips them — grep `new Item` / `new HeroInstance`
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-07-15 10.16 live-ops events + season COMPLETE (user verdicts:
+  10% magnitudes, monthly quest-fed season): weekend zone boost
+  [Sat,Mon) rotating by week + mutated crypt [Wed,Fri) (+1 modifier,
+  +10% dust), pure-function schedule rules, effects snapshot at fight
+  init; season = monthly 30-tier free track (10 pts/quest via the
+  AdvanceQuest choke point, auto-pay, gold + gems-every-5th), Goals
+  hub Season tab + Today live-events section + boot banners (ceil'd
+  countdowns). 823 tests; Play-verified on the LIVE Wednesday window.
 - 2026-07-15 10.15 codex/collection COMPLETE: CodexState (per-monster
   lifetime kills via CombatState.PendingKills + Codex.BankKills tier
   crossings; set-slot discovery stamped at AddLoot BEFORE the salvage

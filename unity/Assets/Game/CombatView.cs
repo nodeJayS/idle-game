@@ -933,7 +933,7 @@ namespace IdleGame.Game
         }
 
         private void StartFarm() => Begin(Combat.InitFarm(BuildParty(), _save.Progress.CurrentStage, _cfg, NewRng(),
-                                                          Modifiers.ResolveActive(_save, _cfg))); // active modifiers (Lever 1)
+                                                          Modifiers.ResolveActive(_save, _cfg), NowMs())); // active modifiers (Lever 1) + live-ops clock (10.16b: weekend zone boost snapshots at init)
 
         private Rng NewRng() => _rng = new Rng((uint)(_save.RngSeed + _runCount));
 
@@ -1154,6 +1154,21 @@ namespace IdleGame.Game
             foreach (var q in completed)
                 _chat?.AddFeed($"Goal complete: {QuestPanel.QuestLabel(q)}  (+{Num.CompactFloor(q.RewardGold)} gold)",
                                new Color(1f, 0.85f, 0.35f));
+
+            // Season track (10.16b): completed quests are the ONLY season-point source, so this ONE
+            // funnel (every caller routes through here) awards points exactly-once per completion. The
+            // reward save it returns — points + any auto-paid tier gold/gems — replaces _save, so it
+            // rides the SAME persist the caller already does with _save (CommitPending's autosave, the
+            // dungeon/tower flush); no extra save write. Gold tiers speak the quest-gold voice above;
+            // gem tiers the premium GachaGold accent with the ★ premium mark.
+            var (afterSeason, paidTiers) = Season.AwardPoints(_save, completed.Count, _cfg, NowMs());
+            _save = afterSeason;
+            foreach (var r in paidTiers)
+                _chat?.AddFeed(r.IsMilestone
+                        ? $"Season tier {r.Tier}: +{Num.CompactFloor(r.Gems)} gems ★"
+                        : $"Season tier {r.Tier}: +{Num.CompactFloor(r.Gold)} gold",
+                    r.IsMilestone ? Theme.GachaGold : new Color(1f, 0.85f, 0.35f));
+
             if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg); // quest XP may have leveled a hero
         }
 
@@ -1977,7 +1992,7 @@ namespace IdleGame.Game
         /// <paramref name="spawnDelayMs"/>. Used by flee, boss-fail, and the post-win advance.</summary>
         private void ResumeFarmInPlace(int stage, double spawnDelayMs)
         {
-            Combat.ResumeFarm(_combat, stage, _cfg, spawnDelayMs);
+            Combat.ResumeFarm(_combat, stage, _cfg, spawnDelayMs, NowMs()); // re-snapshot the weekend zone boost on the resumed farm (10.16b)
             DressZone(stage); // post-win advance / tower exit can land in another zone
             // A boss clear can field a newly-unlocked hero (OnStageCleared), so sync the live
             // party to the save here too: ResumeFarm/RestoreParty only heal EXISTING entities,

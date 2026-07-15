@@ -29,7 +29,7 @@ namespace IdleGame.Game
         private GameConfig _cfg = null!;
 
         private GameObject? _panel;
-        private enum Tab { Today, Achievements, Codex, Login }
+        private enum Tab { Today, Achievements, Codex, Login, Season }
         private Tab _tab = Tab.Today;
 
         public bool IsOpen => _panel != null;
@@ -64,6 +64,10 @@ namespace IdleGame.Game
             {
                 tabs.Add((Tab.Achievements, "Achievements"));
                 tabs.Add((Tab.Codex, "Codex")); // the codex is achievement-family — same FTUE reveal (10.15)
+                // Season shares the Achievements gate too (10.16b): the battle pass is fed BY completed
+                // quests (an auto-pay ladder like the codex/achievements), so it belongs with the family
+                // it lives alongside — a fresh save that hasn't met the member systems yet won't see it.
+                tabs.Add((Tab.Season, "Season"));
             }
             tabs.Add((Tab.Login, "Login"));
             if (tabs.FindIndex(t => t.tab == _tab) < 0) _tab = Tab.Today; // selected tab currently hidden
@@ -93,15 +97,17 @@ namespace IdleGame.Game
             {
                 case Tab.Achievements: BuildAchievements(body, save); break;
                 case Tab.Codex:        BuildCodex(body, save);        break;
+                case Tab.Season:       BuildSeason(body, save, now);  break;
                 case Tab.Login:        BuildLogin(body, save, now);   break;
-                default:               BuildToday(body, save);        break;
+                default:               BuildToday(body, save, now);   break;
             }
         }
 
         // ---- Today: the rolling goal board (read-only mirror of the HUD panel, with room) ----
 
-        private void BuildToday(RectTransform body, SaveState save)
+        private void BuildToday(RectTransform body, SaveState save, long now)
         {
+            BuildLiveEvents(body, now); // 10.16b: the live-ops strip sits above the goal board
             var list = UiKit.ScrollColumnFill(body, spacing: Theme.GapS);
             foreach (var q in save.Quests.Active)
             {
@@ -119,6 +125,72 @@ namespace IdleGame.Game
             var cap = PanelKit.Row(body, HeadRowH);
             PanelKit.TextCell(cap, "Quests pay out automatically when completed.", Theme.FsSmall,
                 Theme.TextDim, TextAnchor.MiddleLeft, flex: 1f);
+        }
+
+        // ---- Live events: the live-ops strip (10.16b, mobile arc MM4) ----
+
+        /// <summary>The active live-ops events at <paramref name="now"/>: one two-line box each (name +
+        /// ceil'd countdown, then the effect blurb). When nothing is live, name the NEXT window instead —
+        /// the sooner of the next weekend zone boost (Sat 00:00 UTC) or mutated crypt (Wed 00:00 UTC),
+        /// computed client-side (Events exposes no "next window" query and this slice must NOT edit
+        /// GameCore). Countdowns display-CEIL the hours (the crypt-key countdown rule).</summary>
+        private void BuildLiveEvents(RectTransform body, long now)
+        {
+            var head = PanelKit.Row(body, 22f);
+            PanelKit.TextCell(head, "LIVE EVENTS", Theme.FsLabel, Theme.TextMuted, TextAnchor.MiddleLeft, flex: 1f);
+
+            var active = Events.Active(_cfg, now);
+            if (active.Count == 0)
+            {
+                // Idle strip: point at whichever window opens next so the section is never empty/dead.
+                long satMs = NextWeekdayMidnightUtcMs(now, System.DayOfWeek.Saturday);
+                long wedMs = NextWeekdayMidnightUtcMs(now, System.DayOfWeek.Wednesday);
+                bool weekendSooner = satMs <= wedMs;
+                long nextMs = weekendSooner ? satMs : wedMs;
+                long hrs = (nextMs - now + 3_599_999) / 3_600_000; // ceil to whole hours
+                string label = weekendSooner ? "Weekend boost" : "Mutated Crypt";
+                var row = PanelKit.Row(body, CodexRowH);
+                PanelKit.TextCell(row, $"{label} in {hrs}h", Theme.FsSmall, Theme.TextBody, TextAnchor.MiddleLeft, flex: 1f);
+                return;
+            }
+
+            foreach (var ev in active)
+            {
+                long hrs = (ev.EndMs - now + 3_599_999) / 3_600_000; // ceil (never under-promise the window)
+                var box = PanelKit.VStack(body, Theme.GapXs);
+                var top = PanelKit.Row(box, HeadRowH);
+                PanelKit.TextCell(top, ev.Name, Theme.FsBody, Theme.AccentGold, TextAnchor.MiddleLeft, flex: 1f);
+                PanelKit.TextCell(top, $"ends in {hrs}h", Theme.FsSmall, Theme.TextMuted, TextAnchor.MiddleRight, flex: 1f);
+                var sub = PanelKit.Row(box, SubRowH);
+                PanelKit.TextCell(sub, EventEffect(ev, now), Theme.FsTiny, Theme.TextBody, TextAnchor.MiddleLeft, flex: 1f);
+            }
+        }
+
+        /// <summary>The one-line effect blurb for an active event, magnitudes read live from the config
+        /// knobs (so a rebalance flows through). Zone name resolved from <see cref="Events.ZoneBoost"/>.</summary>
+        private string EventEffect(EventInfo ev, long now)
+        {
+            if (ev.Id == Events.WeekendZoneBoostId)
+            {
+                var zb = Events.ZoneBoost(_cfg, now);
+                string zone = zb != null && zb.Value.ZoneIndex < _cfg.Zones.Count
+                    ? _cfg.Zones[zb.Value.ZoneIndex].Name : "a zone";
+                return $"+{_cfg.Balance.EventZoneBoostMult * 100:0}% gold / XP / drops in {zone}";
+            }
+            if (ev.Id == Events.MutatedCryptId)
+                return $"+1 crypt modifier, +{_cfg.Balance.EventCryptDustMult * 100:0}% dust";
+            return "";
+        }
+
+        /// <summary>Epoch-ms of the next <paramref name="dow"/> at 00:00 UTC strictly after
+        /// <paramref name="now"/> — the client-side stand-in for a "when does the next window open" query
+        /// GameCore deliberately doesn't expose this slice. Mirrors Events' UTC day-boundary math.</summary>
+        private static long NextWeekdayMidnightUtcMs(long now, System.DayOfWeek dow)
+        {
+            var utc = System.DateTimeOffset.FromUnixTimeMilliseconds(now).UtcDateTime;
+            int delta = (((int)dow - (int)utc.DayOfWeek) + 7) % 7;
+            var target = utc.Date.AddDays(delta == 0 ? 7 : delta); // today's midnight already passed ⇒ next week
+            return new System.DateTimeOffset(target, System.TimeSpan.Zero).ToUnixTimeMilliseconds();
         }
 
         // ---- Achievements: the lifetime ladder (absorbed from AchievementsPanel) ----
@@ -246,6 +318,48 @@ namespace IdleGame.Game
                 Color col = z.Cleared ? Theme.Good : z.Entered ? Theme.TextBody : Theme.TextDim;
                 CodexRow(list, z.Name, status, col);
             }
+        }
+
+        // ---- Season: the monthly battle-pass track (10.16b, mobile arc MM4) ----
+
+        private void BuildSeason(RectTransform body, SaveState save, long now)
+        {
+            var snap = Season.Snapshot(save, _cfg, now);
+            int tierCount = _cfg.Balance.SeasonTierCount;
+
+            // Header (gold): identity, points, tiers auto-paid / total, days left (already ceil'd by snap).
+            var head = PanelKit.Row(body, HeadRowH);
+            PanelKit.TextCell(head,
+                $"Season {snap.Id} — {Num.CompactFloor(snap.Points)} pts  ·  tier {snap.TiersPaid}/{tierCount}  ·  {snap.DaysLeft}d left",
+                Theme.FsLabel, Theme.AccentGold, TextAnchor.MiddleLeft, flex: 1f);
+
+            // Progress toward the next tier (points ceil the threshold like a goal; 0 = capstone reached).
+            var prog = PanelKit.Row(body, SubRowH);
+            string progText = snap.NextTierAt > 0
+                ? $"{Num.CompactFloor(snap.Points)} / {Num.CompactCeil(snap.NextTierAt)} pts to the next tier"
+                : "All tiers complete — capstone reached.";
+            PanelKit.TextCell(prog, progText, Theme.FsSmall, Theme.TextMuted, TextAnchor.MiddleLeft, flex: 1f);
+
+            // The ladder — one compact row per tier (codex-row idiom, scroll). State colours: PAID rows
+            // dim, the NEXT tier gold-highlighted, upcoming tiers body. NEXT = the first unpaid tier.
+            var list = UiKit.ScrollColumnFill(body, spacing: Theme.GapS);
+            foreach (var r in snap.Ladder)
+            {
+                bool paid = r.Tier <= snap.TiersPaid;
+                bool next = r.Tier == snap.TiersPaid + 1;
+                string reward = r.IsMilestone ? $"{Num.CompactFloor(r.Gems)} gems ★" : $"{Num.CompactFloor(r.Gold)} gold";
+                string state = paid ? "PAID" : next ? "NEXT" : "";
+                Color col = paid ? Theme.TextDim : next ? Theme.AccentGold : Theme.TextBody;
+                var row = PanelKit.Row(list, CodexRowH);
+                PanelKit.TextCell(row, $"Tier {r.Tier}", Theme.FsSmall, col, TextAnchor.MiddleLeft, flex: 1f);
+                PanelKit.TextCell(row, state.Length > 0 ? $"{reward}   {state}" : reward,
+                    Theme.FsSmall, col, TextAnchor.MiddleRight, flex: 1f);
+            }
+
+            // Explainer (muted) — the source of points + the monthly reset.
+            var cap = PanelKit.Row(body, HeadRowH);
+            PanelKit.TextCell(cap, "Complete quests to earn season points — the track resets monthly.",
+                Theme.FsSmall, Theme.TextDim, TextAnchor.MiddleLeft, flex: 1f);
         }
 
         // ---- Login: streak state, the one manual claim, tomorrow's preview ----

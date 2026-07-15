@@ -121,7 +121,11 @@ namespace IdleGame.Game
                 // §7.3: only the run's FINAL floor (the one with the reward vault) fields the true
                 // boss; earlier floors get the elite-rank floor guardian.
                 miniBoss: !dungeon.Params.RewardRoom,
-                rewardMult: Crypt.FloorRewardMult(floor, cfg));
+                rewardMult: Crypt.FloorRewardMult(floor, cfg),
+                // Live-ops clock (10.16b): the mutated-crypt event (Wed–Fri) snapshots at floor init —
+                // one extra modifier + bonus dust. Every entry (fresh OR quit-resume) routes through Enter,
+                // so the wall clock here IS the snapshot moment (mirrors CombatView.NowMs). 0-clock = off.
+                nowMs: System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 
             SwapWorldIn(dungeon, tier?.ThemeKey ?? "crypt");
             Ambience.SetDungeon(tier?.ThemeKey ?? "crypt"); // 10.9c: the depth tier's bed (exit swaps back via DressZone)
