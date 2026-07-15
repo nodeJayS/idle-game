@@ -345,6 +345,101 @@ namespace IdleGame.Game
             return row;
         }
 
+        /// <summary>A labelled 0..1 slider row (the Settings volumes): label left, a track+handle filling
+        /// the middle, a live % readout right. The row rides the 44 touch floor and the SLIDER HOST fills
+        /// that full height as an invisible-but-raycasting drag target — so the grabbable area clears the
+        /// floor even though the visible groove stays a slim 16px bar. This is TopBar's hand-built slider
+        /// (track/fill/handle with the half-handle inset + CircleSprite handle) converted to layout form:
+        /// the widget anchors inside a flexible cell instead of a fixed anchoredPosition. Applies live via
+        /// <paramref name="set"/> on every drag and syncs the % label. Returns the Slider.</summary>
+        public static Slider SliderRow(RectTransform parent, string label, Func<float> get, Action<float> set)
+        {
+            var row = Row(parent, Theme.TouchMin);
+            TextCell(row, label, Theme.FsH2, Theme.TextBright, TextAnchor.MiddleLeft, flex: 1f);
+
+            // Slider cell: a plain container the Row sizes (fixed-ish width); the host fills it, so the
+            // whole widget reflows with the cell instead of a hand-placed 160px track at a literal offset.
+            var cellGo = new GameObject("SliderCell", typeof(RectTransform));
+            cellGo.transform.SetParent(row, false);
+            var cellLe = cellGo.AddComponent<LayoutElement>();
+            cellLe.preferredWidth = 180f; cellLe.minWidth = 140f; cellLe.flexibleWidth = 0f;
+
+            float start = Mathf.Clamp01(get());
+
+            // Host: fills the cell (44 tall), transparent but raycast-on — the Slider lives here, so the
+            // DRAG TARGET is the full row height, not the 16px groove. Groove/fill/handle are children.
+            var hostGo = new GameObject("Slider", typeof(RectTransform));
+            hostGo.transform.SetParent(cellGo.transform, false);
+            var hostImg = hostGo.AddComponent<Image>();
+            hostImg.color = new Color(0f, 0f, 0f, 0f); // invisible, still raycasts
+            var hostRt = (RectTransform)hostGo.transform;
+            hostRt.anchorMin = Vector2.zero; hostRt.anchorMax = Vector2.one;
+            hostRt.offsetMin = hostRt.offsetMax = Vector2.zero;
+
+            var slider = hostGo.AddComponent<Slider>();
+            slider.transition = Selectable.Transition.None;
+
+            // Visible groove: a thin 16px bar centered in the host (the old track look, now decorative).
+            var groove = new GameObject("Groove", typeof(RectTransform));
+            groove.transform.SetParent(hostGo.transform, false);
+            var grooveImg = groove.AddComponent<Image>();
+            grooveImg.color = new Color(0.18f, 0.20f, 0.26f);
+            grooveImg.raycastTarget = false;
+            var grooveRt = (RectTransform)groove.transform;
+            grooveRt.anchorMin = new Vector2(0f, 0.5f); grooveRt.anchorMax = new Vector2(1f, 0.5f);
+            grooveRt.offsetMin = new Vector2(0f, -8f); grooveRt.offsetMax = new Vector2(0f, 8f);
+
+            // Half the handle width — the Fill Area and Handle Slide Area inset by this so the round handle
+            // stays inside the ends and the fill doesn't overshoot (mirrors Unity's default slider layout).
+            const float pad = 13f;
+
+            // Fill: a 16px-tall centered band, padded; the Slider grows its child's anchorMax.x with value.
+            var fillArea = new GameObject("Fill Area", typeof(RectTransform));
+            fillArea.transform.SetParent(hostGo.transform, false);
+            var fillAreaRt = (RectTransform)fillArea.transform;
+            fillAreaRt.anchorMin = new Vector2(0f, 0.5f); fillAreaRt.anchorMax = new Vector2(1f, 0.5f);
+            fillAreaRt.offsetMin = new Vector2(pad, -8f); fillAreaRt.offsetMax = new Vector2(-pad, 8f);
+            var fillGo = new GameObject("Fill", typeof(RectTransform));
+            fillGo.transform.SetParent(fillArea.transform, false);
+            var fillImg = fillGo.AddComponent<Image>();
+            fillImg.color = new Color(0.35f, 0.55f, 0.85f);
+            fillImg.raycastTarget = false;
+            var fillRt = (RectTransform)fillGo.transform;
+            fillRt.anchorMin = new Vector2(0f, 0f); fillRt.anchorMax = new Vector2(0f, 1f);
+            fillRt.offsetMin = Vector2.zero; fillRt.offsetMax = Vector2.zero;
+            fillRt.sizeDelta = new Vector2(0f, 0f);
+
+            // Handle: same 16px centered band + pad as the original (the CircleSprite handle overhangs it).
+            var handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
+            handleArea.transform.SetParent(hostGo.transform, false);
+            var handleAreaRt = (RectTransform)handleArea.transform;
+            handleAreaRt.anchorMin = new Vector2(0f, 0.5f); handleAreaRt.anchorMax = new Vector2(1f, 0.5f);
+            handleAreaRt.offsetMin = new Vector2(pad, -8f); handleAreaRt.offsetMax = new Vector2(-pad, 8f);
+            var handleGo = new GameObject("Handle", typeof(RectTransform));
+            handleGo.transform.SetParent(handleArea.transform, false);
+            var handleImg = handleGo.AddComponent<Image>();
+            handleImg.sprite = UiKit.CircleSprite();
+            handleImg.color = new Color(0.85f, 0.88f, 0.95f);
+            var handleRt = (RectTransform)handleGo.transform;
+            handleRt.sizeDelta = new Vector2(26f, 26f);
+
+            slider.fillRect = fillRt;
+            slider.handleRect = handleRt;
+            slider.targetGraphic = handleImg;
+            slider.direction = Slider.Direction.LeftToRight;
+            slider.minValue = 0f; slider.maxValue = 1f;
+            slider.value = start;
+
+            var pct = TextCell(row, Mathf.RoundToInt(start * 100f) + "%", Theme.FsBody, Theme.TextBright,
+                               TextAnchor.MiddleLeft, width: 56f);
+            slider.onValueChanged.AddListener(v =>
+            {
+                set(v);
+                pct.text = Mathf.RoundToInt(v * 100f) + "%";
+            });
+            return slider;
+        }
+
         // ==== Low-level ================================================================
 
         /// <summary>A layout-friendly Label: created at zero size (the layout group sizes it),

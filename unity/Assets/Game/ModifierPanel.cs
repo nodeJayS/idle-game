@@ -63,14 +63,11 @@ namespace IdleGame.Game
         // RowH gained a few px over the old 60: the sub line now carries gold ▲-delta chips, and rare
         // rows render the full imprint payload inline, so rows are a touch taller for breathing room.
         private const float RowH = 64f;
-        private const float SectionH = 26f;
-        // HeaderH grew to fit the new one-line help under the title/net (title -14, net -48, help -70).
-        private const float HeaderH = 108f;
+        private const float SectionHdrH = 22f; // the pool-header label row inside the scroll list
         private const float PanelW = 620f; // widened from 580 to fit the right-side Tune/Reset + imprint payload
 
         private void Build()
         {
-            _canvas = UiKit.CreateCanvas("ModifierCanvas", transform, sortOrder: 90);
             var save = _view.CurrentSave;
             var mods = save.Modifiers;
 
@@ -88,62 +85,45 @@ namespace IdleGame.Game
                 else if (def.ImprintSlot == ImprintSlot.Prefix) prefixes.Add((def, strength));
                 else suffixes.Add((def, strength));
             }
-
             int rowCount = normals.Count + prefixes.Count + suffixes.Count;
-            int sections = (normals.Count > 0 ? 1 : 0) + (prefixes.Count > 0 ? 1 : 0) + (suffixes.Count > 0 ? 1 : 0);
-            float h = Mathf.Min(HeaderH + rowCount * RowH + sections * SectionH + 16f, 600f);
 
-            var panel = UiKit.Panel(_canvas.transform, new Vector2(PanelW, h), new Color(0.09f, 0.10f, 0.13f, 0.98f));
-            var prt = panel.rectTransform;
-            prt.anchorMin = prt.anchorMax = new Vector2(0.5f, 0.5f);
-            prt.pivot = new Vector2(0.5f, 0.5f);
-            prt.anchoredPosition = new Vector2(0f, 40f); // above the bottom control bar
+            // PanelKit.Window: standard header (title + Close) + a layout body. Clamp to the original
+            // 620 width so the panel keeps its shape (Window's default 1160 is far too wide here). The
+            // mod list always scrolls, so an owner with many mods overflows the 680-max cleanly.
+            var winGo = PanelKit.Window(transform, "Monster Modifiers", Close, out var body,
+                                        "ModifierCanvas", sortOrder: 90, max: new Vector2(PanelW, 680f));
+            _canvas = winGo.GetComponent<Canvas>();
+            PanelKit.Stack(body);
 
-            var title = UiKit.Label(panel.transform, "Monster Modifiers", 22, TextAnchor.UpperLeft, new Vector2(360f, 30f), Vector2.zero);
-            title.color = new Color(0.85f, 0.62f, 1f);
-            AnchorTL(title, new Vector2(22f, -14f));
-
-            var net = UiKit.Label(panel.transform, NetSummary(applied), 14, TextAnchor.UpperLeft, new Vector2(560f, 24f), Vector2.zero);
-            net.color = new Color(0.80f, 0.84f, 0.90f);
-            net.supportRichText = true;
-            AnchorTL(net, new Vector2(22f, -48f));
-
-            // Plain-language help: what tuning is, and that rares are off-limits. Muted 12px. Height 32
-            // lets the sentence wrap to a second line instead of CLIPPING mid-word (caught on the 1400px
-            // capture: an 18px-high rect truncated at "rare mods can't be").
-            var help = UiKit.Label(panel.transform,
+            // Header explainer: the applied-net summary (rich text) + the plain-language tuning help.
+            PanelKit.Label(body, NetSummary(applied), 14, new Color(0.80f, 0.84f, 0.90f), TextAnchor.UpperLeft);
+            PanelKit.Label(body,
                 "Tune gambles gold + scrap to raise a mod's danger and reward together · rare mods can't be tuned.",
-                12, TextAnchor.UpperLeft, new Vector2(580f, 32f), Vector2.zero);
-            help.color = new Color(0.58f, 0.62f, 0.70f);
-            AnchorTL(help, new Vector2(22f, -70f));
-
-            // 10.13c touch floor: Close bumped 30 -> 44 tall and widened 84 -> 120 (no sliver). Anchored
-            // top-right, it grows downward into the header band; net/help sit left-aligned below, so the
-            // extra height stays clear in practice (this panel fully migrates to PanelKit in 10.13d).
-            var close = UiKit.TextButton(panel.transform, "Close", new Vector2(120f, 44f), Vector2.zero, Close, 15);
-            AnchorTR((RectTransform)close.transform, new Vector2(-14f, -14f));
+                12, new Color(0.58f, 0.62f, 0.70f), TextAnchor.UpperLeft);
 
             if (rowCount == 0)
             {
                 int firstAt = _cfg.Balance.ModifierNewEveryStages;
-                var empty = UiKit.Label(panel.transform, $"Push deeper to unlock modifiers — your first unlocks at stage {firstAt}.", 15, TextAnchor.MiddleCenter, new Vector2(560f, 40f), Vector2.zero);
-                empty.color = new Color(0.70f, 0.74f, 0.80f);
-                AnchorTL(empty, new Vector2(30f, -HeaderH - 10f));
+                PanelKit.Flex(body);
+                PanelKit.Label(body, $"Push deeper to unlock modifiers — your first unlocks at stage {firstAt}.",
+                    15, new Color(0.70f, 0.74f, 0.80f), TextAnchor.MiddleCenter);
+                PanelKit.Flex(body);
                 return;
             }
 
-            float y = -HeaderH;
-            y = Section(panel.transform, "Normal", normals, applied, y, _cfg.Balance.MaxActiveModifiers);
-            y = Section(panel.transform, "Rare — Prefix", prefixes, applied, y, _cfg.Balance.MaxActiveRarePerSlot);
-            y = Section(panel.transform, "Rare — Suffix", suffixes, applied, y, _cfg.Balance.MaxActiveRarePerSlot);
+            // The mod list scrolls (fills the remaining body height); section headers + rows flow inside.
+            var list = UiKit.ScrollColumnFill(body, spacing: Theme.GapXs);
+            Section(list, "Normal", normals, applied, _cfg.Balance.MaxActiveModifiers);
+            Section(list, "Rare — Prefix", prefixes, applied, _cfg.Balance.MaxActiveRarePerSlot);
+            Section(list, "Rare — Suffix", suffixes, applied, _cfg.Balance.MaxActiveRarePerSlot);
         }
 
         /// <summary>Draw a pool's header (name + n/cap, plus a "needs N to apply" hint for a half-filled
-        /// rare slot) then its rows. Returns the next y. No-op for an empty pool.</summary>
-        private float Section(Transform parent, string title, List<(ModifierDef def, int strength)> rows,
-                              HashSet<string> applied, float y, int cap)
+        /// rare slot) then its rows into the scroll list. No-op for an empty pool.</summary>
+        private void Section(RectTransform list, string title, List<(ModifierDef def, int strength)> rows,
+                             HashSet<string> applied, int cap)
         {
-            if (rows.Count == 0) return y;
+            if (rows.Count == 0) return;
             var mods = _view.CurrentSave.Modifiers;
             int activeN = 0;
             foreach (var (def, _) in rows) if (mods.Active.Contains(def.Id)) activeN++;
@@ -153,89 +133,83 @@ namespace IdleGame.Game
             if (rare && activeN > 0 && activeN < _cfg.Balance.MinActiveRarePerSlot)
                 hint = $"   <color=#e0a070>· needs {_cfg.Balance.MinActiveRarePerSlot} to apply</color>";
 
-            var hdr = UiKit.Label(parent, $"{title}   <color=#8a8f99>{activeN}/{cap}</color>{hint}", 13,
-                                  TextAnchor.UpperLeft, new Vector2(540f, 20f), Vector2.zero);
-            hdr.color = new Color(0.62f, 0.66f, 0.74f); hdr.supportRichText = true;
-            AnchorTL(hdr, new Vector2(20f, y - 4f));
-            y -= SectionH;
+            var hdr = PanelKit.Label(list, $"{title}   <color=#8a8f99>{activeN}/{cap}</color>{hint}", 13,
+                                     new Color(0.62f, 0.66f, 0.74f), TextAnchor.LowerLeft);
+            PanelKit.Fixed(hdr.gameObject, height: SectionHdrH);
 
             foreach (var (def, strength) in rows)
-            {
-                BuildRow(parent, def, strength, mods.Active.Contains(def.Id), applied.Contains(def.Id), y);
-                y -= RowH;
-            }
-            return y;
+                BuildRow(list, def, strength, mods.Active.Contains(def.Id), applied.Contains(def.Id));
         }
 
-        private void BuildRow(Transform parent, ModifierDef def, int strength, bool active, bool applies, float y)
+        private void BuildRow(RectTransform list, ModifierDef def, int strength, bool active, bool applies)
         {
             var save = _view.CurrentSave;
             double tuning = Modifiers.TuningOf(save, def.Id);
             double eff = strength * tuning; // shop tuning scales BOTH danger and reward
             bool tuned = tuning > 1.0001;   // any tuning bought over base?
 
-            // Title: name + banked strength. The "+x% tuned" jargon chip is gone — tuning now reads as
+            var row = PanelKit.Row(list, RowH);
+
+            // LEFT: name + effect sublines stacked in a non-expanding VStack cell (the 10.3 lesson —
+            // two-line text in a force-expand Row lives in a VStack slot, not two ballooning children).
+            // The cell takes the flexible width; the fixed control cells on the right keep their size.
+            var col = PanelKit.VStack(row, Theme.GapXs);
+            col.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
+
+            // Title: name + banked strength. The "+x% tuned" jargon chip is gone — tuning reads as the
             // per-number gold ▲ deltas on the summary line below (you see exactly what it bought).
-            var name = UiKit.Label(parent, $"{def.Name}   ·   str {strength}", 16, TextAnchor.UpperLeft, new Vector2(360f, 22f), Vector2.zero);
-            name.color = new Color((float)def.TintR, (float)def.TintG, (float)def.TintB) * 1.15f;
-            name.supportRichText = true;
-            AnchorTL(name, new Vector2(34f, y - 4f));
+            PanelKit.Label(col, $"{def.Name}   ·   str {strength}", 16,
+                new Color((float)def.TintR, (float)def.TintG, (float)def.TintB) * 1.15f, TextAnchor.UpperLeft);
 
             // Summary shows EFFECTIVE numbers (strength × tuning); when tuned, each number carries a
             // compact gold ▲ delta = effective − strength-only, so the tuning gain is legible per-stat.
             string inert = (active && !applies) ? "  ·  <color=#e0a070>inert (needs pair)</color>" : "";
-            var sub = UiKit.Label(parent,
+            PanelKit.Label(col,
                 $"{MonsterSummary(def, strength, eff)}  ·  <color=#9fe0a0>{RewardSummary(def, strength, eff)}</color>{inert}",
-                12, TextAnchor.UpperLeft, new Vector2(400f, 30f), Vector2.zero);
-            sub.color = new Color(0.78f, 0.82f, 0.88f);
-            sub.supportRichText = true;
-            AnchorTL(sub, new Vector2(34f, y - 28f));
+                12, new Color(0.78f, 0.82f, 0.88f), TextAnchor.UpperLeft);
+
+            // MIDDLE: rare rows show the imprint payload (hoverable); normal rows show Tune (+ Reset). Added
+            // before ON so the fixed cells read left→right: [reset] [Tune] [ON]  /  [imprint] [ON].
+            if (def.Mechanical)
+                BuildImprintPayload(row, def, strength);
+            else
+                BuildTuneControls(row, def, tuned);
 
             // ON/OFF (rightmost). Lock OFF rows only when THIS mod's own pool is full (per-pool cap).
             bool full = !active && Modifiers.PoolFull(save, _cfg, def);
-            // 10.13c: 32 -> 44 tall (touch floor). Grows downward inside the 64-unit row, clear of the row below.
-            var btn = UiKit.TextButton(parent, active ? "ON" : (full ? "FULL" : "OFF"), new Vector2(60f, 44f), Vector2.zero,
-                full ? (System.Action)(() => { }) : () => { _view.SetModifierActive(def.Id, !active); Rebuild(); }, 14);
-            btn.interactable = !full;
+            var btn = PanelKit.ButtonCell(row, active ? "ON" : (full ? "FULL" : "OFF"),
+                () => { _view.SetModifierActive(def.Id, !active); Rebuild(); },
+                width: 60f, fontSize: Theme.FsLabel, enabled: !full);
             var img = btn.GetComponent<Image>();
             if (img != null) img.color = active ? new Color(0.30f, 0.55f, 0.33f)
                                        : full ? new Color(0.22f, 0.24f, 0.28f) : new Color(0.30f, 0.32f, 0.38f);
-            AnchorTR((RectTransform)btn.transform, new Vector2(-14f, y - 2f));
-
-            if (def.Mechanical)
-                BuildImprintPayload(parent, def, strength, y); // rare rows: no Tune/Reset — show the imprint instead
-            else
-                BuildTuneControls(parent, def, tuned, y);      // normal rows: Tune (+ Reset when tuned)
         }
 
-        /// <summary>Right-side controls for a NORMAL mod: the Tune gamble button, and — only when the mod
-        /// has been tuned above base — a small "↺" reset that arms/confirms before forfeiting the gamble.</summary>
-        private void BuildTuneControls(Transform parent, ModifierDef def, bool tuned, float y)
+        /// <summary>Right-side controls for a NORMAL mod: an optional "↺" reset (only when tuned above
+        /// base; arms/confirms before forfeiting the gamble) then the Tune gamble button. Added left→right.</summary>
+        private void BuildTuneControls(RectTransform row, ModifierDef def, bool tuned)
         {
             var save = _view.CurrentSave;
 
-            // Tune (shop): gamble tuning with gold+scrap; cost rises as the mod climbs. CanUpgrade gates
-            // affordability; the label spells the cost out ("Tune ▲  {gold}g+{scrap}s").
-            var (g, s) = Modifiers.UpgradeCost(save, _cfg, def.Id);
-            bool canUp = Modifiers.CanUpgrade(save, _cfg, def.Id);
-            var up = UiKit.TextButton(parent, $"Tune ▲  {Num.CompactCeil(g)}g+{Num.CompactCeil(s)}s", new Vector2(150f, 44f), Vector2.zero, // 10.13c: 32 -> 44 tall (touch floor)
-                canUp ? () => { _view.UpgradeModifier(def.Id); Rebuild(); } : (System.Action)(() => { }), 12);
-            up.interactable = canUp;
-            var upImg = up.GetComponent<Image>();
-            if (upImg != null) upImg.color = canUp ? new Color(0.34f, 0.30f, 0.46f) : new Color(0.22f, 0.22f, 0.26f);
-            AnchorTR((RectTransform)up.transform, new Vector2(-84f, y - 2f));
-
-            if (!tuned) return; // nothing to reset on an untuned mod
-
             // Reset (free, but forfeits gambled tuning → two-click arm/confirm, mirroring the bag's
             // "Salvage all". First click arms ("sure?"), auto-disarms after a few seconds; second resets.
-            bool armed = _confirmResetId == def.Id;
-            // 10.13c: 32 -> 44 tall (touch floor); 58 wide already clears it.
-            var reset = UiKit.TextButton(parent, armed ? "sure?" : "↺", new Vector2(58f, 44f), Vector2.zero,
-                () => OnResetClick(def.Id), 14);
-            var rImg = reset.GetComponent<Image>();
-            if (rImg != null) rImg.color = armed ? new Color(0.62f, 0.22f, 0.22f) : new Color(0.30f, 0.28f, 0.34f);
-            AnchorTR((RectTransform)reset.transform, new Vector2(-238f, y - 2f));
+            if (tuned)
+            {
+                bool armed = _confirmResetId == def.Id;
+                var reset = PanelKit.ButtonCell(row, armed ? "sure?" : "↺", () => OnResetClick(def.Id),
+                    width: 58f, fontSize: Theme.FsLabel);
+                var rImg = reset.GetComponent<Image>();
+                if (rImg != null) rImg.color = armed ? new Color(0.62f, 0.22f, 0.22f) : new Color(0.30f, 0.28f, 0.34f);
+            }
+
+            // Tune (shop): gamble tuning with gold+scrap; cost rises as the mod climbs. CanUpgrade gates
+            // affordability (ButtonCell disables + greys, and swallows the click); the label spells the cost.
+            var (g, s) = Modifiers.UpgradeCost(save, _cfg, def.Id);
+            bool canUp = Modifiers.CanUpgrade(save, _cfg, def.Id);
+            var up = PanelKit.ButtonCell(row, $"Tune ▲  {Num.CompactCeil(g)}g+{Num.CompactCeil(s)}s",
+                () => { _view.UpgradeModifier(def.Id); Rebuild(); }, width: 150f, fontSize: Theme.FsTiny, enabled: canUp);
+            var upImg = up.GetComponent<Image>();
+            if (upImg != null) upImg.color = canUp ? new Color(0.34f, 0.30f, 0.46f) : new Color(0.22f, 0.22f, 0.26f);
         }
 
         /// <summary>Reset arm/confirm (free action, forfeits gambled tuning). First click arms this row and
@@ -266,21 +240,17 @@ namespace IdleGame.Game
             if (_canvas != null && _confirmResetId != null) { _confirmResetId = null; RebuildKeepConfirm(); }
         }
 
-        /// <summary>Rare (mechanical) row right side: the actual imprint payload spelled out — chance,
+        /// <summary>Rare (mechanical) row middle cell: the actual imprint payload spelled out — chance,
         /// value, stat, and slot — in the pool's purple, hoverable to preview the resulting gear.</summary>
-        private void BuildImprintPayload(Transform parent, ModifierDef def, int strength, float y)
+        private void BuildImprintPayload(RectTransform row, ModifierDef def, int strength)
         {
-            var lbl = UiKit.Label(parent, ImprintText(def, strength), 12, TextAnchor.UpperRight,
-                                  new Vector2(230f, 40f), Vector2.zero);
-            lbl.color = new Color(0.85f, 0.61f, 1f); // #d99bff purple, matching the rare pool
-            lbl.supportRichText = true;
+            var lbl = PanelKit.TextCell(row, ImprintText(def, strength), 12, new Color(0.85f, 0.61f, 1f),
+                                        TextAnchor.MiddleRight, width: 230f); // #d99bff purple, the rare pool
             lbl.raycastTarget = true; // hover target for the gear preview
-            AnchorTR((RectTransform)lbl.transform, new Vector2(-84f, y - 2f));
 
-            // Hover → mock item card anchored just left of the panel; exit destroys it. `parent` is the
-            // panel transform and `y` is the row's top-left layout Y (both feed the anchoring math).
-            UiKit.Hover(lbl.gameObject, () => ShowImprintPreview(def, strength, parent, y),
-                        DestroyImprintPreview);
+            // Hover → mock item card beside the hovered row; exit destroys it. The row's RectTransform
+            // drives the tooltip anchor (world-space), so it tracks wherever the scroll placed the row.
+            UiKit.Hover(lbl.gameObject, () => ShowImprintPreview(def, strength, row), DestroyImprintPreview);
         }
 
         /// <summary>Inline imprint payload text: "✦ {chance}% of drops: +{value} {stat} ({prefix|suffix})".
@@ -298,28 +268,27 @@ namespace IdleGame.Game
 
         /// <summary>Build the mock item-card tooltip beside a rare row: a generic drop ("Any {slot} drop")
         /// with two muted normal affix lines, then the imprint bonus line in purple with a "✦ imprinted"
-        /// tag — communicating "your normal drop, PLUS this bonus line". Parented to the panel and pinned
-        /// just OUTSIDE its left edge (the panel is screen-centered, so this stays well inside the canvas);
-        /// its Y is clamped to the panel height so a bottom-row hover doesn't push the card off-screen.</summary>
-        private void ShowImprintPreview(ModifierDef def, int strength, Transform panel, float rowY)
+        /// tag — communicating "your normal drop, PLUS this bonus line". Parented to the CANVAS (not the
+        /// panel — the Window panel's RectMask2D would clip a tooltip that sits outside it) and pinned by
+        /// the hovered row's world position so it tracks the row wherever the scroll placed it.</summary>
+        private void ShowImprintPreview(ModifierDef def, int strength, RectTransform row)
         {
             DestroyImprintPreview();
             if (_canvas == null) return;
 
-            // Parent to the panel so positioning is panel-local (top-left origin, matching the rows).
-            var card = UiKit.Panel(panel, new Vector2(PreviewW, PreviewH), new Color(0.06f, 0.07f, 0.10f, 0.99f));
+            // Parent to the canvas so the panel mask can't clip the card; the card's own top-left origin
+            // still drives its internal AnchorTL labels below.
+            var card = UiKit.Panel(_canvas.transform, new Vector2(PreviewW, PreviewH), new Color(0.06f, 0.07f, 0.10f, 0.99f));
             _imprintPreview = card.gameObject;
             var crt = card.rectTransform;
-            crt.anchorMin = crt.anchorMax = new Vector2(0f, 1f); // panel top-left
-            crt.pivot = new Vector2(1f, 1f);                     // card's top-right corner is the anchor point
+            crt.pivot = new Vector2(1f, 1f); // top-right corner is the anchor point — the card grows down-left
 
-            // Sit just left of the panel's left edge, top-aligned with the hovered row. Clamp the bottom
-            // so a low row can't push the card past the panel bottom (simple y-clamp per the design note).
-            float panelH = ((RectTransform)panel).sizeDelta.y;
-            // Card top = rowY (≤0), extending down PreviewH. Clamp so the bottom (top − PreviewH) stays
-            // within the panel: top ≥ −panelH + PreviewH. (rowY is already ≤ 0, so no upper clamp needed.)
-            float top = Mathf.Max(rowY, -panelH + PreviewH);
-            crt.anchoredPosition = new Vector2(-8f, top);        // -8 = small gap outside the left edge
+            // Pin the card's top-right corner just left of the hovered row's top-left (world-space, so it
+            // follows the row inside the scroll). Overlay canvas world coords == screen pixels, so setting
+            // .position places the card correctly regardless of layout.
+            var corners = new Vector3[4];
+            row.GetWorldCorners(corners); // [1] = top-left
+            crt.position = corners[1] + new Vector3(-8f, 0f, 0f); // -8 = small gap left of the row
 
             // "Any gear drop" — the prefix/suffix word describes the AFFIX position (shown in the row
             // text), not which items can drop; any gear slot can carry the imprint.
@@ -456,18 +425,13 @@ namespace IdleGame.Game
             _ => k.ToString(),
         };
 
+        /// <summary>Top-left anchor helper for the imprint tooltip's own fixed-size internals (the card is
+        /// a self-contained 230×120 mock, not one of the migrated windows — its labels stay hand-anchored).</summary>
         private static void AnchorTL(Component c, Vector2 pos)
         {
             var rt = (RectTransform)c.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(0f, 1f);
             rt.pivot = new Vector2(0f, 1f);
-            rt.anchoredPosition = pos;
-        }
-
-        private static void AnchorTR(RectTransform rt, Vector2 pos)
-        {
-            rt.anchorMin = rt.anchorMax = new Vector2(1f, 1f);
-            rt.pivot = new Vector2(1f, 1f);
             rt.anchoredPosition = pos;
         }
     }

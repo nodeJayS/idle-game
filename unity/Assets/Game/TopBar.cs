@@ -79,156 +79,84 @@ namespace IdleGame.Game
 
         private void OpenSettings()
         {
-            var canvas = UiKit.CreateCanvas("SettingsCanvas", transform, sortOrder: 120);
-            _settings = canvas.gameObject;
-            UiKit.FullScreen(canvas.transform, new Color(0f, 0f, 0f, 0.6f));
+            // PanelKit.Window (sortOrder 120, above everything): header (title + Close) + a scrolling
+            // body of rows, with the Main Menu / Exit / Close verbs pinned below the scroll. onClose is
+            // ToggleSettings so the header Close obeys the same open/close toggle the gear button drives.
+            var winGo = PanelKit.Window(transform, "Settings", ToggleSettings, out var body,
+                                        "SettingsCanvas", sortOrder: 120, max: new Vector2(620f, 680f));
+            _settings = winGo; // Window returns the canvas GO — ToggleSettings destroys it to close
+            PanelKit.Stack(body); // the body is a bare Flex until stacked — without this every row
+                                  // collapses to a centered zero-size rect (Play-caught 10.13d)
 
-            var panel = UiKit.Panel(canvas.transform, new Vector2(560, 720), new Color(0.10f, 0.10f, 0.14f, 1f));
-            UiKit.Label(panel.transform, "Settings", 30, TextAnchor.MiddleCenter, new Vector2(520, 42), new Vector2(0, 310));
+            // The row count (name + 3 sliders + 5 toggles + 3 quality rows) overflows the phone-canvas
+            // window height, so the rows scroll; the verb row stays fixed at the panel bottom.
+            var list = UiKit.ScrollColumnFill(body, spacing: Theme.GapS);
 
-            UiKit.Label(panel.transform, "Name", 22, TextAnchor.MiddleLeft, new Vector2(120, 44), new Vector2(-200, 248));
-            UiKit.TextInput(panel.transform, Account.Name, new Vector2(280, 56), new Vector2(70, 248),
+            // Name: label + a rename field wrapped in a flexible layout cell (a LayoutElement, the way
+            // ButtonCell wraps its button). Commit semantics unchanged — on end-edit, set Account.Name
+            // and refresh the HUD chip's display label.
+            var nameRow = PanelKit.Row(list, Theme.BtnH);
+            PanelKit.TextCell(nameRow, "Name", Theme.FsH2, Theme.TextBright, TextAnchor.MiddleLeft, width: 120f);
+            var input = UiKit.TextInput(nameRow, Account.Name, new Vector2(280f, 44f), Vector2.zero,
                 s => { Account.Name = s; _nameLabel.text = Account.Display; });
+            var inLe = input.gameObject.AddComponent<LayoutElement>();
+            inLe.flexibleWidth = 1f; inLe.minWidth = 200f;
 
-            float y = 190f;
-            SliderRow(panel.transform, "Master Volume", () => Settings.MasterVolume,
-                v => { Settings.MasterVolume = v; AudioListener.volume = v; }, ref y);
-            SliderRow(panel.transform, "SFX Volume", () => Settings.SfxVolume,
-                v => Settings.SfxVolume = v, ref y);
-            SliderRow(panel.transform, "Ambience Volume", () => Settings.AmbienceVolume,
-                v => Settings.AmbienceVolume = v, ref y); // 10.9c beds read this live
+            PanelKit.SliderRow(list, "Master Volume", () => Settings.MasterVolume,
+                v => { Settings.MasterVolume = v; AudioListener.volume = v; });
+            PanelKit.SliderRow(list, "SFX Volume", () => Settings.SfxVolume, v => Settings.SfxVolume = v);
+            PanelKit.SliderRow(list, "Ambience Volume", () => Settings.AmbienceVolume,
+                v => Settings.AmbienceVolume = v); // 10.9c beds read this live
 
-            y -= 8f; // small gap before the effect toggles
-            ToggleRow(panel.transform, "Damage Numbers", () => Settings.DamageNumbers, v => Settings.DamageNumbers = v, ref y);
-            ToggleRow(panel.transform, "Screen Shake", () => Settings.ScreenShake, v => Settings.ScreenShake = v, ref y);
-            ToggleRow(panel.transform, "Loot Feed", () => Settings.LootFeed, v => Settings.LootFeed = v, ref y);
-            ToggleRow(panel.transform, "Projectiles", () => Settings.Projectiles, v => Settings.Projectiles = v, ref y);
-            ToggleRow(panel.transform, "Spawn Animations", () => Settings.SpawnAnimations, v => Settings.SpawnAnimations = v, ref y);
+            ToggleRow(list, "Damage Numbers", () => Settings.DamageNumbers, v => Settings.DamageNumbers = v);
+            ToggleRow(list, "Screen Shake", () => Settings.ScreenShake, v => Settings.ScreenShake = v);
+            ToggleRow(list, "Loot Feed", () => Settings.LootFeed, v => Settings.LootFeed = v);
+            ToggleRow(list, "Projectiles", () => Settings.Projectiles, v => Settings.Projectiles = v);
+            ToggleRow(list, "Spawn Animations", () => Settings.SpawnAnimations, v => Settings.SpawnAnimations = v);
 
             // Quality tier (10.12d): the weak-hardware levers, applied live via GraphicsQuality.
-            CycleRow(panel.transform, "Render Scale",
+            CycleRow(list, "Render Scale",
                 () => Settings.RenderScale >= 0.99f ? "100%" : Settings.RenderScale >= 0.74f ? "75%" : "60%",
                 () =>
                 {
                     Settings.RenderScale = Settings.RenderScale >= 0.99f ? 0.75f
                                          : Settings.RenderScale >= 0.74f ? 0.6f : 1f;
                     GraphicsQuality.Apply();
-                }, ref y);
-            ToggleRow(panel.transform, "Shadows", () => Settings.Shadows,
-                v => { Settings.Shadows = v; GraphicsQuality.Apply(); }, ref y);
-            ToggleRow(panel.transform, "Post FX", () => Settings.PostFx,
-                v => { Settings.PostFx = v; GraphicsQuality.Apply(); }, ref y);
+                });
+            ToggleRow(list, "Shadows", () => Settings.Shadows,
+                v => { Settings.Shadows = v; GraphicsQuality.Apply(); });
+            ToggleRow(list, "Post FX", () => Settings.PostFx,
+                v => { Settings.PostFx = v; GraphicsQuality.Apply(); });
 
-            // One button row (the extra quality rows ate the old two-row layout's space).
-            UiKit.TextButton(panel.transform, "Main Menu", new Vector2(168, 56), new Vector2(-176, -290),
-                () => { Destroy(_settings); _settings = null; _onMainMenu(); });
-            UiKit.TextButton(panel.transform, "Exit Game", new Vector2(168, 56), new Vector2(0, -290), Quit);
-            UiKit.TextButton(panel.transform, "Close", new Vector2(168, 56), new Vector2(176, -290), ToggleSettings);
+            // Verb row (fixed, below the scroll): three ≥48 buttons.
+            var verbs = PanelKit.Row(body, Theme.BtnH);
+            PanelKit.ButtonCell(verbs, "Main Menu",
+                () => { Destroy(_settings); _settings = null; _onMainMenu(); }, fontSize: Theme.FsBody);
+            PanelKit.ButtonCell(verbs, "Exit Game", Quit, fontSize: Theme.FsBody);
+            PanelKit.ButtonCell(verbs, "Close", ToggleSettings, fontSize: Theme.FsBody);
         }
 
-        /// <summary>A labelled cycle button (tap advances to the next option) laid out like
-        /// <see cref="ToggleRow"/> — for small enumerated settings (render scale steps).</summary>
-        private void CycleRow(Transform parent, string label, Func<string> current, Action advance, ref float y)
+        /// <summary>A labelled cycle button (tap advances to the next option), composed from the kit —
+        /// for small enumerated settings (render scale steps). Rides the 44 touch floor.</summary>
+        private void CycleRow(RectTransform parent, string label, Func<string> current, Action advance)
         {
-            UiKit.Label(parent, label, 22, TextAnchor.MiddleLeft, new Vector2(320, 44), new Vector2(-90, y));
+            var row = PanelKit.Row(parent, Theme.TouchMin);
+            PanelKit.TextCell(row, label, Theme.FsH2, Theme.TextBright, TextAnchor.MiddleLeft, flex: 1f);
             Text? t = null;
-            var btn = UiKit.TextButton(parent, current(), new Vector2(120, 44), new Vector2(180, y),
-                () => { advance(); if (t != null) t.text = current(); });
+            var btn = PanelKit.ButtonCell(row, current(),
+                () => { advance(); if (t != null) t.text = current(); }, width: 120f, fontSize: Theme.FsBody);
             t = btn.GetComponentInChildren<Text>();
-            y -= 46f;
         }
 
-        private void ToggleRow(Transform parent, string label, Func<bool> get, Action<bool> set, ref float y)
+        /// <summary>A labelled On/Off toggle button, composed from the kit. Rides the 44 touch floor.</summary>
+        private void ToggleRow(RectTransform parent, string label, Func<bool> get, Action<bool> set)
         {
-            UiKit.Label(parent, label, 22, TextAnchor.MiddleLeft, new Vector2(320, 44), new Vector2(-90, y));
+            var row = PanelKit.Row(parent, Theme.TouchMin);
+            PanelKit.TextCell(row, label, Theme.FsH2, Theme.TextBright, TextAnchor.MiddleLeft, flex: 1f);
             Text? t = null;
-            var btn = UiKit.TextButton(parent, get() ? "On" : "Off", new Vector2(120, 44), new Vector2(180, y),
-                () => { set(!get()); if (t != null) t.text = get() ? "On" : "Off"; });
+            var btn = PanelKit.ButtonCell(row, get() ? "On" : "Off",
+                () => { set(!get()); if (t != null) t.text = get() ? "On" : "Off"; }, width: 120f, fontSize: Theme.FsBody);
             t = btn.GetComponentInChildren<Text>();
-            y -= 46f; // tightened from 52 when the 10.12d quality rows joined the column
-        }
-
-        /// <summary>A labelled 0..1 volume slider row, laid out like <see cref="ToggleRow"/>: label
-        /// on the left, the control (here a slider + live % readout) on the right. Applies live via
-        /// <paramref name="set"/> on every drag and persists through the Settings property.</summary>
-        private void SliderRow(Transform parent, string label, Func<float> get, Action<float> set, ref float y)
-        {
-            UiKit.Label(parent, label, 22, TextAnchor.MiddleLeft, new Vector2(320, 44), new Vector2(-90, y));
-
-            float start = Mathf.Clamp01(get());
-            Text? pct = null;
-
-            // Track (background)
-            var trackGo = new GameObject("Slider", typeof(RectTransform));
-            trackGo.transform.SetParent(parent, false);
-            var trackImg = trackGo.AddComponent<Image>();
-            trackImg.color = new Color(0.18f, 0.20f, 0.26f);
-            var trackRt = (RectTransform)trackGo.transform;
-            trackRt.anchorMin = trackRt.anchorMax = new Vector2(0.5f, 0.5f);
-            trackRt.sizeDelta = new Vector2(160, 16);
-            trackRt.anchoredPosition = new Vector2(150, y);
-
-            var slider = trackGo.AddComponent<Slider>();
-            slider.transition = Selectable.Transition.None;
-
-            // Half the handle width — the Fill Area and Handle Slide Area inset by this so the
-            // round handle stays inside the track ends and the fill doesn't overshoot (mirrors
-            // Unity's default slider prefab layout; without it stray fill/handle slivers render).
-            const float pad = 13f;
-
-            // Fill
-            var fillArea = new GameObject("Fill Area", typeof(RectTransform));
-            fillArea.transform.SetParent(trackGo.transform, false);
-            var fillAreaRt = (RectTransform)fillArea.transform;
-            fillAreaRt.anchorMin = new Vector2(0f, 0f);
-            fillAreaRt.anchorMax = new Vector2(1f, 1f);
-            fillAreaRt.offsetMin = new Vector2(pad, 0f);
-            fillAreaRt.offsetMax = new Vector2(-pad, 0f);
-            var fillGo = new GameObject("Fill", typeof(RectTransform));
-            fillGo.transform.SetParent(fillArea.transform, false);
-            var fillImg = fillGo.AddComponent<Image>();
-            fillImg.color = new Color(0.35f, 0.55f, 0.85f);
-            var fillRt = (RectTransform)fillGo.transform;
-            fillRt.anchorMin = new Vector2(0f, 0f);
-            fillRt.anchorMax = new Vector2(0f, 1f);
-            fillRt.offsetMin = Vector2.zero;
-            fillRt.offsetMax = Vector2.zero;
-            fillRt.sizeDelta = new Vector2(0f, 0f);
-
-            // Handle
-            var handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
-            handleArea.transform.SetParent(trackGo.transform, false);
-            var handleAreaRt = (RectTransform)handleArea.transform;
-            handleAreaRt.anchorMin = new Vector2(0f, 0f);
-            handleAreaRt.anchorMax = new Vector2(1f, 1f);
-            handleAreaRt.offsetMin = new Vector2(pad, 0f);
-            handleAreaRt.offsetMax = new Vector2(-pad, 0f);
-            var handleGo = new GameObject("Handle", typeof(RectTransform));
-            handleGo.transform.SetParent(handleArea.transform, false);
-            var handleImg = handleGo.AddComponent<Image>();
-            handleImg.sprite = UiKit.CircleSprite();
-            handleImg.color = new Color(0.85f, 0.88f, 0.95f);
-            var handleRt = (RectTransform)handleGo.transform;
-            handleRt.sizeDelta = new Vector2(26, 26);
-
-            slider.fillRect = fillRt;
-            slider.handleRect = handleRt;
-            slider.targetGraphic = handleImg;
-            slider.direction = Slider.Direction.LeftToRight;
-            slider.minValue = 0f;
-            slider.maxValue = 1f;
-            slider.value = start;
-
-            pct = UiKit.Label(parent, Mathf.RoundToInt(start * 100f) + "%", 20,
-                TextAnchor.MiddleLeft, new Vector2(70, 44), new Vector2(244, y));
-
-            slider.onValueChanged.AddListener(v =>
-            {
-                set(v);
-                if (pct != null) pct.text = Mathf.RoundToInt(v * 100f) + "%";
-            });
-
-            y -= 46f; // tightened from 52 when the 10.12d quality rows joined the column
         }
 
         private void Quit()
