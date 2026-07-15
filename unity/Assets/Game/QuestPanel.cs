@@ -139,7 +139,9 @@ namespace IdleGame.Game
             _introRows.Clear(); _introLabels.Clear(); _introDone.Clear(); _introHeaderGo = null; _introOffset = 0f;
 
             float h = _collapsed ? HeaderH : _size.y;
-            var panel = UiKit.Panel(_canvas.transform, new Vector2(_size.x, h), new Color(0.08f, 0.08f, 0.11f, 0.92f));
+            // Corner-anchored HUD: build under the canvas's SafeRoot so it insets from device notches.
+            // On desktop SafeRoot == the canvas rect, so position/drag/clamp behave byte-identically.
+            var panel = UiKit.Panel(UiKit.SafeRoot(_canvas), new Vector2(_size.x, h), new Color(0.08f, 0.08f, 0.11f, 0.92f));
             var prt = panel.rectTransform;
             prt.anchorMin = prt.anchorMax = new Vector2(0f, 0.5f);
             prt.pivot = new Vector2(0f, 1f);            // anchor by the top-left corner (same as chat)
@@ -326,8 +328,13 @@ namespace IdleGame.Game
 
         private void ClearCanvas()
         {
-            for (int i = _canvas.transform.childCount - 1; i >= 0; i--)
-                Destroy(_canvas.transform.GetChild(i).gameObject);
+            // Clear the SafeRoot's children (the window), NOT the canvas's — the SafeRoot must survive
+            // a rebuild. Destroy is deferred to end-of-frame, so nuking the canvas here would mark the
+            // SafeRoot for destruction and the very next SafeRoot() would re-find that doomed object,
+            // parenting the fresh window under it only to die with it. SafeRoot() re-creates it lazily.
+            var root = UiKit.SafeRoot(_canvas);
+            for (int i = root.childCount - 1; i >= 0; i--)
+                Destroy(root.GetChild(i).gameObject);
         }
 
         private static void Anchor(RectTransform rt, Vector2 anchor, Vector2 pivot, Vector2 pos)

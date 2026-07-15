@@ -25,28 +25,31 @@ namespace IdleGame.Game
         public void Open()
         {
             var canvas = UiKit.CreateCanvas("TopBarCanvas", transform, sortOrder: 85);
+            // Corner-anchored HUD: build under the SafeRoot so the chip insets from device notches.
+            // On desktop SafeRoot == the canvas rect, so the top-left anchoring is byte-identical.
+            var root = UiKit.SafeRoot(canvas);
 
             // Screen-edge insets come from Theme.HudPad; the name label's (84,-30) and the
             // Settings button's -80 are INTERNAL offsets (beside/below the 56px avatar), kept
             // literal — deriving them from the pad would only obscure the chip's layout.
-            var circle = UiKit.Circle(canvas.transform, 56f, AvatarColor(Account.Name), Vector2.zero);
+            var circle = UiKit.Circle(root, 56f, AvatarColor(Account.Name), Vector2.zero);
             Anchor(circle.rectTransform, new Vector2(Theme.HudPad, -Theme.HudPad));
             var initials = UiKit.Label(circle.transform, Initials(Account.Name), 24, TextAnchor.MiddleCenter,
                                        new Vector2(56, 56), Vector2.zero);
             initials.color = new Color(0.1f, 0.1f, 0.12f);
 
-            _nameLabel = UiKit.Label(canvas.transform, Account.Display, 20, TextAnchor.MiddleLeft,
+            _nameLabel = UiKit.Label(root, Account.Display, 20, TextAnchor.MiddleLeft,
                                      new Vector2(300, 30), Vector2.zero);
             Anchor((RectTransform)_nameLabel.transform, new Vector2(84, -30));
 
             // 10.8e: the account chip carries the endless depth record (the Phase-C leaderboard
             // seam). Hidden (empty) until the first endless clear; Update() polls change-only.
-            _recordLabel = UiKit.Label(canvas.transform, "", 15, TextAnchor.MiddleLeft,
+            _recordLabel = UiKit.Label(root, "", 15, TextAnchor.MiddleLeft,
                                        new Vector2(300, 22), Vector2.zero);
             _recordLabel.color = new Color(1f, 0.82f, 0.32f, 0.95f);
             Anchor((RectTransform)_recordLabel.transform, new Vector2(84, -54));
 
-            var gear = UiKit.TextButton(canvas.transform, "Settings", new Vector2(104, 34), Vector2.zero, ToggleSettings, 18);
+            var gear = UiKit.TextButton(root, "Settings", new Vector2(104, 34), Vector2.zero, ToggleSettings, 18);
             Anchor((RectTransform)gear.transform, new Vector2(Theme.HudPad, -80));
         }
 

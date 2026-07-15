@@ -62,6 +62,27 @@ namespace IdleGame.Game
             go.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
         }
 
+        /// <summary>Get-or-create a full-stretch "SafeRoot" child of <paramref name="canvas"/>
+        /// carrying a <see cref="SafeArea"/>, and return its RectTransform. Build corner-anchored HUD
+        /// surfaces under it so they inset from device notches / rounded corners; centered windows
+        /// don't collide with a LANDSCAPE notch, so only corner surfaces need this now (panel/window
+        /// migration is slice 10.13c). Idempotent — finds the existing child by name first. On desktop
+        /// the SafeArea is a no-op, so the SafeRoot rect == the canvas rect and nothing shifts.</summary>
+        public static RectTransform SafeRoot(Canvas canvas)
+        {
+            var existing = canvas.transform.Find("SafeRoot");
+            if (existing != null) return (RectTransform)existing;
+
+            var go = new GameObject("SafeRoot", typeof(RectTransform));
+            go.transform.SetParent(canvas.transform, false);
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = rt.offsetMax = Vector2.zero;
+            go.AddComponent<SafeArea>();
+            return rt;
+        }
+
         public static Image Panel(Transform parent, Vector2 size, Color color, Vector2 pos = default)
         {
             var go = new GameObject("Panel", typeof(RectTransform));

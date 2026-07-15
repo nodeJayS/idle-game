@@ -19,6 +19,11 @@ namespace IdleGame.Game
         public float MinDistance = 13f;
         public float MaxDistance = 40f;       // max zoom-out (the default framing)
         public float ZoomSensitivity = 0.03f; // per scroll unit (~120/notch); scaled to the range
+        // Per PIXEL of two-finger pinch separation change. Derivation mirrors ZoomSensitivity's
+        // per-notch scaling: a ~360px pinch (half the 720p reference height) should sweep roughly the
+        // FULL zoom range MaxDistance-MinDistance = 40-13 = 27u, so 27/360 ≈ 0.075. Touch-only path;
+        // the mouse-wheel block is untouched.
+        public float PinchSensitivity = 0.075f;
         // Dead-zone follow (anti-dizziness): the camera does NOT track the party continuously —
         // at the magnified ortho framing every centroid wiggle became a full-screen slide with
         // no parallax anchor. Instead the rig holds a focus F and a target T (party centroid +
@@ -121,6 +126,14 @@ namespace IdleGame.Game
                 if (Mathf.Abs(scroll) > 0.01f)
                     _distance = Mathf.Clamp(_distance - scroll * ZoomSensitivity, MinDistance, MaxDistance);
             }
+
+            // Touch pinch: spreading fingers (positive delta) zoom IN, i.e. shrink _distance — the same
+            // sign convention as the wheel. TouchGestures owns per-frame state, so this LateUpdate is
+            // its sole once-per-frame caller. The >0.5px gate drops sub-pixel jitter; a pinch that began
+            // over an open uGUI window returns 0 (gated at pinch start), so windows don't zoom the world.
+            float pinch = TouchGestures.PinchDelta();
+            if (Mathf.Abs(pinch) > 0.5f)
+                _distance = Mathf.Clamp(_distance - pinch * PinchSensitivity, MinDistance, MaxDistance);
 
             // Ortho zoom: the visible extent is orthographicSize, tied to _distance so the zoom
             // range (Min/MaxDistance) maps to the same framing as the old perspective push-in.
