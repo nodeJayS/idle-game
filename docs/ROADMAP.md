@@ -54,15 +54,14 @@ Also parked, deliberately not goals: real-money gems · server authority
 build-reveal anim · tilt-shift band-blur · SDF jiggle-rope tail · crypt
 mid-run merchant/boon-draft (never dilute dust's permanent role).
 
-**10.13 Touch-first UI reflow (MM1) — (a)-(d) SHIPPED 2026-07-14
-(ledger).** Remaining coda (e): the last INTERACTIVE IMGUI → uGUI —
-DrawTopControls (top-centre stage nav / Challenge / Exit / 2x) and
-DrawModesPanel (the mode-select menu); non-interactive IMGUI (party
-chips, currency HUD, world health bars) can stay for now (touch
-doesn't care; migrate when touched). NEW KIT FOOT-GUN (Play-caught):
-a PanelKit.Window's `body` is a bare Flex — call `PanelKit.Stack(body)`
-(or add a layout group) BEFORE adding rows, or every child collapses
-to a centered zero-size blob.
+**10.13 Touch-first UI reflow (MM1) — COMPLETE 2026-07-15 (ledger).**
+Non-interactive IMGUI deliberately remains (party chips, currency HUD,
+world health bars — no touch semantics; migrate when touched; the
+IMGUI Button helpers stay for the chips). KIT FOOT-GUNS that BITE:
+a PanelKit.Window's `body` is a bare Flex — `PanelKit.Stack(body)`
+BEFORE adding rows or every child collapses to a centered zero-size
+blob (Play-caught); Modal's body ALREADY carries the layout group —
+never Stack it (double-add).
 
 **10.14 The 30-second session (MM2).** Design the three session shapes
 (30s claim / 5min push / 30min binge) and optimize the first
@@ -153,12 +152,13 @@ a reducer silently strips them — grep `new Item` / `new HeroInstance`
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
-- 2026-07-14 10.13(a-d) touch-first UI reflow: SafeArea plumbing +
-  pinch zoom (a) · uGUI thumb-reach NavBar replaced the IMGUI control
-  bar, all bar contracts carried (b) · 44pt floors + safe-inset panels
-  over full-bleed dims, audit-driven (c) · Settings/TowerView/
-  ModifierPanel/MainMenu onto PanelKit + SliderRow primitive — ZERO
-  hand-placed windows remain (d). All Play-verified at 2340×1080.
+- 2026-07-14/15 10.13 touch-first UI reflow COMPLETE: SafeArea
+  plumbing + pinch zoom (a) · uGUI thumb-reach NavBar replaced the
+  IMGUI control bar (b) · 44pt floors + safe-inset panels over
+  full-bleed dims, audit-driven (c) · Settings/TowerView/ModifierPanel/
+  MainMenu onto PanelKit + SliderRow — ZERO hand-placed windows (d) ·
+  TopControls strip + ModesWindow retire the last interactive IMGUI
+  (e). All Play-verified at 2340×1080 through real button clicks.
 - 2026-07-14 Tower per-floor reward bundles: first clear banks gold +
   a boss-loot bundle in `Tower.RecordClear` (exploit-proof gate; kills
   still pay nothing), anchored to `Tower.StageEquivalent` (floor 30 ≈
