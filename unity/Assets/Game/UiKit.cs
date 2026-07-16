@@ -265,6 +265,25 @@ namespace IdleGame.Game
             lrt.offsetMin = new Vector2(2, 2); lrt.offsetMax = new Vector2(-2, -2);
             lbl.color = rarity != null ? Palette.Rarity(rarity.Value) : new Color(0.55f, 0.58f, 0.63f);
             lbl.raycastTarget = false;
+
+            // 10.20b glyph channel: the rarity mark in the tile's BOTTOM-RIGHT corner, inside the
+            // inner bg, so the tier reads without color vision. Bottom-right is the one free corner
+            // of the badge layout — top-right = upgrade ▲, top-left = imprint ✦, bottom-left = the
+            // [L] lock tag. A subtle marker, not a badge — FsTiny, near-white, never a raycast
+            // target (the border Image owns the tile's clicks). Built after the centre label so it
+            // draws on top; Normal's empty mark keeps baseline tiles clean, mirroring the
+            // borderless treatment.
+            string mark = rarity != null ? Palette.RarityMark(rarity.Value) : "";
+            if (mark.Length > 0)
+            {
+                var mk = Label(inner.transform, mark, Theme.FsTiny, TextAnchor.LowerRight,
+                               new Vector2(16f, 16f), Vector2.zero);
+                var mrt = (RectTransform)mk.transform;
+                mrt.anchorMin = mrt.anchorMax = mrt.pivot = new Vector2(1f, 0f);
+                mrt.anchoredPosition = new Vector2(-2f, 2f);
+                mk.color = new Color(1f, 1f, 1f, 0.9f);
+                mk.raycastTarget = false;
+            }
             return go;
         }
 

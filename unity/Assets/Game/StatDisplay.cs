@@ -85,6 +85,17 @@ namespace IdleGame.Game
         /// <summary>Player-facing rarity name for the detail status line ("Rare", "Legendary", …).</summary>
         public static string RarityName(Rarity r) => r.ToString();
 
+        /// <summary>The rarity name led by its <see cref="Palette.RarityMark"/> glyph ("● Rare") — the
+        /// text form of the 10.20b shape channel, for every DISPLAY site that renders a rarity word in
+        /// its rarity color. Collapses to the bare name for Normal (unmarked by design). A plain space,
+        /// not a thin space — UIFont's thin-space coverage is unverified, and a tofu box would be worse
+        /// than the wider gap.</summary>
+        public static string RarityTag(Rarity r)
+        {
+            string mark = Palette.RarityMark(r);
+            return mark.Length > 0 ? mark + " " + RarityName(r) : RarityName(r);
+        }
+
         /// <summary>Player-facing flavor for an imprint affix (a mechanical-modifier signature) — shown
         /// instead of a raw stat number, since these are under-the-hood mechanics. E.g. heroes already
         /// splash, so the splash imprint reads as "wider splash radius".</summary>

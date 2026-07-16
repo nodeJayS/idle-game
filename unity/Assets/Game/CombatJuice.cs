@@ -46,6 +46,11 @@ namespace IdleGame.Game
         public void LootPop(Vector3 worldPos, string text, Rarity rarity)
         {
             var color = Palette.Rarity(rarity);
+            // 10.20b: lead with the rarity mark so the pop's tier reads by shape, not just tint.
+            // The empty-mark guard is deliberate even though pops are Rare+ today (commons stay
+            // feed-only) — that's caller policy, not this method's contract.
+            string mark = Palette.RarityMark(rarity);
+            if (mark.Length > 0) text = mark + " " + text;
             var label = NewText(text, rarity >= Rarity.Unique ? 26 : 22, color);
             label.gameObject.AddComponent<FloatingText>()
                  .Configure(label, _cam, worldPos, 2.0f, 1.5f, color); // rises higher, lingers

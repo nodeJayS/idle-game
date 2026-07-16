@@ -1593,7 +1593,12 @@ namespace IdleGame.Game
                         _chat?.AddFeed($"Floor bundle: +{Num.CompactFloor(reward.Gold)} gold · {items} item{(items == 1 ? "" : "s")}",
                                        new Color(0.9f, 0.8f, 0.45f));
                         foreach (var it in reward.Stored)
-                            _chat?.AddFeed($"{StatDisplay.ItemName(it, _cfg)} (i{it.ItemLevel})", Palette.Rarity(it.Rarity));
+                        {
+                            // Same voice as the loot-rain feed, incl. the 10.20b rarity mark (shape channel).
+                            string mark = Palette.RarityMark(it.Rarity);
+                            _chat?.AddFeed($"{(mark.Length > 0 ? mark + " " : "")}{StatDisplay.ItemName(it, _cfg)} (i{it.ItemLevel})",
+                                           Palette.Rarity(it.Rarity));
+                        }
                         if (reward.ScrapGained > 0)
                             _chat?.AddFeed($"Auto-salvaged {reward.Salvaged.Count} → +{reward.ScrapGained} scrap.",
                                            new Color(0.7f, 0.75f, 0.82f));
@@ -2497,8 +2502,10 @@ namespace IdleGame.Game
                         {
                             // Tag the loot-rain line when the drop is a real upgrade (Lever 2), so a
                             // kill visibly matters in the stream you're watching. Skip items the
-                            // loot filter will scrap anyway (no point, and saves the eval).
-                            string line = $"{StatDisplay.ItemName(ev.Item, _cfg)} (i{ev.Item.ItemLevel})";
+                            // loot filter will scrap anyway (no point, and saves the eval). The
+                            // leading rarity mark (10.20b) is the shape channel beside the line's color.
+                            string mark = Palette.RarityMark(ev.Item.Rarity);
+                            string line = $"{(mark.Length > 0 ? mark + " " : "")}{StatDisplay.ItemName(ev.Item, _cfg)} (i{ev.Item.ItemLevel})";
                             bool keep = !Inventory.WouldAutoSalvage(_save, ev.Item, _cfg);
                             var up = keep ? Upgrades.BestForItem(_save, ev.Item, _cfg, _save.Progress.CurrentStage) : null;
                             if (up != null && up.Verdict == Upgrades.Verdict.Upgrade)

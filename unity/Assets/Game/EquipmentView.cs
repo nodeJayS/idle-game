@@ -389,7 +389,7 @@ namespace IdleGame.Game
             // Titled imprints ("Volatile … of Leeching") can run long — auto-shrink to fit one line.
             nameLbl.resizeTextForBestFit = true; nameLbl.resizeTextMaxSize = Theme.FsH2; nameLbl.resizeTextMinSize = 11;
 
-            PanelKit.Label(_detail, StatDisplay.RarityName(item.Rarity), Theme.FsSmall, Palette.Rarity(item.Rarity), TextAnchor.MiddleLeft);
+            PanelKit.Label(_detail, StatDisplay.RarityTag(item.Rarity), Theme.FsSmall, Palette.Rarity(item.Rarity), TextAnchor.MiddleLeft);
             PanelKit.Label(_detail, $"{SlotOf(item)} · item level {item.ItemLevel}", Theme.FsSmall, Theme.TextBright, TextAnchor.MiddleLeft);
 
             var affixes = new List<Affix>(item.Affixes);

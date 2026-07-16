@@ -212,7 +212,7 @@ namespace IdleGame.Game
                 // Explicit 0s: the Row's force-expand would stretch the chip to full row height
                 // otherwise (an explicit LayoutElement value overrides forceExpand).
                 le.flexibleWidth = 0f; le.flexibleHeight = 0f;
-                PanelKit.TextCell(footer, StatDisplay.RarityName(r), Theme.FsTiny, Palette.Rarity(r),
+                PanelKit.TextCell(footer, StatDisplay.RarityTag(r), Theme.FsTiny, Palette.Rarity(r),
                     TextAnchor.MiddleLeft, width: LegendLabelW);
             }
         }
@@ -243,8 +243,8 @@ namespace IdleGame.Game
             nameLbl.resizeTextForBestFit = true; nameLbl.resizeTextMaxSize = Theme.FsH2; nameLbl.resizeTextMinSize = MinNameFs;
             PanelKit.Fixed(nameLbl.gameObject, height: 24f);
 
-            var rar = PanelKit.Label(_detail, StatDisplay.RarityName(item.Rarity), Theme.FsSmall,
-                Palette.Rarity(item.Rarity), TextAnchor.MiddleLeft); // rarity as a status line
+            var rar = PanelKit.Label(_detail, StatDisplay.RarityTag(item.Rarity), Theme.FsSmall,
+                Palette.Rarity(item.Rarity), TextAnchor.MiddleLeft); // rarity as a status line (glyph = the colorblind channel)
             PanelKit.Fixed(rar.gameObject, height: 18f);
             var slotLbl = PanelKit.Label(_detail, $"{SlotOf(item)} · item level {item.ItemLevel}", Theme.FsSmall,
                 Theme.TextBright, TextAnchor.MiddleLeft);
@@ -412,8 +412,18 @@ namespace IdleGame.Game
 
         private static string AutoSalvageLabel(Rarity? max)
         {
-            foreach (var o in AutoSalvageOptions) if (o.max == max) return o.label;
+            foreach (var o in AutoSalvageOptions) if (o.max == max) return MarkPrefix(o.max) + o.label;
             return "Off";
+        }
+
+        /// <summary>"● " / "■ " / … before a floor label — the 10.20b glyph channel on the filter's
+        /// rarity-colored rows (and the header summary, which shares the label). Empty for Off/Normal,
+        /// so unmarked tiers collapse cleanly instead of carrying a stray space.</summary>
+        private static string MarkPrefix(Rarity? r)
+        {
+            if (r == null) return "";
+            string mark = Palette.RarityMark(r.Value);
+            return mark.Length > 0 ? mark + " " : "";
         }
 
         private static Color AutoSalvageColor(Rarity? max) =>
@@ -512,7 +522,7 @@ namespace IdleGame.Game
             foreach (var (max, _) in AutoSalvageOptions)
             {
                 var m = max; // capture
-                string shortLbl = max == null ? "Off" : max.Value.ToString();
+                string shortLbl = max == null ? "Off" : MarkPrefix(max) + max.Value.ToString();
                 bool selected = uniform && shared == max;
                 var ab = PanelKit.ButtonCell(all, shortLbl,
                     () => { _view.SetSalvageFloorAll(m); Rebuild(); }, fontSize: Theme.FsSmall);
