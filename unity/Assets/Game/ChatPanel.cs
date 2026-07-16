@@ -24,8 +24,13 @@ namespace IdleGame.Game
         private const float HeaderH = 28f;
         private const float TabH = 26f;
         private static bool ShowTabs => Tabs.Length > 1;     // single tab pre-release -> hide the bar
-        private static float TabsTop => HeaderH + 6f;        // tabs sit just under the header
-        private static float ContentTop => HeaderH + 6f + (ShowTabs ? TabH + 6f : 0f);
+        // a11y text scale (10.20a): chrome metrics ride the scale so labels never outgrow their
+        // rects (uGUI Text TRUNCATES vertically — an unscaled header vanishes its title at 130%).
+        // Stamped once per Build: the window's labels get their fontSize at build time too, so
+        // metrics and text always agree; a mid-session change lands on the next rebuild.
+        private float _ts = 1f;
+        private float TabsTop => HeaderH * _ts + 6f;         // tabs sit just under the header
+        private float ContentTop => HeaderH * _ts + 6f + (ShowTabs ? TabH * _ts + 6f : 0f);
         private static readonly Vector2 MinSize = new(210f, 110f);
         private static readonly Vector2 MaxSize = new(440f, 420f);
 
@@ -73,10 +78,13 @@ namespace IdleGame.Game
             ClearCanvas();
             _feedText = null; _feedScroll = null;
 
-            float h = _collapsed ? HeaderH : _size.y;
+            _ts = Settings.TextScale;
+            // Display rect = persisted 100%-space size × the text scale (display-only; mirrors
+            // QuestPanel — see its Build for the invariant note).
+            float h = (_collapsed ? HeaderH : _size.y) * _ts;
             // Corner-anchored HUD: build under the canvas's SafeRoot so it insets from device notches.
             // On desktop SafeRoot == the canvas rect, so position/drag/clamp behave byte-identically.
-            var panel = UiKit.Panel(UiKit.SafeRoot(_canvas), new Vector2(_size.x, h), new Color(0.08f, 0.08f, 0.11f, 0.92f));
+            var panel = UiKit.Panel(UiKit.SafeRoot(_canvas), new Vector2(_size.x * _ts, h), new Color(0.08f, 0.08f, 0.11f, 0.92f));
             var prt = panel.rectTransform;
             prt.anchorMin = prt.anchorMax = new Vector2(0f, 0.5f);
             prt.pivot = new Vector2(0f, 1f);            // anchor by the top-left corner
@@ -88,7 +96,7 @@ namespace IdleGame.Game
             var keep = panel.gameObject.AddComponent<KeepOnCanvas>();
             keep.Canvas = _canvas;
             keep.DesiredPos = () => _pos;
-            keep.DesiredSize = () => new Vector2(_size.x, _collapsed ? HeaderH : _size.y);
+            keep.DesiredSize = () => new Vector2(_size.x * _ts, (_collapsed ? HeaderH : _size.y) * _ts);
 
             BuildHeader(panel.transform, prt);
 
@@ -110,7 +118,7 @@ namespace IdleGame.Game
             hrt.anchorMin = new Vector2(0f, 1f);
             hrt.anchorMax = new Vector2(1f, 1f);
             hrt.pivot = new Vector2(0.5f, 1f);
-            hrt.sizeDelta = new Vector2(0f, HeaderH);
+            hrt.sizeDelta = new Vector2(0f, HeaderH * _ts);
             hrt.anchoredPosition = Vector2.zero;
 
             var img = go.AddComponent<Image>();
@@ -118,15 +126,17 @@ namespace IdleGame.Game
             if (!_locked) UiKit.MakeDraggable(go, panelRt, _canvas, p => { _pos = p; Settings.ChatX = p.x; Settings.ChatY = p.y; });
 
             // Title pinned to the left edge.
-            var title = UiKit.Label(go.transform, "Chat", 15, TextAnchor.MiddleLeft, new Vector2(120f, 22f), Vector2.zero);
+            var title = UiKit.Label(go.transform, "Chat", 15, TextAnchor.MiddleLeft, new Vector2(120f, 22f * _ts), Vector2.zero);
             Anchor((RectTransform)title.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(10f, 0f));
 
             // Lock + minimize pinned to the right edge.
-            var min = UiKit.TextButton(go.transform, _collapsed ? "+" : "—", new Vector2(24f, 20f), Vector2.zero, ToggleCollapse, 16);
+            // Chip rects + the lock chip's offset ride the scale (a fixed 46-wide chip truncates
+            // "Locked" to "Lock" at 130% — Play-caught 10.20a).
+            var min = UiKit.TextButton(go.transform, _collapsed ? "+" : "—", new Vector2(24f * _ts, 20f * _ts), Vector2.zero, ToggleCollapse, 16);
             Anchor((RectTransform)min.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-6f, 0f));
 
-            var lockBtn = UiKit.TextButton(go.transform, _locked ? "Locked" : "Free", new Vector2(46f, 20f), Vector2.zero, ToggleLock, 12);
-            Anchor((RectTransform)lockBtn.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-34f, 0f));
+            var lockBtn = UiKit.TextButton(go.transform, _locked ? "Locked" : "Free", new Vector2(46f * _ts, 20f * _ts), Vector2.zero, ToggleLock, 12);
+            Anchor((RectTransform)lockBtn.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-(10f + 24f * _ts), 0f));
             var li = lockBtn.GetComponent<Image>();
             if (li != null) li.color = _locked ? new Color(0.55f, 0.32f, 0.30f) : new Color(0.22f, 0.30f, 0.45f);
         }
@@ -143,10 +153,12 @@ namespace IdleGame.Game
 
             var img = go.AddComponent<Image>();
             img.color = new Color(0.5f, 0.55f, 0.65f, 0.55f);
-            UiKit.MakeResizable(go, panelRt, _canvas, MinSize, MaxSize, s =>
+            // Drag operates on the DISPLAY rect (100%-space × _ts) — divide the scale back out so
+            // prefs stay in 100%-space and a later scale change can't compound into the layout.
+            UiKit.MakeResizable(go, panelRt, _canvas, MinSize * _ts, MaxSize * _ts, s =>
             {
-                _size = s;
-                Settings.ChatW = s.x; Settings.ChatH = s.y;
+                _size = s / _ts;
+                Settings.ChatW = _size.x; Settings.ChatH = _size.y;
                 LayoutBody();
             });
         }
@@ -253,7 +265,7 @@ namespace IdleGame.Game
 
             var text = content.AddComponent<Text>();
             text.font = UiKit.Font;
-            text.fontSize = 14;
+            text.fontSize = UiKit.Scaled(14); // a11y text scale — the feed body is a hand-built Text, not a UiKit.Label
             text.alignment = TextAnchor.UpperLeft;
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
             text.verticalOverflow = VerticalWrapMode.Overflow;

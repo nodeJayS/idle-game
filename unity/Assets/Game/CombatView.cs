@@ -1828,6 +1828,9 @@ namespace IdleGame.Game
         /// dip is extended, never shortened.</summary>
         private void RequestHitStop(float sec, bool force = false)
         {
+            // a11y Reduced Motion: leave _hitStopT unarmed so the single timeScale writer's dip stays 1
+            // (the Update line is the sole writer — never touched here). The sim clock is unaffected either way.
+            if (Settings.ReducedMotion) return;
             if (!force && _hitStopCooldown > 0f) return;
             _hitStopT = Mathf.Max(_hitStopT, sec);
             _hitStopCooldown = HitStopGapSec;
@@ -2778,6 +2781,10 @@ namespace IdleGame.Game
             // makes the control bar / stage nav / party HUD match the uGUI font (UiKit.Font).
             GUI.skin.font = UiKit.Font;
 
+            // Re-stamp the a11y text scale onto every cached HUD style (see the *BaseFs consts) so a
+            // Text Size change lands this frame — cheap int writes, and null-safe for styles not built yet.
+            ApplyTextScale();
+
             // Scale the immediate-mode UI by device DPI so the HUD/buttons stay a usable
             // physical size on phones (uGUI panels already scale via CanvasScaler). All
             // draw code below works in this scaled "logical" space.
@@ -2825,10 +2832,10 @@ namespace IdleGame.Game
                 {
                     if (_downedWorldStyle == null)
                     {
-                        _downedWorldStyle = new GUIStyle(GUI.skin.label) { fontSize = 11, fontStyle = FontStyle.Bold };
+                        _downedWorldStyle = new GUIStyle(GUI.skin.label) { fontSize = UiKit.Scaled(DownedWorldBaseFs), fontStyle = FontStyle.Bold };
                         _downedWorldStyle.normal.textColor = new Color(1f, 0.85f, 0.4f);
                     }
-                    GUI.Label(new Rect(cx - 30, cy - 4, 60, 16),
+                    GUI.Label(new Rect(cx - 30, cy - 4, 60, 16f * Settings.TextScale),
                               $"↻ {Mathf.CeilToInt((float)e.RespawnMs / 1000f)}s", _downedWorldStyle);
                     continue;
                 }
@@ -2849,7 +2856,7 @@ namespace IdleGame.Game
             float sw = Screen.width / s;
             // Top-centre context line (clears the account chip / Settings button at top-left).
             var style = _hudCtxStyle ??= new GUIStyle(GUI.skin.label)
-            { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.UpperCenter };
+            { fontSize = UiKit.Scaled(HudCtxBaseFs), fontStyle = FontStyle.Bold, alignment = TextAnchor.UpperCenter };
             bool major = FindStage(_combat.Stage)?.IsMajorBoss == true;
             // Boss challenge: a top-centre context line naming the stage + its modifier (the
             // boss exhibits and grants it — Lever 1). Farm needs no centre line: the wallet
@@ -2870,7 +2877,7 @@ namespace IdleGame.Game
                 float remain = Mathf.Max(0f, (float)(_cfg.Balance.BossChallengeSeconds - _combat.TimeMs / 1000.0));
                 remain = Mathf.Ceil(remain * 10f) / 10f; // countdown rounds UP (game-design §7)
                 var timer = _bossTimerStyle ??= new GUIStyle(GUI.skin.label)
-                { fontSize = 30, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+                { fontSize = UiKit.Scaled(BossTimerBaseFs), fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
                 timer.normal.textColor = remain <= 10 ? new Color(1f, 0.4f, 0.35f) : Color.white; // mutating the cached style is alloc-free
                 GUI.Label(new Rect(sw / 2f - 100, 40, 200, 40), $"{remain:0.0}s", timer);
             }
@@ -2890,7 +2897,7 @@ namespace IdleGame.Game
             float y = topBarBottomPx / s + 8f;
 
             if (_walletStyle == null)
-                _walletStyle = new GUIStyle(GUI.skin.label) { fontSize = 16, fontStyle = FontStyle.Bold };
+                _walletStyle = new GUIStyle(GUI.skin.label) { fontSize = UiKit.Scaled(WalletBaseFs), fontStyle = FontStyle.Bold };
 
             DrawWalletLine(Theme.HudPad, ref y, $"Gold   {Num.CompactFloor(gold)}", new Color(1f, 0.84f, 0.35f));
             DrawWalletLine(Theme.HudPad, ref y, $"Scrap  {Num.CompactFloor(scrap)}", new Color(0.75f, 0.78f, 0.85f));
@@ -2911,6 +2918,28 @@ namespace IdleGame.Game
         private GUIStyle? _hudCtxStyle;      // DrawHud top-centre context line
         private GUIStyle? _bossTimerStyle;   // boss-challenge countdown (color mutated per frame)
         private GUIStyle? _downedWorldStyle; // DrawHealthBars downed "↻ Ns" tag
+
+        // a11y text scale (10.20a): the HUD's IMGUI text is drawn from cached GUIStyles, so each keeps
+        // its BASE font size here and OnGUI re-stamps UiKit.Scaled(base) every frame (ApplyTextScale) —
+        // a per-frame int write, no cache invalidation, and the scale goes live the frame the setting
+        // changes (unlike uGUI windows, which pick it up on next build).
+        private const int HudCtxBaseFs = 18, BossTimerBaseFs = 30, DownedWorldBaseFs = 11, WalletBaseFs = 16;
+        private const int PartyNameBaseFs = 22, PartyEmptyBaseFs = 18, PartyBarTextBaseFs = 13, PartyDownedBaseFs = 18;
+
+        /// <summary>Re-stamp UiKit.Scaled(base) onto each cached text style at the top of OnGUI. Styles
+        /// build lazily inside the draw calls (GUIStyle needs GUI.skin), so a null just means "not drawn
+        /// yet this session" — it'll be born at the scaled size when first constructed.</summary>
+        private void ApplyTextScale()
+        {
+            if (_hudCtxStyle != null)      _hudCtxStyle.fontSize      = UiKit.Scaled(HudCtxBaseFs);
+            if (_bossTimerStyle != null)   _bossTimerStyle.fontSize   = UiKit.Scaled(BossTimerBaseFs);
+            if (_downedWorldStyle != null) _downedWorldStyle.fontSize = UiKit.Scaled(DownedWorldBaseFs);
+            if (_walletStyle != null)      _walletStyle.fontSize      = UiKit.Scaled(WalletBaseFs);
+            if (_partyNameStyle != null)   _partyNameStyle.fontSize   = UiKit.Scaled(PartyNameBaseFs);
+            if (_partyEmptyStyle != null)  _partyEmptyStyle.fontSize  = UiKit.Scaled(PartyEmptyBaseFs);
+            if (_partyBarTextStyle != null) _partyBarTextStyle.fontSize = UiKit.Scaled(PartyBarTextBaseFs);
+            if (_partyDownedStyle != null) _partyDownedStyle.fontSize  = UiKit.Scaled(PartyDownedBaseFs);
+        }
         // (_stageNavStyle / _stageLabel / _stageLabelStage retired in 10.13e — the stage nav is uGUI TopControls now.)
 
         /// <summary>Stage def lookup without the per-frame List.Find closure (it captured `this`
@@ -2921,9 +2950,12 @@ namespace IdleGame.Game
         private GUIStyle? _walletStyle;
         private void DrawWalletLine(float x, ref float y, string text, Color color, float w = 260f)
         {
+            // Text-bearing rects ride the a11y text scale with the font — a fixed 22/24 overlaps
+            // the next line at 130% (Play-caught 10.20a).
+            float ts = Settings.TextScale;
             _walletStyle!.normal.textColor = color;
-            GUI.Label(new Rect(x, y, w, 22), text, _walletStyle);
-            y += 24f;
+            GUI.Label(new Rect(x, y, w, 22f * ts), text, _walletStyle);
+            y += 24f * ts;
         }
 
         // DrawTopControls (the top-centre stage nav + boss/alt-mode verbs) and the Modes-menu family
@@ -2974,7 +3006,11 @@ namespace IdleGame.Game
 
                 var hero = _save.Heroes.Find(h => h.Id == heroId);
                 string chipLabel = hero != null ? $"{HeroDisplayName(heroId)}  Lv {hero.Level}" : HeroDisplayName(heroId);
-                GUI.Label(new Rect(bx, y + 10, bw, 26), chipLabel, PartyNameStyle);
+                // Name/downed/bar-text rects scale with the a11y text size — GUI.Label CLIPS to its
+                // rect, so a fixed 26 beheads the 130% font (Play-caught 10.20a). The chip's rowH
+                // stays fixed: name (y+10, h≤34) still clears the bar at y+46.
+                float ts = Settings.TextScale;
+                GUI.Label(new Rect(bx, y + 10, bw, 26f * ts), chipLabel, PartyNameStyle);
 
                 // Skill-ready cue: a pulsing gold dot at the top-right of the chip when a
                 // skill is off-cooldown + affordable.
@@ -2989,11 +3025,11 @@ namespace IdleGame.Game
                 // HP bar (red fill — reads as health at a glance) with a shadowed value label
                 DrawBar(bx, y + 46, bw, 16, maxHp > 0 ? Mathf.Clamp01((float)(hp / maxHp)) : 0f,
                         new Color(0.16f, 0.04f, 0.04f, 0.95f), new Color(0.85f, 0.24f, 0.20f));
-                DrawShadowedLabel(new Rect(bx, y + 45, bw, 18),
+                DrawShadowedLabel(new Rect(bx, y + 45, bw, 18f * ts),
                         $"{Mathf.CeilToInt((float)hp)}/{Mathf.CeilToInt((float)maxHp)}", PartyBarTextStyle);
 
                 if (e != null && e.Downed)
-                    GUI.Label(new Rect(bx, y + 10, bw, 26),
+                    GUI.Label(new Rect(bx, y + 10, bw, 26f * ts),
                               $"↻ {Mathf.CeilToInt((float)e.RespawnMs / 1000f)}s", PartyDownedStyle);
 
                 // whole chip is a click target -> opens this hero's equipment
@@ -3048,8 +3084,8 @@ namespace IdleGame.Game
         }
 
         private GUIStyle? _partyNameStyle, _partyEmptyStyle, _partyDownedStyle, _partyBarTextStyle;
-        private GUIStyle PartyNameStyle => _partyNameStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 22, fontStyle = FontStyle.Bold };
-        private GUIStyle PartyEmptyStyle => _partyEmptyStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 18, alignment = TextAnchor.MiddleCenter };
+        private GUIStyle PartyNameStyle => _partyNameStyle ??= new GUIStyle(GUI.skin.label) { fontSize = UiKit.Scaled(PartyNameBaseFs), fontStyle = FontStyle.Bold };
+        private GUIStyle PartyEmptyStyle => _partyEmptyStyle ??= new GUIStyle(GUI.skin.label) { fontSize = UiKit.Scaled(PartyEmptyBaseFs), alignment = TextAnchor.MiddleCenter };
         private GUIStyle PartyBarTextStyle
         {
             get
@@ -3058,7 +3094,7 @@ namespace IdleGame.Game
                 {
                     // Bold + pure white + the DrawShadowedLabel drop shadow = readable over the red fill.
                     _partyBarTextStyle = new GUIStyle(GUI.skin.label)
-                    { fontSize = 13, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+                    { fontSize = UiKit.Scaled(PartyBarTextBaseFs), fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
                     _partyBarTextStyle.normal.textColor = Color.white;
                 }
                 return _partyBarTextStyle;
@@ -3070,7 +3106,7 @@ namespace IdleGame.Game
             {
                 if (_partyDownedStyle == null)
                 {
-                    _partyDownedStyle = new GUIStyle(GUI.skin.label) { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleRight };
+                    _partyDownedStyle = new GUIStyle(GUI.skin.label) { fontSize = UiKit.Scaled(PartyDownedBaseFs), fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleRight };
                     _partyDownedStyle.normal.textColor = new Color(1f, 0.85f, 0.4f);
                 }
                 return _partyDownedStyle;

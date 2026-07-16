@@ -17,8 +17,13 @@ namespace IdleGame.Game
     {
         private const float HeaderH = 28f;
         private const float RowH = 40f;
-        private const float RowTop = HeaderH + 8f; // body inset below the header
         private const int MaxRows = 6;
+        // a11y text scale (10.20a): row/header metrics ride the scale so labels never outgrow
+        // their rects (uGUI Text TRUNCATES vertically — unscaled 40px rows VANISHED the whole
+        // board at 130%, Play-caught). Stamped once per Build so per-frame UpdateBoard maths and
+        // built rects always agree; a mid-session change lands on the next rebuild.
+        private float _ts = 1f;
+        private float RowTop => HeaderH * _ts + 8f; // body inset below the header
         private static readonly Vector2 MinSize = new(220f, 110f);
         private static readonly Vector2 MaxSize = new(380f, 360f);
 
@@ -89,7 +94,7 @@ namespace IdleGame.Game
                 }
                 shown++;
             }
-            _introOffset = show ? IntroHeaderH + shown * IntroRowH + 6f : 0f;
+            _introOffset = show ? (IntroHeaderH + shown * IntroRowH) * _ts + 6f : 0f;
         }
 
         /// <summary>Push the live board in: refresh each row's label, count, and bar fill. Cheap —
@@ -105,7 +110,7 @@ namespace IdleGame.Game
                 var q = board.Active[i];
                 // Slide the rolling rows below the guided-intro strip (offset 0 when it's inactive).
                 // Position/anchor writes are struct setters — alloc-free, so they stay unconditional.
-                ((RectTransform)_rows[i].transform).anchoredPosition = new Vector2(0f, -_introOffset - i * RowH);
+                ((RectTransform)_rows[i].transform).anchoredPosition = new Vector2(0f, -_introOffset - i * RowH * _ts);
                 if (_rowKind[i] != q.Kind || _rowTarget[i] != q.Target || _rowProgress[i] != q.Progress)
                 {
                     _rowKind[i] = q.Kind; _rowTarget[i] = q.Target; _rowProgress[i] = q.Progress;
@@ -138,10 +143,15 @@ namespace IdleGame.Game
             _rowKind.Clear(); _rowTarget.Clear(); _rowProgress.Clear();
             _introRows.Clear(); _introLabels.Clear(); _introDone.Clear(); _introHeaderGo = null; _introOffset = 0f;
 
-            float h = _collapsed ? HeaderH : _size.y;
+            _ts = Settings.TextScale;
+            // The DISPLAY rect is the persisted 100%-space size × the text scale (display-only, the
+            // KeepOnCanvas lesson: _size/prefs stay in 100%-space; resize-drag divides back out).
+            // With every internal metric riding _ts too, the window at 130% is geometrically the
+            // 100% window zoomed — bands keep their fractions, so labels can't collide with counts.
+            float h = (_collapsed ? HeaderH : _size.y) * _ts;
             // Corner-anchored HUD: build under the canvas's SafeRoot so it insets from device notches.
             // On desktop SafeRoot == the canvas rect, so position/drag/clamp behave byte-identically.
-            var panel = UiKit.Panel(UiKit.SafeRoot(_canvas), new Vector2(_size.x, h), new Color(0.08f, 0.08f, 0.11f, 0.92f));
+            var panel = UiKit.Panel(UiKit.SafeRoot(_canvas), new Vector2(_size.x * _ts, h), new Color(0.08f, 0.08f, 0.11f, 0.92f));
             var prt = panel.rectTransform;
             prt.anchorMin = prt.anchorMax = new Vector2(0f, 0.5f);
             prt.pivot = new Vector2(0f, 1f);            // anchor by the top-left corner (same as chat)
@@ -153,7 +163,7 @@ namespace IdleGame.Game
             var keep = panel.gameObject.AddComponent<KeepOnCanvas>();
             keep.Canvas = _canvas;
             keep.DesiredPos = () => _pos;
-            keep.DesiredSize = () => new Vector2(_size.x, _collapsed ? HeaderH : _size.y);
+            keep.DesiredSize = () => new Vector2(_size.x * _ts, (_collapsed ? HeaderH : _size.y) * _ts);
 
             BuildHeader(panel.transform, prt);
 
@@ -172,22 +182,24 @@ namespace IdleGame.Game
             hrt.anchorMin = new Vector2(0f, 1f);
             hrt.anchorMax = new Vector2(1f, 1f);
             hrt.pivot = new Vector2(0.5f, 1f);
-            hrt.sizeDelta = new Vector2(0f, HeaderH);
+            hrt.sizeDelta = new Vector2(0f, HeaderH * _ts);
             hrt.anchoredPosition = Vector2.zero;
 
             var img = go.AddComponent<Image>();
             img.color = _locked ? new Color(0.20f, 0.17f, 0.17f, 0.96f) : new Color(0.16f, 0.18f, 0.24f, 0.96f);
             if (!_locked) UiKit.MakeDraggable(go, panelRt, _canvas, p => { _pos = p; Settings.QuestX = p.x; Settings.QuestY = p.y; });
 
-            var title = UiKit.Label(go.transform, "Quests", 15, TextAnchor.MiddleLeft, new Vector2(140f, 22f), Vector2.zero);
+            var title = UiKit.Label(go.transform, "Quests", 15, TextAnchor.MiddleLeft, new Vector2(140f, 22f * _ts), Vector2.zero);
             title.color = new Color(0.95f, 0.86f, 0.45f);
             Anchor((RectTransform)title.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(10f, 0f));
 
-            var min = UiKit.TextButton(go.transform, _collapsed ? "+" : "—", new Vector2(24f, 20f), Vector2.zero, ToggleCollapse, 16);
+            // Chip rects + the lock chip's offset ride the scale (a fixed 46-wide chip truncates
+            // "Locked" to "Lock" at 130% — Play-caught 10.20a).
+            var min = UiKit.TextButton(go.transform, _collapsed ? "+" : "—", new Vector2(24f * _ts, 20f * _ts), Vector2.zero, ToggleCollapse, 16);
             Anchor((RectTransform)min.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-6f, 0f));
 
-            var lockBtn = UiKit.TextButton(go.transform, _locked ? "Locked" : "Free", new Vector2(46f, 20f), Vector2.zero, ToggleLock, 12);
-            Anchor((RectTransform)lockBtn.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-34f, 0f));
+            var lockBtn = UiKit.TextButton(go.transform, _locked ? "Locked" : "Free", new Vector2(46f * _ts, 20f * _ts), Vector2.zero, ToggleLock, 12);
+            Anchor((RectTransform)lockBtn.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-(10f + 24f * _ts), 0f));
             var li = lockBtn.GetComponent<Image>();
             if (li != null) li.color = _locked ? new Color(0.55f, 0.32f, 0.30f) : new Color(0.22f, 0.30f, 0.45f);
         }
@@ -215,7 +227,7 @@ namespace IdleGame.Game
             var hrt = (RectTransform)hgo.transform;
             hrt.anchorMin = new Vector2(0f, 1f); hrt.anchorMax = new Vector2(1f, 1f);
             hrt.pivot = new Vector2(0.5f, 1f);
-            hrt.sizeDelta = new Vector2(0f, IntroHeaderH);
+            hrt.sizeDelta = new Vector2(0f, IntroHeaderH * _ts);
             hrt.anchoredPosition = Vector2.zero;
             var htext = UiKit.Label(hgo.transform, "Getting started", 14, TextAnchor.LowerLeft, Vector2.zero, Vector2.zero);
             htext.color = new Color(0.98f, 0.80f, 0.42f);
@@ -232,8 +244,8 @@ namespace IdleGame.Game
                 var rrt = (RectTransform)rgo.transform;
                 rrt.anchorMin = new Vector2(0f, 1f); rrt.anchorMax = new Vector2(1f, 1f);
                 rrt.pivot = new Vector2(0.5f, 1f);
-                rrt.sizeDelta = new Vector2(0f, IntroRowH - 2f);
-                rrt.anchoredPosition = new Vector2(0f, -(IntroHeaderH + i * IntroRowH));
+                rrt.sizeDelta = new Vector2(0f, IntroRowH * _ts - 2f);
+                rrt.anchoredPosition = new Vector2(0f, -(IntroHeaderH + i * IntroRowH) * _ts);
 
                 var lbl = UiKit.Label(rgo.transform, "", 13, TextAnchor.LowerLeft, Vector2.zero, Vector2.zero);
                 lbl.horizontalOverflow = HorizontalWrapMode.Overflow;
@@ -255,8 +267,8 @@ namespace IdleGame.Game
             rrt.anchorMin = new Vector2(0f, 1f);
             rrt.anchorMax = new Vector2(1f, 1f);
             rrt.pivot = new Vector2(0.5f, 1f);
-            rrt.sizeDelta = new Vector2(0f, RowH - 6f);
-            rrt.anchoredPosition = new Vector2(0f, -i * RowH);
+            rrt.sizeDelta = new Vector2(0f, RowH * _ts - 6f);
+            rrt.anchoredPosition = new Vector2(0f, -i * RowH * _ts);
 
             var name = UiKit.Label(rowGo.transform, "", 15, TextAnchor.LowerLeft, Vector2.zero, Vector2.zero);
             name.horizontalOverflow = HorizontalWrapMode.Overflow; // single line; bar/edge clips overruns
@@ -305,10 +317,12 @@ namespace IdleGame.Game
             rt.sizeDelta = new Vector2(22f, 22f);
             rt.anchoredPosition = new Vector2(-2f, 2f);
             go.AddComponent<Image>().color = new Color(0.5f, 0.55f, 0.65f, 0.55f);
-            UiKit.MakeResizable(go, panelRt, _canvas, MinSize, MaxSize, s =>
+            // Drag operates on the DISPLAY rect (100%-space × _ts) — divide the scale back out so
+            // prefs stay in 100%-space and a later scale change can't compound into the layout.
+            UiKit.MakeResizable(go, panelRt, _canvas, MinSize * _ts, MaxSize * _ts, s =>
             {
-                _size = s;
-                Settings.QuestW = s.x; Settings.QuestH = s.y;
+                _size = s / _ts;
+                Settings.QuestW = _size.x; Settings.QuestH = _size.y;
             });
         }
 

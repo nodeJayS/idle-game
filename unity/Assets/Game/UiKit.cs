@@ -110,6 +110,11 @@ namespace IdleGame.Game
             return img;
         }
 
+        /// <summary>The a11y text-size multiplier applied to EVERY font size — one place so uGUI
+        /// (via <see cref="Label"/>) and IMGUI (the HUD's cached GUIStyles) render at the same scale.
+        /// Rounds and floors at 1 so a tiny base can never vanish. See <see cref="Settings.TextScale"/>.</summary>
+        public static int Scaled(int fontSize) => Mathf.Max(1, Mathf.RoundToInt(fontSize * Settings.TextScale));
+
         public static Text Label(Transform parent, string text, int fontSize, TextAnchor anchor,
                                  Vector2 size, Vector2 pos)
         {
@@ -118,7 +123,7 @@ namespace IdleGame.Game
             var t = go.AddComponent<Text>();
             t.font = Font;
             t.text = text;
-            t.fontSize = fontSize;
+            t.fontSize = Scaled(fontSize);
             t.alignment = anchor;
             t.color = Color.white;
             var rt = (RectTransform)go.transform;

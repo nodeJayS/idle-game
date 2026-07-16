@@ -86,7 +86,11 @@ namespace IdleGame.Game
             _targetFocus = t;
         }
 
-        public void Shake(float magnitude) => _shake = Mathf.Max(_shake, magnitude);
+        public void Shake(float magnitude)
+        {
+            if (Settings.ReducedMotion) return; // a11y: no positional rattle (composes with ScreenShake at call sites)
+            _shake = Mathf.Max(_shake, magnitude);
+        }
 
         // 10.6e kill-streak pulse: a quick zoom punch (fraction of orthographicSize) with a sin
         // spring-back — a "felt beat" distinct from Shake's positional rattle.
@@ -98,6 +102,7 @@ namespace IdleGame.Game
         /// back over ~0.25s. A stronger pulse replaces a weaker in-flight one, never stacks.</summary>
         public void Pulse(float magnitude)
         {
+            if (Settings.ReducedMotion) return; // a11y: no felt zoom punch on kill-streak beats
             _pulseMag = Mathf.Max(_pulseT > 0f ? _pulseMag : 0f, magnitude);
             _pulseT = 1f;
         }

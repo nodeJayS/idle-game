@@ -19,6 +19,7 @@ namespace IdleGame.Game
     /// </summary>
     public sealed class LoadingScreen : MonoBehaviour
     {
+        private const int TitleBaseFs = 34; // a11y text scale re-stamps UiKit.Scaled(TitleBaseFs) each OnGUI
         private const float FadeInSec = 0.25f;
         private const float HoldSec = 0.9f;
         private const float FadeOutSec = 0.35f;
@@ -105,8 +106,9 @@ namespace IdleGame.Game
             // Title + animated ellipsis, only while meaningfully covered.
             if (a > 0.6f)
             {
-                _titleStyle ??= new GUIStyle { fontSize = 34, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+                _titleStyle ??= new GUIStyle { fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
                 _titleStyle.font = UiKit.Font;
+                _titleStyle.fontSize = UiKit.Scaled(TitleBaseFs); // a11y text scale, re-stamped with .font each frame
                 _titleStyle.normal.textColor = new Color(0.88f, 0.85f, 1f, Mathf.InverseLerp(0.6f, 1f, a));
                 int dots = 1 + (int)(Time.unscaledTime * 2.5f) % 3;
                 GUI.Label(new Rect(0, Screen.height / 2f - 30, Screen.width, 60),

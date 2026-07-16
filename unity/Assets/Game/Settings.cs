@@ -50,6 +50,38 @@ namespace IdleGame.Game
         public static bool Projectiles     { get => Get("fxProjectiles"); set => Set("fxProjectiles", value); }
         public static bool SpawnAnimations { get => Get("fxSpawnAnim");   set => Set("fxSpawnAnim", value); }
 
+        // ---- Accessibility (10.20a, mobile arc MM8) ----
+
+        /// <summary>Reduced Motion: kills the felt-motion garnishes that can trigger vestibular
+        /// discomfort — the hit-stop time dip, camera shake, and the kill-streak zoom pulse. Defaults
+        /// OFF (the effects ship on), so — like <see cref="GroupMovement"/> — it reads PlayerPrefs
+        /// directly rather than the default-ON <see cref="Get"/>. Composes WITH <see cref="ScreenShake"/>
+        /// at the shake call sites: either toggle suppresses the motion independently (belt and suspenders).</summary>
+        public static bool ReducedMotion
+        {
+            get => PlayerPrefs.GetInt("a11yReduceMotion", 0) != 0;
+            set { PlayerPrefs.SetInt("a11yReduceMotion", value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
+        /// <summary>Text size as a whole percent — 100 (default), 115, or 130. A discrete cycle, not a
+        /// slider, so every label lands on a hand-checked size. Unknown stored values (a future step
+        /// rolled back, a hand-edited pref) clamp back to 100 so the UI never renders at a size no layout
+        /// was tested against. Read <see cref="TextScale"/> for the multiplier every text sink applies.</summary>
+        public static int TextSizePct
+        {
+            get { int v = PlayerPrefs.GetInt("a11yTextPct", 100); return v == 115 || v == 130 ? v : 100; }
+            set { PlayerPrefs.SetInt("a11yTextPct", value == 115 || value == 130 ? value : 100); PlayerPrefs.Save(); }
+        }
+
+        /// <summary>The <see cref="TextSizePct"/> multiplier (1.0 / 1.15 / 1.30) — what UiKit.Scaled
+        /// multiplies every font size by, so one setting drives both uGUI and IMGUI text.</summary>
+        public static float TextScale => TextSizePct / 100f;
+
+        /// <summary>Haptics master toggle (default ON). The per-verb vocabulary lands in the 10.22
+        /// handheld feel pass; today it only gates the <see cref="Haptics"/> stub so every future call
+        /// site is born behind this switch.</summary>
+        public static bool Haptics { get => Get("haptics"); set => Set("haptics", value); }
+
         // Chat window layout — remembered across runs. X/Y are the window's top-left anchored
         // position; W/H its size. Locked freezes drag + resize; Collapsed = minimized to the bar.
         public static float ChatX        { get => PlayerPrefs.GetFloat("chatX", 12f);  set => SetF("chatX", value); }

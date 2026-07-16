@@ -79,7 +79,7 @@ namespace IdleGame.Game
             var t = go.AddComponent<Text>();
             t.font = UiKit.Font;
             t.text = s;
-            t.fontSize = fontSize;
+            t.fontSize = UiKit.Scaled(fontSize); // a11y text scale — this factory bypasses UiKit.Label
             t.fontStyle = FontStyle.Bold;
             t.alignment = TextAnchor.MiddleCenter;
             t.horizontalOverflow = HorizontalWrapMode.Overflow;

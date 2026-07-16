@@ -88,8 +88,8 @@ namespace IdleGame.Game
             PanelKit.Stack(body); // the body is a bare Flex until stacked — without this every row
                                   // collapses to a centered zero-size rect (Play-caught 10.13d)
 
-            // The row count (name + 3 sliders + 5 toggles + 3 quality rows) overflows the phone-canvas
-            // window height, so the rows scroll; the verb row stays fixed at the panel bottom.
+            // The row count (name + 3 sliders + 5 fx toggles + 3 a11y rows + 3 quality rows) overflows the
+            // phone-canvas window height, so the rows scroll; the verb row stays fixed at the panel bottom.
             var list = UiKit.ScrollColumnFill(body, spacing: Theme.GapS);
 
             // Name: label + a rename field wrapped in a flexible layout cell (a LayoutElement, the way
@@ -113,6 +113,20 @@ namespace IdleGame.Game
             ToggleRow(list, "Loot Feed", () => Settings.LootFeed, v => Settings.LootFeed = v);
             ToggleRow(list, "Projectiles", () => Settings.Projectiles, v => Settings.Projectiles = v);
             ToggleRow(list, "Spawn Animations", () => Settings.SpawnAnimations, v => Settings.SpawnAnimations = v);
+
+            // Accessibility (10.20a). Text Size cycles the three hand-checked steps; on each advance we
+            // close+re-open Settings so THIS window's own labels re-render at the new scale on the spot
+            // (uGUI windows read UiKit.Scaled only at build time — see §3 live-refresh notes). Reduced
+            // Motion / Haptics are plain toggles over the new prefs.
+            CycleRow(list, "Text Size", () => Settings.TextSizePct + "%",
+                () =>
+                {
+                    Settings.TextSizePct = Settings.TextSizePct == 100 ? 115
+                                         : Settings.TextSizePct == 115 ? 130 : 100;
+                    Destroy(_settings); _settings = null; OpenSettings();
+                });
+            ToggleRow(list, "Reduced Motion", () => Settings.ReducedMotion, v => Settings.ReducedMotion = v);
+            ToggleRow(list, "Haptics", () => Settings.Haptics, v => Settings.Haptics = v);
 
             // Quality tier (10.12d): the weak-hardware levers, applied live via GraphicsQuality.
             CycleRow(list, "Render Scale",
