@@ -92,6 +92,25 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void SinkHorizonClearsTheSixMonthTarget()
+        {
+            // 10.17 acceptance: the endgame spend horizon lasts ~6 months for a daily player. The binding
+            // sink is gem-gated ascension (at maxed endgame the farm floods gold+scrap, so enhance/reforge
+            // saturate in days). RETUNE CONSCIOUSLY — if this drops, the sinks got too cheap OR the income
+            // model too generous (SinkModelParams / the new AscensionStar* constants).
+            var h = Scenarios.ComputeSinkHorizon(Cfg, seed: 1);
+
+            Assert.True(h.HorizonWeeks >= 20,
+                $"endgame spend horizon {h.HorizonWeeks:0.0} wk is under the ~6-month (20-week) target");
+            // Ascension is the long pole; enhance/reforge fall well inside it.
+            Assert.True(h.StarWeeks >= h.EnhanceWeeks, "ascension should outlast the enhance sink");
+            Assert.True(h.StarWeeks >= h.ReforgeWeeks, "ascension should outlast the reforge sink");
+            // Sanity on the model: real positive income and a full-roster star cost.
+            Assert.True(h.ShardsPerWeek > 0 && h.ScrapPerWeek > 0);
+            Assert.True(h.StarShardCost > 0);
+        }
+
+        [Fact]
         public void MinLevelToClearFindsTheFrontierBoundary()
         {
             int? min = Scenarios.MinLevelToClear(Cfg, 20, Rarity.Normal, trials: 1, baseSeed: 5);

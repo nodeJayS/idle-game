@@ -106,6 +106,45 @@ namespace IdleGame.GameCore.Tests
         private static bool CanEnhanceBroke() => Inventory.CanEnhance(WithItem(scrap: 0), "w", Cfg);
 
         [Fact]
+        public void Plus15LiftOverPlus9StaysProportionate()
+        {
+            // The +15 extension (10.17) must not introduce a stat CLIFF: enhance scales the item BASE
+            // linearly (1 + EnhanceBasePctPerLevel·N), so +15/+9 lift is exactly (1+.05·15)/(1+.05·9)
+            // = 1.75/1.45 ≈ 1.207 — a smooth continuation, not a spike.
+            double lift(int n) => 1.0 + Cfg.Balance.EnhanceBasePctPerLevel * n;
+            double ratio = lift(15) / lift(9);
+            Assert.Equal(1.75 / 1.45, ratio, 9);
+            Assert.InRange(ratio, 1.15, 1.30); // proportionate step, no cliff
+
+            // And the odds/cost tables actually reach +15: one entry per level, cost strictly climbing.
+            Assert.Equal(Cfg.Balance.EnhanceMax, Cfg.Balance.EnhanceSuccess.Length);
+            for (int e = 1; e < Cfg.Balance.EnhanceMax; e++)
+            {
+                var lo = new Item { Rarity = Rarity.Mythic, ItemLevel = 100, Enhance = e - 1 };
+                var hi = new Item { Rarity = Rarity.Mythic, ItemLevel = 100, Enhance = e };
+                Assert.True(Cfg.Balance.EnhanceCost(hi) > Cfg.Balance.EnhanceCost(lo), $"cost must climb at +{e + 1}");
+            }
+        }
+
+        [Fact]
+        public void ReachesPlus15WithDropOnFailStillActive()
+        {
+            // A +14 item CAN attempt +15 (not capped early), and a fail at that high tier still DROPS a
+            // level (the drop-on-fail band extends past +9 unchanged).
+            bool sawSuccess = false, sawDrop = false;
+            for (uint seed = 1; seed <= 200 && !(sawSuccess && sawDrop); seed++)
+            {
+                var s = WithItem(enhance: 14); // attempting +15
+                s.RngSeed = seed;
+                Assert.True(Inventory.CanEnhance(s, "w", Cfg)); // +14 is below the cap, attemptable
+                var r = Inventory.Enhance(s, "w", Cfg)!;
+                if (r.Success) { Assert.Equal(15, r.Level); sawSuccess = true; }
+                else { Assert.True(r.Dropped); Assert.Equal(13, r.Level); sawDrop = true; }
+            }
+            Assert.True(sawSuccess && sawDrop, "expected both a +15 land and a drop-on-fail across 200 seeds");
+        }
+
+        [Fact]
         public void ReforgePreservesTheEnhanceLevel()
         {
             var save = WithItem(enhance: 7);

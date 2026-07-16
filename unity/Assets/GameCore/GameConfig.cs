@@ -284,11 +284,11 @@ namespace IdleGame.GameCore
     /// pity counter (in the save, keyed by <see cref="Id"/>) increments on every roll that does NOT
     /// yield <see cref="FeaturedHeroDefId"/>; hitting <see cref="PityCount"/> forces the featured hero
     /// and resets, and naturally drawing the featured hero resets it too. A NEW hero joins the roster
-    /// (<see cref="Party.AcquireHero"/>); a DUPE converts to <see cref="DupeXp"/> hero XP +
-    /// <see cref="DupeScrap"/> account scrap. Dupe rewards live on the banner (like <see cref="CostGems"/>)
-    /// so a banner is a fully self-contained economy knob. No live banner ships in slice 1 —
-    /// <see cref="GameConfig.Banners"/> is empty in Default(); tests build fixtures; the Ice Mage
-    /// comeback banner arrives in slice 3.
+    /// (<see cref="Party.AcquireHero"/>); a DUPE converts to that hero's ASCENSION SHARDS
+    /// (<see cref="BalanceConstants.AscensionShardsPerDupe"/>, 10.17 — a universal payout, replacing the
+    /// old per-banner XP/scrap grant per the 2026-07-15 verdict; see <see cref="Gacha"/>). No live banner
+    /// ships in slice 1 — <see cref="GameConfig.Banners"/> is empty in Default(); tests build fixtures; the
+    /// Ice Mage comeback banner arrives in slice 3.
     /// </summary>
     public sealed class GachaBannerDef
     {
@@ -298,8 +298,9 @@ namespace IdleGame.GameCore
         public string FeaturedHeroDefId = ""; // the pity target + the "is featured" flag on a result
         public List<GachaPoolEntry> Pool = new List<GachaPoolEntry>(); // weighted hero pool
         public int PityCount;                 // rolls-without-featured that FORCE the featured hero (0 = no pity)
-        public long DupeXp;                    // XP granted to the rolled hero when it's a dupe
-        public long DupeScrap;                 // account scrap granted when the roll is a dupe
+        // (A dupe's payout is universal ascension shards — BalanceConstants.AscensionShardsPerDupe, 10.17 —
+        //  so it lives on the balance constants, not per-banner. The old DupeXp/DupeScrap fields were
+        //  removed when the shard payout replaced them.)
     }
 
     /// <summary>One weighted entry in a banner's pool: a hero def and its pick weight (&gt; 0).</summary>
@@ -668,6 +669,19 @@ namespace IdleGame.GameCore
         public double SeasonTierGoldMult = 5.0;   // a gold tier pays this × a CONTEMPORARY quest's gold reward
                                                   // (Quests.NextQuest: ~45s of stage income) — a chunky bonus
                                                   // on top of the quest payouts, scaled to the player's stage.
+
+        // Hero ascension (10.17, mobile arc MM5 — the endgame SHARD sink, the ~6-month spend horizon).
+        // A universal per-hero STAR track: gacha dupes convert to THAT hero's shards (replacing the old
+        // XP/scrap dupe payout — user verdict 2026-07-15), and the endless-depth milestone drips
+        // UNIVERSAL shards (Currencies["hero_shards"], spendable on any hero). Star-up spends the hero's
+        // own wallet FIRST, then universal. 5 stars, +4% Hp/Atk/Def per star, HERO-LOCAL: the buff folds
+        // into that hero's ComputeHeroStats beside the passive folds — NOT the account-wide Tower/codex
+        // buffs (Combat.RefreshPartyStats). See Ascension.cs.
+        public int AscensionMaxStars = 5;
+        public double AscensionStarPct = 0.04;               // +4% Hp/Atk/Def per star (hero-local, multiplicative)
+        public long[] AscensionStarCosts = { 10, 20, 30, 50, 80 }; // shards for star 1..5; 190 total ≈ 19 dupes to 5★
+        public long AscensionShardsPerDupe = 10;             // a gacha dupe's payout into THAT hero's wallet
+        public long AscensionShardsPerEndlessMilestone = 5;  // UNIVERSAL shards paid beside the every-5th-depth endless gems
 
         // Modifiers (Lever 1, the risk/reward farm knob) — acquisition + upgrade are driven by FARM
         // DEPTH (highest stage reached), not hero level: you unlock a new modifier every
@@ -1885,14 +1899,13 @@ namespace IdleGame.GameCore
             // the banner is live (Progression.cs ~L167). CostGems 10 = one day-1 daily login,
             // so a single login funds a roll. Pool: featured icemage weight 1 against four
             // owned-roster fillers weight 3 each ⇒ natural featured ≈ 1/13 ≈ 7.7%; PityCount
-            // 20 guarantees her by the 20th roll. Dupe rewards ≈ 25 min of active mid-game
-            // (~stage 40) farming: XpPerKill≈16·TierScale(40)≈1.65k over ~1 kill/s for 1500s
-            // ⇒ ~2M XP; scrap sized to the same window's salvage trickle ⇒ 500.
+            // 20 guarantees her by the 20th roll. A dupe now pays universal ascension shards
+            // (BalanceConstants.AscensionShardsPerDupe, 10.17), not per-banner XP/scrap.
             cfg.Banners["winters_return"] = new GachaBannerDef
             {
                 Id = "winters_return", Name = "Winter's Return",
                 CostGems = 10, FeaturedHeroDefId = "icemage_basic",
-                PityCount = 20, DupeXp = 2_000_000, DupeScrap = 500,
+                PityCount = 20,
                 Pool = new List<GachaPoolEntry>
                 {
                     new GachaPoolEntry { HeroDefId = "icemage_basic",    Weight = 1 },

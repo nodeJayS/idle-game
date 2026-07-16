@@ -217,6 +217,7 @@ namespace IdleGame.GameCore
                 Loot = loot,
                 Codex = save.Progress.Codex,
                 Season = save.Progress.Season,
+                Ascension = save.Progress.Ascension,
             },
             Quests = save.Quests,
             Modifiers = save.Modifiers,
@@ -638,6 +639,7 @@ namespace IdleGame.GameCore
             Equipped = equipped,
             SkillRanks = hero.SkillRanks,
             Loadout = hero.Loadout,
+            Stars = hero.Stars,
         };
 
         private static SaveState WithHero(SaveState save, HeroInstance updated)
@@ -712,6 +714,7 @@ namespace IdleGame.GameCore
                 Loot = save.Progress.Loot,
                 Codex = codex,
                 Season = save.Progress.Season,
+                Ascension = save.Progress.Ascension,
             },
             Quests = save.Quests,
             Modifiers = save.Modifiers,

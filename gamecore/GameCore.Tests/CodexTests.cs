@@ -417,11 +417,21 @@ namespace IdleGame.GameCore.Tests
             // Season (10.16) rides the same ProgressState threading — a marker must survive it too.
             s.Progress.Season = new SeasonState { Id = "2024-01", Points = 9 };
             long SeasonMarker(SaveState x) => x.Progress.Season.Points;
+            // Ascension (10.17) shards ride the same threading — a per-hero-wallet marker must survive too.
+            s.Progress.Ascension.Shards["marker_hero"] = 7;
+            long AscMarker(SaveState x) => x.Progress.Ascension.Shards.TryGetValue("marker_hero", out var v) ? v : 0;
 
             Assert.Equal(9, SeasonMarker(Progression.SetStage(s, 1, Cfg)));
             Assert.Equal(9, SeasonMarker(Tower.RecordClear(s, 1, Cfg)));
             Assert.Equal(9, SeasonMarker(Crypt.RecordFloorClear(s, 1, Cfg)));
             Assert.Equal(9, SeasonMarker(DailyLogin.Claim(s, Cfg, Now).save));
+            Assert.Equal(7, AscMarker(Progression.SetStage(s, 1, Cfg)));
+            Assert.Equal(7, AscMarker(Progression.OnStageCleared(s, 3, Cfg)));
+            Assert.Equal(7, AscMarker(Tower.RecordClear(s, 1, Cfg)));
+            Assert.Equal(7, AscMarker(Crypt.RecordFloorClear(s, 1, Cfg)));
+            Assert.Equal(7, AscMarker(Inventory.SetImprintGuard(s, true)));
+            Assert.Equal(7, AscMarker(Achievements.Record(s, AchievementMetric.MonstersKilled, 5, Cfg).save));
+            Assert.Equal(7, AscMarker(DailyLogin.Claim(s, Cfg, Now).save));
             Assert.Equal(5, Marker(Progression.SetStage(s, 1, Cfg)));
             Assert.Equal(5, Marker(Progression.OnStageCleared(s, 3, Cfg)));
             Assert.Equal(5, Marker(Tower.RecordClear(s, 1, Cfg)));

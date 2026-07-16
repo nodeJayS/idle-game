@@ -189,9 +189,12 @@ namespace IdleGame.GameCore
             int endlessBest = stage > cfg.Stages.Count
                 ? Math.Max(save.Progress.EndlessBest, stage - cfg.Stages.Count)
                 : save.Progress.EndlessBest;
-            long gems = endlessBest > save.Progress.EndlessBest
-                        && endlessBest % Math.Max(1, cfg.Balance.EndlessGemsEvery) == 0
-                ? cfg.Balance.EndlessGemsPerMilestone : 0;
+            // A NEW endless depth that lands on the every-Nth milestone pays gems AND (10.17) a drip of
+            // UNIVERSAL ascension shards — the base roster's shard source (they never roll gacha dupes).
+            bool milestone = endlessBest > save.Progress.EndlessBest
+                             && endlessBest % Math.Max(1, cfg.Balance.EndlessGemsEvery) == 0;
+            long gems = milestone ? cfg.Balance.EndlessGemsPerMilestone : 0;
+            long shards = milestone ? cfg.Balance.AscensionShardsPerEndlessMilestone : 0;
             var next = WithProgress(save, new ProgressState
             {
                 HighestStage = highest,
@@ -206,7 +209,8 @@ namespace IdleGame.GameCore
                 Loot = save.Progress.Loot,
                 Codex = save.Progress.Codex,
                 Season = save.Progress.Season,
-            }, gems, cfg);
+                Ascension = save.Progress.Ascension,
+            }, gems, cfg, shards);
 
             next = SyncHeroUnlocks(next, cfg);
 
@@ -311,6 +315,7 @@ namespace IdleGame.GameCore
                 Loot = save.Progress.Loot,
                 Codex = save.Progress.Codex,
                 Season = save.Progress.Season,
+                Ascension = save.Progress.Ascension,
             });
         }
 
@@ -323,17 +328,24 @@ namespace IdleGame.GameCore
                 ? cfg.Stages.Count + save.Progress.EndlessBest + 1
                 : Math.Min(save.Progress.HighestStage + 1, cfg.Stages.Count);
 
-        // Clone the save with a new ProgressState; everything else shares refs. A non-zero
-        // gems credit clones the currencies dict too (the Tower.WithFloor premium pattern).
+        // Clone the save with a new ProgressState; everything else shares refs. A non-zero gems and/or
+        // shards credit clones the currencies dict too (the Tower.WithFloor premium pattern). Shards are
+        // UNIVERSAL ascension shards (10.17), paid on the same endless milestone as the gems.
         private static SaveState WithProgress(SaveState save, ProgressState progress,
-                                              long gems = 0, GameConfig? cfg = null)
+                                              long gems = 0, GameConfig? cfg = null, long shards = 0)
         {
             var currencies = save.Currencies;
-            if (gems != 0 && cfg != null)
+            if ((gems != 0 || shards != 0) && cfg != null)
             {
                 currencies = new Dictionary<string, long>(save.Currencies);
-                string key = cfg.Balance.PremiumCurrency;
-                currencies[key] = (currencies.TryGetValue(key, out var v) ? v : 0) + gems;
+                if (gems != 0)
+                {
+                    string key = cfg.Balance.PremiumCurrency;
+                    currencies[key] = (currencies.TryGetValue(key, out var v) ? v : 0) + gems;
+                }
+                if (shards != 0)
+                    currencies[Ascension.UniversalShardCurrency] =
+                        (currencies.TryGetValue(Ascension.UniversalShardCurrency, out var sv) ? sv : 0) + shards;
             }
             return new SaveState
             {
@@ -363,6 +375,7 @@ namespace IdleGame.GameCore
             Equipped = hero.Equipped,
             SkillRanks = hero.SkillRanks,
             Loadout = hero.Loadout,
+            Stars = hero.Stars,
         };
     }
 }

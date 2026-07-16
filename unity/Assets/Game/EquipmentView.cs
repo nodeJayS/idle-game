@@ -229,6 +229,45 @@ namespace IdleGame.Game
                 PanelKit.TextCell(rowC, explicitPick ? "★ Leader" : "★ Leader (auto)", Theme.FsSmall,
                     explicitPick ? Theme.AccentGold : Theme.LeaderAuto, TextAnchor.MiddleLeft, flex: 1f);
             }
+
+            BuildAscensionRow(right, save, hero);
+        }
+
+        // ---- ascension (10.17, MM5): star display + Star Up + the two shard wallets ----
+
+        /// <summary>Star row for the selected hero: a non-interactive "★★☆☆☆" (gold filled, dim empty) beside
+        /// a Star Up button priced off <see cref="Ascension.NextStarCost"/> and gated on
+        /// <see cref="Ascension.CanStarUp"/> (own-wallet + universal ≥ cost). A maxed hero swaps the button for
+        /// a dim "MAX ★N" cell (the "Party full" placeholder idiom). Under it, a muted wallet line splits the
+        /// two shard pools. The click runs the <see cref="CombatView.NavStarUp"/> seam and Rebuilds off the
+        /// moved stars/cost/wallets — matching how loadout/enhance verbs refresh the pane.</summary>
+        private void BuildAscensionRow(RectTransform right, SaveState save, HeroInstance hero)
+        {
+            int max = _cfg.Balance.AscensionMaxStars;
+            int stars = Mathf.Clamp(hero.Stars, 0, max);
+            long cost = Ascension.NextStarCost(hero.Stars, _cfg);
+            bool maxed = cost < 0;
+            long heroShards = Ascension.ShardsFor(save, hero.DefId);
+            long universal = Ascension.UniversalShards(save);
+
+            // Rich-text stars so one label carries both colors (gold filled + dim empty).
+            string gold = ColorUtility.ToHtmlStringRGB(Theme.GachaGold);
+            string dim = ColorUtility.ToHtmlStringRGB(Theme.TextDim);
+            string starStr = $"<color=#{gold}>{new string('★', stars)}</color><color=#{dim}>{new string('☆', max - stars)}</color>";
+
+            var row = PanelKit.Row(right, Theme.TouchMin); // Star Up button: pin the 44 touch floor (10.13c)
+            PanelKit.TextCell(row, starStr, Theme.FsH1, Theme.GachaGold, TextAnchor.MiddleLeft, flex: 1f);
+            if (maxed)
+                PanelKit.TextCell(row, $"MAX ★{max}", Theme.FsSmall, Theme.TextDim, TextAnchor.MiddleCenter, width: ActionW);
+            else
+                PanelKit.ButtonCell(row, $"Star Up  ({Num.CompactFloor(cost)} shards)",
+                    () => { if (_view.NavStarUp(_heroId!).ok) Rebuild(); },
+                    width: ActionW, fontSize: Theme.FsSmall, enabled: Ascension.CanStarUp(save, _heroId!, _cfg));
+
+            // Wallet split: this hero's dupe wallet (spent first) + the universal pool (the flex remainder).
+            PanelKit.TextCell(PanelKit.Row(right, 16f),
+                $"{Num.CompactFloor(heroShards)} hero + {Num.CompactFloor(universal)} universal shards",
+                Theme.FsSmall, Theme.TextMuted, TextAnchor.MiddleLeft, flex: 1f);
         }
 
         // ---- Equipment sub-tab: doll + shared bag + compare pane ----

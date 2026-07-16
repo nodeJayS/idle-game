@@ -526,6 +526,29 @@ namespace IdleGame.Game
             if (_combat != null) _combat.LeaderRefId = _save.LeaderHeroId;
         }
 
+        /// <summary>Hero ascension (10.17, MM5) from the Heroes window: spend the hero's shard wallets
+        /// (own-first, then universal — <see cref="Ascension.StarUp"/>) on one star. Persists the fresh save,
+        /// refreshes live party stats so the +4% Hp/Atk/Def bites immediately, and posts a gacha-gold feed
+        /// beat. Returns (true, result) on a spend so the window rebuilds off the moved stars/wallets/cost;
+        /// (false, null) on a no-op (maxed / unaffordable / unknown hero) — the reducer shared the ref, so
+        /// nothing changed. Flushes on spend (a star is a real currency debit — same rule as the gacha roll).</summary>
+        internal (bool ok, StarUpResult? result) NavStarUp(string heroId)
+        {
+            var (next, result) = Ascension.StarUp(_save, heroId, _cfg);
+            if (result == null) return (false, null); // no-op — share the ref, no rebuild needed
+            _save = next;
+
+            // The star folds a hero-local multiplier into ComputeHeroStats — reconcile the live party now.
+            if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg);
+
+            var r = result.Value;
+            _chat?.AddFeed($"{HeroDefDisplayName(r.DefId)} ascends — ★{r.NewStars}!", new Color(1f, 0.82f, 0.32f));
+
+            // A star is a real shard debit — flush now so a quit before the 30s autosave can't refund it.
+            SaveStore.Save(Save.Touch(_save, System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()));
+            return (true, result);
+        }
+
         public void BindQuests(QuestPanel quests) => _questPanel = quests;
         public void BindInventory(InventoryView inv) => _inventory = inv;
         public void BindEquipment(EquipmentView eq) => _equipment = eq;
@@ -691,8 +714,8 @@ namespace IdleGame.Game
         /// <summary>Hero gacha (roadmap 3): spend gems on one roll of a banner from the GachaPanel. Persists
         /// the returned save + reports the outcome in the feed (roll result with the hero name + NEW/dupe; a
         /// pity trigger and a new-hero join get their own prominent lines, matching the OnStageCleared voice).
-        /// Refreshes live party stats when the roll granted XP (a dupe can level a fielded hero) or minted a
-        /// new hero — mirrors how EnhanceItem/ApplyPartyEdit reconcile _save. Returns the result so the panel
+        /// Refreshes live party stats when the roll minted a new hero (a dupe now grants ascension shards,
+        /// no live stat change) — mirrors how EnhanceItem/ApplyPartyEdit reconcile _save. Returns the result so the panel
         /// can play its reveal beat; a no-op result (can't afford / unknown banner) plays nothing.</summary>
         public Gacha.RollResult RollGacha(string bannerId)
         {
@@ -708,14 +731,15 @@ namespace IdleGame.Game
             }
             else
             {
-                string bonus = r.DupeScrap != 0 ? $"  (+{Num.CompactFloor(r.DupeXp)} XP, +{Num.CompactFloor(r.DupeScrap)} scrap)"
-                                                : $"  (+{Num.CompactFloor(r.DupeXp)} XP)";
-                _chat?.AddFeed($"Summon: {name} (dupe){bonus}", new Color(0.72f, 0.80f, 0.95f));
+                // Dupe → ascension shards on this hero's wallet (10.17 — replaced the XP/scrap payout).
+                _chat?.AddFeed($"Summon: {name} (dupe)  (+{Num.CompactFloor(r.DupeShards)} shards)",
+                               new Color(0.72f, 0.80f, 0.95f));
             }
             if (r.PityTriggered)
                 _chat?.AddFeed($"Pity! {name} is guaranteed.", new Color(1f, 0.85f, 0.4f));
 
-            // A new hero (AcquireHero) or a dupe's XP (can level a FIELDED hero) both change live party stats.
+            // A new hero (AcquireHero) changes live party stats; a dupe now grants shards (no live stat
+            // change until a Star Up), but the refresh is harmless and keeps the reconcile path uniform.
             if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg);
 
             // Premium currency was spent (and possibly a hero minted) — flush now so a quit before the
@@ -1476,8 +1500,14 @@ namespace IdleGame.Game
                     _chat?.AddFeed($"New endless record — depth {_save.Progress.EndlessBest}!",
                                    new Color(1f, 0.82f, 0.32f));
                     if (_save.Progress.EndlessBest % Mathf.Max(1, _cfg.Balance.EndlessGemsEvery) == 0)
+                    {
                         _chat?.AddFeed($"+{_cfg.Balance.EndlessGemsPerMilestone} gems — endless milestone!",
                                        new Color(0.65f, 0.85f, 1f));
+                        // 10.17: the same gate pays UNIVERSAL ascension shards (OnStageCleared credits them
+                        // beside the gems) — the base roster's star-track fuel, since they never roll dupes.
+                        _chat?.AddFeed($"+{_cfg.Balance.AscensionShardsPerEndlessMilestone} hero shards — endless milestone!",
+                                       new Color(0.85f, 0.75f, 1f));
+                    }
                 }
                 Award(AchievementMetric.BossesKilled, 1);                          // stage boss down (Lever 4)
                 Award(AchievementMetric.HighestStage, _save.Progress.HighestStage); // deepest-stage milestone

@@ -25,9 +25,7 @@ laptop-gated), the user's ears pass on ambience/UI sounds.
 
 ## Your calls — decisions waiting on the USER
 
-1-6, 8. RESOLVED 2026-07-09..12 (receipts in git + design doc): 10.1
-   rebalance · caster root · crypt tuning + own-depth curve + 2× toggle ·
-   key cadence/test keys stay · lighting/terrain fine · gaits both.
+1-6, 8. RESOLVED 2026-07-09..12 (receipts in git + design doc).
 7. **Older feel list** (user: "later" — parked): arena sizes/roam,
    water colour, stair-tread chunkiness, terrace hop speed, caster
    MoveSpd vs follow floor (overworld), anim-end vs contact launch,
@@ -47,10 +45,9 @@ in design-doc §8; this file owns priority + slicing). CUT by the same
 verdict (final — never re-pitch): prestige/rebirth (idle ARPG, NOT an
 incremental) and offline-depth expansion. Social-lite = later, not cut.**
 
-Also parked, deliberately not goals: real-money gems · server authority
-(§9) · zone drop-table hints · manual achievement-claim UX · BFS
-build-reveal anim · tilt-shift band-blur · SDF jiggle-rope tail · crypt
-mid-run merchant/boon-draft (never dilute dust's permanent role).
+Also parked, not goals: real-money gems · server authority (§9) · zone
+drop-table hints · manual achievement-claim UX · BFS build-reveal anim ·
+tilt-shift band-blur · SDF jiggle tail · crypt mid-run merchant/boon-draft.
 
 **10.13 Touch-first UI reflow (MM1) — COMPLETE 2026-07-15 (ledger).**
 Non-interactive IMGUI deliberately remains (party chips, currency HUD,
@@ -79,11 +76,10 @@ threading sweeps assert VALUE survival, not ref identity.
 optional `nowMs = 0` params (0 = legacy all-off, no call-site churn);
 the crypt mutation keys off StageEquivalent + the window's EndMs.
 
-**10.17 Endgame sinks (MM5).** Enhancement scrolls (§6.1: enhanceLevel
-gamble, rising risk/cost, seeded rng + persisted cursor) + hero dupe
-ascension (star-ups beyond the current XP/scrap). Acceptance:
-BalanceSim shows ~6 months of daily play with a meaningful weekly
-spend target — mobile idle dies when currencies cap out.
+**10.17 Endgame sinks (MM5) — COMPLETE 2026-07-15 (ledger).** Durable:
++15 enhance had ALREADY shipped (`48a9f52`); endgame gold/scrap FLOOD
+material sinks (enhance saturates <1wk) — the binding 6-month sink is
+gem-gated ascension via GemFractionToAscension=0.33 (retune consciously).
 
 **10.18 Cloud save & identity (MM6).** Platform auth (Play Games /
 Game Center + guest), save sync, conflict UX that shows BOTH summaries
@@ -149,6 +145,11 @@ a reducer silently strips them — grep `new Item` / `new HeroInstance`
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-07-15 10.17 endgame sinks COMPLETE: ascension (dupes → per-hero
+  shards; universal shards on endless milestones; 5★ × +4% hero-local;
+  costs 10/20/30/50/80, hero wallet first; Stars + AscensionState
+  sweep-threaded; Heroes-window star row/Star Up/wallets) + BalanceSim
+  `sinks` (24.2wk horizon, ≥20wk gate). 841 tests; Play-verified.
 - 2026-07-15 10.16 live-ops COMPLETE (user: 10% magnitudes, monthly):
   weekend zone boost [Sat,Mon) rotating weekly + mutated crypt
   [Wed,Fri) (+1 modifier, +10% dust); monthly 30-tier free season

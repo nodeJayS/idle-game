@@ -35,6 +35,12 @@ namespace IdleGame.BalanceSim
     ///          Simulated playthrough (10.1d): farm each stage's trash at the current level, spend the
     ///          measured XP/min to level up until the boss gate clears, then advance — charting the
     ///          cumulative ACTIVE hours to reach each stage (and gold banked). The hours-to-80 read.
+    ///   sinks  [--weeks 26] [--active-min 90] [--reforges 40] [--seed 1] [--csv path]
+    ///          Endgame spend-horizon chart (10.17): a daily endgame player's weekly income of each
+    ///          currency (measured from a real endgame farm window) vs the cost to saturate each SINK
+    ///          family — gear enhancement to +EnhanceMax, hero ascension to max stars, affix reforge
+    ///          cadence. Charts cumulative income vs spend per week and reports weeks-to-saturation per
+    ///          family + the ~6-month content HORIZON. --active-min / --reforges retune the player model.
     ///
     /// ACCOUNT STACKS (10.1d) — every mode above takes optional endgame stacks the live player has but
     /// the bare walls chart under-counts (§5.3). --stacks none|mid|max sets a bundle; the granular
@@ -51,7 +57,7 @@ namespace IdleGame.BalanceSim
 
             if (opts.ContainsKey("help") || mode == "help")
             {
-                Console.WriteLine("modes: walls (default) | sweep | farm | crypt | endless | pace — see Program.cs header for options.");
+                Console.WriteLine("modes: walls (default) | sweep | farm | crypt | endless | pace | sinks — see Program.cs header for options.");
                 return 0;
             }
 
@@ -64,8 +70,9 @@ namespace IdleGame.BalanceSim
                 case "crypt": return CryptChart(cfg, opts, seed);
                 case "endless": return Endless(cfg, opts, seed);
                 case "pace": return Pace(cfg, opts, seed);
+                case "sinks": return Sinks(cfg, opts, seed);
                 default:
-                    Console.Error.WriteLine($"unknown mode \"{mode}\" (walls | sweep | farm | crypt | endless | pace)");
+                    Console.Error.WriteLine($"unknown mode \"{mode}\" (walls | sweep | farm | crypt | endless | pace | sinks)");
                     return 2;
             }
         }
@@ -559,6 +566,73 @@ namespace IdleGame.BalanceSim
                 foreach (var r in rows)
                     w.WriteLine($"{r.Depth},{(r.Major ? 1 : 0)},{r.BossWins.ToString("0.00", ci)},{r.BossSeconds.ToString("0.0", ci)},"
                                 + $"{r.KillsPerMin.ToString("0.0", ci)},{r.HitsPerKill.ToString("0.0", ci)},{r.GoldPerMin.ToString("0", ci)},{r.Downs.ToString("0.0", ci)}");
+            });
+            return 0;
+        }
+
+        // ---- sinks (endgame spend horizon, 10.17) ------------------------------------
+
+        private static int Sinks(GameConfig cfg, Dictionary<string, string> opts, uint seed)
+        {
+            int weeks = Math.Max(1, GetInt(opts, "weeks", 26));
+            var p = Scenarios.SinkModelParams.Default(cfg);
+            if (opts.ContainsKey("active-min")) p.ActiveMinutesPerDay = GetInt(opts, "active-min", (int)p.ActiveMinutesPerDay);
+            if (opts.ContainsKey("reforges")) p.ReforgesPerSlotLifetime = GetInt(opts, "reforges", p.ReforgesPerSlotLifetime);
+
+            var h = Scenarios.ComputeSinkHorizon(cfg, seed, p);
+            var ci = CultureInfo.InvariantCulture;
+            string Wk(double w) => double.IsInfinity(w) ? "never" : w.ToString("0.0", ci);
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"Endgame spend horizon — daily player, {p.ActiveMinutesPerDay:0} active min/day, "
+                          + $"{h.PartyHeroes} heroes, endgame farm stage {h.FarmStage} (ilvl {h.ItemLevel}, {Scenarios.GearName(p.Gear)} gear); seed {seed}");
+            sb.AppendLine("coarse expected-value model (not a per-roll sim) — the horizon ESTIMATE + a re-tunable harness.");
+            sb.AppendLine();
+            sb.AppendLine("WEEKLY INCOME");
+            sb.AppendLine($"  gold   {h.GoldPerWeek,14:0}   ({h.GoldPerMin:0}/min × {p.ActiveMinutesPerDay * 7:0} min/wk)");
+            sb.AppendLine($"  scrap  {h.ScrapPerWeek,14:0}   ({h.ScrapPerMin:0}/min, {h.DropsPerMin:0.0} drops/min salvaged)");
+            sb.AppendLine($"  gems   {h.GemsPerWeek,14:0}   (daily login + endless milestones)");
+            sb.AppendLine($"  shards {h.ShardsPerWeek,14:0}   (gacha dupes + endless-milestone universal)");
+            sb.AppendLine();
+            sb.AppendLine("SINK COST (full party to cap) & WEEKS TO SATURATE");
+            sb.AppendLine($"  enhance→+{cfg.Balance.EnhanceMax}   scrap {h.EnhanceScrapCost,14:0}   {Wk(h.EnhanceWeeks),7} wk");
+            sb.AppendLine($"  ascension×{cfg.Balance.AscensionMaxStars}   shard {h.StarShardCost,14:0}   {Wk(h.StarWeeks),7} wk");
+            sb.AppendLine($"  reforge×{p.ReforgesPerSlotLifetime}     gold  {h.ReforgeGoldCost,14:0}   {Wk(h.ReforgeWeeks),7} wk");
+            sb.AppendLine();
+
+            // Per-week cumulative income vs the remaining spend need (the ~6-month shape).
+            sb.AppendLine("week   cum_scrap   need_enh   cum_shard  need_star    cum_gold  need_rfg");
+            for (int w = 1; w <= weeks; w++)
+            {
+                double cumScrap = h.ScrapPerWeek * w, cumShard = h.ShardsPerWeek * w, cumGold = h.GoldPerWeek * w;
+                sb.AppendLine($"{w,4}  {cumScrap,10:0}  {Math.Max(0, h.EnhanceScrapCost - cumScrap),9:0}"
+                              + $"  {cumShard,10:0}  {Math.Max(0, h.StarShardCost - cumShard),9:0}"
+                              + $"  {cumGold,10:0}  {Math.Max(0, h.ReforgeGoldCost - cumGold),8:0}");
+            }
+            sb.AppendLine();
+
+            // ---- verdict ----
+            string longest = h.EnhanceWeeks >= h.StarWeeks && h.EnhanceWeeks >= h.ReforgeWeeks ? "enhance"
+                           : h.StarWeeks >= h.ReforgeWeeks ? "ascension" : "reforge";
+            sb.AppendLine($"HORIZON: {Wk(h.HorizonWeeks)} weeks (~{h.HorizonWeeks / 4.345:0.0} months) — the last sink to empty is {longest}.");
+            sb.AppendLine(h.HorizonWeeks >= 20
+                ? "  → clears the ~6-month (≥20-week) endgame-spend acceptance for a daily player."
+                : "  → SHORT of the ~6-month target: sinks saturate too fast (raise star/enhance costs or lower income assumptions).");
+            Console.Write(sb.ToString());
+
+            WriteCsv(opts, "week,cum_scrap,cum_shard,cum_gold,enh_remaining,star_remaining,reforge_remaining", w =>
+            {
+                for (int wk = 1; wk <= weeks; wk++)
+                {
+                    double cs = h.ScrapPerWeek * wk, csh = h.ShardsPerWeek * wk, cg = h.GoldPerWeek * wk;
+                    w.WriteLine(string.Join(",", new[]
+                    {
+                        wk.ToString(ci), cs.ToString("0", ci), csh.ToString("0", ci), cg.ToString("0", ci),
+                        Math.Max(0, h.EnhanceScrapCost - cs).ToString("0", ci),
+                        Math.Max(0, h.StarShardCost - csh).ToString("0", ci),
+                        Math.Max(0, h.ReforgeGoldCost - cg).ToString("0", ci),
+                    }));
+                }
             });
             return 0;
         }

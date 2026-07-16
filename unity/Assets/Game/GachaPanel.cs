@@ -185,10 +185,10 @@ namespace IdleGame.Game
             big.fontStyle = FontStyle.Bold;
             big.raycastTarget = false;
 
-            // Tags: NEW! (join) or a +XP(+scrap) dupe line, plus a Pity line when it was forced.
+            // Tags: NEW! (join) or a +shards dupe line (10.17 — dupes now fuel the hero's star track),
+            // plus a Pity line when it was forced.
             string sub = r.IsNew ? "NEW!"
-                : (r.DupeScrap != 0 ? $"Dupe   +{Num.CompactFloor(r.DupeXp)} XP   +{Num.CompactFloor(r.DupeScrap)} scrap"
-                                    : $"Dupe   +{Num.CompactFloor(r.DupeXp)} XP");
+                                 : $"Dupe   +{Num.CompactFloor(r.DupeShards)} shards";
             var tag = PanelKit.Label(flash, sub, Theme.FsH1,
                                      r.IsNew ? Theme.RevealNewTag : Theme.RevealSubTag, TextAnchor.MiddleCenter);
             tag.fontStyle = FontStyle.Bold;

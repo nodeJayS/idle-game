@@ -87,6 +87,13 @@ namespace IdleGame.GameCore
         // lives in Loadouts.Apply, not here). Threaded through every HeroInstance copy site,
         // same rule as SkillRanks above.
         public Dictionary<EquipSlot, string>? Loadout;
+        // Ascension stars (10.17, mobile arc MM5): 0..BalanceConstants.AscensionMaxStars, bought with
+        // ascension shards (Ascension.StarUp). Each star folds +AscensionStarPct Hp/Atk/Def into THIS
+        // hero's Stats.ComputeHeroStats (hero-local, not account-wide). Additive int field (absent in
+        // older json ⇒ 0 = unascended, no SaveVersion bump — the Item.Enhance precedent). THE 10.5
+        // LESSON: threaded through every HeroInstance copy site (grep `new HeroInstance`), same rule as
+        // SkillRanks/Loadout above — a dropped copy site silently wipes stars. A sweep test guards it.
+        public int Stars;
     }
 
     public sealed class Affix
@@ -161,6 +168,13 @@ namespace IdleGame.GameCore
         // backfills it) — NO SaveVersion bump (the CodexState precedent). A dropped copy site would wipe
         // season progress, so the threading is guarded by the same sweep test as Codex.
         public SeasonState Season = new SeasonState();
+        // Hero ascension (10.17, mobile arc MM5): per-DEF ascension-shard wallets from gacha dupes (the
+        // per-hero half; the UNIVERSAL half lives in SaveState.Currencies["hero_shards"]). Nested here for
+        // the same threading reason as its siblings (the ProgressState constructors carry it; the ~20
+        // SaveState copy sites get it free). Purely ADDITIVE (absent in older json ⇒ fresh AscensionState
+        // via the field initializer, and Save.Migrate backfills it) — NO SaveVersion bump. A dropped copy
+        // site would wipe hero shards, so the threading is guarded by the same sweep test as Codex/Season.
+        public AscensionState Ascension = new AscensionState();
     }
 
     /// <summary>10.5a loot filter: per-slot auto-salvage floors + the imprint guard.
@@ -294,6 +308,22 @@ namespace IdleGame.GameCore
         public string Id = "";  // "yyyy-MM" (UTC) of this progress; "" = never touched (any month resets it)
         public long Points;     // points earned this season (from completed quests)
         public int TiersPaid;   // tiers already auto-paid out (0..SeasonTierCount)
+    }
+
+    /// <summary>
+    /// Hero-ascension state (10.17, mobile arc MM5 — the endgame shard sink). <see cref="Shards"/> maps a
+    /// hero DEF id → the ascension shards banked for THAT hero from gacha dupes (the per-hero wallet;
+    /// <see cref="Ascension.StarUp"/> spends it before the universal wallet). The UNIVERSAL wallet — earned
+    /// from the endless-depth milestone and spendable on any hero — is a plain currency in
+    /// <see cref="SaveState.Currencies"/> under <see cref="Ascension.UniversalShardCurrency"/> (the currencies
+    /// map is additive by design, so it needs no threading). Nested under <see cref="ProgressState"/> (like
+    /// <see cref="CodexState"/> / <see cref="SeasonState"/>) so it rides the existing Progress
+    /// reference-threading — only the ProgressState constructors carry it. A dropped copy site would wipe
+    /// hero shards (the 10.5d SetId bug class), so the threading is guarded by a sweep test.
+    /// </summary>
+    public sealed class AscensionState
+    {
+        public Dictionary<string, long> Shards = new Dictionary<string, long>(); // hero DEF id -> per-hero ascension shards
     }
 
     /// <summary>

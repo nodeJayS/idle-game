@@ -119,6 +119,7 @@ namespace IdleGame.GameCore
             {
                 Id = hero.Id, DefId = hero.DefId, Level = hero.Level, Xp = hero.Xp,
                 Equipped = hero.Equipped, SkillRanks = ranks, Loadout = hero.Loadout,
+                Stars = hero.Stars,
             };
             var heroes = new List<HeroInstance>(save.Heroes.Count);
             foreach (var h in save.Heroes) heroes.Add(ReferenceEquals(h, hero) ? updated : h);

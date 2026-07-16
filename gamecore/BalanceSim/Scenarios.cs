@@ -103,6 +103,7 @@ namespace IdleGame.BalanceSim
                     Xp = 0,
                     Equipped = new Dictionary<EquipSlot, string>(h.Equipped),
                     SkillRanks = new Dictionary<string, int>(h.SkillRanks),
+                    Stars = h.Stars,
                 });
             save = WithHeroes(save, heroes);
 
@@ -290,6 +291,200 @@ namespace IdleGame.BalanceSim
                 if (ClearsBoss(cfg, stage, mid, gear, trials, baseSeed, stacks)) hi = mid; else lo = mid;
             }
             return hi;
+        }
+
+        // ================================================================================
+        // Endgame SINK horizon (10.17 / mobile arc MM5) — the ~6-month spend-horizon model.
+        // Coarse EXPECTED-VALUE economics (NOT a per-roll simulation): a daily endgame player's
+        // weekly income of each currency vs the total cost to saturate each endgame SINK family,
+        // giving weeks-to-saturation per family and the content HORIZON (the last sink to empty).
+        // The deliverable is the horizon ESTIMATE + a re-tunable harness, not a faithful sim — so
+        // the modeling assumptions live in SinkModelParams, all documented and overridable.
+        // ================================================================================
+
+        /// <summary>Tunable modeling assumptions for <see cref="ComputeSinkHorizon"/> — the harness knobs
+        /// (NOT game constants). Retune these consciously; the game constants (star costs, enhance curve,
+        /// shard rates) are read straight from <see cref="GameConfig"/>.</summary>
+        public struct SinkModelParams
+        {
+            public int FarmStage;              // endgame farm depth the income is measured at (default: last campaign stage)
+            public int Level;                  // party level (default: MaxLevel)
+            public Rarity Gear;                // gear policy for the income party (default: Mythic — endgame)
+            public double ActiveMinutesPerDay; // active farming minutes/day for a daily player (idle accrual omitted = conservative)
+            public double FarmWindowSeconds;   // farm-throughput measurement window
+            public int ReforgesPerSlotLifetime;// affix-chase reforges per worn slot over the whole content lifetime
+            public double DupeFraction;        // fraction of gacha rolls that are DUPES at endgame (owned roster ⇒ ~all)
+            public double EndlessMilestonesPerWeek; // NEW endless milestones the endgame push still clears per week (tapering)
+            // THE horizon lever. At maxed endgame the farm economy floods gold+scrap (enhance/reforge
+            // saturate in days), so the horizon is entirely GEM-gated ascension. A daily player does NOT
+            // funnel 100% of premium gems into one ascension banner — gems also pull NEW heroes, bank for
+            // future banners, and fund other spends; only a fraction farms dupes for ascension shards.
+            // This is what stretches the whole-roster ascension chase to the ~6-month horizon WITHOUT
+            // touching the user's per-hero star costs ({10,20,30,50,80} ≈ 19 dupes/hero stays intact).
+            public double GemFractionToAscension;
+
+            public static SinkModelParams Default(GameConfig cfg) => new SinkModelParams
+            {
+                FarmStage = cfg.Stages.Count,
+                Level = cfg.Balance.MaxLevel,
+                Gear = Rarity.Mythic,
+                ActiveMinutesPerDay = 90,   // ~1.5h of active farming a day; idle accrual would add gold on top
+                FarmWindowSeconds = 120,
+                ReforgesPerSlotLifetime = 40,
+                DupeFraction = 1.0,          // at endgame the whole pool is owned, so every roll dupes
+                EndlessMilestonesPerWeek = 1,
+                GemFractionToAscension = 0.33, // ~a third of premium income funds ascension dupes (see above)
+            };
+        }
+
+        /// <summary>The computed horizon: per-currency weekly income, per-family total sink cost, and the
+        /// weeks-to-saturation each family takes — plus the overall content HORIZON (max across families,
+        /// i.e. the last sink a daily player exhausts).</summary>
+        public sealed class SinkHorizon
+        {
+            public int PartyHeroes;
+            public int FarmStage, ItemLevel;
+            public double GoldPerMin, ScrapPerMin, DropsPerMin;
+            // weekly income by currency
+            public double GoldPerWeek, ScrapPerWeek, GemsPerWeek, ShardsPerWeek;
+            // total lifetime cost of each sink family (to fully saturate it)
+            public double EnhanceScrapCost, StarShardCost, ReforgeGoldCost, ReforgeScrapCost;
+            // weeks to saturate each family (cost / the weekly income of its currency)
+            public double EnhanceWeeks, StarWeeks, ReforgeWeeks;
+            /// <summary>The content horizon: the LAST sink family a daily player saturates.</summary>
+            public double HorizonWeeks;
+        }
+
+        /// <summary>
+        /// Model the ~6-month endgame spend horizon (the 10.17 acceptance). Measures a daily endgame
+        /// player's weekly income of each currency (from a real farm window at the endgame depth) against
+        /// the total cost to fully saturate each sink family — gear enhancement to +EnhanceMax across the
+        /// worn party, hero ascension to max stars, and an affix-reforge cadence — and returns the weeks
+        /// each takes plus the overall horizon. Deterministic under <paramref name="seed"/>.
+        /// </summary>
+        public static SinkHorizon ComputeSinkHorizon(GameConfig cfg, uint seed, SinkModelParams? paramsOpt = null)
+        {
+            var p = paramsOpt ?? SinkModelParams.Default(cfg);
+            var b = cfg.Balance;
+
+            // ---- income: one real farm window at the endgame depth, pinned at max power ----
+            int gearIndex = Array.IndexOf(GearPolicies, (Rarity?)p.Gear);
+            uint cellSeed = CellSeed(seed, p.FarmStage, p.Level, gearIndex, 0);
+            var incomeSave = BuildSave(cfg, p.FarmStage, p.Level, p.Gear,
+                cellSeed, AccountStacks.None); // bare account: income shouldn't presume the very stacks it funds
+            var farm = RunFarm(cfg, incomeSave, p.FarmStage, p.FarmWindowSeconds, cellSeed);
+
+            var rt = cfg.StageFor(p.FarmStage) ?? cfg.Stages[0];
+            int itemLevel = Math.Max(1, Math.Max(rt.AffixItemLevel, rt.MonsterLevel));
+            int partyHeroes = FieldedParty(incomeSave).Count;
+
+            // Scrap income = salvaged drops. Coarse: value each drop at a representative salvage — a
+            // Rare-tier piece at the farm's item level (drops skew low-rarity, so Rare is a mid estimate).
+            double avgScrapPerDrop = cfg.Balance.ScrapValue(Rarity.Rare, itemLevel);
+            double scrapPerMin = farm.KillsPerMinute > 0 ? (farm.Drops * 60.0 / Math.Max(1e-9, farm.WindowSeconds)) * avgScrapPerDrop : 0;
+            double goldPerMin = farm.GoldPerMinute;
+            double dropsPerMin = farm.Drops * 60.0 / Math.Max(1e-9, farm.WindowSeconds);
+
+            double activeMinPerWeek = p.ActiveMinutesPerDay * 7.0;
+            double goldPerWeek = goldPerMin * activeMinPerWeek;
+            double scrapPerWeek = scrapPerMin * activeMinPerWeek;
+
+            // Gems/week: daily-login base × 7 + endless-milestone gems. Shards/week: universal from the
+            // same endless milestones + hero shards from spending that week's gems on dupes.
+            double gemsPerWeek = b.DailyLoginBaseGems * 7.0
+                                 + b.EndlessGemsPerMilestone * p.EndlessMilestonesPerWeek;
+            long bannerCost = FirstBannerCost(cfg);
+            double rollsPerWeek = bannerCost > 0 ? (gemsPerWeek * p.GemFractionToAscension) / bannerCost : 0;
+            double dupeShardsPerWeek = rollsPerWeek * p.DupeFraction * b.AscensionShardsPerDupe;
+            double universalShardsPerWeek = b.AscensionShardsPerEndlessMilestone * p.EndlessMilestonesPerWeek;
+            double shardsPerWeek = dupeShardsPerWeek + universalShardsPerWeek;
+
+            // ---- sink costs ----
+            int slots = EquipSlots.Active.Length;
+            var repItem = new Item { Rarity = p.Gear, ItemLevel = itemLevel }; // a representative worn piece
+            double enhanceScrapPerItem = ExpectedScrapToMaxEnhance(repItem, cfg);
+            double enhanceScrapCost = enhanceScrapPerItem * partyHeroes * slots;
+
+            // Ascension is a permanent PER-HERO investment the whole COLLECTION wants (not just the 3
+            // fielded slots) — a roster-builder ascends every owned hero, and gacha keeps minting more.
+            int ascendHeroes = incomeSave.Heroes.Count;
+            double starPerHero = 0;
+            foreach (var c in b.AscensionStarCosts) starPerHero += c;
+            double starShardCost = starPerHero * ascendHeroes;
+
+            var (reforgeGold, reforgeScrap) = Inventory.ReforgeCost(repItem, cfg);
+            double reforgeGoldCost = (double)reforgeGold * p.ReforgesPerSlotLifetime * partyHeroes * slots;
+            double reforgeScrapCost = (double)reforgeScrap * p.ReforgesPerSlotLifetime * partyHeroes * slots;
+
+            // ---- weeks-to-saturation per family (cost / that currency's weekly income) ----
+            double W(double cost, double perWeek) => perWeek > 0 ? cost / perWeek : double.PositiveInfinity;
+            double enhanceWeeks = W(enhanceScrapCost, scrapPerWeek);
+            double starWeeks = W(starShardCost, shardsPerWeek);
+            // reforge draws BOTH gold and scrap; the binding constraint is the slower currency, but it
+            // also competes with enhance for scrap — charge reforge scrap on top of enhance scrap.
+            double reforgeWeeks = Math.Max(W(reforgeGoldCost, goldPerWeek),
+                                           W(enhanceScrapCost + reforgeScrapCost, scrapPerWeek));
+
+            double horizon = Max3(enhanceWeeks, starWeeks, reforgeWeeks);
+
+            return new SinkHorizon
+            {
+                PartyHeroes = partyHeroes,
+                FarmStage = p.FarmStage,
+                ItemLevel = itemLevel,
+                GoldPerMin = goldPerMin,
+                ScrapPerMin = scrapPerMin,
+                DropsPerMin = dropsPerMin,
+                GoldPerWeek = goldPerWeek,
+                ScrapPerWeek = scrapPerWeek,
+                GemsPerWeek = gemsPerWeek,
+                ShardsPerWeek = shardsPerWeek,
+                EnhanceScrapCost = enhanceScrapCost,
+                StarShardCost = starShardCost,
+                ReforgeGoldCost = reforgeGoldCost,
+                ReforgeScrapCost = reforgeScrapCost,
+                EnhanceWeeks = enhanceWeeks,
+                StarWeeks = starWeeks,
+                ReforgeWeeks = reforgeWeeks,
+                HorizonWeeks = horizon,
+            };
+        }
+
+        /// <summary>Expected scrap to enhance one item from +0 to +EnhanceMax, summing per-level
+        /// EnhanceCost × expected attempts (1/successChance). A LOWER bound: it ignores the extra re-climb
+        /// cost when a fail at/above EnhanceDropFrom knocks the item down a level — so the real sink (and
+        /// horizon) is a touch LONGER than this reports.</summary>
+        public static double ExpectedScrapToMaxEnhance(Item item, GameConfig cfg)
+        {
+            var b = cfg.Balance;
+            double total = 0;
+            var probe = new Item { Rarity = item.Rarity, ItemLevel = item.ItemLevel };
+            for (int level = 1; level <= b.EnhanceMax; level++)
+            {
+                double p = b.EnhanceSuccess[level - 1];
+                double attempts = p > 0 ? 1.0 / p : 0;
+                probe.Enhance = level - 1;                 // cost is charged at the CURRENT level before the attempt
+                total += b.EnhanceCost(probe) * attempts;
+            }
+            return total;
+        }
+
+        /// <summary>The cheapest banner's gem cost (the roll price shard income is priced against), or 0 if
+        /// no banner ships.</summary>
+        private static long FirstBannerCost(GameConfig cfg)
+        {
+            long best = 0;
+            foreach (var kv in cfg.Banners)
+                if (best == 0 || kv.Value.CostGems < best) best = kv.Value.CostGems;
+            return best;
+        }
+
+        private static double Max3(double a, double b, double c)
+        {
+            double m = a;
+            if (b > m) m = b;
+            if (c > m) m = c;
+            return m;
         }
 
         private static SaveState WithHeroes(SaveState save, List<HeroInstance> heroes) => new SaveState

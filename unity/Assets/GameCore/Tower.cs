@@ -180,6 +180,7 @@ namespace IdleGame.GameCore
                 Loot = save.Progress.Loot,
                 Codex = save.Progress.Codex,
                 Season = save.Progress.Season,
+                Ascension = save.Progress.Ascension,
             };
             // Grant the per-floor gem reward — mirror DailyLogin.Apply's premium-currency credit exactly
             // (clone the currencies dict, add to Currencies[PremiumCurrency]). Only ever reached on the

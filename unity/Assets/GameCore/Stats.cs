@@ -71,6 +71,18 @@ namespace IdleGame.GameCore
                 result[sk.PassiveStat] = result.Get(sk.PassiveStat) + sk.StatPerRank * Skills.EffectiveRank(rank, sk, cfg);
             }
 
+            // Ascension stars (10.17): a HERO-LOCAL multiplier on core power — +AscensionStarPct Hp/Atk/Def
+            // per star, folded HERE in the per-hero build (deliberately unlike the Tower/codex ACCOUNT
+            // buffs, which fold in Combat.RefreshPartyStats across the whole party). Applied last, over
+            // gear + set + passive totals, so a star scales the hero's fully-built power. 0 stars = no-op.
+            if (hero.Stars > 0)
+            {
+                double starMult = 1.0 + hero.Stars * cfg.Balance.AscensionStarPct;
+                result[StatKey.Hp] = result.Get(StatKey.Hp) * starMult;
+                result[StatKey.Atk] = result.Get(StatKey.Atk) * starMult;
+                result[StatKey.Def] = result.Get(StatKey.Def) * starMult;
+            }
+
             return result;
         }
 

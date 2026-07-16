@@ -8,8 +8,9 @@ namespace IdleGame.GameCore.Tests
 {
     /// <summary>
     /// Gacha.Roll (roadmap 3, slice 1): the gem SINK. Covers the spend, persisted-cursor determinism
-    /// (no re-roll on reload), weighted picks, pity (forced featured + resets), new-hero minting, dupe
-    /// XP+scrap, the SyncHeroUnlocks interaction, and the additive-field backfill.
+    /// (no re-roll on reload), weighted picks, pity (forced featured + resets), new-hero minting, dupe →
+    /// ascension shards (10.17 — replaced the old XP/scrap payout), the SyncHeroUnlocks interaction, and
+    /// the additive-field backfill.
     /// </summary>
     public class GachaTests
     {
@@ -17,8 +18,6 @@ namespace IdleGame.GameCore.Tests
         private const string Filler = "priest_basic";     // the off-banner pool hero
         private const long Cost = 100;
         private const int Pity = 10;
-        private const long DupeXp = 500;
-        private const long DupeScrap = 25;
 
         // A config whose only banner is a 2-hero pool. Built off Default() so hero defs resolve.
         private static GameConfig CfgWithBanner(double featuredWeight = 1, double fillerWeight = 1)
@@ -27,7 +26,7 @@ namespace IdleGame.GameCore.Tests
             cfg.Banners["b1"] = new GachaBannerDef
             {
                 Id = "b1", Name = "Test Banner", CostGems = Cost, FeaturedHeroDefId = Featured,
-                PityCount = Pity, DupeXp = DupeXp, DupeScrap = DupeScrap,
+                PityCount = Pity,
                 Pool = new List<GachaPoolEntry>
                 {
                     new GachaPoolEntry { HeroDefId = Featured, Weight = featuredWeight },
@@ -48,7 +47,6 @@ namespace IdleGame.GameCore.Tests
         }
 
         private static long GemsOf(SaveState s) => s.Currencies.GetValueOrDefault("gems");
-        private static long ScrapOf(SaveState s) => s.Currencies.GetValueOrDefault("scrap");
 
         // ---- cost / affordability ---------------------------------------------------------------
 
@@ -230,7 +228,7 @@ namespace IdleGame.GameCore.Tests
         // ---- dupe --------------------------------------------------------------------------------
 
         [Fact]
-        public void DupeGrantsXpAndScrapAndAddsNoDuplicateHero()
+        public void DupeGrantsHeroShardsAndAddsNoDuplicateHero()
         {
             var cfg = CfgWithBanner(featuredWeight: 1000, fillerWeight: 0.0001);
             var save = Save.NewGame(5, cfg, 0);
@@ -238,20 +236,20 @@ namespace IdleGame.GameCore.Tests
 
             var first = Gacha.Roll(save, cfg, "b1"); // new Ice Mage
             Assert.True(first.IsNew);
-            long scrapBefore = ScrapOf(first.Save);
+            long shardsBefore = Ascension.ShardsFor(first.Save, Featured);
             long xpBefore = first.Save.Heroes.First(h => h.DefId == Featured).Xp;
             int heroCount = first.Save.Heroes.Count;
 
             var dupe = Gacha.Roll(first.Save, cfg, "b1"); // dupe Ice Mage
             Assert.False(dupe.IsNew);
             Assert.Equal(Featured, dupe.HeroDefId);
-            Assert.Equal(DupeXp, dupe.DupeXp);
-            Assert.Equal(DupeScrap, dupe.DupeScrap);
+            Assert.Equal(cfg.Balance.AscensionShardsPerDupe, dupe.DupeShards); // shards announced
 
             Assert.Equal(heroCount, dupe.Save.Heroes.Count);                 // no duplicate instance
             Assert.Single(dupe.Save.Heroes, h => h.DefId == Featured);
-            Assert.Equal(scrapBefore + DupeScrap, ScrapOf(dupe.Save));       // scrap credited
-            Assert.Equal(xpBefore + DupeXp, dupe.Save.Heroes.First(h => h.DefId == Featured).Xp); // XP credited
+            // Shards credited to THAT hero's wallet — not XP/scrap (the 10.17 swap).
+            Assert.Equal(shardsBefore + cfg.Balance.AscensionShardsPerDupe, Ascension.ShardsFor(dupe.Save, Featured));
+            Assert.Equal(xpBefore, dupe.Save.Heroes.First(h => h.DefId == Featured).Xp); // XP untouched now
         }
 
         // ---- SyncHeroUnlocks interaction (the DANGER) --------------------------------------------
@@ -344,8 +342,7 @@ namespace IdleGame.GameCore.Tests
             Assert.Equal(10, banner.CostGems);              // one day-1 daily login
             Assert.Equal("icemage_basic", banner.FeaturedHeroDefId);
             Assert.Equal(20, banner.PityCount);
-            Assert.Equal(2_000_000, banner.DupeXp);
-            Assert.Equal(500, banner.DupeScrap);
+            // (Dupe payout is now universal — BalanceConstants.AscensionShardsPerDupe, 10.17 — not per-banner.)
         }
 
         [Fact]

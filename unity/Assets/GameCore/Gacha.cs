@@ -24,8 +24,9 @@ namespace IdleGame.GameCore
     ///    without the headliner.
     ///  - New vs dupe: a hero you don't own joins the roster (via <see cref="Party.AcquireHero"/>, the
     ///    same mint path stage-unlocks use — NOT auto-fielded). A dupe converts to
-    ///    <see cref="GachaBannerDef.DupeXp"/> XP on the rolled hero + <see cref="GachaBannerDef.DupeScrap"/>
-    ///    account scrap (both tuned on the banner, like the gem cost).
+    ///    <see cref="BalanceConstants.AscensionShardsPerDupe"/> ASCENSION SHARDS on the rolled hero's wallet
+    ///    (<see cref="Ascension.GrantHeroShards"/>, 10.17 — replacing the old XP/scrap dupe payout per the
+    ///    2026-07-15 verdict), the fuel for that hero's star track.
     ///
     /// Pure reducers: the input save is never mutated; <see cref="Roll"/> returns a fresh save inside the
     /// result. Unaffordable/unknown-banner rolls are a NO-OP (share the ref) — mirroring Enhance/Reforge,
@@ -44,8 +45,7 @@ namespace IdleGame.GameCore
             public bool IsNew;             // true = joined the roster; false = a dupe
             public bool IsFeatured;        // the rolled hero is the banner's featured hero
             public bool PityTriggered;     // this roll hit PityCount and was FORCED to the featured hero
-            public long DupeXp;            // XP granted to the rolled hero on a dupe (0 when new)
-            public long DupeScrap;         // account scrap granted on a dupe (0 when new)
+            public long DupeShards;        // ascension shards granted to the rolled hero's wallet on a dupe (0 when new)
         }
 
         /// <summary>Current pity count on a banner (rolls made without drawing its featured hero). 0 when
@@ -140,53 +140,14 @@ namespace IdleGame.GameCore
             }
             else
             {
-                // Dupe: XP to the rolled hero + account scrap. Grant XP through the shared curve reducer so
-                // level-ups apply exactly like combat XP.
-                result.DupeXp = banner.DupeXp;
-                result.DupeScrap = banner.DupeScrap;
-                next = GrantDupe(next, heroDefId, banner.DupeXp, banner.DupeScrap, cfg);
+                // Dupe: ascension shards to the rolled hero's wallet (10.17 — replaced the XP/scrap payout).
+                // The grant is keyed by DEF, not instance, so it doesn't matter which owned copy rolled.
+                result.DupeShards = cfg.Balance.AscensionShardsPerDupe;
+                next = Ascension.GrantHeroShards(next, heroDefId, cfg.Balance.AscensionShardsPerDupe);
             }
 
             result.Save = next;
             return result;
-        }
-
-        /// <summary>Grant a dupe's rewards: XP to the FIRST owned hero of that def (via
-        /// <see cref="Progression.GrantXp"/>) and scrap to the account. Pure; returns a fresh save.</summary>
-        private static SaveState GrantDupe(SaveState save, string heroDefId, long xp, long scrap, GameConfig cfg)
-        {
-            var nextHeroes = new List<HeroInstance>(save.Heroes.Count);
-            bool granted = false;
-            foreach (var h in save.Heroes)
-            {
-                if (!granted && h.DefId == heroDefId && xp > 0)
-                {
-                    nextHeroes.Add(Progression.GrantXp(h, xp, cfg));
-                    granted = true;
-                }
-                else nextHeroes.Add(h);
-            }
-
-            var currencies = new Dictionary<string, long>(save.Currencies);
-            if (scrap != 0)
-                currencies["scrap"] = (currencies.TryGetValue("scrap", out var s) ? s : 0) + scrap;
-
-            return new SaveState
-            {
-                Version = save.Version,
-                RngSeed = save.RngSeed,
-                RngCursor = save.RngCursor,
-                Heroes = nextHeroes,
-                Party = save.Party,
-                LeaderHeroId = save.LeaderHeroId,
-                Inventory = save.Inventory,
-                Currencies = currencies,
-                Progress = save.Progress,
-                Quests = save.Quests,
-                Modifiers = save.Modifiers,
-                GachaPity = save.GachaPity,
-                LastClaimAt = save.LastClaimAt,
-            };
         }
     }
 }

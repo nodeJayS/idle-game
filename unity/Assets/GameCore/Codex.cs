@@ -261,6 +261,7 @@ namespace IdleGame.GameCore
                 Loot = save.Progress.Loot,
                 Codex = codex,
                 Season = save.Progress.Season,
+                Ascension = save.Progress.Ascension,
             },
             Quests = save.Quests,
             Modifiers = save.Modifiers,
