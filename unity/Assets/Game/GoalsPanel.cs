@@ -159,7 +159,9 @@ namespace IdleGame.Game
                 long hrs = (ev.EndMs - now + 3_599_999) / 3_600_000; // ceil (never under-promise the window)
                 var box = PanelKit.VStack(body, Theme.GapXs);
                 var top = PanelKit.Row(box, HeadRowH);
-                PanelKit.TextCell(top, ev.Name, Theme.FsBody, Theme.AccentGold, TextAnchor.MiddleLeft, flex: 1f);
+                // 10.20c: name composed client-side via Loc off Id + ZoneIndex (EventInfo.Name is
+                // untranslatable GameCore English, compat-only). The rest of this panel sweeps in phase 2.
+                PanelKit.TextCell(top, StatDisplay.EventName(ev, _cfg), Theme.FsBody, Theme.AccentGold, TextAnchor.MiddleLeft, flex: 1f);
                 PanelKit.TextCell(top, $"ends in {hrs}h", Theme.FsSmall, Theme.TextMuted, TextAnchor.MiddleRight, flex: 1f);
                 var sub = PanelKit.Row(box, SubRowH);
                 PanelKit.TextCell(sub, EventEffect(ev, now), Theme.FsTiny, Theme.TextBody, TextAnchor.MiddleLeft, flex: 1f);

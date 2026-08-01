@@ -69,7 +69,7 @@ namespace IdleGame.Game
             var save = _view.CurrentSave;
 
             // Title — Modal has no header, so this is the first body row.
-            var title = PanelKit.Label(body, "Game Modes", Theme.FsTitle, TitleCol, TextAnchor.MiddleCenter);
+            var title = PanelKit.Label(body, Loc.T("modes.title"), Theme.FsTitle, TitleCol, TextAnchor.MiddleCenter);
             PanelKit.Fixed(title.gameObject, height: 36f);
 
             var kind = _view.CurrentKind;
@@ -79,11 +79,11 @@ namespace IdleGame.Game
 
             // --- Tower row ---
             ModeRow(body,
-                $"Tower of Ascension  (F{Tower.HighestFloor(save)})",
-                inTower ? $"Climbing floor {_view.CurrentTowerFloor} — clear it or exit up top."
-                        : "One-clear floors on a brutal curve; milestones pay permanent buffs.",
+                Loc.F("modes.tower-name", Tower.HighestFloor(save)),
+                inTower ? Loc.F("modes.tower-active-desc", _view.CurrentTowerFloor)
+                        : Loc.T("modes.tower-desc"),
                 active: inTower,
-                buttonLabel: inCampaign ? "Choose Floor" : null,
+                buttonLabel: inCampaign ? Loc.T("modes.choose-floor") : null,
                 onClick: () => { Close(); _view.NavOpenTower(); });
 
             // --- Crypt row (the full label/desc state machine, verbatim) ---
@@ -92,27 +92,26 @@ namespace IdleGame.Game
             if (inDungeon)
             {
                 int left = _view.CryptRunFloorsLeft;
-                cryptDesc = $"Depth {Crypt.NextFloor(save)} — clear every monster, " +
-                            $"{left} floor{(left == 1 ? "" : "s")} beyond this one.";
+                cryptDesc = Loc.F("modes.crypt-active-desc", Crypt.NextFloor(save), left, left == 1 ? "" : "s");
             }
             else
             {
-                cryptDesc = $"Keys {keys}/{bank}";
+                cryptDesc = Loc.F("modes.crypt-keys", keys, bank);
                 if (keys < bank)
                 {
                     // Countdown to the next daily key — display-CEIL (a countdown never under-promises).
                     long hrs = (Crypt.NextKeyAtMs(save) - _view.NowMillis + 3_599_999) / 3_600_000;
-                    cryptDesc += $" (next in {hrs}h)";
+                    cryptDesc += Loc.F("modes.crypt-next-key", hrs);
                 }
-                cryptDesc += $"  ·  {_cfg.Balance.CryptFloorsPerRun}-floor runs  ·  wipe = no chest";
+                cryptDesc += Loc.F("modes.crypt-run-info", _cfg.Balance.CryptFloorsPerRun);
             }
             ModeRow(body,
-                $"Crypt  (Depth {Crypt.DepthRecord(save)})",
+                Loc.F("modes.crypt-name", Crypt.DepthRecord(save)),
                 cryptDesc,
                 active: inDungeon,
                 buttonLabel: !inCampaign ? null
-                           : Crypt.IsComplete(save, _cfg) ? "Cleared!"
-                           : keys > 0 ? "Enter  (1 Key)" : "No Keys",
+                           : Crypt.IsComplete(save, _cfg) ? Loc.T("modes.crypt-cleared")
+                           : keys > 0 ? Loc.T("modes.crypt-enter") : Loc.T("modes.crypt-no-keys"),
                 onClick: _view.NavEnterDungeonRun); // closes this window itself past its key/complete guard
 
             // --- Boon shop ---
@@ -122,7 +121,7 @@ namespace IdleGame.Game
 
             var closeRow = PanelKit.Row(body, Theme.BtnH); // 48, over the 44 floor
             PanelKit.FlexSpacer(closeRow);
-            PanelKit.ButtonCell(closeRow, "Close", Close, width: 200f, fontSize: Theme.FsH1);
+            PanelKit.ButtonCell(closeRow, Loc.T("common.close"), Close, width: 200f, fontSize: Theme.FsH1);
             PanelKit.FlexSpacer(closeRow);
         }
 
@@ -143,7 +142,7 @@ namespace IdleGame.Game
             PanelKit.Label(col, desc, Theme.FsLabel, DescCol, TextAnchor.UpperLeft);
 
             if (active)
-                PanelKit.TextCell(row, "● Active", Theme.FsH2, ActiveGreen, TextAnchor.MiddleRight, width: 130f);
+                PanelKit.TextCell(row, Loc.T("modes.active"), Theme.FsH2, ActiveGreen, TextAnchor.MiddleRight, width: 130f);
             else if (buttonLabel != null)
                 PanelKit.ButtonCell(row, buttonLabel, onClick, width: 200f, fontSize: Theme.FsBody);
         }
@@ -158,7 +157,7 @@ namespace IdleGame.Game
             var boxImg = box.GetComponent<Image>();
             if (boxImg != null) boxImg.color = RowBg;
 
-            PanelKit.Label(box, $"Crypt Boons — Grave Dust: {Num.CompactFloor(Crypt.Dust(save, _cfg))}",
+            PanelKit.Label(box, Loc.F("modes.boons-header", Num.CompactFloor(Crypt.Dust(save, _cfg))),
                 Theme.FsSubTab, BoonGold, TextAnchor.MiddleLeft);
 
             foreach (var boon in _cfg.CryptBoons)
@@ -169,21 +168,21 @@ namespace IdleGame.Game
                 double pct = rank * _cfg.Balance.CryptBoonStatPct * 100;
 
                 var row = PanelKit.Row(box, Theme.TouchMin); // 44 — the Buy button clears the touch floor
-                PanelKit.TextCell(row, $"{boon.Name}  (+{pct:0}% {boon.Stat})   rank {rank}/{_cfg.Balance.CryptBoonMaxRank}",
+                PanelKit.TextCell(row, Loc.F("modes.boon-row", boon.Name, pct, boon.Stat, rank, _cfg.Balance.CryptBoonMaxRank),
                     Theme.FsBody, BoonText, TextAnchor.MiddleLeft, flex: 1f);
 
                 if (maxed)
                 {
-                    PanelKit.TextCell(row, "MAX", Theme.FsBody, BoonDim, TextAnchor.MiddleRight, width: 180f);
+                    PanelKit.TextCell(row, Loc.T("common.max"), Theme.FsBody, BoonDim, TextAnchor.MiddleRight, width: 180f);
                     continue;
                 }
 
                 long cost = Crypt.BoonCost(rank, _cfg);
                 if (Crypt.Dust(save, _cfg) >= cost)
-                    PanelKit.ButtonCell(row, $"Buy  ({Num.CompactCeil(cost)} dust)",
+                    PanelKit.ButtonCell(row, Loc.F("modes.boon-buy", Num.CompactCeil(cost)),
                         () => { if (_view.NavBuyBoon(id)) Rebuild(); }, width: 180f, fontSize: Theme.FsLabel);
                 else
-                    PanelKit.TextCell(row, $"{Num.CompactCeil(cost)} dust", Theme.FsBody, BoonDim,
+                    PanelKit.TextCell(row, Loc.F("modes.boon-cost", Num.CompactCeil(cost)), Theme.FsBody, BoonDim,
                         TextAnchor.MiddleRight, width: 180f);
             }
         }

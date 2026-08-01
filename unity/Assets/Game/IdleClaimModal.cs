@@ -49,15 +49,16 @@ namespace IdleGame.Game
 
             // Title leans on whichever half is present: the offline-return moment keeps its name; a
             // rare idle-empty arrival (clock crossed midnight with no accrual) reads as the daily.
-            PanelKit.Label(body, hasIdle ? "Idle Rewards" : "Daily Reward",
+            PanelKit.Label(body, hasIdle ? Loc.T("arrival.idle-title") : Loc.T("arrival.daily-title"),
                            Theme.FsH1, Theme.TextBright, TextAnchor.MiddleCenter);
 
             if (hasIdle)
             {
                 var ts = System.TimeSpan.FromMilliseconds(idle.ElapsedMs);
-                string away = ts.TotalHours >= 1 ? $"{(int)ts.TotalHours}h {ts.Minutes}m" : $"{ts.Minutes}m {ts.Seconds}s";
-                string capped = idle.Capped ? "  (capped)" : "";
-                PanelKit.Label(body, $"Time: {away}{capped}", Theme.FsH2, Theme.TextBright, TextAnchor.MiddleLeft);
+                string away = ts.TotalHours >= 1 ? Loc.F("arrival.hours", (int)ts.TotalHours, ts.Minutes)
+                                                 : Loc.F("arrival.minutes", ts.Minutes, ts.Seconds);
+                string capped = idle.Capped ? Loc.T("arrival.capped") : "";
+                PanelKit.Label(body, Loc.F("arrival.time", away, capped), Theme.FsH2, Theme.TextBright, TextAnchor.MiddleLeft);
 
                 _goldText = PanelKit.Label(body, "", Theme.FsH2, Theme.TextBright, TextAnchor.MiddleLeft);
                 _xpText = PanelKit.Label(body, "", Theme.FsH2, Theme.TextBright, TextAnchor.MiddleLeft);
@@ -72,9 +73,9 @@ namespace IdleGame.Game
             // count-up when both halves are present.
             if (claims.Count > 0)
             {
-                if (hasIdle) PanelKit.Label(body, "Bonus", Theme.FsLabel, Theme.TextDim, TextAnchor.MiddleLeft);
+                if (hasIdle) PanelKit.Label(body, Loc.T("arrival.bonus"), Theme.FsLabel, Theme.TextDim, TextAnchor.MiddleLeft);
                 foreach (var c in claims)
-                    PanelKit.Label(body, $"{c.Label}   +{Num.CompactFloor(c.Gems)} gems",
+                    PanelKit.Label(body, Loc.F("arrival.claim-line", c.Label, Num.CompactFloor(c.Gems)),
                                    Theme.FsH2, Theme.AccentGold, TextAnchor.MiddleLeft);
             }
 
@@ -83,7 +84,7 @@ namespace IdleGame.Game
             var row = PanelKit.Row(body, Theme.BtnH);
             PanelKit.FlexSpacer(row);
             // Collect applies the WHOLE arrival (idle + every goal claim) in one atomic Session.Arrive.
-            PanelKit.ButtonCell(row, "Collect", () => { _view!.ArriveClaim(_now); Destroy(gameObject); },
+            PanelKit.ButtonCell(row, Loc.T("arrival.collect"), () => { _view!.ArriveClaim(_now); Destroy(gameObject); },
                                 width: 240f, fontSize: Theme.FsH1);
             PanelKit.FlexSpacer(row);
         }
@@ -100,9 +101,9 @@ namespace IdleGame.Game
         private void Render(float p)
         {
             // granted amounts floor (game-design §7): never advertise more than is banked
-            _goldText.text = $"Gold:  {Num.CompactFloor((long)(_gold * p))}";
-            _xpText.text = $"XP:    {Num.CompactFloor((long)(_xp * p))}";
-            _itemsText.text = $"Items: {(int)(_items * p)}";
+            _goldText.text = Loc.F("arrival.gold", Num.CompactFloor((long)(_gold * p)));
+            _xpText.text = Loc.F("arrival.xp", Num.CompactFloor((long)(_xp * p)));
+            _itemsText.text = Loc.F("arrival.items", (int)(_items * p));
         }
 
         private void OnDestroy() => _view?.PopLaunchModal();

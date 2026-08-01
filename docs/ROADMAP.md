@@ -17,23 +17,20 @@ hub, gacha (live Ice Mage banner), combat juice, zone ambience + a UI
 sound family, and a balance simulator over pure GameCore. Roster:
 Knight / Fire Mage / Assassin / Priest (+ banner Ice Mage) on the MS2
 skinned pipeline; monsters are faceted or SDF blend-shell.
-**760 GameCore tests green.** The 100-stage ladder is FIXED (10.1):
-stage 100 = the reachable endgame capstone, sim-verified. **NEW ARC
-locked 2026-07-14: Phase M mobile launch (Backlog 10.13+).** Headline
-gaps: music (10.9a, PAUSED), weak-hardware confirmation (10.12e,
-laptop-gated), the user's ears pass on ambience/UI sounds.
+**846 GameCore tests green.** The 100-stage ladder is FIXED (10.1):
+stage 100 = the sim-verified endgame capstone. **Phase M mobile arc
+(10.13-10.22): MM1-MM5 + MM8 shipped.** Gaps: music (10.9a, PAUSED),
+laptop perf (10.12e), the user's ears pass on ambience/UI sounds.
 
 ## Your calls — decisions waiting on the USER
 
-1-6, 8. RESOLVED 2026-07-09..12 (receipts in git + design doc).
+1-6, 8, 9. RESOLVED 2026-07-09..14 (git + design doc; orientation =
+   LANDSCAPE, and the arc opened at 10.13).
 7. **Older feel list** (user: "later" — parked): arena sizes/roam,
    water colour, stair-tread chunkiness, terrace hop speed, caster
    MoveSpd vs follow floor (overworld), anim-end vs contact launch,
    corpse-linger, melee spacing, priest FX in real combat, formation
    knobs (standoff 4.6 / panic 1.8 / aggro 2.0), run-clip foot-slide.
-9. **Mobile arc kickoff:** (a) RESOLVED 2026-07-14 — **LANDSCAPE**
-   (user verdict; two-hand framing, keeps the diorama camera's current
-   read); (b) which milestone opens the arc (rec: 10.13 → 10.14).
 10. Still owed from earlier sessions: ears pass (ambience beds / UI
    sounds / juice feel), astral-bed music-or-not verdict, laptop
    `-benchmark` run (10.12e).
@@ -51,12 +48,10 @@ tilt-shift band-blur · SDF jiggle tail · crypt mid-run merchant/boon-draft.
 
 **10.13 Touch-first UI reflow (MM1) — COMPLETE 2026-07-15 (ledger).**
 Non-interactive IMGUI deliberately remains (party chips, currency HUD,
-world health bars — no touch semantics; migrate when touched; the
-IMGUI Button helpers stay for the chips). KIT FOOT-GUNS that BITE:
-a PanelKit.Window's `body` is a bare Flex — `PanelKit.Stack(body)`
-BEFORE adding rows or every child collapses to a centered zero-size
-blob (Play-caught); Modal's body ALREADY carries the layout group —
-never Stack it (double-add).
+world health bars — migrate when touched). KIT FOOT-GUNS that BITE: a
+PanelKit.Window's `body` is a bare Flex — `PanelKit.Stack(body)` BEFORE
+adding rows or every child collapses to a centered zero-size blob
+(Play-caught); Modal's body ALREADY has the layout group — never Stack.
 
 **10.14 The 30-second session (MM2) — COMPLETE 2026-07-15 (ledger).**
 Durable lesson: `Inventory.SalvageAll` is NUCLEAR (every loose unlocked
@@ -65,10 +60,10 @@ touching it must equip-sweep FIRST (worn gear is salvage-immune) or it
 destroys upgrades — `Session.Apply` locks that ordering with a test.
 
 **10.15 Codex / collection (MM3) — COMPLETE 2026-07-15 (ledger).**
-Durable lessons: cfg-aware retro-grants (SyncFromInventory) live
-beside SyncHeroUnlocks at LOAD, never in the cfg-less Save.Migrate;
-loot-path reducers legitimately RE-WRAP nested Progress state, so
-threading sweeps assert VALUE survival, not ref identity.
+Durable: cfg-aware retro-grants (SyncFromInventory) live beside
+SyncHeroUnlocks at LOAD, never in the cfg-less Save.Migrate; loot-path
+reducers RE-WRAP nested Progress state, so threading sweeps assert
+VALUE survival, not ref identity.
 
 **10.16 Live-ops events + season track (MM4) — COMPLETE 2026-07-15
 (ledger).** Durable: schedule rules are PURE functions of nowMs (the
@@ -92,11 +87,13 @@ conversion) — every retention decision above is a guess until
 measured. Remote `GameConfig` seam so balance patches skip store
 review. Prerequisite for any monetization decision.
 
-**10.20 Accessibility & l10n foundation (MM8).** Rarity gains a
-shape/border language (colour-only today — a colorblind trap), text
-scale setting, reduced-motion mode (hit-stop/shake gates exist),
-haptics toggle. STRING-TABLE EXTRACTION EARLY — every hardcoded feed
-line written after this ships is future localization debt.
+**10.20 Accessibility & l10n (MM8) — a11y + the string-table
+foundation SHIPPED 2026-07-16 (ledger); the PHASE-2 sweep REMAINS**
+(Inventory/Equipment/Gacha/Goals-body/Modifier/Tower/Compare, plus
+GameCore content names via `Loc.Content`). Durable: uGUI Text CLIPS to
+its rect, so every text-bearing rect AND chrome metric must ride the
+text scale or labels behead (Play-caught at 130%); rarity marks avoid
+▲/▼/✦ — the shipped upgrade/imprint vocabulary.
 
 **10.21 Monetization charter (MM9 — design-only, written BEFORE any
 real-money work un-parks).** What we sell (roster breadth via gacha,
@@ -110,21 +107,18 @@ the game design later.
 (extends the 10.12 quality tiers with device detection), 30fps battery
 mode, cold start < 5s.
 
-**10.9 Audio identity (remaining).** (a) original music beds: PAUSED
-BY THE USER 2026-07-14 ("skip music direction for now") — do NOT
-re-pitch; (b) AudioDirector waits on (a) (the Ambience crossfade host
-+ 10.6f duckExempt are the scaffolds); (c) ambience beds + (d) UI
-sound family SHIPPED 2026-07-13 (ledger) — audibility ears pass still
-owed by the user (the editor audio wedge looks healed); (e) mixer done
-except the music slider, which lands with (a).
+**10.9 Audio identity (remaining).** (a) music beds PAUSED BY THE USER
+2026-07-14 — do NOT re-pitch; (b) AudioDirector + (e) the music slider
+wait on (a) (Ambience crossfade host + 10.6f duckExempt = scaffolds);
+(c) ambience + (d) UI sounds SHIPPED (ledger) — the audibility ears
+pass is still owed by the user (the editor audio wedge looks healed).
 
 **10.12 Performance & mobile-readiness — (a-d) SHIPPED (ledger); (e)
 the laptop `-benchmark` run is the final confirmation (user-gated).**
-Traps that BITE: vSyncCount>0 makes Unity IGNORE targetFrameRate (keep
-vSync off); Shader.Find-only shaders get STRIPPED from builds — custom
-shaders MUST live under Assets/Game/Resources/Shaders; shadow gates
-read MESH bounds × scale (renderer.bounds is zero pre-first-render);
-profile in short bursts (a Step-storm once took down the editor).
+Traps that BITE: vSyncCount>0 makes Unity IGNORE targetFrameRate;
+Shader.Find-only shaders get STRIPPED from builds — customs MUST live
+under Assets/Game/Resources/Shaders; shadow gates read MESH bounds ×
+scale (renderer.bounds is zero pre-first-render); profile in bursts.
 
 **10.3 UI kit lessons (shipped 2026-07-11 — kept because 10.13 rides
 them):** force-expand HLG clamps CHILD flex to ≥1 — a fixed-height
@@ -137,14 +131,20 @@ untracked, importer fallbacks machine-local (re-apply on checkout).
 
 **10.5 loot lessons (shipped 2026-07-11):** the SWEEP CONTRACT (bulk
 verbs skip stale/guarded entries silently, single verbs throw — state
-which in the doc comment); flat bonuses on multiplier-ish stats
-explode late-tier (the §6.2 ≤8% gate test is the tuner, not eyes);
-additive fields on hand-copied models must thread EVERY copy site or
-a reducer silently strips them — grep `new Item` / `new HeroInstance`
-/ `new ProgressState` when adding one.
+which in the doc comment); flat bonuses on multiplier-ish stats explode
+late-tier (the §6.2 ≤8% gate test is the tuner, not eyes); additive
+fields on hand-copied models must thread EVERY copy site or a reducer
+silently strips them — grep `new Item` / `new HeroInstance` first.
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-07-16 10.20(a-c) a11y + l10n foundation (MM8): Text Size
+  100/115/130 via one `UiKit.Scaled` multiplier (IMGUI styles restamped
+  per OnGUI; chat/quest chrome rides it), Reduced Motion (hit-stop,
+  shake, pulse), Haptics toggle + stub seam; rarity glyph marks
+  ● ■ ◆ ★ beside every colour; `Loc` table (225 keys) + LocTests
+  key-existence contract, and `EventInfo.ZoneIndex` ends GameCore's
+  English banner leak. 846 tests.
 - 2026-07-15 10.17 endgame sinks COMPLETE: ascension (dupes → per-hero
   shards; universal shards on endless milestones; 5★ × +4% hero-local;
   costs 10/20/30/50/80, hero wallet first; Stars + AscensionState

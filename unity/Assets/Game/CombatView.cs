@@ -77,7 +77,10 @@ namespace IdleGame.Game
         private const float SpawnAnimSec = 0.35f;
 
         // Codex kill-tier labels (10.15) — index into a CodexTierCross.TierIndex for the toast.
-        private static readonly string[] CodexTierNames = { "Bronze", "Silver", "Gold" };
+        // Loc KEYS, resolved at feed time (10.20c). Indexed by Codex tier — the array shape survives
+        // because the composed lookup is invisible to LocTests' static scan either way; the keys are
+        // plain table entries a translator sweep will find by the codex.* namespace.
+        private static readonly string[] CodexTierKeys = { "codex.tier-bronze", "codex.tier-silver", "codex.tier-gold" };
 
         // MonsterDef.SpawnStyle -> spawn-in animation. ADD-ON POINT: register new styles
         // (spider, ghost, shark, …) here and set the monster's SpawnStyle in GameConfig.
@@ -542,7 +545,7 @@ namespace IdleGame.Game
             if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg);
 
             var r = result.Value;
-            _chat?.AddFeed($"{HeroDefDisplayName(r.DefId)} ascends — ★{r.NewStars}!", new Color(1f, 0.82f, 0.32f));
+            _chat?.AddFeed(Loc.F("feed.ascends", HeroDefDisplayName(r.DefId), r.NewStars), new Color(1f, 0.82f, 0.32f));
 
             // A star is a real shard debit — flush now so a quit before the 30s autosave can't refund it.
             SaveStore.Save(Save.Touch(_save, System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()));
@@ -629,16 +632,16 @@ namespace IdleGame.Game
             SaveStore.Save(Save.Touch(_save, now));
 
             foreach (var e in report.Equipped)
-                _chat?.AddFeed($"Auto-equipped {StatDisplay.ItemName(e.Item, _cfg)} → {HeroDisplayName(e.HeroId)} ({UpgradeTell.Pct(e.DeltaPercent)})",
+                _chat?.AddFeed(Loc.F("feed.auto-equipped", StatDisplay.ItemName(e.Item, _cfg), HeroDisplayName(e.HeroId), UpgradeTell.Pct(e.DeltaPercent)),
                                UpgradeTell.Up);
             if (report.SalvagedCount > 0)
-                _chat?.AddFeed($"Salvaged {report.SalvagedCount} item{(report.SalvagedCount == 1 ? "" : "s")}  (+{Num.CompactFloor(report.ScrapGained)} scrap)",
+                _chat?.AddFeed(Loc.F("feed.salvaged-items", report.SalvagedCount, report.SalvagedCount == 1 ? "" : "s", Num.CompactFloor(report.ScrapGained)),
                                new Color(0.7f, 0.8f, 1f));
             if (report.Claimed.Count > 0)
             {
                 SoundFx.Play("System_StampReward_get", 0.5f);
                 foreach (var c in report.Claimed)
-                    _chat?.AddFeed($"{c.Label}  +{Num.CompactFloor(c.Gems)} gems", new Color(0.6f, 0.85f, 1f));
+                    _chat?.AddFeed(Loc.F("feed.claimed-gems", c.Label, Num.CompactFloor(c.Gems)), new Color(0.6f, 0.85f, 1f));
             }
             // Equipping moved worn stats — refresh the live party (claim/salvage never touch hero stats).
             if (report.Equipped.Count > 0 && _combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg);
@@ -673,7 +676,7 @@ namespace IdleGame.Game
             int rank = Crypt.BoonRank(_save, boonId);        // post-buy rank == the IMGUI's pre-buy rank + 1
             string name = boonId;
             foreach (var b in _cfg.CryptBoons) if (b.Id == boonId) { name = b.Name; break; }
-            _chat?.AddFeed($"Boon bought: {name} rank {rank}.", new Color(1f, 0.85f, 0.4f));
+            _chat?.AddFeed(Loc.F("feed.boon-bought", name, rank), new Color(1f, 0.85f, 0.4f));
             return true;
         }
 
@@ -704,7 +707,7 @@ namespace IdleGame.Game
             if (!Tower.CanAttempt(_save, floor, _cfg)) return;
             if (LoadingScreen.Busy) return;
             CommitPending();
-            LoadingScreen.Run($"Ascending — Floor {floor}", () =>
+            LoadingScreen.Run(Loc.F("loading.ascending", floor), () =>
             {
                 Begin(Combat.InitTower(BuildParty(), floor, _cfg, NewRng())); // Begin refreshes gear + dresses the floor's zone
                 SnapCameraToParty();
@@ -727,16 +730,16 @@ namespace IdleGame.Game
             if (r.IsNew)
             {
                 // A fresh hero joining the roster is a headline beat — same prominent voice as a stage unlock.
-                _chat?.AddFeed($"{name} joins the roster!", new Color(1f, 0.82f, 0.32f));
+                _chat?.AddFeed(Loc.F("feed.joins-roster", name), new Color(1f, 0.82f, 0.32f));
             }
             else
             {
                 // Dupe → ascension shards on this hero's wallet (10.17 — replaced the XP/scrap payout).
-                _chat?.AddFeed($"Summon: {name} (dupe)  (+{Num.CompactFloor(r.DupeShards)} shards)",
+                _chat?.AddFeed(Loc.F("feed.summon-dupe", name, Num.CompactFloor(r.DupeShards)),
                                new Color(0.72f, 0.80f, 0.95f));
             }
             if (r.PityTriggered)
-                _chat?.AddFeed($"Pity! {name} is guaranteed.", new Color(1f, 0.85f, 0.4f));
+                _chat?.AddFeed(Loc.F("feed.pity", name), new Color(1f, 0.85f, 0.4f));
 
             // A new hero (AcquireHero) changes live party stats; a dupe now grants shards (no live stat
             // change until a Star Up), but the refresh is harmless and keeps the reconcile path uniform.
@@ -769,7 +772,7 @@ namespace IdleGame.Game
         {
             if (!Modifiers.CanUpgrade(_save, _cfg, typeId))
             {
-                _chat?.AddFeed("Not enough gold + scrap to upgrade that modifier.", new Color(0.9f, 0.6f, 0.5f));
+                _chat?.AddFeed(Loc.T("feed.modifier-cant-afford"), new Color(0.9f, 0.6f, 0.5f));
                 return;
             }
             double before = Modifiers.TuningOf(_save, typeId);
@@ -780,7 +783,7 @@ namespace IdleGame.Game
             string nm = _cfg.Modifiers.TryGetValue(typeId, out var d) ? d.Name : typeId;
             double delta = (after - before) * 100.0;
             string sign = delta >= 0 ? "+" : "";
-            _chat?.AddFeed($"{nm} tuning rolled {sign}{delta:0.#}% → now +{(after - 1) * 100:0}%",
+            _chat?.AddFeed(Loc.F("feed.modifier-rolled", nm, sign, delta, (after - 1) * 100),
                            delta >= 0 ? new Color(0.55f, 0.9f, 0.6f) : new Color(0.95f, 0.6f, 0.45f));
         }
 
@@ -796,9 +799,9 @@ namespace IdleGame.Game
 
             string nm = _cfg.Modifiers.TryGetValue(typeId, out var d) ? d.Name : typeId;
             if (before <= 1.0)
-                _chat?.AddFeed($"{nm} is already at base tuning.", new Color(0.9f, 0.6f, 0.5f));
+                _chat?.AddFeed(Loc.F("feed.modifier-at-base", nm), new Color(0.9f, 0.6f, 0.5f));
             else
-                _chat?.AddFeed($"{nm} tuning reset to base (+0%).", new Color(0.7f, 0.8f, 0.95f));
+                _chat?.AddFeed(Loc.F("feed.modifier-reset", nm), new Color(0.7f, 0.8f, 0.95f));
         }
 
         /// <summary>Reforge (item shop): gamble an item's normal affix values with gold+scrap. Persists
@@ -808,7 +811,7 @@ namespace IdleGame.Game
             if (!Inventory.CanReforge(_save, itemId, _cfg))
             {
                 SoundFx.Play("System_Password_Fail", 0.45f); // 10.9d: the one deny sound
-                _chat?.AddFeed("Not enough gold + scrap to reforge that item.", new Color(0.9f, 0.6f, 0.5f));
+                _chat?.AddFeed(Loc.T("feed.reforge-cant-afford"), new Color(0.9f, 0.6f, 0.5f));
                 return;
             }
             var item = _save.Inventory.Find(i => i.Id == itemId);
@@ -816,7 +819,7 @@ namespace IdleGame.Game
             SoundFx.Play("System_Shop_buy", 0.4f); // 10.9d: the spend beat (reforge = the gamble verb)
             if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg); // reforged worn gear applies at once
             string nm = item != null ? StatDisplay.ItemName(item, _cfg) : "item";
-            _chat?.AddFeed($"Reforged {nm} — its affixes re-rolled.", new Color(0.7f, 0.8f, 1f));
+            _chat?.AddFeed(Loc.F("feed.reforged", nm), new Color(0.7f, 0.8f, 1f));
         }
 
         /// <summary>InventoryView's "Sort" button: persist the bag in reading order
@@ -835,11 +838,11 @@ namespace IdleGame.Game
             // 10.9d: the upgrade pair — one success chime, one fail thud (drop or kept).
             SoundFx.Play(r.Success ? "System_Enchant_Success" : "System_Enchant_Fail", 0.5f);
             if (r.Success)
-                _chat?.AddFeed($"⚒ Enhanced: {name}", new Color(0.55f, 0.9f, 0.55f));
+                _chat?.AddFeed(Loc.F("feed.enhanced", name), new Color(0.55f, 0.9f, 0.55f));
             else if (r.Dropped)
-                _chat?.AddFeed($"⚒ Enhance failed — dropped to +{r.Level}", new Color(1f, 0.55f, 0.4f));
+                _chat?.AddFeed(Loc.F("feed.enhance-dropped", r.Level), new Color(1f, 0.55f, 0.4f));
             else
-                _chat?.AddFeed($"⚒ Enhance failed (+{r.Level} kept)", new Color(0.85f, 0.75f, 0.5f));
+                _chat?.AddFeed(Loc.F("feed.enhance-kept", r.Level), new Color(0.85f, 0.75f, 0.5f));
         }
 
         /// <summary>Mass-salvage (InventoryView's "Salvage all" button): scrap EVERY loose, unlocked item
@@ -850,11 +853,11 @@ namespace IdleGame.Game
             var (next, count, scrap) = Inventory.SalvageAll(_save, _cfg);
             if (count == 0)
             {
-                _chat?.AddFeed("No loose, unlocked items to salvage.", new Color(0.72f, 0.76f, 0.82f));
+                _chat?.AddFeed(Loc.T("feed.salvage-none"), new Color(0.72f, 0.76f, 0.82f));
                 return;
             }
             _save = next;
-            _chat?.AddFeed($"Salvaged {count} item{(count == 1 ? "" : "s")}  (+{Num.CompactFloor(scrap)} scrap)",
+            _chat?.AddFeed(Loc.F("feed.salvaged-items", count, count == 1 ? "" : "s", Num.CompactFloor(scrap)),
                            new Color(0.7f, 0.8f, 1f));
         }
 
@@ -867,7 +870,7 @@ namespace IdleGame.Game
             var (next, count, scrap) = Inventory.SalvageMany(_save, itemIds, _cfg);
             if (count == 0) return; // selection went stale before the click — nothing to report
             _save = next;
-            _chat?.AddFeed($"Salvaged {count} selected  (+{Num.CompactFloor(scrap)} scrap)",
+            _chat?.AddFeed(Loc.F("feed.salvaged-selected", count, Num.CompactFloor(scrap)),
                            new Color(0.7f, 0.8f, 1f));
         }
 
@@ -886,7 +889,7 @@ namespace IdleGame.Game
         public void SaveLoadout(string heroId)
         {
             _save = Loadouts.SaveSnapshot(_save, heroId);
-            _chat?.AddFeed($"{HeroDisplayName(heroId)}'s loadout saved.", new Color(0.7f, 0.8f, 1f));
+            _chat?.AddFeed(Loc.F("feed.loadout-saved", HeroDisplayName(heroId)), new Color(0.7f, 0.8f, 1f));
         }
 
         public void ApplyLoadout(string heroId)
@@ -894,8 +897,8 @@ namespace IdleGame.Game
             var (next, applied, skipped) = Loadouts.Apply(_save, heroId, _cfg);
             _save = next;
             if (applied > 0) Combat.RefreshPartyStats(_combat, _save, _cfg); // worn gear changed mid-run
-            string tail = skipped > 0 ? $" ({skipped} piece{(skipped == 1 ? "" : "s")} unavailable)" : "";
-            _chat?.AddFeed($"{HeroDisplayName(heroId)} wears their loadout — {applied} equipped{tail}.",
+            string tail = skipped > 0 ? Loc.F("feed.loadout-skipped", skipped, skipped == 1 ? "" : "s") : "";
+            _chat?.AddFeed(Loc.F("feed.loadout-applied", HeroDisplayName(heroId), applied, tail),
                 new Color(0.7f, 0.8f, 1f));
         }
 
@@ -1176,7 +1179,7 @@ namespace IdleGame.Game
             if (completed.Count == 0) return;
 
             foreach (var q in completed)
-                _chat?.AddFeed($"Goal complete: {QuestPanel.QuestLabel(q)}  (+{Num.CompactFloor(q.RewardGold)} gold)",
+                _chat?.AddFeed(Loc.F("feed.goal-complete", QuestPanel.QuestLabel(q), Num.CompactFloor(q.RewardGold)),
                                new Color(1f, 0.85f, 0.35f));
 
             // Season track (10.16b): completed quests are the ONLY season-point source, so this ONE
@@ -1189,8 +1192,8 @@ namespace IdleGame.Game
             _save = afterSeason;
             foreach (var r in paidTiers)
                 _chat?.AddFeed(r.IsMilestone
-                        ? $"Season tier {r.Tier}: +{Num.CompactFloor(r.Gems)} gems ★"
-                        : $"Season tier {r.Tier}: +{Num.CompactFloor(r.Gold)} gold",
+                        ? Loc.F("feed.season-gems", r.Tier, Num.CompactFloor(r.Gems))
+                        : Loc.F("feed.season-gold", r.Tier, Num.CompactFloor(r.Gold)),
                     r.IsMilestone ? Theme.GachaGold : new Color(1f, 0.85f, 0.35f));
 
             if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg); // quest XP may have leveled a hero
@@ -1210,11 +1213,11 @@ namespace IdleGame.Game
             {
                 var t = u.Tier;
                 var bits = new List<string>();
-                if (t.RewardGold > 0) bits.Add($"{Num.CompactFloor(t.RewardGold)} gold");
-                if (t.RewardScrap > 0) bits.Add($"{Num.CompactFloor(t.RewardScrap)} scrap");
-                if (t.RewardXp > 0) bits.Add($"{Num.CompactFloor(t.RewardXp)} XP");
-                string reward = bits.Count > 0 ? $"  (+{string.Join(", ", bits)})" : "";
-                _chat?.AddFeed($"★ Achievement: {u.Name} {u.TierIndex + 1}!{reward}", new Color(1f, 0.82f, 0.32f));
+                if (t.RewardGold > 0) bits.Add(Loc.F("feed.reward-gold", Num.CompactFloor(t.RewardGold)));
+                if (t.RewardScrap > 0) bits.Add(Loc.F("feed.reward-scrap", Num.CompactFloor(t.RewardScrap)));
+                if (t.RewardXp > 0) bits.Add(Loc.F("feed.reward-xp", Num.CompactFloor(t.RewardXp)));
+                string reward = bits.Count > 0 ? Loc.F("feed.reward-wrap", string.Join(", ", bits)) : "";
+                _chat?.AddFeed(Loc.F("feed.achievement", u.Name, u.TierIndex + 1, reward), new Color(1f, 0.82f, 0.32f));
             }
             if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg); // milestone XP may have leveled a hero
         }
@@ -1229,7 +1232,7 @@ namespace IdleGame.Game
             _save = next;
             if (completed.Count == 0) return;
             foreach (var q in completed)
-                _chat?.AddFeed($"✔ {q.Title} — +{Num.CompactFloor(q.RewardGold)} gold", new Color(0.98f, 0.80f, 0.42f));
+                _chat?.AddFeed(Loc.F("feed.intro-beat", q.Title, Num.CompactFloor(q.RewardGold)), new Color(0.98f, 0.80f, 0.42f));
             SoundFx.Play("CH_Levelup", 0.28f);
             if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg); // beat XP may have leveled a fielded hero
         }
@@ -1238,12 +1241,12 @@ namespace IdleGame.Game
         /// Null = no toast (AutoAdvance is shelved — no visible control to announce).</summary>
         private static string? FeatureRevealToast(Feature f) => f switch
         {
-            Feature.IdleClaim    => "Idle rewards unlocked — progress banks while you're away.",
-            Feature.DailyLogin   => "Daily login unlocked — check in each day for gems.",
-            Feature.Achievements => "Achievements unlocked — see Goals for lifetime milestones.",
-            Feature.Modifiers    => "Modifiers unlocked — risk for reward.",
-            Feature.Modes        => "The Tower and the Crypt have opened — Modes menu.",
-            Feature.Gacha        => "Summoning unlocked — spend gems on new heroes.",
+            Feature.IdleClaim    => Loc.T("feed.reveal-idle"),
+            Feature.DailyLogin   => Loc.T("feed.reveal-daily"),
+            Feature.Achievements => Loc.T("feed.reveal-achievements"),
+            Feature.Modifiers    => Loc.T("feed.reveal-modifiers"),
+            Feature.Modes        => Loc.T("feed.reveal-modes"),
+            Feature.Gacha        => Loc.T("feed.reveal-gacha"),
             _ => null,
         };
 
@@ -1255,14 +1258,14 @@ namespace IdleGame.Game
             // (i) the next guided-intro beat while the intro is still active
             if (IntroQuests.Active(_save))
                 foreach (var q in IntroQuests.All)
-                    if (!IntroQuests.IsClaimed(q.Id, _save)) return "Next: " + q.Title;
+                    if (!IntroQuests.IsClaimed(q.Id, _save)) return Loc.F("hud.hint-next", q.Title);
             // (ii) idle rewards waiting to be claimed (revealed at S3)
             if (Progression.FeatureUnlocked(Feature.IdleClaim, _save)
                 && !Idle.Preview(_save, _cfg, NowMs()).IsEmpty)
-                return "Idle rewards ready to claim";
+                return Loc.T("hud.hint-idle");
             // (iii) a hero sitting on an unspent skill point
             foreach (var h in _save.Heroes)
-                if (Skills.UnspentPoints(h, _cfg) > 0) return "A hero has an unspent skill point";
+                if (Skills.UnspentPoints(h, _cfg) > 0) return Loc.T("hud.hint-skill-point");
             return null;
         }
 
@@ -1287,7 +1290,7 @@ namespace IdleGame.Game
             // Premium currency must never be lost to a quit before the 30s autosave — flush now.
             SaveStore.Save(Save.Touch(_save, now));
             SoundFx.Play("System_StampReward_get", 0.5f); // 10.9d: the one claim chime (covers Claim-all too)
-            _chat?.AddFeed($"Daily reward — day {streak} streak!  +{Num.CompactFloor(gems)} gems",
+            _chat?.AddFeed(Loc.F("feed.daily", streak, Num.CompactFloor(gems)),
                            new Color(0.6f, 0.85f, 1f));
         }
 
@@ -1310,7 +1313,7 @@ namespace IdleGame.Game
             {
                 SoundFx.Play("System_StampReward_get", 0.5f); // 10.9d: the one claim chime (covers the daily)
                 foreach (var c in report.GoalsClaimed)
-                    _chat?.AddFeed($"{c.Label}  +{Num.CompactFloor(c.Gems)} gems", new Color(0.6f, 0.85f, 1f));
+                    _chat?.AddFeed(Loc.F("feed.claimed-gems", c.Label, Num.CompactFloor(c.Gems)), new Color(0.6f, 0.85f, 1f));
             }
             // Idle XP may have leveled a fielded hero — refresh live party stats.
             if (_combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg);
@@ -1369,7 +1372,7 @@ namespace IdleGame.Game
                     foreach (var setId in loot.SetsCompleted)
                     {
                         string sName = _cfg.Sets.TryGetValue(setId, out var sd) ? sd.Name : setId;
-                        _chat?.AddFeed($"Set collected: {sName}!", Theme.SetBonus); // §6.2 set-teal
+                        _chat?.AddFeed(Loc.F("feed.set-collected", sName), Theme.SetBonus); // §6.2 set-teal
                     }
                     Combat.RefreshPartyStats(_combat, _save, _cfg); // a completed set is a codex tier
                 }
@@ -1384,7 +1387,7 @@ namespace IdleGame.Game
                 {
                     if (!_bagFullWarned)
                     {
-                        _chat?.AddFeed("Bag full — new loot left behind. Salvage or enable auto-salvage.",
+                        _chat?.AddFeed(Loc.T("feed.bag-full"),
                                        new Color(1f, 0.55f, 0.4f));
                         _bagFullWarned = true;
                     }
@@ -1409,7 +1412,7 @@ namespace IdleGame.Game
                             if (equipped == null) continue;
                             _save = next;
                             equippedAny = true;
-                            _chat?.AddFeed($"Auto-equipped {StatDisplay.ItemName(stored, _cfg)} → {HeroDisplayName(equipped.HeroId)} ({UpgradeTell.Pct(equipped.DeltaPercent)})",
+                            _chat?.AddFeed(Loc.F("feed.auto-equipped", StatDisplay.ItemName(stored, _cfg), HeroDisplayName(equipped.HeroId), UpgradeTell.Pct(equipped.DeltaPercent)),
                                            UpgradeTell.Up);
                         }
                     if (equippedAny && _combat != null) Combat.RefreshPartyStats(_combat, _save, _cfg);
@@ -1423,7 +1426,7 @@ namespace IdleGame.Game
                 xp = true;
                 if (PartyLevelSum() > before)
                 {
-                    _chat?.AddFeed("Level up!", new Color(0.5f, 0.85f, 1f));
+                    _chat?.AddFeed(Loc.T("feed.level-up"), new Color(0.5f, 0.85f, 1f));
                     SoundFx.Play("CH_Levelup", 0.55f);
                     if (_juice != null)
                         foreach (var e in _combat.Entities)
@@ -1459,8 +1462,8 @@ namespace IdleGame.Game
                     foreach (var c in crossed)
                     {
                         string mName = _cfg.Monsters.TryGetValue(c.MonsterId, out var md) ? md.Name : c.MonsterId;
-                        string tier = CodexTierNames[Mathf.Clamp(c.TierIndex, 0, CodexTierNames.Length - 1)];
-                        _chat?.AddFeed($"Codex: {mName} — {tier}!", new Color(1f, 0.82f, 0.32f)); // achievement gold
+                        string tier = Loc.T(CodexTierKeys[Mathf.Clamp(c.TierIndex, 0, CodexTierKeys.Length - 1)]);
+                        _chat?.AddFeed(Loc.F("feed.codex", mName, tier), new Color(1f, 0.82f, 0.32f)); // achievement gold
                     }
                     // A crossed tier bumps the account drip (Codex.ApplyAccountBuffs) — refresh live
                     // party stats, mirroring how a Tower milestone crossing re-applies its buffs.
@@ -1491,21 +1494,21 @@ namespace IdleGame.Game
 
                 _save = Progression.OnStageCleared(_save, cleared, _cfg); // also syncs modifiers to depth
                 bool endless = cleared > _cfg.Stages.Count;
-                _chat?.AddFeed(endless ? $"Endless {cleared - _cfg.Stages.Count} cleared!"
-                                       : $"Stage {cleared} cleared!", new Color(0.55f, 0.9f, 0.55f));
+                _chat?.AddFeed(endless ? Loc.F("feed.endless-cleared", cleared - _cfg.Stages.Count)
+                                       : Loc.F("feed.stage-cleared", cleared), new Color(0.55f, 0.9f, 0.55f));
                 // The 10.8 chase beat: a NEW depth record gets its own line (the Phase-C
                 // leaderboard voice), and every gem milestone surfaces its pay.
                 if (_save.Progress.EndlessBest > endlessBefore)
                 {
-                    _chat?.AddFeed($"New endless record — depth {_save.Progress.EndlessBest}!",
+                    _chat?.AddFeed(Loc.F("feed.endless-record", _save.Progress.EndlessBest),
                                    new Color(1f, 0.82f, 0.32f));
                     if (_save.Progress.EndlessBest % Mathf.Max(1, _cfg.Balance.EndlessGemsEvery) == 0)
                     {
-                        _chat?.AddFeed($"+{_cfg.Balance.EndlessGemsPerMilestone} gems — endless milestone!",
+                        _chat?.AddFeed(Loc.F("feed.endless-gems", _cfg.Balance.EndlessGemsPerMilestone),
                                        new Color(0.65f, 0.85f, 1f));
                         // 10.17: the same gate pays UNIVERSAL ascension shards (OnStageCleared credits them
                         // beside the gems) — the base roster's star-track fuel, since they never roll dupes.
-                        _chat?.AddFeed($"+{_cfg.Balance.AscensionShardsPerEndlessMilestone} hero shards — endless milestone!",
+                        _chat?.AddFeed(Loc.F("feed.endless-shards", _cfg.Balance.AscensionShardsPerEndlessMilestone),
                                        new Color(0.85f, 0.75f, 1f));
                     }
                 }
@@ -1518,11 +1521,11 @@ namespace IdleGame.Game
                     if (!ownedBefore.Contains(kv.Key))
                     {
                         string name = _cfg.Modifiers.TryGetValue(kv.Key, out var md) ? md.Name : kv.Key;
-                        _chat?.AddFeed($"Modifier unlocked: {name} (str {kv.Value})", unlock);
+                        _chat?.AddFeed(Loc.F("feed.modifier-unlocked", name, kv.Value), unlock);
                     }
                 int strAfter = MaxModifierStrength(_save);
                 if (ownedBefore.Count > 0 && strAfter > strBefore)
-                    _chat?.AddFeed($"Modifiers upgraded → strength {strAfter}", unlock);
+                    _chat?.AddFeed(Loc.F("feed.modifiers-upgraded", strAfter), unlock);
 
                 // FTUE (§7.4), armed saves only — everything below is a no-op for unarmed saves.
                 if (_save.Progress.Intro.Armed)
@@ -1542,7 +1545,7 @@ namespace IdleGame.Game
                     // First-boss beat (0 → 1): the existing juice, one size bigger.
                     if (highestBefore == 0 && highestAfter >= 1)
                     {
-                        _chat?.AddFeed("Your first boss falls — the road ahead opens!", reveal);
+                        _chat?.AddFeed(Loc.T("feed.first-boss"), reveal);
                         if (Settings.ScreenShake) _rig?.Shake(0.6f);
                         SoundFx.Play("CH_Levelup", 0.6f);
                     }
@@ -1552,7 +1555,7 @@ namespace IdleGame.Game
                     foreach (var h in _save.Heroes)
                         if (!heroesBefore.Contains(h.Id))
                         {
-                            _chat?.AddFeed($"{HeroDisplayName(h.Id)} joins your party!", new Color(1f, 0.82f, 0.32f));
+                            _chat?.AddFeed(Loc.F("feed.joins-party", HeroDisplayName(h.Id)), new Color(1f, 0.82f, 0.32f));
                             if (Settings.ScreenShake) _rig?.Shake(0.5f);
                             SoundFx.Play("CH_Levelup", 0.55f);
                         }
@@ -1565,7 +1568,7 @@ namespace IdleGame.Game
             else if (_autoAdvance && _combat.Kind == EncounterKind.BossChallenge && _combat.Status == CombatStatus.Lost)
             {
                 _autoAdvance = false;
-                _chat?.AddFeed($"Auto-advance stopped — failed Stage {_combat.Stage}'s boss.",
+                _chat?.AddFeed(Loc.F("feed.auto-advance-stopped", _combat.Stage),
                                new Color(1f, 0.6f, 0.4f));
             }
             // Tower of Ascension: bank a floor clear (advances the track + any milestone buff), or
@@ -1582,7 +1585,7 @@ namespace IdleGame.Game
                     var ownedBefore = new HashSet<string>(_save.Modifiers.Owned.Keys);
                     _save = Modifiers.SyncToStage(_save, _cfg);
                     Combat.RefreshPartyStats(_combat, _save, _cfg); // a new milestone buff applies at once
-                    _chat?.AddFeed($"Tower floor {floor} cleared!", new Color(0.6f, 0.85f, 1f));
+                    _chat?.AddFeed(Loc.F("feed.tower-cleared", floor), new Color(0.6f, 0.85f, 1f));
                     // First-clear bundle (gold + boss loot, banked inside RecordClear — the single
                     // exploit-proof gate). Announce the gold + item count, then each kept drop with its
                     // rarity colour (mirrors the loot-rain feed). Gold displays CompactFloor (balances
@@ -1590,33 +1593,33 @@ namespace IdleGame.Game
                     if (reward != null)
                     {
                         int items = reward.Stored.Count + reward.Salvaged.Count;
-                        _chat?.AddFeed($"Floor bundle: +{Num.CompactFloor(reward.Gold)} gold · {items} item{(items == 1 ? "" : "s")}",
+                        _chat?.AddFeed(Loc.F("feed.floor-bundle", Num.CompactFloor(reward.Gold), items, items == 1 ? "" : "s"),
                                        new Color(0.9f, 0.8f, 0.45f));
                         foreach (var it in reward.Stored)
                         {
                             // Same voice as the loot-rain feed, incl. the 10.20b rarity mark (shape channel).
                             string mark = Palette.RarityMark(it.Rarity);
-                            _chat?.AddFeed($"{(mark.Length > 0 ? mark + " " : "")}{StatDisplay.ItemName(it, _cfg)} (i{it.ItemLevel})",
+                            _chat?.AddFeed(Loc.F("feed.loot-item", mark.Length > 0 ? mark + " " : "", StatDisplay.ItemName(it, _cfg), it.ItemLevel),
                                            Palette.Rarity(it.Rarity));
                         }
                         if (reward.ScrapGained > 0)
-                            _chat?.AddFeed($"Auto-salvaged {reward.Salvaged.Count} → +{reward.ScrapGained} scrap.",
+                            _chat?.AddFeed(Loc.F("feed.auto-salvaged", reward.Salvaged.Count, reward.ScrapGained),
                                            new Color(0.7f, 0.75f, 0.82f));
                         AdvanceQuest(QuestKind.EarnGold, reward.Gold);
                         Award(AchievementMetric.GoldEarned, reward.Gold); // lifetime ladder, like PendingGold
                     }
                     Award(AchievementMetric.HighestTowerFloor, floor); // highest-floor milestone (Lever 4)
                     if (Tower.MilestonesCleared(_save, _cfg) > before)
-                        _chat?.AddFeed($"Ascension buff! +{Tower.AccountBuffPct(_save, _cfg) * 100:0}% account power (Hp/Atk/Def).",
+                        _chat?.AddFeed(Loc.F("feed.ascension-buff", Tower.AccountBuffPct(_save, _cfg) * 100),
                                        new Color(1f, 0.85f, 0.4f));
                     foreach (var kv in _save.Modifiers.Owned)
                         if (!ownedBefore.Contains(kv.Key) && _cfg.Modifiers.TryGetValue(kv.Key, out var nm))
-                            _chat?.AddFeed($"New modifier unlocked: {nm.Name}! Slot it in the Modifiers panel.",
+                            _chat?.AddFeed(Loc.F("feed.new-modifier", nm.Name),
                                            new Color(0.85f, 0.6f, 1f));
                 }
                 else
                 {
-                    _chat?.AddFeed($"Tower floor {floor} failed — train up and try again.", new Color(1f, 0.6f, 0.4f));
+                    _chat?.AddFeed(Loc.F("feed.tower-failed", floor), new Color(1f, 0.6f, 0.4f));
                 }
             }
             // Crypt run (roguelite meta): a win banks the floor — record +1, first-clear gems — and
@@ -1634,7 +1637,7 @@ namespace IdleGame.Game
                     int floor = Crypt.NextFloor(_save);
                     _save = Crypt.RecordFloorClear(_save, floor, _cfg);
                     _cryptRunFloorsCleared++;
-                    _chat?.AddFeed($"Depth {floor} cleared!  +{_cfg.Balance.CryptGemsPerFloor} gems",
+                    _chat?.AddFeed(Loc.F("feed.depth-cleared", floor, _cfg.Balance.CryptGemsPerFloor),
                                    new Color(0.6f, 0.85f, 1f));
                     Award(AchievementMetric.BossesKilled, 1); // the floor boss went down
 
@@ -1663,22 +1666,22 @@ namespace IdleGame.Game
             {
                 // §7.3: a dungeon win that ENDS the run (no descend) reads as a run-summary card.
                 bool runComplete = dungeonWin && !_cryptDescend;
-                string title = runComplete ? "Crypt run complete!"
-                             : dungeonWin ? $"Depth {Crypt.DepthRecord(_save)} cleared!"
-                             : towerWin ? $"Tower floor {_combat.TowerFloor} cleared!"
-                             : $"Stage {_combat.Stage} cleared!";
+                string title = runComplete ? Loc.T("outcome.crypt-complete")
+                             : dungeonWin ? Loc.F("outcome.depth-cleared", Crypt.DepthRecord(_save))
+                             : towerWin ? Loc.F("outcome.tower-cleared", _combat.TowerFloor)
+                             : Loc.F("outcome.stage-cleared", _combat.Stage);
                 string sub = runComplete ? _runSummary
-                    : dungeonWin ? "Descending deeper…"
-                    : towerWin ? "Returning to camp…" : "Advancing to the next stage…";
+                    : dungeonWin ? Loc.T("outcome.descending")
+                    : towerWin ? Loc.T("outcome.returning") : Loc.T("outcome.advancing");
                 _outcomeUi = OutcomeModal.ShowWin(transform, title, sub, () => _outcomeTimer = 9999f); // fast-forward
             }
             else
             {
                 bool cryptWipe = _combat.Kind == EncounterKind.Dungeon;
-                string banner = _combat.Kind == EncounterKind.BossChallenge ? "BOSS FAILED"
-                              : _combat.Kind == EncounterKind.Tower ? $"FLOOR {_combat.TowerFloor} FAILED"
-                              : cryptWipe ? "CRYPT FAILED"
-                              : "PARTY WIPED";
+                string banner = _combat.Kind == EncounterKind.BossChallenge ? Loc.T("outcome.boss-failed")
+                              : _combat.Kind == EncounterKind.Tower ? Loc.F("outcome.floor-failed", _combat.TowerFloor)
+                              : cryptWipe ? Loc.T("outcome.crypt-failed")
+                              : Loc.T("outcome.party-wiped");
                 // §7.3: a wiped run still shows its summary (floors banked before the wipe count).
                 string? summary = (cryptWipe && _runSummary.Length > 0) ? _runSummary : null;
                 _outcomeUi = OutcomeModal.ShowLoss(transform, banner, summary);
@@ -1705,11 +1708,10 @@ namespace IdleGame.Game
             long dust = Crypt.Dust(_save, _cfg) - _runStartDust;
             long gems = CurrencyNow(_cfg.Balance.PremiumCurrency) - _runStartGems;
             long gold = CurrencyNow("gold") - _runStartGold;
-            _runSummary = $"{_cryptRunFloorsCleared} floor{(_cryptRunFloorsCleared == 1 ? "" : "s")} cleared" +
-                          $"  ·  +{Num.CompactFloor(gems)} gems  ·  +{Num.CompactFloor(dust)} dust" +
-                          $"  ·  +{Num.CompactFloor(gold)} gold";
-            _chat?.AddFeed(won ? $"Crypt run complete!  {_runSummary}"
-                               : $"The crypt claims this run.  {_runSummary}",
+            _runSummary = Loc.F("feed.run-summary", _cryptRunFloorsCleared, _cryptRunFloorsCleared == 1 ? "" : "s",
+                                Num.CompactFloor(gems), Num.CompactFloor(dust), Num.CompactFloor(gold));
+            _chat?.AddFeed(won ? Loc.F("feed.crypt-complete", _runSummary)
+                               : Loc.F("feed.crypt-lost", _runSummary),
                            won ? new Color(1f, 0.85f, 0.4f) : new Color(1f, 0.6f, 0.4f));
         }
 
@@ -1761,7 +1763,7 @@ namespace IdleGame.Game
             var zone = ZoneDress.Sync(_cfg, stageOrFloor);
             if (zone == null) return;
             var accent = new Color((float)zone.AccentR, (float)zone.AccentG, (float)zone.AccentB);
-            _chat?.AddFeed($"Now entering {zone.Name}.", Color.Lerp(accent, Color.white, 0.45f));
+            _chat?.AddFeed(Loc.F("feed.entering-zone", zone.Name), Color.Lerp(accent, Color.white, 0.45f));
         }
 
         /// <summary>Re-resolve the terraced arena the current combat renders on. GoToStage swaps the
@@ -1862,15 +1864,15 @@ namespace IdleGame.Game
             _streakPeak = n;
             if (Settings.ScreenShake) _rig?.Pulse(n >= 8 ? 0.05f : n >= 6 ? 0.04f : 0.03f);
             if (n >= 6) SoundFx.Duck(0.5f, 0.5f); // 10.6f: the bigger beats get sonic space too
-            string label = n >= 8 ? "MASSACRE!" : n >= 6 ? "Slaughter!" : "Rampage!";
-            _chat?.AddFeed($"{label} {n} kills in a blink", new Color(1f, 0.62f, 0.3f));
+            string label = Loc.T(n >= 8 ? "feed.streak-massacre" : n >= 6 ? "feed.streak-slaughter" : "feed.streak-rampage");
+            _chat?.AddFeed(Loc.F("feed.streak", label, n), new Color(1f, 0.62f, 0.3f));
         }
 
         private void ToggleAltSpeed()
         {
             _altSpeed2x = !_altSpeed2x;
             PlayerPrefs.SetInt("altSpeed2x", _altSpeed2x ? 1 : 0);
-            _chat?.AddFeed(_altSpeed2x ? "Speed: 2x (crypt & tower)" : "Speed: 1x",
+            _chat?.AddFeed(_altSpeed2x ? Loc.T("feed.speed-2x") : Loc.T("feed.speed-1x"),
                            new Color(0.7f, 0.8f, 1f));
         }
 
@@ -1892,8 +1894,8 @@ namespace IdleGame.Game
             if (!Crypt.CanStart(_save, _cfg))
             {
                 _chat?.AddFeed(Crypt.IsComplete(_save, _cfg)
-                        ? "The crypt lies silent — every depth is cleared."
-                        : "No crypt keys — the next one arrives at the daily reset.",
+                        ? Loc.T("feed.crypt-silent")
+                        : Loc.T("feed.crypt-no-keys"),
                     new Color(1f, 0.72f, 0.5f));
                 return;
             }
@@ -1913,8 +1915,8 @@ namespace IdleGame.Game
             SaveStore.Save(Save.Touch(_save, now));
 
             var d = DungeonMode.Generate(_cfg, floor, final, seed);
-            _chat?.AddFeed($"Depth {floor} — entering {d.Name}…", new Color(0.72f, 0.55f, 0.95f));
-            LoadingScreen.Run($"Depth {floor} — {d.Name}", () =>
+            _chat?.AddFeed(Loc.F("feed.crypt-entering", floor, d.Name), new Color(0.72f, 0.55f, 0.95f));
+            LoadingScreen.Run(Loc.F("loading.depth", floor, d.Name), () =>
             {
                 Begin(DungeonMode.Enter(_cfg, BuildParty(), _save, NewRng(), d, floor)); // Begin refreshes gear
                 SnapCameraToParty();
@@ -1933,7 +1935,7 @@ namespace IdleGame.Game
             var d = DungeonMode.Generate(_cfg, run.Floor, run.FinalFloor, run.Seed);
             Begin(DungeonMode.Enter(_cfg, BuildParty(), _save, NewRng(), d, run.Floor));
             SnapCameraToParty();
-            _chat?.AddFeed($"Resuming your crypt run — Depth {run.Floor}.", new Color(0.72f, 0.55f, 0.95f));
+            _chat?.AddFeed(Loc.F("feed.crypt-resume", run.Floor), new Color(0.72f, 0.55f, 0.95f));
         }
 
         /// <summary>True when <paramref name="floor"/> ends the current run — the last of its
@@ -1956,8 +1958,8 @@ namespace IdleGame.Game
             SaveStore.Save(Save.Touch(_save, NowMs()));
 
             var d = DungeonMode.Generate(_cfg, floor, final, seed);
-            _chat?.AddFeed($"Descending… Depth {floor} — {d.Name}", new Color(0.72f, 0.55f, 0.95f));
-            LoadingScreen.Run($"Descending — Depth {floor}", () =>
+            _chat?.AddFeed(Loc.F("feed.crypt-descending", floor, d.Name), new Color(0.72f, 0.55f, 0.95f));
+            LoadingScreen.Run(Loc.F("loading.descending", floor), () =>
             {
                 DungeonMode.Exit(); // unwind this floor's world (at full black; Enter re-swaps)
                 Begin(DungeonMode.Enter(_cfg, BuildParty(), _save, NewRng(), d, floor));
@@ -1971,7 +1973,7 @@ namespace IdleGame.Game
         private void AbandonDungeonRun()
         {
             if (_combat.Kind != EncounterKind.Dungeon || LoadingScreen.Busy) return;
-            _chat?.AddFeed("Crypt run abandoned — the chest is forfeit.", new Color(1f, 0.72f, 0.5f));
+            _chat?.AddFeed(Loc.T("feed.crypt-abandoned"), new Color(1f, 0.72f, 0.5f));
             _modesWindow?.Close();
             _save = Crypt.EndRun(_save, _cfg); // §7.3: an explicit abandon ends the run (no resume)
             SaveStore.Save(Save.Touch(_save, NowMs()));
@@ -1983,7 +1985,7 @@ namespace IdleGame.Game
         private void AbandonTowerRun()
         {
             if (_combat.Kind != EncounterKind.Tower || LoadingScreen.Busy) return;
-            _chat?.AddFeed($"Tower floor {_combat.TowerFloor} abandoned.", new Color(1f, 0.72f, 0.5f));
+            _chat?.AddFeed(Loc.F("feed.tower-abandoned", _combat.TowerFloor), new Color(1f, 0.72f, 0.5f));
             _modesWindow?.Close();
             ReturnToCampThroughLoad();
         }
@@ -1992,7 +1994,7 @@ namespace IdleGame.Game
         /// or nothing for tower) and rebuild the campaign fresh, all behind the loading screen.</summary>
         private void ReturnToCampThroughLoad()
         {
-            LoadingScreen.Run("Returning to camp", () =>
+            LoadingScreen.Run(Loc.T("loading.return-camp"), () =>
             {
                 DungeonMode.Exit(); // safe no-op when not in a dungeon (tower uses the overworld)
                 StartFarm();
@@ -2020,10 +2022,10 @@ namespace IdleGame.Game
         {
             _autoAdvance = !_autoAdvance;
             if (_autoAdvance)
-                _chat?.AddFeed("Auto-advance on — pushing stages until a boss run fails.",
+                _chat?.AddFeed(Loc.T("feed.auto-advance-on"),
                                new Color(0.6f, 0.85f, 1f));
             else
-                _chat?.AddFeed("Auto-advance off.", new Color(0.72f, 0.76f, 0.82f));
+                _chat?.AddFeed(Loc.T("feed.auto-advance-off"), new Color(0.72f, 0.76f, 0.82f));
         }
 
         /// <summary>Resume farming on the same map (no scene reset), gating the next trash pack by
@@ -2469,33 +2471,33 @@ namespace IdleGame.Game
                     case CombatEventType.RoomCleared:
                         SoundFx.Play("Skill_Priest_GreaterHeal_Cast", 0.4f);
                         _chat?.AddFeed(ev.Amount > 0
-                                ? $"Room clear! +{Num.CompactFloor((long)ev.Amount)} gold"
-                                : "Room clear!",
+                                ? Loc.F("feed.room-clear-gold", Num.CompactFloor((long)ev.Amount))
+                                : Loc.T("feed.room-clear"),
                             new Color(0.65f, 0.9f, 0.6f));
                         break;
                     case CombatEventType.RoomWave:
                         SoundFx.Play("Skill_Assassin_ShadeSplit_Cast", 0.5f);
-                        _chat?.AddFeed("Another wave rises!", new Color(0.85f, 0.6f, 0.9f));
+                        _chat?.AddFeed(Loc.T("feed.wave"), new Color(0.85f, 0.6f, 0.9f));
                         break;
                     case CombatEventType.BossKeyDrop:
                         SoundFx.Play("Skill_Priest_AngelRay_Cast", 0.5f);
                         if (Settings.ScreenShake) _rig?.Shake(0.15f);
-                        _chat?.AddFeed("The Boss Key clatters free — the boss door will open!",
+                        _chat?.AddFeed(Loc.T("feed.boss-key"),
                             new Color(1f, 0.85f, 0.4f));
                         break;
                     case CombatEventType.ChestOpen:
                         DungeonMode.ReactChestOpen(ev.ChestIndex);
                         SoundFx.Play("CH_Levelup", 0.22f);
                         _chat?.AddFeed(ev.Amount > 0
-                                ? $"The chest creaks open: +{Num.CompactFloor((long)ev.Amount)} gold"
-                                : "The chest creaks open…",
+                                ? Loc.F("feed.chest-gold", Num.CompactFloor((long)ev.Amount))
+                                : Loc.T("feed.chest"),
                             new Color(1f, 0.8f, 0.45f));
                         break;
                     case CombatEventType.MimicReveal:
                         DungeonMode.ReactMimicReveal(ev.ChestIndex);
                         SoundFx.Play("BadWood_Dead", 0.7f);
                         if (Settings.ScreenShake) _rig?.Shake(0.2f);
-                        _chat?.AddFeed("That chest has TEETH!", new Color(1f, 0.4f, 0.4f));
+                        _chat?.AddFeed(Loc.T("feed.mimic"), new Color(1f, 0.4f, 0.4f));
                         break;
                     case CombatEventType.LootDrop:
                         if (ev.Item != null && Settings.LootFeed)
@@ -2505,11 +2507,12 @@ namespace IdleGame.Game
                             // loot filter will scrap anyway (no point, and saves the eval). The
                             // leading rarity mark (10.20b) is the shape channel beside the line's color.
                             string mark = Palette.RarityMark(ev.Item.Rarity);
-                            string line = $"{(mark.Length > 0 ? mark + " " : "")}{StatDisplay.ItemName(ev.Item, _cfg)} (i{ev.Item.ItemLevel})";
+                            string line = Loc.F("feed.loot-item", mark.Length > 0 ? mark + " " : "",
+                                                StatDisplay.ItemName(ev.Item, _cfg), ev.Item.ItemLevel);
                             bool keep = !Inventory.WouldAutoSalvage(_save, ev.Item, _cfg);
                             var up = keep ? Upgrades.BestForItem(_save, ev.Item, _cfg, _save.Progress.CurrentStage) : null;
                             if (up != null && up.Verdict == Upgrades.Verdict.Upgrade)
-                                line += $"  ▲ {UpgradeTell.Pct(up.DeltaPercent)} {HeroDisplayName(up.HeroId)}";
+                                line += Loc.F("feed.loot-upgrade-tag", UpgradeTell.Pct(up.DeltaPercent), HeroDisplayName(up.HeroId));
                             _chat?.AddFeed(line, Palette.Rarity(ev.Item.Rarity));
                             // Imprinted drops (mechanical-mod loot stamp) get their own louder beat —
                             // a build-defining affix you can't get any other way is the dopamine spike.
@@ -2517,7 +2520,7 @@ namespace IdleGame.Game
                                 foreach (var a in ev.Item.Affixes)
                                     if (Loot.IsImprintStat(a.Stat, _cfg))
                                     {
-                                        _chat?.AddFeed($"✦ Imprinted! {ev.Item.BaseId} rolled {StatDisplay.ImprintBlurb(a.Stat)} — equip it to cleave harder.",
+                                        _chat?.AddFeed(Loc.F("feed.imprinted", ev.Item.BaseId, StatDisplay.ImprintBlurb(a.Stat)),
                                                        new Color(0.85f, 0.6f, 1f));
                                         break;
                                     }
@@ -2872,8 +2875,8 @@ namespace IdleGame.Game
             {
                 string bossMod = "";
                 var mtype = _cfg.ModifierTypeForStage(_combat.Stage);
-                if (mtype != null && _cfg.Modifiers.TryGetValue(mtype, out var bmd)) bossMod = $"  ·  {bmd.Name}";
-                string ctx = (major ? $"★ MAJOR BOSS — Stage {_combat.Stage}" : $"Miniboss — Stage {_combat.Stage}") + bossMod;
+                if (mtype != null && _cfg.Modifiers.TryGetValue(mtype, out var bmd)) bossMod = Loc.F("hud.boss-modifier", bmd.Name);
+                string ctx = (major ? Loc.F("hud.major-boss", _combat.Stage) : Loc.F("hud.miniboss", _combat.Stage)) + bossMod;
                 GUI.Label(new Rect(0, 8, sw, 28), ctx, style);
             }
 
@@ -2906,9 +2909,9 @@ namespace IdleGame.Game
             if (_walletStyle == null)
                 _walletStyle = new GUIStyle(GUI.skin.label) { fontSize = UiKit.Scaled(WalletBaseFs), fontStyle = FontStyle.Bold };
 
-            DrawWalletLine(Theme.HudPad, ref y, $"Gold   {Num.CompactFloor(gold)}", new Color(1f, 0.84f, 0.35f));
-            DrawWalletLine(Theme.HudPad, ref y, $"Scrap  {Num.CompactFloor(scrap)}", new Color(0.75f, 0.78f, 0.85f));
-            DrawWalletLine(Theme.HudPad, ref y, $"Gems   {Num.CompactFloor(gems)}", new Color(0.65f, 0.85f, 1f));
+            DrawWalletLine(Theme.HudPad, ref y, Loc.F("hud.wallet-gold", Num.CompactFloor(gold)), new Color(1f, 0.84f, 0.35f));
+            DrawWalletLine(Theme.HudPad, ref y, Loc.F("hud.wallet-scrap", Num.CompactFloor(scrap)), new Color(0.75f, 0.78f, 0.85f));
+            DrawWalletLine(Theme.HudPad, ref y, Loc.F("hud.wallet-gems", Num.CompactFloor(gems)), new Color(0.65f, 0.85f, 1f));
 
             // FTUE breadcrumb (§7.4): one muted contextual hint under the wallet — the least-cluttered HUD
             // anchor (top-centre already carries the stage nav + Challenge). Armed saves only, first-match.
@@ -3004,7 +3007,7 @@ namespace IdleGame.Game
                 DrawRect(x, y, w, rowH, new Color(0.08f, 0.09f, 0.12f, 0.92f));
                 if (heroId == null)
                 {
-                    GUI.Label(new Rect(x, y, w, rowH), "— empty —", PartyEmptyStyle);
+                    GUI.Label(new Rect(x, y, w, rowH), Loc.T("hud.party-empty"), PartyEmptyStyle);
                     continue;
                 }
 
@@ -3012,7 +3015,7 @@ namespace IdleGame.Game
                 double hp = e?.Hp ?? 0, maxHp = e?.MaxHp ?? 1;
 
                 var hero = _save.Heroes.Find(h => h.Id == heroId);
-                string chipLabel = hero != null ? $"{HeroDisplayName(heroId)}  Lv {hero.Level}" : HeroDisplayName(heroId);
+                string chipLabel = hero != null ? Loc.F("hud.party-chip", HeroDisplayName(heroId), hero.Level) : HeroDisplayName(heroId);
                 // Name/downed/bar-text rects scale with the a11y text size — GUI.Label CLIPS to its
                 // rect, so a fixed 26 beheads the 130% font (Play-caught 10.20a). The chip's rowH
                 // stays fixed: name (y+10, h≤34) still clears the bar at y+46.

@@ -2,6 +2,7 @@
 using System;
 using UnityEngine;
 using UnityEngine.UI;
+using IdleGame.GameCore;
 
 namespace IdleGame.Game
 {
@@ -29,7 +30,7 @@ namespace IdleGame.Game
 
             var row = PanelKit.Row(body, Theme.BtnHs);
             PanelKit.FlexSpacer(row);
-            PanelKit.ButtonCell(row, "OK", onOk, width: 160f, fontSize: Theme.FsH1);
+            PanelKit.ButtonCell(row, Loc.T("common.ok"), onOk, width: 160f, fontSize: Theme.FsH1);
             PanelKit.FlexSpacer(row);
 
             return canvas;

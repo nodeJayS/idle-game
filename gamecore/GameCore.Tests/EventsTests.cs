@@ -139,6 +139,23 @@ namespace IdleGame.GameCore.Tests
             Assert.Empty(Events.Active(Cfg, Utc(Y, M, 8, 12, 0)));
         }
 
+        [Fact]
+        public void ActiveCarriesTheZoneIndexForTheBoostAndMinusOneForTheCrypt()
+        {
+            // 10.20c: the client composes the banner name via Loc off Id + ZoneIndex (the English
+            // Name stays populated for compat only). The boost's index must match the schedule
+            // rule's pick; the crypt has no zone, so -1 is the explicit "no zone" sentinel.
+            // EventInfo is a transient descriptor (recomputed per call, never saved), so this
+            // construction-site pin IS full coverage — there are no copy sites to thread.
+            long weekendNow = Utc(Y, M, 6, 12, 0);
+            var weekend = Events.Active(Cfg, weekendNow);
+            Assert.Equal(Events.ZoneBoost(Cfg, weekendNow).Value.ZoneIndex, weekend[0].ZoneIndex);
+            Assert.InRange(weekend[0].ZoneIndex, 0, Cfg.Zones.Count - 1);
+
+            var crypt = Events.Active(Cfg, Utc(Y, M, 3, 12, 0));
+            Assert.Equal(-1, crypt[0].ZoneIndex);
+        }
+
         // ============================ effect snapshot at fight init ============================
 
         [Fact]

@@ -82,8 +82,24 @@ namespace IdleGame.Game
             return name;
         }
 
-        /// <summary>Player-facing rarity name for the detail status line ("Rare", "Legendary", …).</summary>
-        public static string RarityName(Rarity r) => r.ToString();
+        /// <summary>Player-facing rarity name for the detail status line ("Rare", "Legendary", …).
+        /// 10.20c: routes through the string table keyed off the enum name — this method stays THE
+        /// seam (RarityTag and every display site ride it), so the table swap happened in one place.
+        /// The composed key is invisible to LocTests' static scan; ComposedRarityKeysExist pins it.</summary>
+        public static string RarityName(Rarity r) => Loc.T("rarity." + r.ToString().ToLowerInvariant());
+
+        /// <summary>Display name for a live-ops event banner, composed CLIENT-side via Loc off the
+        /// stable event id (the 10.20c leak fix: EventInfo.Name is GameCore-composed English and
+        /// can't be translated). The weekend boost names its zone from <see cref="EventInfo.ZoneIndex"/>;
+        /// "Zone" mirrors Events.Active's own defensive fallback. Unknown future ids fall back to
+        /// the GameCore-composed Name so a new event is never blank.</summary>
+        public static string EventName(EventInfo ev, GameConfig cfg) => ev.Id switch
+        {
+            Events.WeekendZoneBoostId => Loc.F("event.weekend-boost",
+                ev.ZoneIndex >= 0 && ev.ZoneIndex < cfg.Zones.Count ? cfg.Zones[ev.ZoneIndex].Name : "Zone"),
+            Events.MutatedCryptId => Loc.T("event.mutated-crypt"),
+            _ => ev.Name,
+        };
 
         /// <summary>The rarity name led by its <see cref="Palette.RarityMark"/> glyph ("● Rare") — the
         /// text form of the 10.20b shape channel, for every DISPLAY site that renders a rarity word in

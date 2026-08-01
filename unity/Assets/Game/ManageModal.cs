@@ -34,15 +34,15 @@ namespace IdleGame.Game
             PanelKit.Modal(transform, "ManageCanvas", 90, new Vector2(440f, 320f),
                            out var body, backdrop: Theme.BackdropDim);
 
-            PanelKit.Label(body, "Manage", Theme.FsH1, Theme.TextBright, TextAnchor.MiddleCenter);
+            PanelKit.Label(body, Loc.T("manage.title"), Theme.FsH1, Theme.TextBright, TextAnchor.MiddleCenter);
 
             if (preview.IsEmpty)
             {
-                PanelKit.Label(body, "Nothing needs doing.", Theme.FsH2, Theme.TextDim, TextAnchor.MiddleLeft);
+                PanelKit.Label(body, Loc.T("manage.nothing"), Theme.FsH2, Theme.TextDim, TextAnchor.MiddleLeft);
                 PanelKit.Flex(body);
                 var closeRow = PanelKit.Row(body, Theme.BtnH);
                 PanelKit.FlexSpacer(closeRow);
-                PanelKit.ButtonCell(closeRow, "Close", () => Destroy(gameObject), width: 200f, fontSize: Theme.FsH1);
+                PanelKit.ButtonCell(closeRow, Loc.T("common.close"), () => Destroy(gameObject), width: 200f, fontSize: Theme.FsH1);
                 PanelKit.FlexSpacer(closeRow);
                 return;
             }
@@ -52,21 +52,21 @@ namespace IdleGame.Game
             if (preview.Claims.Count > 0)
             {
                 long gems = 0; foreach (var c in preview.Claims) gems += c.Gems;
-                PanelKit.Label(body, $"Claim {preview.Claims.Count} reward{Plural(preview.Claims.Count)}  (+{Num.CompactFloor(gems)} gems)",
+                PanelKit.Label(body, Loc.F("manage.claim", preview.Claims.Count, Plural(preview.Claims.Count), Num.CompactFloor(gems)),
                                Theme.FsH2, Theme.AccentGold, TextAnchor.MiddleLeft);
             }
             if (preview.EquipCount > 0)
-                PanelKit.Label(body, $"Equip {preview.EquipCount} upgrade{Plural(preview.EquipCount)}",
+                PanelKit.Label(body, Loc.F("manage.equip", preview.EquipCount, Plural(preview.EquipCount)),
                                Theme.FsH2, UpgradeTell.Up, TextAnchor.MiddleLeft);
             if (preview.SalvageCount > 0)
-                PanelKit.Label(body, $"Salvage {preview.SalvageCount} item{Plural(preview.SalvageCount)}  (+{Num.CompactFloor(preview.SalvageScrap)} scrap)",
+                PanelKit.Label(body, Loc.F("manage.salvage", preview.SalvageCount, Plural(preview.SalvageCount), Num.CompactFloor(preview.SalvageScrap)),
                                Theme.FsH2, Theme.TextBright, TextAnchor.MiddleLeft);
 
             PanelKit.Flex(body); // slack pushes the buttons to the panel bottom
 
             var row = PanelKit.Row(body, Theme.BtnH);
-            PanelKit.ButtonCell(row, "Cancel", () => Destroy(gameObject), fontSize: Theme.FsH1);
-            PanelKit.ButtonCell(row, "Confirm", () => { _view!.NavManageApply(now); Destroy(gameObject); }, fontSize: Theme.FsH1);
+            PanelKit.ButtonCell(row, Loc.T("common.cancel"), () => Destroy(gameObject), fontSize: Theme.FsH1);
+            PanelKit.ButtonCell(row, Loc.T("common.confirm"), () => { _view!.NavManageApply(now); Destroy(gameObject); }, fontSize: Theme.FsH1);
         }
 
         private static string Plural(int n) => n == 1 ? "" : "s";

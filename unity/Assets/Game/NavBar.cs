@@ -87,23 +87,23 @@ namespace IdleGame.Game
             // Bottom-LEFT: the everyday cluster — [Inventory][Heroes][Manage] (10.14b added Manage, the
             // mid-session chore sweep, after Heroes so the two loadout verbs sit together on the left).
             var left = Cluster(rrt, new Vector2(0f, 0f));
-            var invBtn = NavButton(left, "Inventory", 160f, _view.NavToggleInventory);
+            var invBtn = NavButton(left, Loc.T("nav.inventory"), 160f, _view.NavToggleInventory);
             _invText = invBtn.GetComponentInChildren<Text>();
-            _heroesBtn = NavButton(left, "Heroes", 120f, _view.NavToggleHeroes).gameObject;
-            _manageBtn = NavButton(left, "Manage", 120f, OpenManage).gameObject;
+            _heroesBtn = NavButton(left, Loc.T("nav.heroes"), 120f, _view.NavToggleHeroes).gameObject;
+            _manageBtn = NavButton(left, Loc.T("nav.manage"), 120f, OpenManage).gameObject;
             // Manage pip: the same gold dot as Goals', lit when Session.Preview finds pending chores.
             _managePipDot = AddPip(_manageBtn);
 
             // Bottom-RIGHT: system panels, Goals last so it lands at the corner (rightmost) with the pip.
             var right = Cluster(rrt, new Vector2(1f, 0f));
-            var modBtn = NavButton(right, "Modifiers", 160f, _view.NavToggleModifiers);
+            var modBtn = NavButton(right, Loc.T("nav.modifiers"), 160f, _view.NavToggleModifiers);
             _modText = modBtn.GetComponentInChildren<Text>();
             _modifiersBtn = modBtn.gameObject;
-            var modesBtn = NavButton(right, "Modes", 120f, _view.NavToggleModes);
+            var modesBtn = NavButton(right, Loc.T("nav.modes"), 120f, _view.NavToggleModes);
             _modesText = modesBtn.GetComponentInChildren<Text>();
             _modesBtn = modesBtn.gameObject;
-            _summonBtn = NavButton(right, "Summon", 130f, _view.NavToggleSummon).gameObject;
-            _goalsBtn = NavButton(right, "Goals", 120f, _view.NavToggleGoals).gameObject;
+            _summonBtn = NavButton(right, Loc.T("nav.summon"), 130f, _view.NavToggleSummon).gameObject;
+            _goalsBtn = NavButton(right, Loc.T("nav.goals"), 120f, _view.NavToggleGoals).gameObject;
 
             // Claim pip on the Goals button (10.14b factored it into AddPip, now shared with Manage).
             _pipDot = AddPip(_goalsBtn);
@@ -205,11 +205,11 @@ namespace IdleGame.Game
                 _goalsBtn.SetActive(!bag && (ftue & 8) != 0);
             }
 
-            string inv = bag ? "Close Bag" : "Inventory";
+            string inv = bag ? Loc.T("nav.close-bag") : Loc.T("nav.inventory");
             if (inv != _invShown) { _invShown = inv; _invText.text = inv; }
 
             int mods = _view.ActiveModifierCount;
-            if (mods != _lastMods) { _lastMods = mods; _modText.text = mods > 0 ? $"Modifiers ({mods})" : "Modifiers"; }
+            if (mods != _lastMods) { _lastMods = mods; _modText.text = mods > 0 ? Loc.F("nav.modifiers-n", mods) : Loc.T("nav.modifiers"); }
 
             int alt = _view.AltModeLive ? 1 : 0;
             if (alt != _lastAlt) { _lastAlt = alt; _modesText.color = alt == 1 ? ModesViolet : Color.white; }

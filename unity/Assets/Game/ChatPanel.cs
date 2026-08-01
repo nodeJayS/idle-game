@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using IdleGame.GameCore;
 
 namespace IdleGame.Game
 {
@@ -126,7 +127,7 @@ namespace IdleGame.Game
             if (!_locked) UiKit.MakeDraggable(go, panelRt, _canvas, p => { _pos = p; Settings.ChatX = p.x; Settings.ChatY = p.y; });
 
             // Title pinned to the left edge.
-            var title = UiKit.Label(go.transform, "Chat", 15, TextAnchor.MiddleLeft, new Vector2(120f, 22f * _ts), Vector2.zero);
+            var title = UiKit.Label(go.transform, Loc.T("chat.title"), 15, TextAnchor.MiddleLeft, new Vector2(120f, 22f * _ts), Vector2.zero);
             Anchor((RectTransform)title.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(10f, 0f));
 
             // Lock + minimize pinned to the right edge.
@@ -135,7 +136,7 @@ namespace IdleGame.Game
             var min = UiKit.TextButton(go.transform, _collapsed ? "+" : "—", new Vector2(24f * _ts, 20f * _ts), Vector2.zero, ToggleCollapse, 16);
             Anchor((RectTransform)min.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-6f, 0f));
 
-            var lockBtn = UiKit.TextButton(go.transform, _locked ? "Locked" : "Free", new Vector2(46f * _ts, 20f * _ts), Vector2.zero, ToggleLock, 12);
+            var lockBtn = UiKit.TextButton(go.transform, _locked ? Loc.T("common.locked") : Loc.T("common.free"), new Vector2(46f * _ts, 20f * _ts), Vector2.zero, ToggleLock, 12);
             Anchor((RectTransform)lockBtn.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-(10f + 24f * _ts), 0f));
             var li = lockBtn.GetComponent<Image>();
             if (li != null) li.color = _locked ? new Color(0.55f, 0.32f, 0.30f) : new Color(0.22f, 0.30f, 0.45f);
@@ -230,7 +231,7 @@ namespace IdleGame.Game
             }
             else
             {
-                var l = UiKit.Label(_body, "Coming soon — chat arrives with the online update.",
+                var l = UiKit.Label(_body, Loc.T("chat.coming-soon"),
                                     13, TextAnchor.MiddleCenter, Vector2.zero, Vector2.zero);
                 var lrt = (RectTransform)l.transform;
                 lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;

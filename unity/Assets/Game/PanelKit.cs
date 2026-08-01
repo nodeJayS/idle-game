@@ -2,6 +2,7 @@
 using System;
 using UnityEngine;
 using UnityEngine.UI;
+using IdleGame.GameCore;
 
 namespace IdleGame.Game
 {
@@ -68,7 +69,7 @@ namespace IdleGame.Game
             SoundFx.Play("System_PopUpOpen_new", 0.35f);
             var header = Row(prt, Theme.BtnH);
             TextCell(header, title, Theme.FsTitle, Theme.TextBright, TextAnchor.MiddleLeft, flex: 1f);
-            ButtonCell(header, "Close",
+            ButtonCell(header, Loc.T("common.close"),
                 () => { SoundFx.Play("System_PopUpClose_new", 0.35f); onClose(); },
                 width: Theme.CloseW, fontSize: Theme.FsH1);
 

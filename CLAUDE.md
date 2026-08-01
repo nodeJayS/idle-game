@@ -16,7 +16,7 @@ animate/poll, never decide rules. A future .NET server reuses GameCore as-is.
 
 ## Build & test
 - Sim: `dotnet test gamecore/GameCore.Tests` (xunit; globs the SAME
-  Assets/GameCore sources — edit sim code there). **699 tests green**
+  Assets/GameCore sources — edit sim code there). **846 tests green**
   (incl. DocsTests: ROADMAP ≤250 lines + keeps its sections — the ledger
   rule has teeth; prune, don't raise the budget).
 - Balance tooling: `dotnet run --project gamecore/BalanceSim -- walls|sweep|farm`
@@ -84,11 +84,11 @@ animate/poll, never decide rules. A future .NET server reuses GameCore as-is.
   `Co-Authored-By: <the model running the session> <noreply@anthropic.com>`.
   Push after committing (user call 2026-07-07). Work on `main`. New content
   seeds at New Game.
-- **Delegation model (user, updated 2026-07-06)**: Fable does it all —
-  designs, implements, tests, verifies in Play, commits, pushes. No
-  subagents for implementation. Full editor/Play autonomy (user call
-  2026-07-05) with the rails: back up save.json before Play, stop Play
-  before compiling; user playing = pipeline paused.
+- **Delegation model (user, updated 2026-07-09 — supersedes the 07-06
+  solo rule)**: Fable designs, reviews, verifies in Play, commits, pushes;
+  subagents implement off LOCKED briefs as needed. Full editor/Play
+  autonomy (user call 2026-07-05) with the rails: back up save.json before
+  Play, stop Play before compiling; user playing = pipeline paused.
 - **Unity MCP verify loop**: refresh_unity + read_console for compile; stop
   Play BEFORE compiling (domain reload wipes Play state). In Play: dismiss
   MainMenu via reflected `CloseAnd(OnContinue)`, IdleClaimModal via first

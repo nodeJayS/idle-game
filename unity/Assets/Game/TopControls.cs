@@ -93,24 +93,24 @@ namespace IdleGame.Game
             var nav = Cluster(rrt, NavTop);
             _navCluster = nav.gameObject;
             _backBtn = MakeButton(nav, "◀", 56f, () => _view.NavGoToStage(_view.CurrentSave.Progress.CurrentStage - 1), 24).gameObject;
-            _stageLabel = MakeLabel(nav, "Stage 1", 180f, 20);
+            _stageLabel = MakeLabel(nav, Loc.F("top.stage", 1), 180f, 20);
             _fwdBtn = MakeButton(nav, "▶", 56f, () => _view.NavGoToStage(_view.CurrentSave.Progress.CurrentStage + 1), 24).gameObject;
-            _pushBtn = MakeButton(nav, "Push beyond…", 200f, () => _view.NavGoToStage(_view.CurrentSave.Progress.CurrentStage + 1), 18).gameObject;
+            _pushBtn = MakeButton(nav, Loc.T("top.push-beyond"), 200f, () => _view.NavGoToStage(_view.CurrentSave.Progress.CurrentStage + 1), 18).gameObject;
 
             // --- primary-verb cluster (stays active; every running mode shows one of its children) ---
             var verb = Cluster(rrt, VerbTop);
-            var chal = MakeButton(verb, "Challenge Miniboss", 370f, _view.NavChallengeBoss, 18);
+            var chal = MakeButton(verb, Loc.T("top.challenge-miniboss"), 370f, _view.NavChallengeBoss, 18);
             _challengeBtn = chal.gameObject; _challengeText = chal.GetComponentInChildren<Text>();
-            _fleeBtn = MakeButton(verb, "Flee", 180f, _view.NavFlee, 18).gameObject;
-            var exit = MakeButton(verb, "Exit Crypt", 370f, OnExit, 18);
+            _fleeBtn = MakeButton(verb, Loc.T("top.flee"), 180f, _view.NavFlee, 18).gameObject;
+            var exit = MakeButton(verb, Loc.T("top.exit-crypt"), 370f, OnExit, 18);
             _exitBtn = exit.gameObject; _exitText = exit.GetComponentInChildren<Text>();
-            var speed = MakeButton(verb, "1x", 72f, _view.NavToggleAltSpeed, 18);
+            var speed = MakeButton(verb, Loc.T("top.speed-1x"), 72f, _view.NavToggleAltSpeed, 18);
             _speedBtn = speed.gameObject; _speedText = speed.GetComponentInChildren<Text>();
 
             // --- auto-advance cluster (shelved) ---
             var auto = Cluster(rrt, AutoTop);
             _autoCluster = auto.gameObject;
-            var autoB = MakeButton(auto, "▶ Auto-Advance", 260f, _view.NavToggleAutoAdvance, 18);
+            var autoB = MakeButton(auto, Loc.T("top.auto-advance"), 260f, _view.NavToggleAutoAdvance, 18);
             _autoBtn = autoB.gameObject; _autoText = autoB.GetComponentInChildren<Text>();
 
             // Start hidden; the change-only poll lights up exactly what the current mode needs. The
@@ -210,7 +210,7 @@ namespace IdleGame.Game
             if (farm && _lastStage != cur)
             {
                 _lastStage = cur;
-                _stageLabel.text = cur > _cfg.Stages.Count ? $"Endless {cur - _cfg.Stages.Count}" : $"Stage {cur}";
+                _stageLabel.text = cur > _cfg.Stages.Count ? Loc.F("top.endless", cur - _cfg.Stages.Count) : Loc.F("top.stage", cur);
             }
 
             // Primary-verb cluster: Challenge (farm) / Flee (boss) / Exit + speed (alt).
@@ -224,7 +224,7 @@ namespace IdleGame.Game
                 if (_lastMajor != major)
                 {
                     _lastMajor = major;
-                    _challengeText.text = major == 1 ? "Challenge ★ Major Boss" : "Challenge Miniboss";
+                    _challengeText.text = major == 1 ? Loc.T("top.challenge-major-boss") : Loc.T("top.challenge-miniboss");
                 }
             }
             if (alt)
@@ -233,10 +233,10 @@ namespace IdleGame.Game
                 if (_lastExitKind != (int)kind || _lastExitFloor != floor)
                 {
                     _lastExitKind = (int)kind; _lastExitFloor = floor;
-                    _exitText.text = kind == EncounterKind.Dungeon ? "Exit Crypt" : $"Exit Tower — Floor {floor}";
+                    _exitText.text = kind == EncounterKind.Dungeon ? Loc.T("top.exit-crypt") : Loc.F("top.exit-tower", floor);
                 }
                 int sp = _view.AltSpeed2x ? 1 : 0;
-                if (_lastSpeed != sp) { _lastSpeed = sp; _speedText.text = sp == 1 ? "2x" : "1x"; }
+                if (_lastSpeed != sp) { _lastSpeed = sp; _speedText.text = sp == 1 ? Loc.T("top.speed-2x") : Loc.T("top.speed-1x"); }
             }
 
             // Auto-advance (shelved OFF — the gate keeps it hidden today; the armed tint is preserved).
@@ -249,7 +249,7 @@ namespace IdleGame.Game
                 if (_lastArmed != armed)
                 {
                     _lastArmed = armed;
-                    _autoText.text = armed == 1 ? "■ Stop Auto-Advance" : "▶ Auto-Advance";
+                    _autoText.text = armed == 1 ? Loc.T("top.auto-advance-stop") : Loc.T("top.auto-advance");
                     _autoText.color = armed == 1 ? AutoArmed : Color.white;
                 }
             }

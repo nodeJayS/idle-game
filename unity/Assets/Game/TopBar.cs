@@ -2,6 +2,7 @@
 using System;
 using UnityEngine;
 using UnityEngine.UI;
+using IdleGame.GameCore;
 
 namespace IdleGame.Game
 {
@@ -49,7 +50,7 @@ namespace IdleGame.Game
             _recordLabel.color = new Color(1f, 0.82f, 0.32f, 0.95f);
             Anchor((RectTransform)_recordLabel.transform, new Vector2(84, -54));
 
-            var gear = UiKit.TextButton(root, "Settings", new Vector2(104, 34), Vector2.zero, ToggleSettings, 18);
+            var gear = UiKit.TextButton(root, Loc.T("settings.title"), new Vector2(104, 34), Vector2.zero, ToggleSettings, 18);
             Anchor((RectTransform)gear.transform, new Vector2(Theme.HudPad, -80));
         }
 
@@ -61,7 +62,7 @@ namespace IdleGame.Game
             int r = _view.EndlessRecord;
             if (r == _recordShown) return;
             _recordShown = r;
-            _recordLabel.text = r > 0 ? $"Endless depth {r}" : "";
+            _recordLabel.text = r > 0 ? Loc.F("hud.endless-depth", r) : "";
         }
 
         private static void Anchor(RectTransform rt, Vector2 pos)
@@ -82,7 +83,7 @@ namespace IdleGame.Game
             // PanelKit.Window (sortOrder 120, above everything): header (title + Close) + a scrolling
             // body of rows, with the Main Menu / Exit / Close verbs pinned below the scroll. onClose is
             // ToggleSettings so the header Close obeys the same open/close toggle the gear button drives.
-            var winGo = PanelKit.Window(transform, "Settings", ToggleSettings, out var body,
+            var winGo = PanelKit.Window(transform, Loc.T("settings.title"), ToggleSettings, out var body,
                                         "SettingsCanvas", sortOrder: 120, max: new Vector2(620f, 680f));
             _settings = winGo; // Window returns the canvas GO — ToggleSettings destroys it to close
             PanelKit.Stack(body); // the body is a bare Flex until stacked — without this every row
@@ -96,40 +97,40 @@ namespace IdleGame.Game
             // ButtonCell wraps its button). Commit semantics unchanged — on end-edit, set Account.Name
             // and refresh the HUD chip's display label.
             var nameRow = PanelKit.Row(list, Theme.BtnH);
-            PanelKit.TextCell(nameRow, "Name", Theme.FsH2, Theme.TextBright, TextAnchor.MiddleLeft, width: 120f);
+            PanelKit.TextCell(nameRow, Loc.T("settings.name"), Theme.FsH2, Theme.TextBright, TextAnchor.MiddleLeft, width: 120f);
             var input = UiKit.TextInput(nameRow, Account.Name, new Vector2(280f, 44f), Vector2.zero,
                 s => { Account.Name = s; _nameLabel.text = Account.Display; });
             var inLe = input.gameObject.AddComponent<LayoutElement>();
             inLe.flexibleWidth = 1f; inLe.minWidth = 200f;
 
-            PanelKit.SliderRow(list, "Master Volume", () => Settings.MasterVolume,
+            PanelKit.SliderRow(list, Loc.T("settings.master-volume"), () => Settings.MasterVolume,
                 v => { Settings.MasterVolume = v; AudioListener.volume = v; });
-            PanelKit.SliderRow(list, "SFX Volume", () => Settings.SfxVolume, v => Settings.SfxVolume = v);
-            PanelKit.SliderRow(list, "Ambience Volume", () => Settings.AmbienceVolume,
+            PanelKit.SliderRow(list, Loc.T("settings.sfx-volume"), () => Settings.SfxVolume, v => Settings.SfxVolume = v);
+            PanelKit.SliderRow(list, Loc.T("settings.ambience-volume"), () => Settings.AmbienceVolume,
                 v => Settings.AmbienceVolume = v); // 10.9c beds read this live
 
-            ToggleRow(list, "Damage Numbers", () => Settings.DamageNumbers, v => Settings.DamageNumbers = v);
-            ToggleRow(list, "Screen Shake", () => Settings.ScreenShake, v => Settings.ScreenShake = v);
-            ToggleRow(list, "Loot Feed", () => Settings.LootFeed, v => Settings.LootFeed = v);
-            ToggleRow(list, "Projectiles", () => Settings.Projectiles, v => Settings.Projectiles = v);
-            ToggleRow(list, "Spawn Animations", () => Settings.SpawnAnimations, v => Settings.SpawnAnimations = v);
+            ToggleRow(list, Loc.T("settings.damage-numbers"), () => Settings.DamageNumbers, v => Settings.DamageNumbers = v);
+            ToggleRow(list, Loc.T("settings.screen-shake"), () => Settings.ScreenShake, v => Settings.ScreenShake = v);
+            ToggleRow(list, Loc.T("settings.loot-feed"), () => Settings.LootFeed, v => Settings.LootFeed = v);
+            ToggleRow(list, Loc.T("settings.projectiles"), () => Settings.Projectiles, v => Settings.Projectiles = v);
+            ToggleRow(list, Loc.T("settings.spawn-animations"), () => Settings.SpawnAnimations, v => Settings.SpawnAnimations = v);
 
             // Accessibility (10.20a). Text Size cycles the three hand-checked steps; on each advance we
             // close+re-open Settings so THIS window's own labels re-render at the new scale on the spot
             // (uGUI windows read UiKit.Scaled only at build time — see §3 live-refresh notes). Reduced
             // Motion / Haptics are plain toggles over the new prefs.
-            CycleRow(list, "Text Size", () => Settings.TextSizePct + "%",
+            CycleRow(list, Loc.T("settings.text-size"), () => Settings.TextSizePct + "%",
                 () =>
                 {
                     Settings.TextSizePct = Settings.TextSizePct == 100 ? 115
                                          : Settings.TextSizePct == 115 ? 130 : 100;
                     Destroy(_settings); _settings = null; OpenSettings();
                 });
-            ToggleRow(list, "Reduced Motion", () => Settings.ReducedMotion, v => Settings.ReducedMotion = v);
-            ToggleRow(list, "Haptics", () => Settings.Haptics, v => Settings.Haptics = v);
+            ToggleRow(list, Loc.T("settings.reduced-motion"), () => Settings.ReducedMotion, v => Settings.ReducedMotion = v);
+            ToggleRow(list, Loc.T("settings.haptics"), () => Settings.Haptics, v => Settings.Haptics = v);
 
             // Quality tier (10.12d): the weak-hardware levers, applied live via GraphicsQuality.
-            CycleRow(list, "Render Scale",
+            CycleRow(list, Loc.T("settings.render-scale"),
                 () => Settings.RenderScale >= 0.99f ? "100%" : Settings.RenderScale >= 0.74f ? "75%" : "60%",
                 () =>
                 {
@@ -137,17 +138,17 @@ namespace IdleGame.Game
                                          : Settings.RenderScale >= 0.74f ? 0.6f : 1f;
                     GraphicsQuality.Apply();
                 });
-            ToggleRow(list, "Shadows", () => Settings.Shadows,
+            ToggleRow(list, Loc.T("settings.shadows"), () => Settings.Shadows,
                 v => { Settings.Shadows = v; GraphicsQuality.Apply(); });
-            ToggleRow(list, "Post FX", () => Settings.PostFx,
+            ToggleRow(list, Loc.T("settings.post-fx"), () => Settings.PostFx,
                 v => { Settings.PostFx = v; GraphicsQuality.Apply(); });
 
             // Verb row (fixed, below the scroll): three ≥48 buttons.
             var verbs = PanelKit.Row(body, Theme.BtnH);
-            PanelKit.ButtonCell(verbs, "Main Menu",
+            PanelKit.ButtonCell(verbs, Loc.T("settings.main-menu"),
                 () => { Destroy(_settings); _settings = null; _onMainMenu(); }, fontSize: Theme.FsBody);
-            PanelKit.ButtonCell(verbs, "Exit Game", Quit, fontSize: Theme.FsBody);
-            PanelKit.ButtonCell(verbs, "Close", ToggleSettings, fontSize: Theme.FsBody);
+            PanelKit.ButtonCell(verbs, Loc.T("common.exit-game"), Quit, fontSize: Theme.FsBody);
+            PanelKit.ButtonCell(verbs, Loc.T("common.close"), ToggleSettings, fontSize: Theme.FsBody);
         }
 
         /// <summary>A labelled cycle button (tap advances to the next option), composed from the kit —
@@ -168,8 +169,8 @@ namespace IdleGame.Game
             var row = PanelKit.Row(parent, Theme.TouchMin);
             PanelKit.TextCell(row, label, Theme.FsH2, Theme.TextBright, TextAnchor.MiddleLeft, flex: 1f);
             Text? t = null;
-            var btn = PanelKit.ButtonCell(row, get() ? "On" : "Off",
-                () => { set(!get()); if (t != null) t.text = get() ? "On" : "Off"; }, width: 120f, fontSize: Theme.FsBody);
+            var btn = PanelKit.ButtonCell(row, get() ? Loc.T("common.on") : Loc.T("common.off"),
+                () => { set(!get()); if (t != null) t.text = get() ? Loc.T("common.on") : Loc.T("common.off"); }, width: 120f, fontSize: Theme.FsBody);
             t = btn.GetComponentInChildren<Text>();
         }
 

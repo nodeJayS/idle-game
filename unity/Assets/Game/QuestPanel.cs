@@ -126,12 +126,12 @@ namespace IdleGame.Game
         public static string QuestLabel(Quest q) => q.Kind switch
         {
             // goal amounts ceil (game-design §7): never understate what's required
-            QuestKind.KillMonsters => $"Slay {Num.CompactCeil(q.Target)} monsters",
-            QuestKind.SalvageItems => $"Salvage {Num.CompactCeil(q.Target)} items",
-            QuestKind.EarnGold     => $"Earn {Num.CompactCeil(q.Target)} gold",
-            QuestKind.ClearStages  => $"Clear {Num.CompactCeil(q.Target)} stages",
-            QuestKind.FindRarePlus => $"Find {Num.CompactCeil(q.Target)} Rare+ items",
-            _ => "Goal",
+            QuestKind.KillMonsters => Loc.F("quest.slay-monsters", Num.CompactCeil(q.Target)),
+            QuestKind.SalvageItems => Loc.F("quest.salvage-items", Num.CompactCeil(q.Target)),
+            QuestKind.EarnGold     => Loc.F("quest.earn-gold", Num.CompactCeil(q.Target)),
+            QuestKind.ClearStages  => Loc.F("quest.clear-stages", Num.CompactCeil(q.Target)),
+            QuestKind.FindRarePlus => Loc.F("quest.find-rare-plus", Num.CompactCeil(q.Target)),
+            _ => Loc.T("quest.goal"),
         };
 
         // ---- window (mirrors ChatPanel) ----
@@ -189,7 +189,7 @@ namespace IdleGame.Game
             img.color = _locked ? new Color(0.20f, 0.17f, 0.17f, 0.96f) : new Color(0.16f, 0.18f, 0.24f, 0.96f);
             if (!_locked) UiKit.MakeDraggable(go, panelRt, _canvas, p => { _pos = p; Settings.QuestX = p.x; Settings.QuestY = p.y; });
 
-            var title = UiKit.Label(go.transform, "Quests", 15, TextAnchor.MiddleLeft, new Vector2(140f, 22f * _ts), Vector2.zero);
+            var title = UiKit.Label(go.transform, Loc.T("quest.title"), 15, TextAnchor.MiddleLeft, new Vector2(140f, 22f * _ts), Vector2.zero);
             title.color = new Color(0.95f, 0.86f, 0.45f);
             Anchor((RectTransform)title.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(10f, 0f));
 
@@ -198,7 +198,7 @@ namespace IdleGame.Game
             var min = UiKit.TextButton(go.transform, _collapsed ? "+" : "—", new Vector2(24f * _ts, 20f * _ts), Vector2.zero, ToggleCollapse, 16);
             Anchor((RectTransform)min.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-6f, 0f));
 
-            var lockBtn = UiKit.TextButton(go.transform, _locked ? "Locked" : "Free", new Vector2(46f * _ts, 20f * _ts), Vector2.zero, ToggleLock, 12);
+            var lockBtn = UiKit.TextButton(go.transform, _locked ? Loc.T("common.locked") : Loc.T("common.free"), new Vector2(46f * _ts, 20f * _ts), Vector2.zero, ToggleLock, 12);
             Anchor((RectTransform)lockBtn.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-(10f + 24f * _ts), 0f));
             var li = lockBtn.GetComponent<Image>();
             if (li != null) li.color = _locked ? new Color(0.55f, 0.32f, 0.30f) : new Color(0.22f, 0.30f, 0.45f);
@@ -229,7 +229,7 @@ namespace IdleGame.Game
             hrt.pivot = new Vector2(0.5f, 1f);
             hrt.sizeDelta = new Vector2(0f, IntroHeaderH * _ts);
             hrt.anchoredPosition = Vector2.zero;
-            var htext = UiKit.Label(hgo.transform, "Getting started", 14, TextAnchor.LowerLeft, Vector2.zero, Vector2.zero);
+            var htext = UiKit.Label(hgo.transform, Loc.T("quest.getting-started"), 14, TextAnchor.LowerLeft, Vector2.zero, Vector2.zero);
             htext.color = new Color(0.98f, 0.80f, 0.42f);
             var hlrt = (RectTransform)htext.transform;
             hlrt.anchorMin = new Vector2(0f, 0f); hlrt.anchorMax = new Vector2(1f, 1f);

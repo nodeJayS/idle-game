@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using UnityEngine;
+using IdleGame.GameCore;
 
 namespace IdleGame.Game
 {
@@ -25,7 +26,7 @@ namespace IdleGame.Game
             PanelKit.Modal(transform, "MainMenuCanvas", sortOrder: 100, new Vector2(520f, 540f),
                            out var body, backdrop: new Color(0.05f, 0.04f, 0.07f, 1f));
 
-            var title = PanelKit.Label(body, "IDLE ARPG", 40, Theme.TextBright, TextAnchor.MiddleCenter);
+            var title = PanelKit.Label(body, Loc.T("menu.title"), 40, Theme.TextBright, TextAnchor.MiddleCenter);
             PanelKit.Fixed(title.gameObject, height: 64f);
 
             PanelKit.Flex(body); // slack above the button block — centres it between title and hint
@@ -33,14 +34,14 @@ namespace IdleGame.Game
             // The front door: generous 76-tall buttons (well over the 48 primary-verb floor), FsH1 labels.
             // Continue is interactable only with a save on disk (identical to the old gate) and greys out
             // otherwise via ButtonCell's disabled treatment.
-            PanelKit.ButtonCell(PanelKit.Row(body, 76f), "Continue",
+            PanelKit.ButtonCell(PanelKit.Row(body, 76f), Loc.T("menu.continue"),
                 () => CloseAnd(OnContinue), fontSize: Theme.FsH1, enabled: HasSave);
-            PanelKit.ButtonCell(PanelKit.Row(body, 76f), "New Game", NewGameClicked, fontSize: Theme.FsH1);
-            PanelKit.ButtonCell(PanelKit.Row(body, 76f), "Exit Game", Quit, fontSize: Theme.FsH1);
+            PanelKit.ButtonCell(PanelKit.Row(body, 76f), Loc.T("menu.new-game"), NewGameClicked, fontSize: Theme.FsH1);
+            PanelKit.ButtonCell(PanelKit.Row(body, 76f), Loc.T("common.exit-game"), Quit, fontSize: Theme.FsH1);
 
             PanelKit.Flex(body); // slack below the block — the hint pins to the panel bottom
 
-            var hint = PanelKit.Label(body, HasSave ? "" : "No save yet — start a new game",
+            var hint = PanelKit.Label(body, HasSave ? "" : Loc.T("menu.no-save"),
                                       Theme.FsBody, Theme.TextMuted, TextAnchor.MiddleCenter);
             PanelKit.Fixed(hint.gameObject, height: 26f);
         }
@@ -58,15 +59,15 @@ namespace IdleGame.Game
             var canvas = PanelKit.Modal(transform, "ConfirmCanvas", sortOrder: 110, new Vector2(520f, 260f),
                                         out var body, backdrop: Theme.BackdropDim);
 
-            var prompt = PanelKit.Label(body, "Overwrite your existing save?", Theme.FsH1,
+            var prompt = PanelKit.Label(body, Loc.T("menu.overwrite-prompt"), Theme.FsH1,
                                         Theme.TextBright, TextAnchor.MiddleCenter);
             PanelKit.Fixed(prompt.gameObject, height: 40f);
 
             PanelKit.Flex(body);
 
             var row = PanelKit.Row(body, 70f);
-            PanelKit.ButtonCell(row, "Overwrite", () => CloseAnd(OnNewGame), fontSize: Theme.FsH1);
-            PanelKit.ButtonCell(row, "Cancel", () => Destroy(canvas), fontSize: Theme.FsH1);
+            PanelKit.ButtonCell(row, Loc.T("menu.overwrite"), () => CloseAnd(OnNewGame), fontSize: Theme.FsH1);
+            PanelKit.ButtonCell(row, Loc.T("common.cancel"), () => Destroy(canvas), fontSize: Theme.FsH1);
         }
 
         private void Quit()

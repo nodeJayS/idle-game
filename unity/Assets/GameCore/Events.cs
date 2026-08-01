@@ -120,11 +120,12 @@ namespace IdleGame.GameCore
             if (zb != null)
             {
                 string zoneName = zb.Value.ZoneIndex < cfg.Zones.Count ? cfg.Zones[zb.Value.ZoneIndex].Name : "Zone";
-                list.Add(new EventInfo { Id = WeekendZoneBoostId, Name = zoneName + " Weekend Boost", EndMs = zb.Value.EndMs });
+                list.Add(new EventInfo { Id = WeekendZoneBoostId, Name = zoneName + " Weekend Boost",
+                                         ZoneIndex = zb.Value.ZoneIndex, EndMs = zb.Value.EndMs });
             }
             var cm = CryptMutation(cfg, nowMs);
             if (cm != null)
-                list.Add(new EventInfo { Id = MutatedCryptId, Name = "Mutated Crypt", EndMs = cm.Value.EndMs });
+                list.Add(new EventInfo { Id = MutatedCryptId, Name = "Mutated Crypt", ZoneIndex = -1, EndMs = cm.Value.EndMs });
             return list;
         }
 
@@ -167,11 +168,19 @@ namespace IdleGame.GameCore
         public long EndMs; // Friday 00:00 UTC end (countdown ceils)
     }
 
-    /// <summary>One active event as a client-banner descriptor (<see cref="Events.Active"/>).</summary>
+    /// <summary>One active event as a client-banner descriptor (<see cref="Events.Active"/>).
+    /// A TRANSIENT descriptor — recomputed from nowMs on demand, never saved — so adding a field
+    /// needs no copy-site/serialization threading.</summary>
     public struct EventInfo
     {
         public string Id;
+        /// <summary>English display name, composed here for compat. The 10.20c client renders via
+        /// Loc keyed off <see cref="Id"/> instead (composing the zone name from <see cref="ZoneIndex"/>),
+        /// so a language pack can translate the banner; this stays populated for any older caller.</summary>
         public string Name;
+        /// <summary>The boosted zone's index into cfg.Zones (weekend boost), or -1 when the event
+        /// has no zone (mutated crypt) — the client's Loc composition hook.</summary>
+        public int ZoneIndex;
         public long EndMs; // UTC end epoch-ms; the client CEILS (EndMs - now) into a countdown
     }
 
