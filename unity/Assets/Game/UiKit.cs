@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
@@ -89,6 +90,7 @@ namespace IdleGame.Game
             go.transform.SetParent(parent, false);
             var img = go.AddComponent<Image>();
             img.color = color;
+            Round(img, Theme.RadiusPanel);
             var rt = (RectTransform)go.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.sizeDelta = size;
@@ -133,6 +135,16 @@ namespace IdleGame.Game
             return t;
         }
 
+        /// <summary>The recessed ground shared by all four scroll viewports. Neutral black at 25%
+        /// rather than a Theme token — it darkens whatever surface it lands on, so it followed the
+        /// palette warm for free — rounded like the inset boxes it reads as.</summary>
+        private static Image ScrollBg(GameObject go)
+        {
+            var bg = go.AddComponent<Image>();
+            bg.color = new Color(0f, 0f, 0f, 0.25f);
+            return Round(bg, Theme.RadiusPanel);
+        }
+
         /// <summary>
         /// A vertical scrolling list. Returns the content RectTransform — add rows (each
         /// with a LayoutElement for height) as children; it auto-sizes and scrolls.
@@ -146,8 +158,7 @@ namespace IdleGame.Game
             rt.sizeDelta = size;
             rt.anchoredPosition = pos;
 
-            var bg = go.AddComponent<Image>();
-            bg.color = new Color(0f, 0f, 0f, 0.25f);
+            ScrollBg(go);
             go.AddComponent<RectMask2D>();
 
             var scroll = go.AddComponent<ScrollRect>();
@@ -189,8 +200,7 @@ namespace IdleGame.Game
             rt.sizeDelta = size;
             rt.anchoredPosition = pos;
 
-            var bg = go.AddComponent<Image>();
-            bg.color = new Color(0f, 0f, 0f, 0.25f);
+            ScrollBg(go);
             go.AddComponent<RectMask2D>();
 
             var scroll = go.AddComponent<ScrollRect>();
@@ -243,10 +253,11 @@ namespace IdleGame.Game
 
             var border = go.AddComponent<Image>();
             bool hasBorder = rarity != null && !Palette.Borderless(rarity.Value);
-            border.color = rarity == null ? new Color(0.24f, 0.26f, 0.31f)
+            border.color = rarity == null ? new Color(0.255f, 0.220f, 0.175f)
                          : hasBorder ? Palette.Rarity(rarity.Value)
-                                     : new Color(0.30f, 0.32f, 0.37f);
+                                     : new Color(0.315f, 0.272f, 0.215f);
             border.raycastTarget = raycast;
+            Round(border, Theme.RadiusTile);
 
             var inner = new GameObject("bg", typeof(RectTransform));
             inner.transform.SetParent(go.transform, false);
@@ -255,15 +266,18 @@ namespace IdleGame.Game
             float b = hasBorder ? 4f : 2f;
             irt.offsetMin = new Vector2(b, b); irt.offsetMax = new Vector2(-b, -b);
             var ibg = inner.AddComponent<Image>();
-            ibg.color = new Color(0.12f, 0.13f, 0.16f);
+            ibg.color = Theme.RowEmpty;
             ibg.raycastTarget = false;
+            // Inner arc = outer minus the frame width, so the two curves stay concentric instead of
+            // leaving a pinched sliver of border colour in each corner.
+            Round(ibg, Mathf.Max(2, Theme.RadiusTile - Mathf.RoundToInt(b)));
 
             int fs = size.x >= 64 ? 13 : 11;
             var lbl = Label(inner.transform, text, fs, TextAnchor.MiddleCenter, Vector2.zero, Vector2.zero);
             var lrt = (RectTransform)lbl.transform;
             lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
             lrt.offsetMin = new Vector2(2, 2); lrt.offsetMax = new Vector2(-2, -2);
-            lbl.color = rarity != null ? Palette.Rarity(rarity.Value) : new Color(0.55f, 0.58f, 0.63f);
+            lbl.color = rarity != null ? Palette.Rarity(rarity.Value) : Theme.TextDisabled;
             lbl.raycastTarget = false;
 
             // 10.20b glyph channel: the rarity mark in the tile's BOTTOM-RIGHT corner, inside the
@@ -293,6 +307,96 @@ namespace IdleGame.Game
             EquipSlot.Weapon => "Wpn", EquipSlot.Helm => "Helm", EquipSlot.Chest => "Body",
             EquipSlot.Gloves => "Glov", EquipSlot.Boots => "Boot", _ => "?",
         };
+
+        // ==== Procedural surfaces =====================================================
+        // Nothing in this project is authored in the editor — no prefabs, no imported UI sprites —
+        // so the kit BAKES its own rounded-rect textures and 9-slices them: the corner arc keeps a
+        // fixed pixel radius while the middle stretches to whatever the layout hands the Image.
+        // Coverage is sampled from the signed distance rather than thresholded, because an aliased
+        // curve reads worse than an honest square corner. One texture per shape, cached for the
+        // session — a window rebuild (every open) must never bake a new one.
+        private static readonly Dictionary<int, Sprite> _rounded = new();
+        private static readonly Dictionary<int, Sprite> _shadows = new();
+
+        /// <summary>A white rounded-rect sprite, 9-sliced so it stretches without smearing its
+        /// corners — assign it and set <c>Image.type = Sliced</c>; tint via Image.color.
+        /// <paramref name="border"/>&gt;0 punches the middle out for a rounded OUTLINE of that
+        /// pixel thickness. Cached per (radius, border).</summary>
+        public static Sprite RoundedRect(int radius, int border = 0)
+        {
+            radius = Mathf.Max(1, radius);
+            border = Mathf.Clamp(border, 0, 255);
+            int key = radius * 256 + border;
+            if (_rounded.TryGetValue(key, out var cached) && cached != null) return cached;
+
+            // 2r+3: one arc per side plus a single stretchable pixel of middle, which is exactly
+            // what a (r+1) 9-slice border leaves over. Any bigger is wasted memory.
+            int n = radius * 2 + 3;
+            var tex = new Texture2D(n, n, TextureFormat.RGBA32, false)
+            { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            var px = new Color32[n * n];
+            float half = n / 2f, core = half - radius; // half-extent of the square the arc rides on
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    float dx = Mathf.Max(Mathf.Abs(x + 0.5f - half) - core, 0f);
+                    float dy = Mathf.Max(Mathf.Abs(y + 0.5f - half) - core, 0f);
+                    float d = Mathf.Sqrt(dx * dx + dy * dy) - radius; // signed: <0 inside
+                    float a = Mathf.Clamp01(0.5f - d);                // 1px coverage ramp across the edge
+                    if (border > 0) a -= Mathf.Clamp01(0.5f - (d + border));
+                    px[y * n + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(Mathf.Clamp01(a) * 255f));
+                }
+            tex.SetPixels32(px);
+            tex.Apply();
+            // 100 ppu == the canvas' referencePixelsPerUnit, so one texel renders as one UI unit and
+            // the radius constants mean what they say on screen.
+            var sp = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), 100f, 0,
+                                   SpriteMeshType.FullRect,
+                                   new Vector4(radius + 1, radius + 1, radius + 1, radius + 1));
+            _rounded[key] = sp;
+            return sp;
+        }
+
+        /// <summary>The elevation counterpart of <see cref="RoundedRect"/>: solid in the middle and
+        /// ramping to zero over the outer <paramref name="radius"/> pixels, so a black copy behind a
+        /// window reads as a soft drop shadow. Same 9-slice, same cache discipline.</summary>
+        public static Sprite SoftShadow(int radius)
+        {
+            radius = Mathf.Max(2, radius);
+            if (_shadows.TryGetValue(radius, out var cached) && cached != null) return cached;
+
+            int n = radius * 2 + 3;
+            var tex = new Texture2D(n, n, TextureFormat.RGBA32, false)
+            { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            var px = new Color32[n * n];
+            float half = n / 2f, core = half - radius;
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    float dx = Mathf.Max(Mathf.Abs(x + 0.5f - half) - core, 0f);
+                    float dy = Mathf.Max(Mathf.Abs(y + 0.5f - half) - core, 0f);
+                    float d = Mathf.Sqrt(dx * dx + dy * dy) - radius; // -radius at the centre, 0 at the edge
+                    float t = Mathf.Clamp01(-d / radius);
+                    float a = t * t * (3f - 2f * t); // smoothstep: a linear ramp bands visibly at low alpha
+                    px[y * n + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(a * 255f));
+                }
+            tex.SetPixels32(px);
+            tex.Apply();
+            var sp = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), 100f, 0,
+                                   SpriteMeshType.FullRect,
+                                   new Vector4(radius + 1, radius + 1, radius + 1, radius + 1));
+            _shadows[radius] = sp;
+            return sp;
+        }
+
+        /// <summary>Give an existing Image a rounded surface. One call site for the sprite+type pair
+        /// so nothing can round a rect and forget to slice it (an unsliced sprite squashes its arcs).</summary>
+        public static Image Round(Image img, int radius)
+        {
+            img.sprite = RoundedRect(radius);
+            img.type = Image.Type.Sliced;
+            return img;
+        }
 
         private static Sprite? _circle;
 
@@ -330,7 +434,8 @@ namespace IdleGame.Game
             var go = new GameObject("Input", typeof(RectTransform));
             go.transform.SetParent(parent, false);
             var img = go.AddComponent<Image>();
-            img.color = new Color(0.16f, 0.17f, 0.22f);
+            img.color = Theme.RowEmpty; // a field reads as an empty row you can fill, not a panel
+            Round(img, Theme.RadiusButton);
             var rt = (RectTransform)go.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.sizeDelta = size;
@@ -409,8 +514,7 @@ namespace IdleGame.Game
             go.transform.SetParent(parent, false);
             var rt = (RectTransform)go.transform;
 
-            var bg = go.AddComponent<Image>();
-            bg.color = new Color(0f, 0f, 0f, 0.25f);
+            ScrollBg(go);
             go.AddComponent<RectMask2D>();
             var le = go.AddComponent<LayoutElement>();
             le.flexibleWidth = 1f; le.flexibleHeight = 1f;
@@ -454,8 +558,7 @@ namespace IdleGame.Game
             go.transform.SetParent(parent, false);
             var rt = (RectTransform)go.transform;
 
-            var bg = go.AddComponent<Image>();
-            bg.color = new Color(0f, 0f, 0f, 0.25f);
+            ScrollBg(go);
             go.AddComponent<RectMask2D>();
             var le = go.AddComponent<LayoutElement>();
             le.flexibleWidth = 1f; le.flexibleHeight = 1f;
@@ -500,10 +603,12 @@ namespace IdleGame.Game
             go.transform.SetParent(parent, false);
 
             var img = go.AddComponent<Image>();
-            img.color = new Color(0.22f, 0.30f, 0.45f);
+            img.color = Theme.BtnPrimary;
+            Round(img, Theme.RadiusButton);
 
             var btn = go.AddComponent<Button>();
             btn.targetGraphic = img;
+            ApplyButtonStates(btn);
             // 10.9d UI sound language: EVERY button clicks through this factory (PanelKit.
             // ButtonCell wraps it), so the one family lands everywhere. Disabled cells never
             // fire (interactable = false), so dead buttons stay silent.
@@ -516,6 +621,26 @@ namespace IdleGame.Game
 
             Label(go.transform, label, fontSize, TextAnchor.MiddleCenter, size, Vector2.zero);
             return btn;
+        }
+
+        /// <summary>The one press-feedback contract for every button the kit builds. ColorTint
+        /// MULTIPLIES the Image colour, so every state is a multiplier around white and the
+        /// Theme.Btn* token a view assigns still owns the button's identity — hover lifts it, the
+        /// press sinks it, and nothing here fights an explicit <c>img.color =</c>. Disabled is
+        /// white on purpose: callers already swap in Theme.BtnDisabled, and Unity's default
+        /// disabled tint (grey at HALF ALPHA) would ghost those buttons on top of that.</summary>
+        public static void ApplyButtonStates(Selectable s)
+        {
+            var c = s.colors;
+            c.normalColor = Color.white;
+            c.highlightedColor = new Color(1.08f, 1.08f, 1.08f, 1f);
+            c.pressedColor = new Color(0.90f, 0.90f, 0.90f, 1f);
+            c.selectedColor = Color.white; // uGUI keeps focus after a click; a lingering tint reads as stuck
+            c.disabledColor = Color.white;
+            c.colorMultiplier = 1f;
+            c.fadeDuration = 0.08f;
+            s.colors = c;
+            s.transition = Selectable.Transition.ColorTint;
         }
     }
 

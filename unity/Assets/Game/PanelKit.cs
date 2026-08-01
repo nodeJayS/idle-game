@@ -45,6 +45,7 @@ namespace IdleGame.Game
             panelGo.transform.SetParent(safe, false);
             var panelImg = panelGo.AddComponent<Image>();
             panelImg.color = Theme.BgPanel;
+            UiKit.Round(panelImg, Theme.RadiusWindow);
             // Clip children at the panel edge: on a height-starved canvas (extreme aspect) any
             // residual overflow reads as an intentional crop, never bleeds into the world.
             panelGo.AddComponent<RectMask2D>();
@@ -55,6 +56,7 @@ namespace IdleGame.Game
             // Equipment tab's minimum heights still fit inside the panel instead of overflowing.
             sizer.Margin = new Vector2(Theme.Gap * 5f, Theme.PadL);
             sizer.Max = max ?? new Vector2(1160f, 680f);
+            DropShadow(safe, prt, Theme.RadiusWindow);
 
             var vlg = panelGo.AddComponent<VerticalLayoutGroup>();
             vlg.padding = new RectOffset((int)Theme.PadL, (int)Theme.PadL, (int)Theme.PadL, (int)Theme.PadL);
@@ -68,6 +70,7 @@ namespace IdleGame.Game
             // one UI sound family. Other close paths (control-bar toggles) stay silent.
             SoundFx.Play("System_PopUpOpen_new", 0.35f);
             var header = Row(prt, Theme.BtnH);
+            HeaderRule(header);
             TextCell(header, title, Theme.FsTitle, Theme.TextBright, TextAnchor.MiddleLeft, flex: 1f);
             ButtonCell(header, Loc.T("common.close"),
                 () => { SoundFx.Play("System_PopUpClose_new", 0.35f); onClose(); },
@@ -103,20 +106,28 @@ namespace IdleGame.Game
             // Optional border: an outer image carries the sizer; the panel insets 2px inside it so
             // the color reads as a thin frame. Without a border the panel carries the sizer itself.
             Transform panelParent = safe;
+            RectTransform? outer = null;
             if (border != null)
             {
                 var borderGo = new GameObject("Border", typeof(RectTransform));
                 borderGo.transform.SetParent(safe, false);
-                borderGo.AddComponent<Image>().color = border.Value;
+                var bimg = borderGo.AddComponent<Image>();
+                bimg.color = border.Value;
+                // +2 radius = the 2px the panel insets, so the frame keeps an even width all the
+                // way around the arc instead of pinching at the corners.
+                UiKit.Round(bimg, Theme.RadiusWindow + 2);
                 var bs = borderGo.AddComponent<WindowSizer>();
                 bs.Margin = new Vector2(Theme.Gap * 5f, Theme.PadL);
                 bs.Max = size + new Vector2(4f, 4f);
                 panelParent = borderGo.transform;
+                outer = (RectTransform)borderGo.transform;
             }
 
             var panelGo = new GameObject("Panel", typeof(RectTransform));
             panelGo.transform.SetParent(panelParent, false);
-            panelGo.AddComponent<Image>().color = panelBg ?? Theme.BgPanel;
+            var pimg = panelGo.AddComponent<Image>();
+            pimg.color = panelBg ?? Theme.BgPanel;
+            UiKit.Round(pimg, Theme.RadiusWindow);
             panelGo.AddComponent<RectMask2D>(); // crop overflow at the panel edge on a starved canvas
             var prt = (RectTransform)panelGo.transform;
 
@@ -134,6 +145,9 @@ namespace IdleGame.Game
                 sizer.Margin = new Vector2(Theme.Gap * 5f, Theme.PadL);
                 sizer.Max = size;
             }
+            // The shadow follows whichever rect the sizer drives — the frame when there is one,
+            // else the panel; it must never be the INNER rect or it'd hide under the frame.
+            DropShadow(safe, outer ?? prt, Theme.RadiusWindow);
 
             var vlg = panelGo.AddComponent<VerticalLayoutGroup>();
             vlg.padding = new RectOffset((int)Theme.PadL, (int)Theme.PadL, (int)Theme.PadL, (int)Theme.PadL);
@@ -144,6 +158,49 @@ namespace IdleGame.Game
 
             body = prt;
             return canvas.gameObject;
+        }
+
+        // ==== Elevation ================================================================
+
+        /// <summary>Lays a soft drop shadow behind <paramref name="target"/>, lifting the window off
+        /// the diorama. It is a SIBLING inserted before the target, never a child: the window clips
+        /// its children with a RectMask2D (which would eat the fringe) and its layout group would try
+        /// to size anything parented inside. Never raycasts, never lays out — hit-testing and reflow
+        /// are byte-identical with or without it.</summary>
+        private static void DropShadow(Transform parent, RectTransform target, int radius, float grow = 12f)
+        {
+            var go = new GameObject("Shadow", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            go.transform.SetSiblingIndex(target.GetSiblingIndex()); // hierarchy order == draw order
+            var img = go.AddComponent<Image>();
+            img.sprite = UiKit.SoftShadow(radius);
+            img.type = Image.Type.Sliced;
+            img.color = new Color(0f, 0f, 0f, 0.35f);
+            img.raycastTarget = false;
+            go.AddComponent<LayoutElement>().ignoreLayout = true; // defensive: SafeRoot has no group today
+            var follow = go.AddComponent<ShadowFollow>();
+            follow.Target = target;
+            follow.Grow = new Vector2(grow, grow);
+        }
+
+        /// <summary>A hairline of <see cref="Theme.AccentGold"/> under a window header, parting chrome
+        /// from content without spending a whole divider row. Layout-IGNORED and anchored to the row's
+        /// bottom edge so it lives in the existing Gap — the header's cell arithmetic (and the 44pt
+        /// floor on the Close button) never sees it.</summary>
+        private static void HeaderRule(RectTransform header)
+        {
+            var go = new GameObject("HeaderRule", typeof(RectTransform));
+            go.transform.SetParent(header, false);
+            go.AddComponent<LayoutElement>().ignoreLayout = true;
+            var img = go.AddComponent<Image>();
+            img.color = new Color(Theme.AccentGold.r, Theme.AccentGold.g, Theme.AccentGold.b, 0.35f);
+            img.raycastTarget = false;
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = new Vector2(0f, 0f);
+            rt.anchorMax = new Vector2(1f, 0f);
+            rt.pivot = new Vector2(0.5f, 1f);
+            rt.offsetMin = new Vector2(0f, -2f);
+            rt.offsetMax = Vector2.zero;
         }
 
         // ==== Structure ================================================================
@@ -193,6 +250,7 @@ namespace IdleGame.Game
             go.transform.SetParent(parent, false);
             var img = go.AddComponent<Image>();
             img.color = Theme.BgInset;
+            UiKit.Round(img, Theme.RadiusPanel);
 
             var vlg = go.AddComponent<VerticalLayoutGroup>();
             vlg.padding = new RectOffset((int)Theme.GapS, (int)Theme.GapS, (int)Theme.GapS, (int)Theme.GapS);
@@ -314,6 +372,9 @@ namespace IdleGame.Game
             var img = btn.GetComponent<Image>();
             img.color = selected ? Theme.BtnSelected : muted ? Theme.RowMuted : Theme.BtnPrimary;
             if (!enabled) { btn.interactable = false; img.color = Theme.BtnDisabled; }
+            // Tighter arc than a standalone button: stacked rows at the button radius read as a pile
+            // of lozenges, and the list has to scan as a column.
+            UiKit.Round(img, Theme.RadiusTile);
 
             var le = btn.gameObject.AddComponent<LayoutElement>();
             le.preferredHeight = height;
@@ -384,8 +445,11 @@ namespace IdleGame.Game
             var groove = new GameObject("Groove", typeof(RectTransform));
             groove.transform.SetParent(hostGo.transform, false);
             var grooveImg = groove.AddComponent<Image>();
-            grooveImg.color = new Color(0.18f, 0.20f, 0.26f);
+            grooveImg.color = Theme.BarTrack;
             grooveImg.raycastTarget = false;
+            // Tile radius, not button: at 16px tall a larger arc's 9-slice borders overrun the
+            // groove's own height and the ends pinch.
+            UiKit.Round(grooveImg, Theme.RadiusTile);
             var grooveRt = (RectTransform)groove.transform;
             grooveRt.anchorMin = new Vector2(0f, 0.5f); grooveRt.anchorMax = new Vector2(1f, 0.5f);
             grooveRt.offsetMin = new Vector2(0f, -8f); grooveRt.offsetMax = new Vector2(0f, 8f);
@@ -403,8 +467,9 @@ namespace IdleGame.Game
             var fillGo = new GameObject("Fill", typeof(RectTransform));
             fillGo.transform.SetParent(fillArea.transform, false);
             var fillImg = fillGo.AddComponent<Image>();
-            fillImg.color = new Color(0.35f, 0.55f, 0.85f);
+            fillImg.color = Theme.BarGold; // the settings sliders are progress fills like any other
             fillImg.raycastTarget = false;
+            UiKit.Round(fillImg, Theme.RadiusTile);
             var fillRt = (RectTransform)fillGo.transform;
             fillRt.anchorMin = new Vector2(0f, 0f); fillRt.anchorMax = new Vector2(0f, 1f);
             fillRt.offsetMin = Vector2.zero; fillRt.offsetMax = Vector2.zero;
@@ -420,7 +485,7 @@ namespace IdleGame.Game
             handleGo.transform.SetParent(handleArea.transform, false);
             var handleImg = handleGo.AddComponent<Image>();
             handleImg.sprite = UiKit.CircleSprite();
-            handleImg.color = new Color(0.85f, 0.88f, 0.95f);
+            handleImg.color = Theme.TextBright;
             var handleRt = (RectTransform)handleGo.transform;
             handleRt.sizeDelta = new Vector2(26f, 26f);
 
@@ -475,6 +540,29 @@ namespace IdleGame.Game
             if (width > 0f) { le.preferredWidth = width; le.minWidth = width; }
             if (height > 0f) { le.preferredHeight = height; le.minHeight = height; }
             return le;
+        }
+    }
+
+    /// <summary>Glues a drop-shadow rect to the window it sits behind. A sibling can't inherit the
+    /// window's size the way a child would, and the window's own size is only known after
+    /// <see cref="WindowSizer"/> runs against the live canvas — so it's copied every frame, grown and
+    /// nudged down. LateUpdate, because WindowSizer resizes in Update and a frame of lag would show
+    /// as the shadow snapping a beat behind on every canvas resize.</summary>
+    public sealed class ShadowFollow : MonoBehaviour
+    {
+        public RectTransform Target = null!;
+        /// <summary>Per-side spread — this much shadow shows beyond the window's edge.</summary>
+        public Vector2 Grow = new(12f, 12f);
+        /// <summary>Offset from the target; down, so the light reads as coming from above.</summary>
+        public Vector2 Offset = new(0f, -3f);
+
+        private void LateUpdate()
+        {
+            if (Target == null) return;
+            var rt = (RectTransform)transform;
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = Target.rect.size + Grow * 2f;
+            rt.anchoredPosition = Target.anchoredPosition + Offset;
         }
     }
 

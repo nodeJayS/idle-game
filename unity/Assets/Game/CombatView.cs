@@ -3004,7 +3004,10 @@ namespace IdleGame.Game
                 float y = y0 + i * (rowH + gap);
                 string? heroId = ids[i];
 
-                DrawRect(x, y, w, rowH, new Color(0.08f, 0.09f, 0.12f, 0.92f));
+                // Shares the floating-HUD ground with the chat/quest panels (P1): these chips sit ON
+                // the world beside them, so a cold literal here read as a slate island once the kit
+                // went warm. IMGUI, but the token is the same one the uGUI panels use.
+                DrawRect(x, y, w, rowH, Theme.BgHudPanel);
                 if (heroId == null)
                 {
                     GUI.Label(new Rect(x, y, w, rowH), Loc.T("hud.party-empty"), PartyEmptyStyle);

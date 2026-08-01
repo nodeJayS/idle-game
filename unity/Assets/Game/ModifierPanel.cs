@@ -278,7 +278,7 @@ namespace IdleGame.Game
 
             // Parent to the canvas so the panel mask can't clip the card; the card's own top-left origin
             // still drives its internal AnchorTL labels below.
-            var card = UiKit.Panel(_canvas.transform, new Vector2(PreviewW, PreviewH), new Color(0.06f, 0.07f, 0.10f, 0.99f));
+            var card = UiKit.Panel(_canvas.transform, new Vector2(PreviewW, PreviewH), Theme.BgHudCard);
             _imprintPreview = card.gameObject;
             var crt = card.rectTransform;
             crt.pivot = new Vector2(1f, 1f); // top-right corner is the anchor point — the card grows down-left

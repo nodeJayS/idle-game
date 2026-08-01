@@ -151,7 +151,7 @@ namespace IdleGame.Game
             float h = (_collapsed ? HeaderH : _size.y) * _ts;
             // Corner-anchored HUD: build under the canvas's SafeRoot so it insets from device notches.
             // On desktop SafeRoot == the canvas rect, so position/drag/clamp behave byte-identically.
-            var panel = UiKit.Panel(UiKit.SafeRoot(_canvas), new Vector2(_size.x * _ts, h), new Color(0.08f, 0.08f, 0.11f, 0.92f));
+            var panel = UiKit.Panel(UiKit.SafeRoot(_canvas), new Vector2(_size.x * _ts, h), Theme.BgHudPanel);
             var prt = panel.rectTransform;
             prt.anchorMin = prt.anchorMax = new Vector2(0f, 0.5f);
             prt.pivot = new Vector2(0f, 1f);            // anchor by the top-left corner (same as chat)
@@ -186,7 +186,7 @@ namespace IdleGame.Game
             hrt.anchoredPosition = Vector2.zero;
 
             var img = go.AddComponent<Image>();
-            img.color = _locked ? new Color(0.20f, 0.17f, 0.17f, 0.96f) : new Color(0.16f, 0.18f, 0.24f, 0.96f);
+            img.color = _locked ? Theme.BgHudHeaderLocked : Theme.BgHudHeader;
             if (!_locked) UiKit.MakeDraggable(go, panelRt, _canvas, p => { _pos = p; Settings.QuestX = p.x; Settings.QuestY = p.y; });
 
             var title = UiKit.Label(go.transform, Loc.T("quest.title"), 15, TextAnchor.MiddleLeft, new Vector2(140f, 22f * _ts), Vector2.zero);
@@ -292,7 +292,7 @@ namespace IdleGame.Game
             brt.pivot = new Vector2(0.5f, 0f);
             brt.sizeDelta = new Vector2(0f, 7f);
             brt.anchoredPosition = new Vector2(0f, 1f);
-            barGo.AddComponent<Image>().color = new Color(0.15f, 0.16f, 0.20f);
+            barGo.AddComponent<Image>().color = Theme.BarTrack;
 
             var fillGo = new GameObject("Fill", typeof(RectTransform));
             fillGo.transform.SetParent(barGo.transform, false);
