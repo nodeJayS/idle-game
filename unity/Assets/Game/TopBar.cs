@@ -86,6 +86,12 @@ namespace IdleGame.Game
             var winGo = PanelKit.Window(transform, Loc.T("settings.title"), ToggleSettings, out var body,
                                         "SettingsCanvas", sortOrder: 120, max: new Vector2(620f, 680f));
             _settings = winGo; // Window returns the canvas GO — ToggleSettings destroys it to close
+            // Settings is a full-screen window but NOT one of CombatView's bound panels, so
+            // AnyPanelOpen never went true for it and the IMGUI HUD — wallet, party frames,
+            // floating HP-bar dashes, damage numbers — drew straight over the whole screen
+            // (IMGUI repaints after canvas compositing; no sortingOrder can beat it). Ride the
+            // launch-modal gate instead, popped on destroy so every close path stays balanced.
+            HudSuppressor.Attach(winGo, _view);
             PanelKit.Stack(body); // the body is a bare Flex until stacked — without this every row
                                   // collapses to a centered zero-size rect (Play-caught 10.13d)
 
@@ -143,12 +149,13 @@ namespace IdleGame.Game
             ToggleRow(list, Loc.T("settings.post-fx"), () => Settings.PostFx,
                 v => { Settings.PostFx = v; GraphicsQuality.Apply(); });
 
-            // Verb row (fixed, below the scroll): three ≥48 buttons.
+            // Verb row (fixed, below the scroll): the two LEAVING verbs. Close used to sit here too,
+            // competing with the header Close directly above it — two controls, same job, one screen.
+            // The header Close is the kit-wide affordance every other window carries, so it wins.
             var verbs = PanelKit.Row(body, Theme.BtnH);
             PanelKit.ButtonCell(verbs, Loc.T("settings.main-menu"),
                 () => { Destroy(_settings); _settings = null; _onMainMenu(); }, fontSize: Theme.FsBody);
             PanelKit.ButtonCell(verbs, Loc.T("common.exit-game"), Quit, fontSize: Theme.FsBody);
-            PanelKit.ButtonCell(verbs, Loc.T("common.close"), ToggleSettings, fontSize: Theme.FsBody);
         }
 
         /// <summary>A labelled cycle button (tap advances to the next option), composed from the kit —
@@ -194,5 +201,25 @@ namespace IdleGame.Game
             name = name.Trim();
             return name.Length == 0 ? "?" : name.Substring(0, 1).ToUpperInvariant();
         }
+    }
+
+    /// <summary>Holds <see cref="CombatView"/>'s launch-modal gate for as long as this GameObject
+    /// lives. The IMGUI HUD draws above EVERY uGUI canvas regardless of sortingOrder, so a
+    /// full-screen window that isn't one of the bound panels in AnyPanelOpen has to suppress it
+    /// explicitly. Pushing on attach and popping in OnDestroy keeps the count balanced no matter
+    /// which close path runs (header Close, the gear toggle, Main Menu, or a rebuild).</summary>
+    public sealed class HudSuppressor : MonoBehaviour
+    {
+        private CombatView? _view;
+
+        public static void Attach(GameObject go, CombatView? view)
+        {
+            if (view == null) return;
+            var s = go.AddComponent<HudSuppressor>();
+            s._view = view;
+            view.PushLaunchModal();
+        }
+
+        private void OnDestroy() => _view?.PopLaunchModal();
     }
 }
