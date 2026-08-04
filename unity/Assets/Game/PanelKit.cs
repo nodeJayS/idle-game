@@ -567,12 +567,22 @@ namespace IdleGame.Game
     }
 
     /// <summary>Keeps a centered window sized relative to its canvas but clamped to a max —
-    /// the one place the kit uses anchoredPosition (center). Re-runs when the canvas resizes.</summary>
+    /// the one place the kit uses anchoredPosition (center). Re-runs when the canvas resizes
+    /// OR when Margin/Max change.</summary>
     public sealed class WindowSizer : MonoBehaviour
     {
         public Vector2 Margin = new(60f, 36f);
         public Vector2 Max = new(1160f, 680f);
         private Vector2 _lastParent = new(-1f, -1f);
+        // Seeded NaN so the first Apply always runs: AddComponent fires OnEnable SYNCHRONOUSLY,
+        // before the caller can assign Margin/Max on the next line, so that first pass sizes off
+        // the DEFAULTS. Watching only _lastParent then early-outed every later frame (the canvas
+        // never resizes on desktop) and the declared size never landed — every window sat at
+        // 1160x648 instead of its own max (gacha asked for 560x266 and got the full slab; the
+        // Heroes window ran 32px short and clipped its Boot tile + Stats column). NaN != NaN, so
+        // these comparisons are false on frame one and the real values apply.
+        private Vector2 _lastMargin = new(float.NaN, float.NaN);
+        private Vector2 _lastMax = new(float.NaN, float.NaN);
 
         private void OnEnable() => Apply();
         private void Update() => Apply();
@@ -582,8 +592,12 @@ namespace IdleGame.Game
             var rt = (RectTransform)transform;
             if (rt.parent is not RectTransform parent) return;
             var ps = parent.rect.size;
-            if (ps.x <= 0f || ps.y <= 0f || ps == _lastParent) return;
+            if (ps.x <= 0f || ps.y <= 0f) return;
+            // Vector2 == is an approximate compare; with a NaN seed it reports "changed" once.
+            if (ps == _lastParent && Margin == _lastMargin && Max == _lastMax) return;
             _lastParent = ps;
+            _lastMargin = Margin;
+            _lastMax = Max;
 
             rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
             rt.anchoredPosition = Vector2.zero;
