@@ -159,9 +159,12 @@ namespace IdleGame.Game
             // clamp taken against a stale or transient canvas size overwrites the user's layout
             // (Play-caught). KeepOnCanvas re-derives the display rect from _pos/_size on first
             // layout and on every canvas resize; only drags persist (MakeDraggable below).
-            prt.anchoredPosition = UiKit.ClampToCanvas(_pos, prt, _canvas);
+            // Same NavBar band Chat reserves — Quest sits top-right by default, but it is draggable
+            // and must not be parkable under the bar either.
+            prt.anchoredPosition = UiKit.ClampToCanvas(_pos, prt, _canvas, Theme.HudBarH);
             var keep = panel.gameObject.AddComponent<KeepOnCanvas>();
             keep.Canvas = _canvas;
+            keep.BottomInset = Theme.HudBarH;
             keep.DesiredPos = () => _pos;
             keep.DesiredSize = () => new Vector2(_size.x * _ts, (_collapsed ? HeaderH : _size.y) * _ts);
 
@@ -187,7 +190,7 @@ namespace IdleGame.Game
 
             var img = go.AddComponent<Image>();
             img.color = _locked ? Theme.BgHudHeaderLocked : Theme.BgHudHeader;
-            if (!_locked) UiKit.MakeDraggable(go, panelRt, _canvas, p => { _pos = p; Settings.QuestX = p.x; Settings.QuestY = p.y; });
+            if (!_locked) UiKit.MakeDraggable(go, panelRt, _canvas, p => { _pos = p; Settings.QuestX = p.x; Settings.QuestY = p.y; }, bottomInset: Theme.HudBarH);
 
             var title = UiKit.Label(go.transform, Loc.T("quest.title"), 15, TextAnchor.MiddleLeft, new Vector2(140f, 22f * _ts), Vector2.zero);
             title.color = new Color(0.95f, 0.86f, 0.45f);

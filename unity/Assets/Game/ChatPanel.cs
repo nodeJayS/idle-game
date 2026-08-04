@@ -93,9 +93,13 @@ namespace IdleGame.Game
             // clamp taken against a stale or transient canvas size overwrites the user's layout
             // (Play-caught). KeepOnCanvas re-derives the display rect from _pos/_size on first
             // layout and on every canvas resize; only drags persist (MakeDraggable below).
-            prt.anchoredPosition = UiKit.ClampToCanvas(_pos, prt, _canvas);
+            // The NavBar owns the bottom HudBarH band on its own canvas, which this clamp cannot
+            // see: left to itself Chat clamps flush to the canvas floor and disappears under the
+            // bar on a short canvas (2340x1080 leaves ~591 units of height, not 720).
+            prt.anchoredPosition = UiKit.ClampToCanvas(_pos, prt, _canvas, Theme.HudBarH);
             var keep = panel.gameObject.AddComponent<KeepOnCanvas>();
             keep.Canvas = _canvas;
+            keep.BottomInset = Theme.HudBarH;
             keep.DesiredPos = () => _pos;
             keep.DesiredSize = () => new Vector2(_size.x * _ts, (_collapsed ? HeaderH : _size.y) * _ts);
 
@@ -124,7 +128,7 @@ namespace IdleGame.Game
 
             var img = go.AddComponent<Image>();
             img.color = _locked ? Theme.BgHudHeaderLocked : Theme.BgHudHeader;
-            if (!_locked) UiKit.MakeDraggable(go, panelRt, _canvas, p => { _pos = p; Settings.ChatX = p.x; Settings.ChatY = p.y; });
+            if (!_locked) UiKit.MakeDraggable(go, panelRt, _canvas, p => { _pos = p; Settings.ChatX = p.x; Settings.ChatY = p.y; }, bottomInset: Theme.HudBarH);
 
             // Title pinned to the left edge.
             var title = UiKit.Label(go.transform, Loc.T("chat.title"), 15, TextAnchor.MiddleLeft, new Vector2(120f, 22f * _ts), Vector2.zero);

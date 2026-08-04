@@ -465,12 +465,14 @@ namespace IdleGame.Game
         /// <summary>Makes <paramref name="handle"/> drag <paramref name="target"/> around its
         /// canvas (clamped on-screen). <paramref name="onMoved"/> fires with the new anchored
         /// position so callers can persist it across rebuilds. Pure presentation.</summary>
-        public static void MakeDraggable(GameObject handle, RectTransform target, Canvas canvas, Action<Vector2>? onMoved = null)
+        public static void MakeDraggable(GameObject handle, RectTransform target, Canvas canvas,
+                                         Action<Vector2>? onMoved = null, float bottomInset = 0f)
         {
             var d = handle.AddComponent<DraggableHandle>();
             d.Target = target;
             d.Canvas = canvas;
             d.OnMoved = onMoved;
+            d.BottomInset = bottomInset;
         }
 
         /// <summary>Makes <paramref name="grip"/> resize <paramref name="target"/> (top-left fixed,
@@ -489,7 +491,13 @@ namespace IdleGame.Game
 
         /// <summary>Clamps a point-anchored RectTransform's anchored position so the whole rect
         /// stays within its canvas. Works for any pivot.</summary>
-        public static Vector2 ClampToCanvas(Vector2 pos, RectTransform target, Canvas canvas)
+        /// <paramref name="bottomInset"/> reserves a band along the bottom edge that the panel may
+        /// not enter — the NavBar owns that strip on its own canvas, and the clamp cannot see it.
+        /// Without it a bottom-anchored HUD panel clamps flush to the canvas floor and slides
+        /// straight under the bar on a short canvas (HUD canvases are match-0, so 2340x1080 gives
+        /// only ~591 units of height against 720 at 16:9 — that is where Chat went under).
+        public static Vector2 ClampToCanvas(Vector2 pos, RectTransform target, Canvas canvas,
+                                            float bottomInset = 0f)
         {
             var canvasRect = ((RectTransform)canvas.transform).rect;
             if (canvasRect.width <= 0f || canvasRect.height <= 0f) return pos; // canvas not laid out yet
@@ -499,7 +507,7 @@ namespace IdleGame.Game
             float maxX = canvasRect.width - m - size.x * (1f - target.pivot.x);
             float halfH = canvasRect.height / 2f;
             float maxY = halfH - m - size.y * (1f - target.pivot.y);
-            float minY = -halfH + m + size.y * target.pivot.y;
+            float minY = -halfH + m + bottomInset + size.y * target.pivot.y;
             pos.x = Mathf.Clamp(pos.x, minX, Mathf.Max(minX, maxX));
             pos.y = Mathf.Clamp(pos.y, minY, Mathf.Max(minY, maxY));
             return pos;
@@ -662,6 +670,10 @@ namespace IdleGame.Game
         public RectTransform Target = null!;
         public Canvas Canvas = null!;
         public Action<Vector2>? OnMoved;
+        /// <summary>Bottom band the drag may not enter (the NavBar's strip). Matches the
+        /// <see cref="KeepOnCanvas"/> inset so dragging can't put a panel somewhere the
+        /// restore clamp would immediately pull it back out of.</summary>
+        public float BottomInset;
 
         public void OnBeginDrag(PointerEventData e) { }
 
@@ -669,7 +681,7 @@ namespace IdleGame.Game
         {
             if (Target == null || Canvas == null) return;
             float scale = Canvas.scaleFactor <= 0f ? 1f : Canvas.scaleFactor;
-            var pos = UiKit.ClampToCanvas(Target.anchoredPosition + e.delta / scale, Target, Canvas);
+            var pos = UiKit.ClampToCanvas(Target.anchoredPosition + e.delta / scale, Target, Canvas, BottomInset);
             Target.anchoredPosition = pos;
             OnMoved?.Invoke(pos);
         }
@@ -695,6 +707,10 @@ namespace IdleGame.Game
         /// <summary>The intended size incl. collapsed state; null = leave size alone. Size
         /// applies BEFORE position (a rect larger than the canvas would defeat the clamp).</summary>
         public Func<Vector2>? DesiredSize;
+        /// <summary>Bottom band this panel may not enter — the NavBar's strip. Both the size clamp
+        /// and the position clamp honour it, so a panel too tall for the remaining room shrinks to
+        /// fit ABOVE the bar instead of sliding under it.</summary>
+        public float BottomInset;
         private Vector2 _lastCanvas = new(-1f, -1f);
 
         private void OnEnable() => _lastCanvas = new(-1f, -1f); // re-clamp on re-enable
@@ -710,8 +726,8 @@ namespace IdleGame.Game
             var rt = (RectTransform)transform;
             const float m = 8f; // the margin ClampToCanvas keeps — size honours the same inset
             if (DesiredSize != null)
-                rt.sizeDelta = Vector2.Min(DesiredSize(), cs - new Vector2(m * 2f, m * 2f));
-            rt.anchoredPosition = UiKit.ClampToCanvas(DesiredPos(), rt, Canvas);
+                rt.sizeDelta = Vector2.Min(DesiredSize(), cs - new Vector2(m * 2f, m * 2f + BottomInset));
+            rt.anchoredPosition = UiKit.ClampToCanvas(DesiredPos(), rt, Canvas, BottomInset);
         }
     }
 
