@@ -546,6 +546,7 @@ namespace IdleGame.Game
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             scroll.content = crt;
+            ScrollFade.Attach(scroll); // "more below" tell; self-hides when the content fits
             return crt;
         }
 
@@ -594,6 +595,7 @@ namespace IdleGame.Game
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             scroll.content = crt;
+            ScrollFade.Attach(scroll); // "more below" tell; self-hides when the grid fits
             return crt;
         }
 
@@ -733,6 +735,84 @@ namespace IdleGame.Game
             size.y = Mathf.Clamp(size.y - e.delta.y / scale, Min.y, Max.y);
             Target.sizeDelta = size;
             OnResized?.Invoke(size);
+        }
+    }
+
+    /// <summary>A bottom-edge fade that says "there is more below". It rides inside a scroll's
+    /// viewport, never raycasts, and drives ONLY its own alpha — hit-testing and layout are
+    /// byte-identical with or without it (the DropShadow contract).
+    ///
+    /// It earns its keep because a scroll whose content happens to end flush with the viewport
+    /// edge is indistinguishable from a list that has ended: the Settings window seated exactly
+    /// through Text Size at 720p and hid Reduced Motion, Haptics, Render Scale, Shadows and Post
+    /// FX behind a boundary with no tell at all. Alpha tracks scroll position, so it fades out as
+    /// you reach the bottom and never shows on a list that fits.</summary>
+    public sealed class ScrollFade : MonoBehaviour
+    {
+        private const float BandH = 26f;    // fade band height in canvas units
+        private const float MaxAlpha = 0.7f;
+
+        private ScrollRect _scroll = null!;
+        private Image _img = null!;
+
+        /// <summary>Adds the band to <paramref name="scroll"/>'s viewport. Call after the
+        /// ScrollRect has its viewport and content wired.</summary>
+        public static void Attach(ScrollRect scroll)
+        {
+            var go = new GameObject("Fade", typeof(RectTransform));
+            go.transform.SetParent(scroll.viewport, false);
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = new Vector2(0f, 0f);   // pin across the bottom edge
+            rt.anchorMax = new Vector2(1f, 0f);
+            rt.pivot = new Vector2(0.5f, 0f);
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = new Vector2(0f, BandH);
+
+            var img = go.AddComponent<Image>();
+            img.sprite = FadeSprite();
+            img.raycastTarget = false;
+            img.color = new Color(1f, 1f, 1f, 0f); // sprite carries the black ramp; colour drives alpha
+
+            var f = go.AddComponent<ScrollFade>();
+            f._scroll = scroll;
+            f._img = img;
+        }
+
+        private void LateUpdate()
+        {
+            if (_scroll == null || _scroll.content == null || _scroll.viewport == null) return;
+            float overflow = _scroll.content.rect.height - _scroll.viewport.rect.height;
+            // verticalNormalizedPosition is 1 at the TOP and 0 at the BOTTOM, so it doubles as
+            // "how much is still below" — the band simply fades out as the list runs out.
+            float a = overflow > 1f ? Mathf.Clamp01(_scroll.verticalNormalizedPosition) * MaxAlpha : 0f;
+            var c = _img.color;
+            if (!Mathf.Approximately(c.a, a)) { c.a = a; _img.color = c; }
+        }
+
+        private static Sprite? _fade;
+
+        /// <summary>A 1×64 vertical alpha ramp — clear at the top, black at the bottom. Squared so
+        /// the falloff is gentle where it meets the content and only firms up at the very edge.
+        /// Cached like the kit's other procedural sprites; no asset files.</summary>
+        private static Sprite FadeSprite()
+        {
+            if (_fade != null) return _fade;
+            const int h = 64;
+            var tex = new Texture2D(1, h, TextureFormat.RGBA32, false)
+            {
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+            };
+            for (int y = 0; y < h; y++)
+            {
+                // Row 0 is the BOTTOM in texture space, which is where the band is most opaque.
+                float k = 1f - (float)y / (h - 1);
+                tex.SetPixel(0, y, new Color(0f, 0f, 0f, k * k));
+            }
+            tex.Apply();
+            _fade = Sprite.Create(tex, new Rect(0f, 0f, 1f, h), new Vector2(0.5f, 0.5f),
+                                  100f, 0, SpriteMeshType.FullRect);
+            return _fade;
         }
     }
 }
