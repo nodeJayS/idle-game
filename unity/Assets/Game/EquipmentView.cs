@@ -290,11 +290,17 @@ namespace IdleGame.Game
             var hero = save.Heroes.Find(h => h.Id == _heroId)!;
 
             var section = PanelKit.Section(col, "Equipped");
+            section.gameObject.AddComponent<LayoutElement>().flexibleHeight = 1f; // fill the column
+            // The cross (268 tall) + the loadout row overran a height-starved column and the Save/
+            // Wear buttons were sliced by the panel edge. They ride a scroll now, so a short canvas
+            // costs a swipe instead of eating the verbs; the "Equipped" header stays pinned. The
+            // 25%-black plate this lays down matches the Bag column's ScrollGridFill beside it.
+            var dollScroll = UiKit.ScrollColumnFill(section, spacing: Theme.GapS);
 
             // A 3×3 GridLayoutGroup holds the body cross: 5 real slots + 4 invisible placeholders
             // (added in row-major order so each lands in its cell). No manual coordinates.
             var gridGo = new GameObject("Doll", typeof(RectTransform));
-            gridGo.transform.SetParent(section, false);
+            gridGo.transform.SetParent(dollScroll, false);
             var grid = gridGo.AddComponent<GridLayoutGroup>();
             grid.cellSize = new Vector2(DollCell, DollCell);
             grid.spacing = new Vector2(Theme.GapS, Theme.GapS);
@@ -330,7 +336,7 @@ namespace IdleGame.Game
             // Loadout snapshot verbs (10.5e): Save remembers this outfit; Wear re-equips every
             // surviving piece (never strips a slot — stale pieces skip, see Loadouts.Apply).
             var heroId = _heroId!;
-            var lRow = PanelKit.Row(section, Theme.TouchMin); // Button-bearing (Save/Wear): pin the 44 touch floor (10.13c)
+            var lRow = PanelKit.Row(dollScroll, Theme.TouchMin); // Button-bearing (Save/Wear): pin the 44 touch floor (10.13c)
             PanelKit.ButtonCell(lRow, "Save loadout",
                 () => { _view.SaveLoadout(heroId); Rebuild(); }, fontSize: Theme.FsSmall);
             PanelKit.ButtonCell(lRow, "Wear loadout",
@@ -509,8 +515,13 @@ namespace IdleGame.Game
             AccentRow(into, "Effective Life", DerivedStats.EffectiveHp(stats, _cfg, stage).ToString("N0"));
             PanelKit.Label(into, $"vs stage {stage} boss hit", Theme.FsMicro, Theme.TextDim, TextAnchor.MiddleRight);
 
+            // The per-stat list is the only UNBOUNDED part of the sheet, so it owns the scroll while
+            // the headline (name / level / DPS / Effective Life) stays pinned above it. Without this
+            // the rows just ran off the bottom of the pane and the last one was sliced in half with
+            // no affordance — the 284-wide detail column at 720p can't seat all of StatDisplay.Order.
+            var rows = UiKit.ScrollColumnFill(into, spacing: 0f);
             foreach (var k in StatDisplay.Order)
-                PanelKit.KeyValueRow(into, StatDisplay.Label(k), StatDisplay.Value(k, stats.Get(k)));
+                PanelKit.KeyValueRow(rows, StatDisplay.Label(k), StatDisplay.Value(k, stats.Get(k)));
         }
 
         /// <summary>A highlighted derived-stat row (DPS / Effective Life) in the stat sheet.</summary>
