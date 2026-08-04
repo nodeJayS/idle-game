@@ -57,9 +57,13 @@ namespace IdleGame.Game
             int n = Mathf.Max(1, banners);
             float h = Mathf.Min(Theme.PadL * 2f + Theme.RowH + WalletH + n * RowH + Theme.Gap * (n + 2), 620f);
 
-            // No backdrop (parity: the game stays visible — and clickable-nowhere — behind the panel).
+            // Backdrop: Summon is a MANAGEMENT screen, not a transient toast, so it covers the view
+            // exactly as PanelKit.Window does (10.21). It shipped backdrop-less, which left the world,
+            // the Quest(83)/Chat(84)/NavBar(85) canvases and their buttons all visible AND clickable
+            // behind it — a 560-wide dialog floating over the Quests panel reads as having no panel
+            // at all. Theme.Backdrop is the same full-bleed cover every other window lays down.
             var canvasGo = PanelKit.Modal(transform, "GachaCanvas", 90, new Vector2(560f, h),
-                                          out var body, backdrop: null, panelBg: Theme.GachaPanelBg);
+                                          out var body, backdrop: Theme.Backdrop, panelBg: Theme.GachaPanelBg);
             _canvas = canvasGo.GetComponent<Canvas>();
             _panel = body.GetComponent<Image>();
 
