@@ -39,6 +39,16 @@ namespace IdleGame.Game
         // bar's ModesActiveStyle (0.8, 0.68, 1) so the way home reads the same.
         private static readonly Color ModesViolet = new(0.8f, 0.68f, 1f);
 
+        /// <summary>Height in SCREEN PIXELS of the bottom band this bar covers, or 0 while it is
+        /// hidden. The IMGUI HUD (party chips, floating HP bars) runs in its OWN scale — the DPI
+        /// factor, nothing to do with the CanvasScaler — so it cannot reserve this band from
+        /// Theme.HudBarH alone: the same "80" means different pixels in each system, which is how
+        /// the party chips ended up clearing the bar by 8px and monster HP bars struck straight
+        /// through the buttons. The bar publishes what it actually covers instead. Static because
+        /// the nav already reads its state FROM CombatView; a back-reference would close a cycle.</summary>
+        public static float ReservedBandPx { get; private set; }
+
+        private Canvas _canvas = null!;      // published band needs its scaleFactor
         private GameObject _root = null!;    // full-stretch container toggled for whole-nav visibility
         private GameObject _heroesBtn = null!;
         private GameObject _manageBtn = null!;
@@ -76,6 +86,7 @@ namespace IdleGame.Game
             // Under the full-screen windows' canvases (Heroes/Goals sortOrder 90+) so they cover the
             // nav; the ControlBarVisible poll hides it under them anyway. Matches the TopBar/Chat HUD band.
             var canvas = UiKit.CreateCanvas("NavBarCanvas", transform, sortOrder: 85);
+            _canvas = canvas;
             var safe = UiKit.SafeRoot(canvas);
 
             _root = new GameObject("Nav", typeof(RectTransform));
@@ -147,7 +158,7 @@ namespace IdleGame.Game
             rt.anchoredPosition = new Vector2(corner.x == 0f ? Theme.HudPad : -Theme.HudPad, Theme.HudPad);
 
             var hlg = go.AddComponent<HorizontalLayoutGroup>();
-            hlg.spacing = Theme.HudGap;
+            hlg.spacing = Theme.NavGap;
             hlg.childAlignment = corner.x == 0f ? TextAnchor.LowerLeft : TextAnchor.LowerRight;
             hlg.childControlWidth = hlg.childControlHeight = true;
             hlg.childForceExpandWidth = hlg.childForceExpandHeight = false;
@@ -178,6 +189,9 @@ namespace IdleGame.Game
 
             bool visible = _view.ControlBarVisible;
             if (_lastVisible != visible) { _lastVisible = visible; _root.SetActive(visible); }
+            // Republish every frame (not change-only): scaleFactor moves with the window/resolution
+            // even when nothing about the bar's own state changed. It's one multiply.
+            ReservedBandPx = visible ? (Theme.HudPad + BtnH) * _canvas.scaleFactor : 0f;
             if (!visible) return;
 
             var save = _view.CurrentSave;

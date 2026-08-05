@@ -192,6 +192,13 @@ namespace IdleGame.Game
         public const float HudPad = 16f;
         /// <summary>Gap between adjacent HUD controls (control-bar buttons).</summary>
         public const float HudGap = 12f;
+
+        /// <summary>Gap between NavBar buttons — wider than <see cref="HudGap"/> on purpose. Seven
+        /// same-coloured pills over a busy world read as one run-on block at 12; the rounded edges
+        /// of neighbours visually merge and you stop seeing seven separate targets (user report).
+        /// Safe to widen: HUD canvases are match-0, so the canvas is 1280 wide at EVERY aspect and
+        /// the two clusters keep ~210 units between them even at this gap.</summary>
+        public const float NavGap = 22f;
         /// <summary>Control-bar button height — the bottom band the bar occupies.</summary>
         public const float HudBarH = 80f;
 

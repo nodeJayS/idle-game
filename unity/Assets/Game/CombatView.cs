@@ -2821,6 +2821,11 @@ namespace IdleGame.Game
             return Mathf.Clamp(Mathf.Max(byDpi, byRes) * 0.62f, 0.58f, 1.8f);
         }
 
+        /// <summary>The bottom band the uGUI NavBar owns, converted from screen pixels into this
+        /// OnGUI pass's units. IMGUI draws above every canvas regardless of sortingOrder, so
+        /// anything painted below this line lands on top of the nav buttons.</summary>
+        private static float NavBandGui(float s) => NavBar.ReservedBandPx / Mathf.Max(0.0001f, s);
+
         private void DrawHealthBars(float s)
         {
             if (AnyPanelOpen) return; // these IMGUI bars draw over uGUI panels — hide them while one's open
@@ -2829,6 +2834,11 @@ namespace IdleGame.Game
             if (_outcomeUi != null && _outcomeUi.activeSelf) return;
             var cam = Camera.main;
             if (cam == null) return;
+            // Same reason, one band lower: a unit standing near the bottom of the view had its bar
+            // drawn straight through the NavBar's labels (the dash across "Modifiers (4)"). A unit
+            // down there is at the screen edge anyway, so drop the bar rather than detach it from
+            // the body by clamping — the panel/outcome gates above already precedent hiding.
+            float navFloor = (Screen.height / s) - NavBandGui(s);
             foreach (var e in _combat.Entities)
             {
                 if (!_views.TryGetValue(e.Id, out var v) || v.Go == null || !v.Go.activeSelf) continue;
@@ -2837,6 +2847,8 @@ namespace IdleGame.Game
 
                 // WorldToScreenPoint is in real pixels; convert into the scaled GUI space.
                 float cx = sp.x / s, cy = (Screen.height - sp.y) / s;
+
+                if (cy + 16f > navFloor) continue; // would paint into the NavBar's band
 
                 if (e.Downed)
                 {
@@ -2992,10 +3004,11 @@ namespace IdleGame.Game
             int n = ids.Length;
             float totalH = n * rowH + (n - 1) * gap;
             float x = sw - w - pad;
-            // Reserve the control-bar band: while the bar is visible the chips sit ABOVE it at
-            // every aspect (consistent placement beats overlap-detection — at 1280 canvas width
-            // the bar's right edge runs under a bottom-flush chip stack).
-            float lift = ControlBarVisible ? Theme.HudBarH + Theme.HudPad : 0f;
+            // Reserve the nav band: while the bar is visible the chips sit ABOVE it at every aspect
+            // (consistent placement beats overlap-detection). Read the band the bar ACTUALLY covers
+            // rather than assuming Theme.HudBarH — that constant is in canvas units and this is GUI
+            // space, and the mismatch left the bottom chip clearing the buttons by 8px.
+            float lift = ControlBarVisible ? NavBandGui(s) + Theme.HudPad : 0f;
             float y0 = sh - totalH - pad - lift;
             float bx = x + ipad, bw = w - ipad * 2f;
 
