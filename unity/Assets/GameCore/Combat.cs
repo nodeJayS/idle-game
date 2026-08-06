@@ -208,11 +208,22 @@ namespace IdleGame.GameCore
             double w = cfg.Balance.MapHalfWidth - 1.0, d = cfg.Balance.MapHalfDepth - 1.0;
 
             int pack = cfg.Balance.TowerPackBase + floor / Math.Max(1, cfg.Balance.TowerPackPerFloors);
+            // Ring the party rather than lining the pack up along +X. The camera's iso rotation is
+            // FIXED (CameraRig never touches it), so a +X line meant every tower floor opened with
+            // the whole pack stacked on one side of the screen — the "monsters are all over there"
+            // read (user report 2026-08-05). Farm already surrounds via SpawnPack; the floor fight
+            // now gets the same treatment. Deliberately balance-NEUTRAL: each mob keeps the exact
+            // radius the line already gave it, so engage distances and the failsafe timeout are
+            // untouched — only the direction is redistributed. The start angle comes from rng
+            // (unused in this Init until now), so a seed still reproduces a floor exactly.
+            double startAng = rng.RandRange(0, 2.0 * Math.PI);
             for (int j = 0; j < pack; j++)
             {
                 var mdef = TrashDef(cfg, floor, j); // floor as zone key — the climb travels the zones
-                var pos = new Vec2(Math.Clamp(c.X + cfg.Balance.BossSpawnDistance + j * 0.6, -w, w),
-                                   Math.Clamp(c.Y + (j - pack / 2) * 1.0, -d, d));
+                double ang = startAng + j * (2.0 * Math.PI / Math.Max(1, pack));
+                double rad = cfg.Balance.BossSpawnDistance + j * 0.6; // the radii the +X line used
+                var pos = new Vec2(Math.Clamp(c.X + Math.Cos(ang) * rad, -w, w),
+                                   Math.Clamp(c.Y + Math.Sin(ang) * rad, -d, d));
                 if (arena != null) pos = arena.Clamp(pos);
                 s.Entities.Add(MakeMonster(cfg, mdef, "E" + j, pos, dmgScale, false, hpScale));
             }

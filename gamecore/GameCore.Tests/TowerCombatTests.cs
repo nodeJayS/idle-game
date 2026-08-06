@@ -41,6 +41,50 @@ namespace IdleGame.GameCore.Tests
 
         private static IEnumerable<CombatEntity> Enemies(CombatState s) => s.Entities.Where(e => e.Team == Team.Enemy);
 
+        // ---- spawn placement ----
+
+        [Fact]
+        public void FloorPackSurroundsThePartyInsteadOfLiningUpOnOneSide()
+        {
+            // The pack used to spawn along +X, which with the camera's FIXED iso rotation put every
+            // tower floor's monsters on one side of the screen. Assert the ring: with a pack this
+            // size the mobs must occupy at least three of the four quadrants around the party, and
+            // must not all share one sign of X.
+            var save = Leveled();
+            var s = TowerFight(save, 30); // deep enough for a pack worth measuring
+            var mobs = Enemies(s).Where(e => e.Id != "EBOSS").ToList();
+            Assert.True(mobs.Count >= 4, $"need a pack to measure, got {mobs.Count}");
+
+            var quadrants = new HashSet<int>();
+            foreach (var e in mobs)
+                quadrants.Add((e.Pos.X >= 0 ? 1 : 0) | (e.Pos.Y >= 0 ? 2 : 0));
+
+            Assert.True(quadrants.Count >= 3,
+                $"pack only covers {quadrants.Count} quadrant(s) — it is bunched on one side");
+            Assert.Contains(mobs, e => e.Pos.X < 0);
+            Assert.Contains(mobs, e => e.Pos.X > 0);
+        }
+
+        [Fact]
+        public void FloorPackKeepsItsEngageDistancesWhenRinged()
+        {
+            // The ring redistributes DIRECTION only — every mob keeps the radius the old +X line
+            // gave it, so engage distance (and the failsafe timeout that depends on it) is unchanged.
+            var s = TowerFight(Leveled(), 30);
+            var mobs = Enemies(s).Where(e => e.Id != "EBOSS").ToList();
+            // Radii are measured from the PARTY CENTROID, which is not the origin — PartyStartPos
+            // lays the heroes out on a grid, so the cluster's centre sits off (0,0).
+            var party = s.Entities.Where(e => e.Team == Team.Party).ToList();
+            var centre = new Vec2(party.Average(e => e.Pos.X), party.Average(e => e.Pos.Y));
+            for (int j = 0; j < mobs.Count; j++)
+            {
+                double expected = Cfg.Balance.BossSpawnDistance + j * 0.6;
+                double actual = Vec2.Distance(centre, mobs[j].Pos);
+                Assert.True(System.Math.Abs(actual - expected) < 0.5,
+                    $"mob {j}: radius {actual:0.00} != the line's {expected:0.00}");
+            }
+        }
+
         // ---- bounded outcome ----
 
         [Fact]
