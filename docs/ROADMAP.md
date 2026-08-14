@@ -54,35 +54,20 @@ abbreviations "Wpn/Glov/Boot", the most placeholder thing left; plus
 currency + nav — UI icons are NOT under the MS2 heroes-only rule) ·
 **moment screens** (arrival card, gacha reveal, outcome) · HUD cards.
 
-**10.13 Touch-first UI reflow (MM1) — COMPLETE 2026-07-15 (ledger).**
-Non-interactive IMGUI deliberately remains (party chips, currency HUD,
-world health bars — migrate when touched). KIT FOOT-GUNS that BITE: a
-PanelKit.Window's `body` is a bare Flex — `PanelKit.Stack(body)` BEFORE
-adding rows or every child collapses to a centered zero-size blob
-(Play-caught); Modal's body ALREADY has the layout group — never Stack.
-
-**10.14 The 30-second session (MM2) — COMPLETE 2026-07-15 (ledger).**
-Durable lesson: `Inventory.SalvageAll` is NUCLEAR (every loose unlocked
-non-guarded item, any rarity — NOT the loot filter), so any aggregate
-touching it must equip-sweep FIRST (worn gear is salvage-immune) or it
-destroys upgrades — `Session.Apply` locks that ordering with a test.
-
-**10.15 Codex / collection (MM3) — COMPLETE 2026-07-15 (ledger).**
-Durable: cfg-aware retro-grants (SyncFromInventory) live beside
-SyncHeroUnlocks at LOAD, never in the cfg-less Save.Migrate; loot-path
-reducers RE-WRAP nested Progress state, so threading sweeps assert
-VALUE survival, not ref identity.
-
-**10.16 Live-ops events + season track (MM4) — COMPLETE 2026-07-15
-(ledger).** Durable: schedule rules are PURE functions of nowMs (the
-§9 remote-config stand-in); event effects snapshot AT FIGHT INIT via
-optional `nowMs = 0` params (0 = legacy all-off, no call-site churn);
-the crypt mutation keys off StageEquivalent + the window's EndMs.
-
-**10.17 Endgame sinks (MM5) — COMPLETE 2026-07-15 (ledger).** Durable:
-+15 enhance had ALREADY shipped (`48a9f52`); endgame gold/scrap FLOOD
-material sinks (enhance saturates <1wk) — the binding 6-month sink is
-gem-gated ascension via GemFractionToAscension=0.33 (retune consciously).
+**MM1-MM5 (10.13-10.17) COMPLETE 2026-07-15 — receipts in the ledger.
+Durable lessons the next slices ride:** non-interactive IMGUI remains by
+choice (party chips, currency HUD, world health bars) · KIT FOOT-GUN: a
+PanelKit.Window's `body` is a bare Flex — `Stack(body)` BEFORE adding
+rows or children collapse to a zero-size blob, while a Modal's body
+ALREADY has the group so never Stack it · `Inventory.SalvageAll` is
+NUCLEAR (every loose unlocked item, any rarity — NOT the loot filter),
+so aggregates must equip-sweep FIRST or they destroy upgrades ·
+cfg-aware retro-grants live beside SyncHeroUnlocks at LOAD, never in the
+cfg-less Migrate, and loot-path reducers RE-WRAP nested Progress state
+so threading sweeps assert VALUE survival, not ref identity · schedule
+rules are PURE functions of nowMs, effects snapshot AT FIGHT INIT via an
+optional `nowMs = 0` · endgame gold/scrap FLOOD material sinks; the
+binding 6-month sink is gem-gated ascension (GemFraction 0.33).
 
 **10.18 Cloud save & identity (MM6).** Platform auth (Play Games /
 Game Center + guest), save sync, conflict UX that shows BOTH summaries
@@ -145,13 +130,24 @@ fields on hand-copied models must thread EVERY copy site — grep
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-08-14 movement freeze FIXED (user-reported, stage 24): heroes
+  pinned at a ledge/corner while only the melee leader fought. Two
+  defects in `Combat.StepAlong` (was MoveToward), both PERMANENT because
+  the geometry is stateless — an axis-aligned block collapsed one slide
+  candidate onto the unit's OWN position (trivially "walkable" ⇒ a
+  successful slide that never moved), and with both slides blocked it
+  simply held, stranding units in the concave mouths of the authored
+  perimeter bays. Now: slides must DISPLACE, an off-surface unit is
+  projected back on, and a pocket escape sweeps the heading in 30° rings
+  (nearest ring wins, deterministic). Probe: worst party freeze 412
+  steps → 0. 857 tests.
 - 2026-08-01..06 UI polish P1+P2 (10.23): the warm "Tunic" reskin at KIT
   level — Theme palette rotated warm (RED highest channel, BLUE lowest,
   data-carrying hues frozen), procedural rounded 9-slice + shadow
-  sprites, ColorTint press states — so one slice reskinned every screen ·
-  P2 layering pass: Summon backdrop, Heroes columns scroll, Settings/
-  IMGUI z-order, scroll bottom-fade affordance, HUD panels reserving the
-  NavBar band, Tower floor packs ringing the party. 848 tests.
+  sprites, ColorTint press states — one slice reskinned every screen ·
+  P2 layering: Summon backdrop, Heroes columns scroll, Settings/IMGUI
+  z-order, scroll bottom-fade, HUD panels reserving the NavBar band,
+  Tower packs ringing the party. 848 tests.
 - 2026-07-16 10.20(a-c) a11y + l10n foundation (MM8): Text Size
   100/115/130 via one `UiKit.Scaled` multiplier (IMGUI styles restamped
   per OnGUI), Reduced Motion (hit-stop, shake, pulse), Haptics toggle +
@@ -175,9 +171,8 @@ fields on hand-copied models must thread EVERY copy site — grep
   Goals hub Codex tab; retro-stamp at load. 794 tests.
 - 2026-07-15 10.14 the 30-second session COMPLETE: `Session.Arrive`
   (idle + daily as ONE atomic boot payoff — two boot modals became one
-  arrival card) + `Session.Preview/Apply` (the Manage super-verb: claim
-  → equip sweep → nuclear salvage, one confirm card + nav pip).
-  Taps-to-payoff at boot: 2. 770 tests; Play-verified to the gold.
+  arrival card) + `Session.Preview/Apply` (the Manage super-verb: claim →
+  equip sweep → nuclear salvage). Taps-to-payoff at boot: 2. 770 tests.
 - 2026-07-14/15 10.13 touch-first UI reflow COMPLETE: SafeArea + pinch
   zoom (a) · uGUI thumb-reach NavBar replaced the IMGUI control bar (b) ·
   44pt floors + safe-inset panels over full-bleed dims (c) · Settings/
@@ -190,12 +185,12 @@ fields on hand-copied models must thread EVERY copy site — grep
   stage 100); milestone floors pay MAJOR bundles. 760 tests.
 - 2026-07-13 10.6 combat juice COMPLETE: hit-stop (income provably
   untaxed — sim accumulator on REAL time × mode speed) · per-element
-  ImpactBursts · frost de-whited · element trail ribbons · kill-streak
-  beats · SFX duck bus with a duckExempt hook for 10.9 stingers.
-- 2026-07-13 10.9(c)+(d): 16 zone ambience beds (AMB bank, crossfade
-  host = the AudioDirector scaffold, volume slider) + one UI sound
-  family at BOTH button factories (uGUI UiKit.TextButton + the IMGUI
-  control-bar helpers), tile ticks, popups, claim, deny/spend, enchant.
+  ImpactBursts · frost de-whited · trail ribbons · kill-streak beats ·
+  SFX duck bus with a duckExempt hook for 10.9 stingers.
+- 2026-07-13 10.9(c)+(d): 16 zone ambience beds (AMB bank, crossfade host
+  = the AudioDirector scaffold, volume slider) + one UI sound family at
+  BOTH button factories (uGUI UiKit.TextButton + the IMGUI control-bar
+  helpers), tile ticks, popups, claim, deny/spend, enchant.
 - 2026-07-12/13 10.10 SDF monster expansion COMPLETE: 8 blob critters ·
   Slither+Pulse gaits · Ossuary Wyrm crypt boss · perf gate passed ·
   bog_horror/chaos_spawn rebodied. Art lessons in SdfBlobDefs comments;

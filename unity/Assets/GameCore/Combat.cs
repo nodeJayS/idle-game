@@ -2219,42 +2219,98 @@ namespace IdleGame.GameCore
             return hash;
         }
 
-        /// <summary>
-        /// Step an entity toward <paramref name="dest"/> by at most <paramref name="maxStep"/>, with
-        /// COLLIDE-AND-SLIDE against the arena. The candidate position is computed exactly as the
-        /// legacy path; if there's no arena or the candidate is walkable it's accepted (bit-identical
-        /// to pre-arena behavior). Otherwise the two axis-decomposed candidates are tried — the axis
-        /// with the LARGER |delta| first (tie → X) — and the first walkable one is accepted, so units
-        /// slide along a shore/wall around a shallow bay instead of jamming; if neither is walkable the
-        /// entity holds position. There is no pathfinding — this only rounds convex boundaries.
-        /// </summary>
+        /// <summary>Step an entity toward <paramref name="dest"/> — see <see cref="StepAlong"/> for the
+        /// geometry. Cast root: a casting entity stands its ground (user call 2026-07-12 — the fix for
+        /// clip travel-cancel; the kiting cost is accepted). Gating HERE covers every walk path
+        /// (follow/kite/retreat/wander) with one rule; dash landings and separation pushes write Pos
+        /// directly and stay exempt — root means "won't walk", not "bolted".</summary>
         private static void MoveToward(CombatEntity e, Vec2 dest, double maxStep, IArenaSurface? arena = null)
         {
-            // Cast root: a casting entity stands its ground (user call 2026-07-12 — the fix for
-            // clip travel-cancel; the kiting cost is accepted). Gating HERE covers every walk
-            // path (follow/kite/retreat/wander) with one rule; dash landings and separation
-            // pushes write Pos directly and stay exempt — root means "won't walk", not "bolted".
             if (e.RootMs > 0) return;
-            double dx = dest.X - e.Pos.X;
-            double dy = dest.Y - e.Pos.Y;
+            e.Pos = StepAlong(e.Pos, dest, maxStep, arena);
+        }
+
+        /// <summary>
+        /// Where a unit at <paramref name="from"/> lands when it steps at most <paramref name="maxStep"/>
+        /// toward <paramref name="dest"/> across <paramref name="arena"/>. Pure geometry — no entity, no
+        /// rng, no state — so it is directly testable and deterministic. There is no pathfinding; this
+        /// rounds boundaries, it does not solve mazes. Four tiers, first hit wins:
+        /// <list type="number">
+        /// <item>The straight step, when there's no arena or it lands walkable (bit-identical to the
+        /// pre-arena behavior).</item>
+        /// <item>An axis-decomposed SLIDE — the axis with the larger |delta| first (tie → X) — so a unit
+        /// grazes along a shore instead of stopping dead. A slide must actually DISPLACE to count.</item>
+        /// <item>A projection back onto the surface, if <paramref name="from"/> isn't walkable at all.</item>
+        /// <item>A POCKET ESCAPE: the heading swept outward in 30° rings, taking the first walkable
+        /// candidate and preferring whichever side of a ring lands nearer <paramref name="dest"/>.</item>
+        /// </list>
+        /// Tiers 2-4 carry the fix for a hard freeze. A blocked move that is (near) axis aligned
+        /// collapses ONE slide candidate onto <paramref name="from"/> itself, where Contains is trivially
+        /// true — so the old code reported a successful slide every step while the unit stood perfectly
+        /// still. And with both slides blocked it simply held, which is permanent rather than temporary:
+        /// nothing here is stateful, so the next step recomputes the same blocked move forever. Together
+        /// those pinned units in the concave mouths of the perimeter bays the zone arenas author on
+        /// purpose (swamp bay, caldera inlet, coast cove). Live probe on stage 24, 12k steps: the
+        /// magician jammed 402 times and stood frozen for up to 412 consecutive steps while the melee
+        /// leader fought on alone; with tiers 2-4 the party's worst frozen run is 0. A DEEP concave
+        /// pocket can still hold — exactly the shape <see cref="ArenaLayout"/>'s authoring rules forbid.
+        /// </summary>
+        public static Vec2 StepAlong(Vec2 from, Vec2 dest, double maxStep, IArenaSurface? arena)
+        {
+            double dx = dest.X - from.X;
+            double dy = dest.Y - from.Y;
             double dist = Math.Sqrt(dx * dx + dy * dy);
             Vec2 candidate = (dist <= maxStep || dist == 0)
                 ? new Vec2(dest.X, dest.Y)
-                : new Vec2(e.Pos.X + dx / dist * maxStep, e.Pos.Y + dy / dist * maxStep);
+                : new Vec2(from.X + dx / dist * maxStep, from.Y + dy / dist * maxStep);
 
-            if (arena == null || arena.Contains(candidate)) { e.Pos = candidate; return; }
+            if (arena == null || arena.Contains(candidate)) return candidate;
 
-            // Blocked: slide along the boundary by keeping one axis of the move. Try the dominant
-            // axis first so motion stays as close to the intended direction as possible.
-            var slideX = new Vec2(candidate.X, e.Pos.Y);
-            var slideY = new Vec2(e.Pos.X, candidate.Y);
-            bool xFirst = Math.Abs(candidate.X - e.Pos.X) >= Math.Abs(candidate.Y - e.Pos.Y);
+            // (2) Slide along the boundary by keeping one axis of the move. Dominant axis first so
+            // motion stays as close to the intended direction as possible.
+            var slideX = new Vec2(candidate.X, from.Y);
+            var slideY = new Vec2(from.X, candidate.Y);
+            bool xFirst = Math.Abs(candidate.X - from.X) >= Math.Abs(candidate.Y - from.Y);
             var first = xFirst ? slideX : slideY;
             var second = xFirst ? slideY : slideX;
-            if (arena.Contains(first)) e.Pos = first;
-            else if (arena.Contains(second)) e.Pos = second;
-            // neither axis walkable: stay put (no pathfinding).
+            if (Displaces(from, first) && arena.Contains(first)) return first;
+            if (Displaces(from, second) && arena.Contains(second)) return second;
+
+            // (3) Not standing anywhere walkable (only reachable if a layout changed under a
+            // persisted fight): project back on — sliding can't help someone who is already off.
+            if (!arena.Contains(from)) return arena.Clamp(from);
+
+            // (4) Pocket escape. Nearest ring wins, so it never turns harder than it must; the
+            // +before- order and the strict < keep the choice deterministic.
+            double moveLen = Math.Min(maxStep, dist);
+            if (moveLen <= 0) return from;
+            double baseAng = Math.Atan2(dy, dx);
+            for (int ring = 1; ring <= 5; ring++) // 30°..150° off the intended heading
+            {
+                double off = ring * (Math.PI / 6.0);
+                Vec2 best = from;
+                double bestD2 = double.MaxValue;
+                bool found = false;
+                for (int side = 0; side < 2; side++)
+                {
+                    double a = baseAng + (side == 0 ? off : -off);
+                    var c = new Vec2(from.X + Math.Cos(a) * moveLen, from.Y + Math.Sin(a) * moveLen);
+                    if (!arena.Contains(c)) continue;
+                    double cx = dest.X - c.X, cy = dest.Y - c.Y;
+                    double d2 = cx * cx + cy * cy;
+                    if (d2 < bestD2) { bestD2 = d2; best = c; found = true; }
+                }
+                if (found) return best;
+            }
+            return from; // every heading walled off: hold (no pathfinding)
         }
+
+        /// <summary>Does moving from <paramref name="from"/> to <paramref name="to"/> cover any real
+        /// ground? Guards the slide candidates against degenerate "moves" that land back on the unit's
+        /// own position — those read as success and freeze it in place. The tolerance is far below
+        /// anything a step, a render or a range check can distinguish.</summary>
+        private static bool Displaces(Vec2 from, Vec2 to)
+            => Math.Abs(to.X - from.X) > 1e-9 || Math.Abs(to.Y - from.Y) > 1e-9;
 
         /// <summary>Idle amble: stroll toward a random point within the field, repicking when
         /// reached or after a random interval. Deterministic (rng-driven). Clamped to the map
