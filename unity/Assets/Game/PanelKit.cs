@@ -28,6 +28,12 @@ namespace IdleGame.Game
                                         out RectTransform body, string canvasName, int sortOrder,
                                         Vector2? max = null)
         {
+            // Is this a genuine open, or a redraw of a window that is already up? Panels rebuild by
+            // destroying and re-making their whole canvas, so the answer can't be inferred from "we
+            // are building" — ask BEFORE the new canvas exists, or we'd find ourselves. Drives both
+            // the entrance and the popup chime below.
+            bool rebuild = UiMotion.IsRebuild(parent, canvasName);
+
             // match 0.5: scale by both axes so ultrawide screens keep enough canvas HEIGHT for the
             // window — match-width alone leaves ~540 units at 21:9 and the rows crush to nothing.
             var canvas = UiKit.CreateCanvas(canvasName, parent, sortOrder, match: 0.5f);
@@ -66,9 +72,11 @@ namespace IdleGame.Game
             vlg.childForceExpandHeight = false;
 
             // Header: flexible title, fixed Close on the right. 10.9d: the window pops open
-            // audibly (built per-open) and the Close verb pops shut — the popup pair of the
-            // one UI sound family. Other close paths (control-bar toggles) stay silent.
-            SoundFx.Play("System_PopUpOpen_new", 0.35f);
+            // audibly and the Close verb pops shut — the popup pair of the one UI sound family.
+            // Other close paths (control-bar toggles) stay silent. The chime is gated on a REAL
+            // open: windows are rebuilt canvas-and-all on every state change, and this used to
+            // re-chime on each one (every bag click, every modifier toggle).
+            if (!rebuild) SoundFx.Play("System_PopUpOpen_new", 0.35f);
             var header = Row(prt, Theme.BtnH);
             HeaderRule(header);
             TextCell(header, title, Theme.FsTitle, Theme.TextBright, TextAnchor.MiddleLeft, flex: 1f);
@@ -77,6 +85,10 @@ namespace IdleGame.Game
                 width: Theme.CloseW, fontSize: Theme.FsH1);
 
             body = Flex(prt);
+            // SafeRoot is the scale target, not the panel: it parents BOTH the panel and its drop
+            // shadow, so the two grow together. Scaling the panel alone would leave the shadow at
+            // full size for the length of the tween.
+            UiMotion.Register(canvas.gameObject, canvasName, safe, animate: !rebuild);
             return canvas.gameObject;
         }
 
@@ -92,6 +104,9 @@ namespace IdleGame.Game
                                        Vector2 size, out RectTransform body,
                                        Color? backdrop = null, Color? border = null, Color? panelBg = null)
         {
+            // Genuine open vs redraw — see Window. Asked before the new canvas exists.
+            bool rebuild = UiMotion.IsRebuild(parent, canvasName);
+
             // match 0.5 like Window: an ultrawide canvas keeps enough HEIGHT that the dialog's rows
             // don't crush to nothing (match-width alone leaves ~540 units at 21:9).
             var canvas = UiKit.CreateCanvas(canvasName, parent, sortOrder, match: 0.5f);
@@ -157,6 +172,9 @@ namespace IdleGame.Game
             vlg.childForceExpandHeight = false;
 
             body = prt;
+            // SafeRoot again: it carries the border wrapper (when there is one), the panel and the
+            // shadow, so the whole dialog eases in as one piece.
+            UiMotion.Register(canvas.gameObject, canvasName, safe, animate: !rebuild);
             return canvas.gameObject;
         }
 
