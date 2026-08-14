@@ -10,30 +10,29 @@ its sections — prune, don't raise the budget.
 ## Where the game stands
 
 Shipped and playable: the full core loop (farm ladder → loot → build →
-push), 10 themed zones with terraced arenas, Tower (incl. per-floor
-reward bundles), Crypt roguelite (own-depth curve, daily keys, dust
-boons, SDF boss), Endless, quests/achievements/daily gems in the Goals
-hub, gacha (live Ice Mage banner), combat juice, zone ambience + a UI
-sound family, and a balance simulator over pure GameCore. Roster:
-Knight / Fire Mage / Assassin / Priest (+ banner Ice Mage) on the MS2
-skinned pipeline; monsters are faceted or SDF blend-shell.
-**846 GameCore tests green.** The 100-stage ladder is FIXED (10.1):
-stage 100 = the sim-verified endgame capstone. **Phase M mobile arc
-(10.13-10.22): MM1-MM5 + MM8 shipped.** Gaps: music (10.9a, PAUSED),
-laptop perf (10.12e), the user's ears pass on ambience/UI sounds.
+push), 10 themed zones, Tower (per-floor reward bundles), Crypt
+roguelite, Endless, quests/achievements/daily gems in the Goals hub,
+gacha (live Ice Mage banner), combat juice, zone ambience + a UI sound
+family, and a balance simulator over pure GameCore. Roster: Knight /
+Fire Mage / Assassin / Priest (+ banner Ice Mage) on the MS2 skinned
+pipeline; monsters faceted or SDF blend-shell. **848 GameCore tests
+green.** The 100-stage ladder is FIXED (10.1). **Phase M mobile arc:
+MM1-MM5 + MM8 shipped; the UI polish arc (10.23) is ACTIVE.** Gaps:
+music (10.9a, PAUSED), laptop perf (10.12e), the user's ears pass.
 
 ## Your calls — decisions waiting on the USER
 
-1-6, 8, 9. RESOLVED 2026-07-09..14 (git + design doc; orientation =
-   LANDSCAPE, and the arc opened at 10.13).
-7. **Older feel list** (user: "later" — parked): arena sizes/roam,
-   water colour, stair-tread chunkiness, terrace hop speed, caster
-   MoveSpd vs follow floor (overworld), anim-end vs contact launch,
-   corpse-linger, melee spacing, priest FX in real combat, formation
+1-6, 8, 9. RESOLVED 2026-07-09..14 (orientation = LANDSCAPE; the arc
+   opened at 10.13).
+7. **Older feel list** (user: "later" — parked): arena sizes/roam, water
+   colour, stair treads, terrace hop, caster MoveSpd vs follow floor,
+   launch timing, corpse-linger, melee spacing, priest FX, formation
    knobs (standoff 4.6 / panic 1.8 / aggro 2.0), run-clip foot-slide.
-10. Still owed from earlier sessions: ears pass (ambience beds / UI
-   sounds / juice feel), astral-bed music-or-not verdict, laptop
-   `-benchmark` run (10.12e).
+10. Still owed: ears pass (ambience / UI sounds / juice feel),
+   astral-bed music-or-not, laptop `-benchmark` run (10.12e).
+11. **10.18 cloud-save brief verdicts** — provider (rec: Unity Gaming
+   Services, which also settles 10.19), account model, sync policy,
+   desktop participation. 10.18 is BLOCKED until these land.
 
 ## Backlog — pre-sliced majors
 
@@ -45,6 +44,15 @@ incremental) and offline-depth expansion. Social-lite = later, not cut.**
 Also parked, not goals: real-money gems · server authority (§9) · zone
 drop-table hints · manual achievement-claim UX · BFS build-reveal anim ·
 tilt-shift band-blur · SDF jiggle tail · crypt mid-run merchant/boon-draft.
+
+**10.23 UI polish arc — ACTIVE (user: "best UX and impressiveness").**
+P1 warm-Tunic kit reskin + P2 layering/scroll fixes SHIPPED (ledger).
+REMAINING in order: **P3 motion** (120-150ms window open/close, press
+squash, reward count-ups, feed slide-in — every path gates on
+`Settings.ReducedMotion`) · **icons** (item tiles are still text
+abbreviations "Wpn/Glov/Boot", the most placeholder thing left; plus
+currency + nav — UI icons are NOT under the MS2 heroes-only rule) ·
+**moment screens** (arrival card, gacha reveal, outcome) · HUD cards.
 
 **10.13 Touch-first UI reflow (MM1) — COMPLETE 2026-07-15 (ledger).**
 Non-interactive IMGUI deliberately remains (party chips, currency HUD,
@@ -120,69 +128,66 @@ Shader.Find-only shaders get STRIPPED from builds — customs MUST live
 under Assets/Game/Resources/Shaders; shadow gates read MESH bounds ×
 scale (renderer.bounds is zero pre-first-render); profile in bursts.
 
-**10.3 UI kit lessons (shipped 2026-07-11 — kept because 10.13 rides
-them):** force-expand HLG clamps CHILD flex to ≥1 — a fixed-height
+**10.3 UI kit lessons (shipped 2026-07-11 — 10.13 and the polish arc
+ride them):** force-expand HLG clamps CHILD flex to ≥1 — a fixed-height
 cell in a Row needs a non-expanding VStack slot (explicit
 flexibleHeight=0 does NOT work); windows/modals scale match-0.5
 (match-width starves height at 21:9); `KeepOnCanvas` heals are
-DISPLAY-ONLY (never persist a clamp — canvas sizes are transient
-mid-resolution-switch; it bit once); UIFont.ttf deliberately
-untracked, importer fallbacks machine-local (re-apply on checkout).
+DISPLAY-ONLY (never persist a clamp); UIFont.ttf untracked, importer
+fallbacks machine-local (re-apply on checkout).
 
 **10.5 loot lessons (shipped 2026-07-11):** the SWEEP CONTRACT (bulk
-verbs skip stale/guarded entries silently, single verbs throw — state
+verbs skip stale/guarded entries silently, single verbs throw — say
 which in the doc comment); flat bonuses on multiplier-ish stats explode
 late-tier (the §6.2 ≤8% gate test is the tuner, not eyes); additive
-fields on hand-copied models must thread EVERY copy site or a reducer
-silently strips them — grep `new Item` / `new HeroInstance` first.
+fields on hand-copied models must thread EVERY copy site — grep
+`new Item` / `new HeroInstance` first.
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-08-01..06 UI polish P1+P2 (10.23): the warm "Tunic" reskin at KIT
+  level — Theme palette rotated warm (RED highest channel, BLUE lowest,
+  data-carrying hues frozen), procedural rounded 9-slice + shadow
+  sprites, ColorTint press states — so one slice reskinned every screen ·
+  P2 layering pass: Summon backdrop, Heroes columns scroll, Settings/
+  IMGUI z-order, scroll bottom-fade affordance, HUD panels reserving the
+  NavBar band, Tower floor packs ringing the party. 848 tests.
 - 2026-07-16 10.20(a-c) a11y + l10n foundation (MM8): Text Size
   100/115/130 via one `UiKit.Scaled` multiplier (IMGUI styles restamped
-  per OnGUI; chat/quest chrome rides it), Reduced Motion (hit-stop,
-  shake, pulse), Haptics toggle + stub seam; rarity glyph marks
-  ● ■ ◆ ★ beside every colour; `Loc` table (225 keys) + LocTests
-  key-existence contract, and `EventInfo.ZoneIndex` ends GameCore's
-  English banner leak. 846 tests.
+  per OnGUI), Reduced Motion (hit-stop, shake, pulse), Haptics toggle +
+  stub seam; rarity glyph marks ● ■ ◆ ★ beside every colour; `Loc` table
+  (225 keys) + LocTests key-existence contract; `EventInfo.ZoneIndex`
+  ends GameCore's English banner leak. 846 tests.
 - 2026-07-15 10.17 endgame sinks COMPLETE: ascension (dupes → per-hero
   shards; universal shards on endless milestones; 5★ × +4% hero-local;
   costs 10/20/30/50/80, hero wallet first; Stars + AscensionState
-  sweep-threaded; Heroes-window star row/Star Up/wallets) + BalanceSim
-  `sinks` (24.2wk horizon, ≥20wk gate). 841 tests; Play-verified.
+  sweep-threaded) + BalanceSim `sinks` (24.2wk horizon, ≥20wk gate).
+  841 tests; Play-verified.
 - 2026-07-15 10.16 live-ops COMPLETE (user: 10% magnitudes, monthly):
   weekend zone boost [Sat,Mon) rotating weekly + mutated crypt
   [Wed,Fri) (+1 modifier, +10% dust); monthly 30-tier free season
   (10 pts/quest, auto-pay, gems every 5th); Season tab + Today
   live-events + boot banners. 823 tests; verified on the live window.
-- 2026-07-15 10.15 codex/collection COMPLETE: CodexState (per-monster
-  lifetime kills via CombatState.PendingKills + Codex.BankKills tier
-  crossings; set-slot discovery stamped at AddLoot BEFORE the salvage
-  decision — seen is seen; zones derived from HighestStage). Every
-  completed tier pays +0.1% Hp/Atk/Def (~+16% at full completion,
-  ceiling-tested ≤25%), folded beside the Tower/boon buffs. Goals hub
-  gains the Codex tab (pips + progress; reveals with Achievements);
-  Bronze/Silver/Gold + set-collected feed beats; pre-codex bags
-  retro-stamped at load (Codex.SyncFromInventory). 794 tests.
+- 2026-07-15 10.15 codex/collection COMPLETE: CodexState (lifetime kills
+  via PendingKills + BankKills tier crossings; set-slot discovery
+  stamped at AddLoot BEFORE the salvage decision — seen is seen). Every
+  completed tier pays +0.1% Hp/Atk/Def (~+16% full, ≤25% ceiling-tested);
+  Goals hub Codex tab; retro-stamp at load. 794 tests.
 - 2026-07-15 10.14 the 30-second session COMPLETE: `Session.Arrive`
-  (idle + daily as ONE atomic boot payoff — the two boot modals became
-  one arrival card, idle previewed-not-claimed until Collect) +
-  `Session.Preview/Apply` (the Manage super-verb: claim → equip sweep →
-  nuclear salvage, one confirm card + nav pip). Taps-to-payoff at boot:
-  2. Preview==Apply by construction; 10 tests (770 green); Play-verified
-  grant-matches-display to the gold.
-- 2026-07-14/15 10.13 touch-first UI reflow COMPLETE: SafeArea
-  plumbing + pinch zoom (a) · uGUI thumb-reach NavBar replaced the
-  IMGUI control bar (b) · 44pt floors + safe-inset panels over
-  full-bleed dims, audit-driven (c) · Settings/TowerView/ModifierPanel/
-  MainMenu onto PanelKit + SliderRow — ZERO hand-placed windows (d) ·
-  TopControls strip + ModesWindow retire the last interactive IMGUI
-  (e). All Play-verified at 2340×1080 through real button clicks.
-- 2026-07-14 Tower per-floor reward bundles: first clear banks gold +
-  a boss-loot bundle in `Tower.RecordClear` (exploit-proof gate; kills
+  (idle + daily as ONE atomic boot payoff — two boot modals became one
+  arrival card) + `Session.Preview/Apply` (the Manage super-verb: claim
+  → equip sweep → nuclear salvage, one confirm card + nav pip).
+  Taps-to-payoff at boot: 2. 770 tests; Play-verified to the gold.
+- 2026-07-14/15 10.13 touch-first UI reflow COMPLETE: SafeArea + pinch
+  zoom (a) · uGUI thumb-reach NavBar replaced the IMGUI control bar (b) ·
+  44pt floors + safe-inset panels over full-bleed dims (c) · Settings/
+  TowerView/ModifierPanel/MainMenu onto PanelKit — ZERO hand-placed
+  windows (d) · TopControls + ModesWindow retire the last interactive
+  IMGUI (e). Play-verified at 2340×1080 through real button clicks.
+- 2026-07-14 Tower per-floor reward bundles: first clear banks gold + a
+  boss-loot bundle in `Tower.RecordClear` (exploit-proof gate; kills
   still pay nothing), anchored to `Tower.StageEquivalent` (floor 30 ≈
-  stage 100); milestone floors pay MAJOR bundles; persisted-cursor
-  roll; auto-salvage applies. +7 tests (760 green).
+  stage 100); milestone floors pay MAJOR bundles. 760 tests.
 - 2026-07-13 10.6 combat juice COMPLETE: hit-stop (income provably
   untaxed — sim accumulator on REAL time × mode speed) · per-element
   ImpactBursts · frost de-whited · element trail ribbons · kill-streak
@@ -190,35 +195,30 @@ silently strips them — grep `new Item` / `new HeroInstance` first.
 - 2026-07-13 10.9(c)+(d): 16 zone ambience beds (AMB bank, crossfade
   host = the AudioDirector scaffold, volume slider) + one UI sound
   family at BOTH button factories (uGUI UiKit.TextButton + the IMGUI
-  control-bar helpers), tile ticks, popup pair, claim chime, deny/
-  spend, enchant pair.
-- 2026-07-12/13 10.10 SDF monster expansion COMPLETE: 8 blob critters
-  across the crypt tiers · Slither+Pulse gaits · Ossuary Wyrm crypt
-  boss (rider binding, per-def Subdivisions) · perf gate passed ·
+  control-bar helpers), tile ticks, popups, claim, deny/spend, enchant.
+- 2026-07-12/13 10.10 SDF monster expansion COMPLETE: 8 blob critters ·
+  Slither+Pulse gaits · Ossuary Wyrm crypt boss · perf gate passed ·
   bog_horror/chaos_spawn rebodied. Art lessons in SdfBlobDefs comments;
   faceted Tunic stays the rule — SDF only for genuinely amorphous.
 - 2026-07-12 10.8 Endless COMPLETE: `StageFor` generates rows past the
   table, zones cycle, EndlessBest (save v3), "Push beyond…" nav +
   Endless-N label (`MaxSelectableStage` = the ONE selection rule), gems
-  every 5th new depth, BalanceSim `endless` mode (caught a long-gold
-  overflow → EndlessRateGrowth 1.02 taper), account-chip record line.
-- 2026-07-12 crypt own-depth curve (user verdict): floors anchor to
-  `Crypt.StageEquivalent` — nothing to sandbag; loot/gold/XP ride the
-  depth, key-bounded; HP ×0.6 + atk +2%/floor (walls = wipes, never
-  timer slogs) · 2× speed toggle (Crypt+Tower only; timeScale pinned
-  off the mode kind every frame) · caster root (CastRootMs 700).
-- 2026-07-11 crypt tuning (call #3): HpGrowth 1.045 / DmgGrowth 1.05 +
-  CryptRewardGrowth 1.06 (dust/hour rises with depth) · boon base
-  20→50 (finite-height economy).
+  every 5th new depth, BalanceSim `endless` (caught a long-gold overflow
+  → EndlessRateGrowth 1.02 taper), account-chip record line.
+- 2026-07-11/12 crypt own-depth curve + tuning (user verdicts): floors
+  anchor to `Crypt.StageEquivalent` — nothing to sandbag; loot/gold/XP
+  ride the depth, key-bounded; HP ×0.6 + atk +2%/floor (walls = wipes,
+  never timer slogs); HpGrowth 1.045 / DmgGrowth 1.05 / RewardGrowth
+  1.06, boon base 20→50 · 2× speed toggle (Crypt+Tower only; timeScale
+  pinned off the mode kind every frame) · caster root (CastRootMs 700).
 - 2026-07-11 10.5 Loot QoL 2.0 COMPLETE: per-slot loot filter + imprint
   guard · CompareCard compare-anywhere · SalvageMany + Select mode ·
   §6.2 set bonuses (30 gen'd, gate-tuned ≤8%) + tells · loadout
   snapshots. 699 → 738 tests, all Play-verified.
-- 2026-07-11 10.12(a-d) perf: FrameCap 60/10 · StepCombat scratch
-  buffers (calm farming ~31→11 KB/frame) · scenery material cache +
-  static combine (~1,514→~486 batches) · shader Prewarm behind the
-  main menu · quality tiers in Settings (render scale / shadows /
-  post FX → GraphicsQuality.Apply).
+- 2026-07-11 10.12(a-d) perf: FrameCap 60/10 · StepCombat scratch buffers
+  (calm farming ~31→11 KB/frame) · scenery material cache + static
+  combine (~1,514→~486 batches) · shader Prewarm behind the main menu ·
+  quality tiers in Settings → GraphicsQuality.Apply.
 - 2026-07-10 10.4 Goals hub COMPLETE (§7.5): Claimables/ClaimAll read
   model + PreviewNext; Goals window on PanelKit; control-bar pip;
   Achievements panel retired. Play-verified claim loop end-to-end.
@@ -226,16 +226,16 @@ silently strips them — grep `new Item` / `new HeroInstance` first.
   layout-group kit (+Modal); Heroes/Inventory/three modals migrated —
   zero positional literals; HUD anchoring; font audit (single
   UiKit.Font, 24/24 glyphs); verified at 16:9/16:10/21:9.
-- 2026-07-10 10.2 FTUE COMPLETE (§7.4): staged-reveal gating, five
-  guided intro beats, staged button reveal, reveal toasts, intro
-  strip, celebration beats, breadcrumb. Play-verified S0→S12.
+- 2026-07-10 10.2 FTUE COMPLETE (§7.4): staged-reveal gating, five guided
+  intro beats, staged button reveal, reveal toasts, intro strip,
+  celebration beats, breadcrumb. Play-verified S0→S12.
 - 2026-07-09 10.1 The Great Rebalance COMPLETE: thorns capped mirror,
   gear/level ~50/50, per-tier HP+damage taper, major-boss taper (soft
   wall ~80-90; stage 100 = the ~L100 mythic capstone), BalanceSim
   account stacks + `pace` mode.
-- 2026-07-09 10.7 crypt overhaul COMPLETE: room roles/keys, wave
-  phases, chests/mimics/reward vault, client tells, mid-run
-  persistence+resume+summary, BalanceSim `crypt` chart (10.7a–g).
+- 2026-07-09 10.7 crypt overhaul COMPLETE: room roles/keys, wave phases,
+  chests/mimics/reward vault, client tells, mid-run persistence+resume+
+  summary, BalanceSim `crypt` chart (10.7a–g).
 - 2026-07-07 10.11 hero look & FX COMPLETE: wardrobe browser, hero
   relooks (user-picked), FxKit procedural FX for every projectile.
 - 2026-07-03..07 foundation week (receipts in git): gacha MVP + Ice
