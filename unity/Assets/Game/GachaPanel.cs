@@ -158,10 +158,25 @@ namespace IdleGame.Game
             StartCoroutine(RevealThenRebuild(r));
         }
 
-        /// <summary>The dopamine moment: a color flash (gold for the featured hero, cooler otherwise), the
-        /// hero's name scaling up big, a NEW! tag / "+XP +scrap" dupe line / a Pity line, then it settles
-        /// into a dismissable state — click anywhere in the panel to clear and rebuild with the new state.
-        /// Colored uGUI flashes + a scale/fade coroutine in the CombatJuice spirit, no particle system.</summary>
+        /// <summary>Wind-up before the payoff. The DURATION is the tell: a featured pull takes visibly
+        /// longer to resolve than a common one, which is the oldest honest trick in the genre — the
+        /// player learns to read the wait itself and gets a second or two of hope for free. The colour
+        /// cannot do this job because it has to be the answer, not the question.</summary>
+        private const float WindUpFeaturedS = 0.9f, WindUpCommonS = 0.45f;
+
+        /// <summary>Scrim alpha during the wind-up. NEUTRAL, never the accent — an accent-tinted
+        /// wind-up would spoil the result it is supposed to be withholding.</summary>
+        private const float WindUpScrimA = 0.38f;
+
+        /// <summary>The dopamine moment: a neutral wind-up whose length hints at the tier, then a colour
+        /// flash (gold for the featured hero, cooler otherwise), the hero's name scaling up big, a NEW!
+        /// tag / dupe-shards line / a Pity line, and it settles into a dismissable state — click anywhere
+        /// in the panel to clear and rebuild with the new state. Colored uGUI flashes + a scale/fade
+        /// coroutine in the CombatJuice spirit, no particle system.
+        ///
+        /// All timing is UNSCALED. CombatView is the one Time.timeScale writer (alt-mode 2× × the
+        /// hit-stop dip), so a roll taken during a Tower run at 2× would otherwise play its whole reveal
+        /// at double speed — the payoff beat is UI, and UI does not live on the sim's clock.</summary>
         private IEnumerator RevealThenRebuild(Gacha.RollResult r)
         {
             _revealing = true;
@@ -189,24 +204,42 @@ namespace IdleGame.Game
 
             PanelKit.Flex(flash); // top slack
 
+            // The payoff block lives under a CanvasGroup so the wind-up can hold it at alpha 0 without
+            // building it late — building it up front is what keeps the layout from reflowing at the
+            // exact moment the player is looking hardest at it.
+            var block = PanelKit.VStack(flash, Theme.GapS,
+                                        new RectOffset((int)Theme.PadL, (int)Theme.PadL, (int)Theme.Gap, (int)Theme.Gap));
+            var blockGroup = block.gameObject.AddComponent<CanvasGroup>();
+            blockGroup.alpha = 0f;
+            blockGroup.blocksRaycasts = false;
+
+            // The block gets its own opaque CARD. Without it the reveal is just large text lying on
+            // top of the banner rows and the Roll button — the scrim alone settles at 0.14, nowhere
+            // near enough to separate the layers, so the biggest moment in the panel read as the
+            // muddiest. A card is what makes it a moment instead of an overlay.
+            var plate = block.gameObject.AddComponent<Image>();
+            plate.color = new Color(0.09f, 0.08f, 0.07f, 0.96f);
+            plate.raycastTarget = false; // the scrim behind still owns the dismiss click
+            UiKit.Round(plate, Theme.RadiusPanel);
+
             var heroName = _view.HeroDefDisplayName(r.HeroDefId);
-            var big = PanelKit.Label(flash, heroName, Theme.FsRevealName,
+            var big = PanelKit.Label(block, heroName, Theme.FsRevealName,
                                      Color.Lerp(accent, Color.white, 0.4f), TextAnchor.MiddleCenter);
             big.fontStyle = FontStyle.Bold;
             big.raycastTarget = false;
 
             // Tags: NEW! (join) or a +shards dupe line (10.17 — dupes now fuel the hero's star track),
             // plus a Pity line when it was forced.
-            string sub = r.IsNew ? "NEW!"
-                                 : $"Dupe   +{Num.CompactFloor(r.DupeShards)} shards";
-            var tag = PanelKit.Label(flash, sub, Theme.FsH1,
+            string sub = r.IsNew ? Loc.T("gacha.new")
+                                 : Loc.F("gacha.dupe", Num.CompactFloor(r.DupeShards));
+            var tag = PanelKit.Label(block, sub, Theme.FsH1,
                                      r.IsNew ? Theme.RevealNewTag : Theme.RevealSubTag, TextAnchor.MiddleCenter);
             tag.fontStyle = FontStyle.Bold;
             tag.raycastTarget = false;
 
             if (r.PityTriggered)
             {
-                var pity = PanelKit.Label(flash, $"Pity! {heroName} is guaranteed.", Theme.FsH2,
+                var pity = PanelKit.Label(block, Loc.F("gacha.pity", heroName), Theme.FsH2,
                                           Theme.AccentGold, TextAnchor.MiddleCenter);
                 pity.raycastTarget = false;
             }
@@ -218,27 +251,70 @@ namespace IdleGame.Game
             var hintSlot = PanelKit.VStack(flash, 0f);
             PanelKit.Fixed(hintSlot.gameObject, height: 24f);
 
+            // The status line lives in the reserved slot from the first frame and only ever changes its
+            // TEXT — "Summoning…" during the wind-up, "click to continue" at settle. Same slot, so the
+            // reveal never reflows under the player's eye.
+            var hint = PanelKit.Label(hintSlot, Loc.T("gacha.summoning"), Theme.FsLabel,
+                new Color(Theme.RevealSubTag.r, Theme.RevealSubTag.g, Theme.RevealSubTag.b, 0.85f), TextAnchor.MiddleCenter);
+            hint.raycastTarget = false;
+
+            // Armed for the whole reveal. During the wind-up a click SKIPS to the payoff (ten pulls in
+            // a row must never feel like ten waits); at settle the same catcher becomes the dismiss.
+            var catcher = flash.gameObject.AddComponent<ClickCatcher>();
+            bool skip = false;
+            catcher.OnClick = () => skip = true;
+
+            var nameRt = (RectTransform)big.transform;
+            var neutral = new Color(0.05f, 0.04f, 0.06f);
+
+            // a11y: Reduced Motion gets the RESULT, not the ritual — no wind-up, no flash ramp, no
+            // scale pop. The information is identical; only the theatre is skipped.
+            if (Settings.ReducedMotion)
+            {
+                overlay.color = new Color(accent.r, accent.g, accent.b, 0.14f);
+                blockGroup.alpha = 1f;
+                nameRt.localScale = Vector3.one;
+                SoundFx.Play("CH_Levelup", 0.55f);
+                Settle(hint, catcher);
+                yield break;
+            }
+
+            // ---- wind-up: neutral scrim, result withheld ----
+            float windUp = r.IsFeatured ? WindUpFeaturedS : WindUpCommonS;
+            float t = 0f;
+            while (t < windUp && !skip)
+            {
+                if (_canvas == null || overlay == null) yield break; // panel closed mid-reveal
+                t += Time.unscaledDeltaTime;
+                float k = Mathf.Clamp01(t / 0.18f);                              // scrim eases in fast
+                float throb = 0.9f + 0.1f * Mathf.Sin(t * 11f);                  // then breathes
+                overlay.color = new Color(neutral.r, neutral.g, neutral.b, WindUpScrimA * k * throb);
+                yield return null;
+            }
+            if (_canvas == null || overlay == null) yield break;
+
             // A fitting existing SFX — the level-up jingle carries the "you got something" beat.
             SoundFx.Play("CH_Levelup", 0.55f);
 
-            // Flash in fast, ease out; name pops from small to full over the same window.
+            // ---- payoff: flash in fast, ease out; the name pops as the block fades up ----
             const float inDur = 0.14f, outDur = 0.5f;
-            float t = 0f;
-            var nameRt = (RectTransform)big.transform;
+            t = 0f;
             while (t < inDur)
             {
-                if (_canvas == null || overlay == null) yield break; // panel closed mid-reveal
-                t += Time.deltaTime;
+                if (_canvas == null || overlay == null) yield break;
+                t += Time.unscaledDeltaTime;
                 float k = Mathf.Clamp01(t / inDur);
                 overlay.color = new Color(accent.r, accent.g, accent.b, 0.55f * k);
+                blockGroup.alpha = k;
                 nameRt.localScale = Vector3.one * Mathf.Lerp(0.6f, 1.12f, k);
                 yield return null;
             }
+            blockGroup.alpha = 1f;
             t = 0f;
             while (t < outDur)
             {
-                if (_canvas == null || overlay == null) yield break; // panel closed mid-reveal
-                t += Time.deltaTime;
+                if (_canvas == null || overlay == null) yield break;
+                t += Time.unscaledDeltaTime;
                 float k = Mathf.Clamp01(t / outDur);
                 overlay.color = new Color(accent.r, accent.g, accent.b, Mathf.Lerp(0.55f, 0.14f, k));
                 nameRt.localScale = Vector3.one * Mathf.Lerp(1.12f, 1f, k);
@@ -247,13 +323,15 @@ namespace IdleGame.Game
             if (_canvas == null || overlay == null) yield break;
             overlay.color = new Color(accent.r, accent.g, accent.b, 0.14f);
 
-            // Settled: prompt + click-anywhere-to-clear. The backdrop stays raycastable so any click
-            // (routed via the ClickCatcher) rebuilds the panel to the post-roll state.
-            var hint = PanelKit.Label(hintSlot, "click to continue", Theme.FsLabel,
-                new Color(Theme.RevealSubTag.r, Theme.RevealSubTag.g, Theme.RevealSubTag.b, 0.85f), TextAnchor.MiddleCenter);
-            hint.raycastTarget = false;
+            Settle(hint, catcher);
+        }
 
-            var catcher = flash.gameObject.AddComponent<ClickCatcher>();
+        /// <summary>Hand the reveal over to the player: swap the status line to the dismiss prompt and
+        /// repoint the already-armed catcher. Split out so the Reduced Motion path and the animated one
+        /// cannot drift into two different notions of "settled".</summary>
+        private void Settle(Text hint, ClickCatcher catcher)
+        {
+            hint.text = Loc.T("gacha.continue");
             catcher.OnClick = () => { _revealing = false; Rebuild(); };
         }
     }

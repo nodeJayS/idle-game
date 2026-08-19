@@ -116,6 +116,13 @@ namespace IdleGame.GameCore
             ["settings.render-scale"] = "Render Scale",
             ["settings.shadows"] = "Shadows",
             ["settings.post-fx"] = "Post FX",
+            // Gacha reveal beat (10.23). "Summoning…" holds the wind-up, where the result is
+            // deliberately withheld; the rest label the payoff.
+            ["gacha.summoning"] = "Summoning…",
+            ["gacha.continue"] = "click to continue",
+            ["gacha.new"] = "NEW!",
+            ["gacha.dupe"] = "Dupe   +{0} shards",
+            ["gacha.pity"] = "Pity! {0} is guaranteed.",
             // CC BY 3.0 attribution for the slot icons — a licence term, not decoration. If the
             // icon set ever changes, this line changes with it.
             ["settings.credits"] = "Item icons by Lorc and Delapouite — game-icons.net (CC BY 3.0)",
