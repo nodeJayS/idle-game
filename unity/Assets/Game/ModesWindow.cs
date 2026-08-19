@@ -41,9 +41,12 @@ namespace IdleGame.Game
 
         public void Toggle() { if (IsOpen) Close(); else Build(); }
 
+        /// <summary>The player-facing close (toggle, a mode row that navigates away, CombatView leaving
+        /// a run, or yielding to a management panel): the window eases out and then destroys itself.
+        /// Rebuild below deliberately does NOT route through here — it needs the instant teardown.</summary>
         public void Close()
         {
-            if (_canvas != null) Destroy(_canvas.gameObject);
+            if (_canvas != null) UiMotion.Dismiss(_canvas.gameObject, animate: true);
             _canvas = null;
         }
 

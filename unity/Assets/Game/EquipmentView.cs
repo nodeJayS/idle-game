@@ -68,14 +68,20 @@ namespace IdleGame.Game
             Rebuild(); // Build() resolves _heroId to a valid hero
         }
 
-        public void Close()
+        /// <summary>The player-facing close (either toggle, the header X, or an outside caller): the
+        /// window eases out and then destroys itself.</summary>
+        public void Close() => Teardown(animate: true);
+
+        /// <summary>Drop the canvas. Rebuild passes animate:false — swapping heroes or sub-tabs is a
+        /// redraw, and an outgoing canvas that lingered would sit on top of its own replacement.</summary>
+        private void Teardown(bool animate)
         {
-            if (_panel != null) Destroy(_panel);
+            UiMotion.Dismiss(_panel, animate);
             _panel = null;
             _detail = null;
         }
 
-        private void Rebuild() { Close(); Build(); }
+        private void Rebuild() { Teardown(animate: false); Build(); }
 
         private void Build()
         {

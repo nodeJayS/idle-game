@@ -38,13 +38,19 @@ namespace IdleGame.Game
 
         public void Toggle() { if (IsOpen) Close(); else Build(); }
 
-        public void Close()
+        /// <summary>The player-facing close (toggle, header X, an outside caller): the window eases out
+        /// and then destroys itself.</summary>
+        public void Close() => Teardown(animate: true);
+
+        /// <summary>Drop the canvas. The redraw path passes animate:false — an outgoing canvas that
+        /// lingered would sit on top of its own replacement.</summary>
+        private void Teardown(bool animate)
         {
-            if (_panel != null) Destroy(_panel);
+            UiMotion.Dismiss(_panel, animate);
             _panel = null;
         }
 
-        private void Rebuild() { Close(); Build(); }
+        private void Rebuild() { Teardown(animate: false); Build(); }
 
         private static long NowMs() => System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 

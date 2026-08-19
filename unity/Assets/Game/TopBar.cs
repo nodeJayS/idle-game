@@ -74,7 +74,8 @@ namespace IdleGame.Game
 
         private void ToggleSettings()
         {
-            if (_settings != null) { Destroy(_settings); _settings = null; return; }
+            // A real close (the gear button or the header X routed here): ease the window out.
+            if (_settings != null) { UiMotion.Dismiss(_settings, animate: true); _settings = null; return; }
             OpenSettings();
         }
 
@@ -130,7 +131,8 @@ namespace IdleGame.Game
                 {
                     Settings.TextSizePct = Settings.TextSizePct == 100 ? 115
                                          : Settings.TextSizePct == 115 ? 130 : 100;
-                    Destroy(_settings); _settings = null; OpenSettings();
+                    // A REDRAW at the new text size, not a close — instant teardown, no exit motion.
+                    UiMotion.Dismiss(_settings, animate: false); _settings = null; OpenSettings();
                 });
             ToggleRow(list, Loc.T("settings.reduced-motion"), () => Settings.ReducedMotion, v => Settings.ReducedMotion = v);
             ToggleRow(list, Loc.T("settings.haptics"), () => Settings.Haptics, v => Settings.Haptics = v);
@@ -154,7 +156,8 @@ namespace IdleGame.Game
             // The header Close is the kit-wide affordance every other window carries, so it wins.
             var verbs = PanelKit.Row(body, Theme.BtnH);
             PanelKit.ButtonCell(verbs, Loc.T("settings.main-menu"),
-                () => { Destroy(_settings); _settings = null; _onMainMenu(); }, fontSize: Theme.FsBody);
+                () => { UiMotion.Dismiss(_settings, animate: true); _settings = null; _onMainMenu(); },
+                fontSize: Theme.FsBody);
             PanelKit.ButtonCell(verbs, Loc.T("common.exit-game"), Quit, fontSize: Theme.FsBody);
         }
 

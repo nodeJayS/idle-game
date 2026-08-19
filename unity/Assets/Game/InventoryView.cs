@@ -88,10 +88,17 @@ namespace IdleGame.Game
             Open();
         }
 
-        private void Close()
+        /// <summary>The player-facing close (the bag toggle or the header X): the window eases out and
+        /// then destroys itself.</summary>
+        private void Close() => Teardown(animate: true);
+
+        /// <summary>Drop the canvas. The redraw paths pass animate:false — picking an item or flipping
+        /// the loot filter rebuilds this whole canvas, and an outgoing one that lingered would sit on
+        /// top of its own replacement.</summary>
+        private void Teardown(bool animate)
         {
             if (_massSalvageTimer != null) { StopCoroutine(_massSalvageTimer); _massSalvageTimer = null; }
-            if (_panel != null) Destroy(_panel);
+            UiMotion.Dismiss(_panel, animate);
             _panel = null;
             _detail = null;
             _confirmSalvageId = null;
@@ -105,7 +112,7 @@ namespace IdleGame.Game
         private void Rebuild() { _confirmMassSalvage = false; RebuildKeepConfirm(); }
 
         /// <summary>Redraw without disarming the mass-salvage confirm (used by the arm click itself).</summary>
-        private void RebuildKeepConfirm() { Close(); Open(); }
+        private void RebuildKeepConfirm() { Teardown(animate: false); Open(); }
 
         private void Open()
         {

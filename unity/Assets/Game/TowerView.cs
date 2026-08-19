@@ -24,9 +24,11 @@ namespace IdleGame.Game
 
         public void Toggle() { if (IsOpen) Close(); else Build(); }
 
+        /// <summary>The player-facing close (toggle, the header X, or entering a floor): the window
+        /// eases out and then destroys itself. Tower has no redraw path — it rebuilds per open.</summary>
         public void Close()
         {
-            if (_canvas != null) Destroy(_canvas.gameObject);
+            if (_canvas != null) UiMotion.Dismiss(_canvas.gameObject, animate: true);
             _canvas = null;
         }
 

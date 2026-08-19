@@ -15,7 +15,7 @@ roguelite, Endless, quests/achievements/daily gems in the Goals hub,
 gacha (live Ice Mage banner), combat juice, zone ambience + a UI sound
 family, and a balance simulator over pure GameCore. Roster: Knight /
 Fire Mage / Assassin / Priest (+ banner Ice Mage) on the MS2 skinned
-pipeline; monsters faceted or SDF blend-shell. **848 GameCore tests
+pipeline; monsters faceted or SDF blend-shell. **857 GameCore tests
 green.** The 100-stage ladder is FIXED (10.1). **Phase M mobile arc:
 MM1-MM5 + MM8 shipped; the UI polish arc (10.23) is ACTIVE.** Gaps:
 music (10.9a, PAUSED), laptop perf (10.12e), the user's ears pass.
@@ -46,13 +46,11 @@ drop-table hints · manual achievement-claim UX · BFS build-reveal anim ·
 tilt-shift band-blur · SDF jiggle tail · crypt mid-run merchant/boon-draft.
 
 **10.23 UI polish arc — ACTIVE (user: "best UX and impressiveness").**
-P1 warm-Tunic kit reskin + P2 layering/scroll fixes SHIPPED (ledger).
-REMAINING in order: **P3 motion** (120-150ms window open/close, press
-squash, reward count-ups, feed slide-in — every path gates on
-`Settings.ReducedMotion`) · **icons** (item tiles are still text
-abbreviations "Wpn/Glov/Boot", the most placeholder thing left; plus
-currency + nav — UI icons are NOT under the MS2 heroes-only rule) ·
-**moment screens** (arrival card, gacha reveal, outcome) · HUD cards.
+P1 reskin + P2 layering + P3 window open/close motion SHIPPED (ledger).
+REMAINING: **P3 rest** (press squash, count-ups, feed slide-in — all gate
+on `Settings.ReducedMotion`) · **icons** (tiles still read "Wpn/Glov/Boot",
+the most placeholder thing left; plus currency + nav — NOT under the MS2
+heroes-only rule) · **moment screens** (arrival, gacha reveal) · HUD cards.
 
 **MM1-MM5 (10.13-10.17) COMPLETE 2026-07-15 — receipts in the ledger.
 Durable lessons the next slices ride:** non-interactive IMGUI remains by
@@ -130,6 +128,12 @@ fields on hand-copied models must thread EVERY copy site — grep
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-08-19 UI polish P3 motion (10.23): windows ease IN (130ms
+  fade+scale) and OUT (90ms). Panels are destroy-and-rebuild, so a build ≠
+  an open and a destroy ≠ a close: `UiMotion.IsRebuild` gates the entrance
+  (killing the chime-on-redraw wart), the exit gates structurally (public
+  `Close()` animates, rebuild paths tear down instantly), and a closing
+  canvas is renamed + raycast-deaf. 857 tests.
 - 2026-08-14 movement freeze FIXED (user-reported, stage 24): heroes
   pinned at a ledge/corner while only the melee leader fought. Two
   defects in `Combat.StepAlong` (was MoveToward), both PERMANENT because

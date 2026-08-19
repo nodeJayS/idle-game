@@ -36,11 +36,14 @@ namespace IdleGame.Game
 
         public void Toggle() { if (IsOpen) Close(); else Build(); }
 
+        /// <summary>The player-facing close (toggle or the header X): the window eases out and then
+        /// destroys itself. RebuildKeepConfirm below deliberately does NOT route through here — a
+        /// redraw needs the instant teardown.</summary>
         public void Close()
         {
             if (_resetTimer != null) { StopCoroutine(_resetTimer); _resetTimer = null; }
             DestroyImprintPreview();
-            if (_canvas != null) Destroy(_canvas.gameObject);
+            if (_canvas != null) UiMotion.Dismiss(_canvas.gameObject, animate: true);
             _canvas = null;
         }
 
