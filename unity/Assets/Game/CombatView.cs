@@ -2921,9 +2921,15 @@ namespace IdleGame.Game
             if (_walletStyle == null)
                 _walletStyle = new GUIStyle(GUI.skin.label) { fontSize = UiKit.Scaled(WalletBaseFs), fontStyle = FontStyle.Bold };
 
-            DrawWalletLine(Theme.HudPad, ref y, Loc.F("hud.wallet-gold", Num.CompactFloor(gold)), new Color(1f, 0.84f, 0.35f));
-            DrawWalletLine(Theme.HudPad, ref y, Loc.F("hud.wallet-scrap", Num.CompactFloor(scrap)), new Color(0.75f, 0.78f, 0.85f));
-            DrawWalletLine(Theme.HudPad, ref y, Loc.F("hud.wallet-gems", Num.CompactFloor(gems)), new Color(0.65f, 0.85f, 1f));
+            // Icon + number. The word ("Gold", "Scrap", "Gems") was the icon's job all along, so the
+            // loc strings are now the bare value — the keys stay because a language may still want
+            // an affix, and because a missing texture falls back to a naked number, never to nothing.
+            DrawWalletLine(Theme.HudPad, ref y, Loc.F("hud.wallet-gold", Num.CompactFloor(gold)),
+                           new Color(1f, 0.84f, 0.35f), icon: UiKit.IconTex("gold"));
+            DrawWalletLine(Theme.HudPad, ref y, Loc.F("hud.wallet-scrap", Num.CompactFloor(scrap)),
+                           new Color(0.75f, 0.78f, 0.85f), icon: UiKit.IconTex("scrap"));
+            DrawWalletLine(Theme.HudPad, ref y, Loc.F("hud.wallet-gems", Num.CompactFloor(gems)),
+                           new Color(0.65f, 0.85f, 1f), icon: UiKit.IconTex("gems"));
 
             // FTUE breadcrumb (§7.4): one muted contextual hint under the wallet — the least-cluttered HUD
             // anchor (top-centre already carries the stage nav + Challenge). Armed saves only, first-match.
@@ -2970,13 +2976,30 @@ namespace IdleGame.Game
         private StageDef? FindStage(int stage) => _cfg.StageFor(stage);
 
         private GUIStyle? _walletStyle;
-        private void DrawWalletLine(float x, ref float y, string text, Color color, float w = 260f)
+        private void DrawWalletLine(float x, ref float y, string text, Color color, float w = 260f,
+                                    Texture2D? icon = null)
         {
             // Text-bearing rects ride the a11y text scale with the font — a fixed 22/24 overlaps
-            // the next line at 130% (Play-caught 10.20a).
+            // the next line at 130% (Play-caught 10.20a). The icon rides it too, or it would shrink
+            // against the number it labels.
             float ts = Settings.TextScale;
+            float h = 22f * ts;
+            float textX = x;
+
+            if (icon != null)
+            {
+                float size = 18f * ts;
+                // The art is white, so GUI.color IS the tint — same one asset, same colour rule as
+                // the text beside it, which is what keeps the icon and its number reading as one thing.
+                var prev = GUI.color;
+                GUI.color = color;
+                GUI.DrawTexture(new Rect(x, y + (h - size) * 0.5f, size, size), icon, ScaleMode.ScaleToFit);
+                GUI.color = prev;
+                textX = x + size + 6f * ts;
+            }
+
             _walletStyle!.normal.textColor = color;
-            GUI.Label(new Rect(x, y, w, 22f * ts), text, _walletStyle);
+            GUI.Label(new Rect(textX, y, w, h), text, _walletStyle);
             y += 24f * ts;
         }
 

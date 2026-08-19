@@ -342,6 +342,21 @@ namespace IdleGame.Game
             return sprite;
         }
 
+        /// <summary>Same cache-the-misses rule as <see cref="SlotIcon"/>, for the IMGUI side: OnGUI
+        /// runs every frame, so a Resources hit per draw would be a per-frame allocation in the HUD's
+        /// hot path. IMGUI wants the TEXTURE, not the Sprite.</summary>
+        private static readonly Dictionary<string, Texture2D?> _iconTex = new();
+
+        /// <summary>An icon as a raw texture, for <c>GUI.DrawTexture</c> in the IMGUI HUD. Null when
+        /// the art is missing — every caller must keep a text path alive.</summary>
+        public static Texture2D? IconTex(string name)
+        {
+            if (_iconTex.TryGetValue(name, out var cached)) return cached;
+            var tex = Resources.Load<Texture2D>("Icons/" + name);
+            _iconTex[name] = tex;
+            return tex;
+        }
+
         /// <summary>Short tile label for an equip slot — the fallback when an icon is missing, and
         /// still the name every non-tile surface uses.</summary>
         public static string SlotAbbrev(EquipSlot s) => s switch

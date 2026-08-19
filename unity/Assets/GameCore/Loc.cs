@@ -211,9 +211,12 @@ namespace IdleGame.GameCore
             ["hud.major-boss"] = "★ MAJOR BOSS — Stage {0}",
             ["hud.miniboss"] = "Miniboss — Stage {0}",
             ["hud.boss-modifier"] = "  ·  {0}",
-            ["hud.wallet-gold"] = "Gold   {0}",
-            ["hud.wallet-scrap"] = "Scrap  {0}",
-            ["hud.wallet-gems"] = "Gems   {0}",
+            // The wallet draws a currency ICON in front of each of these, so the name would only
+            // repeat it. Kept as format strings (not raw numbers) because a language may want an
+            // affix, and because the HUD must still read if the texture is ever missing.
+            ["hud.wallet-gold"] = "{0}",
+            ["hud.wallet-scrap"] = "{0}",
+            ["hud.wallet-gems"] = "{0}",
             ["hud.party-empty"] = "— empty —",
             ["hud.party-chip"] = "{0}  Lv {1}",
             ["hud.endless-depth"] = "Endless depth {0}",

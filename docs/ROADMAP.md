@@ -46,11 +46,11 @@ drop-table hints · manual achievement-claim UX · BFS build-reveal anim ·
 tilt-shift band-blur · SDF jiggle tail · crypt mid-run merchant/boon-draft.
 
 **10.23 UI polish arc — ACTIVE (user: "best UX and impressiveness").**
-P1 reskin + P2 layering + P3 motion + the 5 slot icons SHIPPED (ledger).
-REMAINING: **icons pass 2** (currency + nav, same game-icons.net source
-and bake script) · **moment screens** (arrival, gacha reveal) · HUD cards
-· feed slide-in. Reward count-ups judged NOT worth it 2026-08-19 (the
-chat feed already prints an explicit "+X", so the delta is legible).
+P1 reskin + P2 layering + P3 motion + slot/currency icons SHIPPED (ledger).
+REMAINING: **moment screens** (arrival, gacha reveal) · HUD cards · feed
+slide-in. NOT worth it (2026-08-19, measured — don't re-pitch): count-ups
+(the feed already prints "+X") and NAV icons (clusters use 1016 of the 1280
+ref width; 7 icons eat 210 of the 264 slack to decorate words).
 
 **MM1-MM5 (10.13-10.17) COMPLETE 2026-07-15 — receipts in the ledger.
 Durable lessons the next slices ride:** non-interactive IMGUI remains by
@@ -135,11 +135,11 @@ fields on hand-copied models must thread EVERY copy site — grep
   structurally (public `Close()` animates, rebuild paths tear down
   instantly), a closing canvas is renamed + raycast-deaf, and the squash
   rides `ApplyButtonStates` so tint and movement are one contract. 857 tests.
-- 2026-08-19 slot icons (10.23): the five equip slots stopped being text
-  abbreviations. game-icons.net art (CC BY 3.0 — Lorc + Delapouite) baked
-  white-on-transparent by `art/icons/build.py`, so ONE tint serves rarity
-  at every tile size; `UiKit.SlotIcon` caches misses and falls back to
-  `SlotAbbrev`. Attribution ships in SETTINGS — CC BY binds the build.
+- 2026-08-19 icons (10.23): the 5 equip slots + the 3 wallet currencies
+  stopped being text. game-icons.net art (CC BY 3.0 — Lorc + Delapouite)
+  baked white-on-transparent by `art/icons/build.py`, so ONE tint serves
+  rarity/currency at any size; `SlotIcon`/`IconTex` cache misses and fall
+  back to text. Attribution ships in SETTINGS — CC BY binds the build.
 - 2026-08-14 movement freeze FIXED (user-reported, stage 24): two defects
   in `Combat.StepAlong` (was MoveToward), both PERMANENT because the
   geometry is stateless — a slide candidate could collapse onto the unit's
