@@ -651,6 +651,10 @@ namespace IdleGame.Game
             c.fadeDuration = 0.08f;
             s.colors = c;
             s.transition = Selectable.Transition.ColorTint;
+            // P3 motion: tint and squash are ONE contract. Hooking the squash here (rather than at
+            // each factory) is what makes it impossible for a control to get the colour half of the
+            // press feedback and not the movement half.
+            UiMotion.AttachPress(s);
         }
     }
 

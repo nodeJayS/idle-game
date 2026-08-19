@@ -46,9 +46,9 @@ drop-table hints · manual achievement-claim UX · BFS build-reveal anim ·
 tilt-shift band-blur · SDF jiggle tail · crypt mid-run merchant/boon-draft.
 
 **10.23 UI polish arc — ACTIVE (user: "best UX and impressiveness").**
-P1 reskin + P2 layering + P3 window open/close motion SHIPPED (ledger).
-REMAINING: **P3 rest** (press squash, count-ups, feed slide-in — all gate
-on `Settings.ReducedMotion`) · **icons** (tiles still read "Wpn/Glov/Boot",
+P1 reskin + P2 layering + P3 window motion & press squash SHIPPED (ledger).
+REMAINING: **P3 rest** (reward count-ups, feed slide-in — both gate on
+`Settings.ReducedMotion`) · **icons** (tiles still read "Wpn/Glov/Boot",
 the most placeholder thing left; plus currency + nav — NOT under the MS2
 heroes-only rule) · **moment screens** (arrival, gacha reveal) · HUD cards.
 
@@ -128,12 +128,13 @@ fields on hand-copied models must thread EVERY copy site — grep
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
-- 2026-08-19 UI polish P3 motion (10.23): windows ease IN (130ms
-  fade+scale) and OUT (90ms). Panels are destroy-and-rebuild, so a build ≠
-  an open and a destroy ≠ a close: `UiMotion.IsRebuild` gates the entrance
-  (killing the chime-on-redraw wart), the exit gates structurally (public
-  `Close()` animates, rebuild paths tear down instantly), and a closing
-  canvas is renamed + raycast-deaf. 857 tests.
+- 2026-08-19 UI polish P3 motion (10.23): windows ease IN (130ms) and OUT
+  (90ms); controls squash 4% under the finger. Panels are destroy-and-
+  rebuild, so a build ≠ an open and a destroy ≠ a close: `IsRebuild` gates
+  the entrance (killing the chime-on-redraw wart), the exit gates
+  structurally (public `Close()` animates, rebuild paths tear down
+  instantly), a closing canvas is renamed + raycast-deaf, and the squash
+  rides `ApplyButtonStates` so tint and movement are one contract. 857 tests.
 - 2026-08-14 movement freeze FIXED (user-reported, stage 24): heroes
   pinned at a ledge/corner while only the melee leader fought. Two
   defects in `Combat.StepAlong` (was MoveToward), both PERMANENT because

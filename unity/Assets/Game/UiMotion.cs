@@ -1,6 +1,8 @@
 #nullable enable
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 namespace IdleGame.Game
 {
@@ -102,6 +104,28 @@ namespace IdleGame.Game
             var motion = canvasGo.GetComponent<PanelMotion>();
             if (motion == null) { Object.Destroy(canvasGo); return; }
             motion.BeginExit();
+        }
+
+        /// <summary>Press durations. Down is the fastest motion in the kit on purpose — a press must
+        /// feel like it happened AT the finger, not after it. The release is slower so the button
+        /// reads as springing back rather than snapping.</summary>
+        public const float PressDownMs = 55f;
+        public const float PressUpMs = 90f;
+
+        /// <summary>How far a pressed control sinks. 4% is under the threshold where anyone would call
+        /// it an animation and over the one where the hand stops believing the tap registered.</summary>
+        private const float PressScale = 0.96f;
+
+        /// <summary>Give a control the kit's press squash. Rides <see cref="UiKit.ApplyButtonStates"/>,
+        /// so the tint and the squash are one contract and no button can get half of it. Scale is
+        /// layout-independent (uGUI lays out by rect, not by scale), which is exactly why the squash
+        /// scales the control instead of resizing it: a shrinking button inside a layout group would
+        /// shove its neighbours around on every tap.</summary>
+        public static void AttachPress(Selectable s)
+        {
+            if (Settings.ReducedMotion) return;
+            if (s.GetComponent<PressSquash>() != null) return;
+            s.gameObject.AddComponent<PressSquash>().Bind(s);
         }
 
         internal static void NoteClosed(string canvasName)
@@ -222,6 +246,67 @@ namespace IdleGame.Game
                 // get-or-created per canvas, so it dies with this object — but a future caller that
                 // reuses a scale target would inherit 0.965 forever. Cheap insurance.
                 if (Target != null) Target.localScale = Vector3.one;
+            }
+        }
+
+        /// <summary>Sinks a control under the finger and springs it back. Rides alongside the Button
+        /// rather than inside it: uGUI delivers a pointer event to EVERY handler on the object, so the
+        /// squash and the Button's own click/tint stay independent — nothing here can swallow a click.
+        /// </summary>
+        public sealed class PressSquash : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
+        {
+            private Selectable? _sel;
+            private RectTransform? _rt;
+            private float _from = 1f;
+            private float _to = 1f;
+            private float _elapsedMs;
+            private float _durMs = 1f;
+            private bool _running;
+
+            internal void Bind(Selectable s)
+            {
+                _sel = s;
+                _rt = s.transform as RectTransform;
+            }
+
+            /// <summary>A DEAD control must not squash: the raycast still lands on its graphic (that is
+            /// what makes disabled buttons feel solid rather than absent), so without this check a
+            /// greyed-out button would answer the finger and promise something it won't do.</summary>
+            public void OnPointerDown(PointerEventData e)
+            {
+                if (_sel != null && !_sel.IsInteractable()) return;
+                To(PressScale, PressDownMs);
+            }
+
+            /// <summary>No interactable check here: whatever happened to the control mid-press, a
+            /// button that stayed squashed would read as stuck.</summary>
+            public void OnPointerUp(PointerEventData e) => To(1f, PressUpMs);
+
+            private void To(float target, float ms)
+            {
+                if (_rt == null) return;
+                _from = _rt.localScale.x;
+                _to = target;
+                _elapsedMs = 0f;
+                _durMs = Mathf.Max(1f, ms);
+                _running = true;
+            }
+
+            private void Update()
+            {
+                if (!_running || _rt == null) return;
+                _elapsedMs += Time.unscaledDeltaTime * 1000f;
+                float t = Mathf.Clamp01(_elapsedMs / _durMs);
+                _rt.localScale = Vector3.one * Mathf.Lerp(_from, _to, EaseOut(t));
+                if (t >= 1f) _running = false;
+            }
+
+            /// <summary>A control switched off mid-press (a rebuild, a tab swap) comes back at full
+            /// size. Scale is the one piece of state here that would otherwise survive.</summary>
+            private void OnDisable()
+            {
+                _running = false;
+                if (_rt != null) _rt.localScale = Vector3.one;
             }
         }
     }

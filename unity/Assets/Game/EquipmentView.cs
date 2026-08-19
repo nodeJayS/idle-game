@@ -334,8 +334,10 @@ namespace IdleGame.Game
                     var tile = UiKit.ItemTile(gridGo.transform, new Vector2(DollCell, DollCell), Vector2.zero,
                         item?.Rarity, UiKit.SlotAbbrev(slot), raycast: true);
                     var captured = item;
-                    tile.AddComponent<Button>().onClick.AddListener(
+                    var dollBtn = tile.AddComponent<Button>();
+                    dollBtn.onClick.AddListener(
                         () => { SoundFx.Play("System_Shift_Click", 0.3f); ShowDetail(save, captured, slotIfEmpty: slot); }); // 10.9d tile tick
+                    UiKit.ApplyButtonStates(dollBtn); // tiles press like every other control (P3)
                     UiKit.Hover(tile, () => ShowDetail(save, captured, slotIfEmpty: slot), () => ShowHeroStats(save));
                 }
 
@@ -373,8 +375,10 @@ namespace IdleGame.Game
                 var it = item;
                 var tile = UiKit.ItemTile(grid, new Vector2(BagTile, BagTile), Vector2.zero, it.Rarity,
                     UiKit.SlotAbbrev(SlotOf(it)), raycast: true);
-                tile.AddComponent<Button>().onClick.AddListener(
+                var bagBtn = tile.AddComponent<Button>();
+                bagBtn.onClick.AddListener(
                     () => { SoundFx.Play("System_Shift_Click", 0.3f); EquipFromBag(save, it); }); // one click to equip (10.9d tick)
+                UiKit.ApplyButtonStates(bagBtn); // tiles press like every other control (P3)
                 UiKit.Hover(tile, () => ShowDetail(save, it), () => ShowHeroStats(save));        // hover to compare
             }
             if (!any)
