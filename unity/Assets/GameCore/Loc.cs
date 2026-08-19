@@ -116,6 +116,9 @@ namespace IdleGame.GameCore
             ["settings.render-scale"] = "Render Scale",
             ["settings.shadows"] = "Shadows",
             ["settings.post-fx"] = "Post FX",
+            // CC BY 3.0 attribution for the slot icons — a licence term, not decoration. If the
+            // icon set ever changes, this line changes with it.
+            ["settings.credits"] = "Item icons by Lorc and Delapouite — game-icons.net (CC BY 3.0)",
             ["settings.main-menu"] = "Main Menu",
 
             // ---- title screen (MainMenu) ----

@@ -148,7 +148,8 @@ namespace IdleGame.Game
             foreach (var item in save.Inventory)
             {
                 var it = item; // capture
-                var tile = UiKit.ItemTile(grid, new Vector2(TileSize, TileSize), Vector2.zero, it.Rarity, UiKit.SlotAbbrev(SlotOf(it)), raycast: true);
+                var tile = UiKit.ItemTile(grid, new Vector2(TileSize, TileSize), Vector2.zero, it.Rarity,
+                                          UiKit.SlotAbbrev(SlotOf(it)), raycast: true, slot: SlotOf(it));
                 // Loose items that are an upgrade for someone get a green ▲ (Lever 2 legibility).
                 if (EquippedByWhom(save, it.Id) == null)
                 {

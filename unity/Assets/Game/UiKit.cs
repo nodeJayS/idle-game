@@ -243,7 +243,7 @@ namespace IdleGame.Game
         /// dark cell with a centered label (placeholder until real item icons exist). The
         /// returned object carries the border Image as its raycast target when
         /// <paramref name="raycast"/> is true (add a Button/Hover to it).</summary>
-        public static GameObject ItemTile(Transform parent, Vector2 size, Vector2 pos, Rarity? rarity, string text, bool raycast)
+        public static GameObject ItemTile(Transform parent, Vector2 size, Vector2 pos, Rarity? rarity, string text, bool raycast, EquipSlot? slot = null)
         {
             var go = new GameObject("Tile", typeof(RectTransform));
             go.transform.SetParent(parent, false);
@@ -272,13 +272,37 @@ namespace IdleGame.Game
             // leaving a pinched sliver of border colour in each corner.
             Round(ibg, Mathf.Max(2, Theme.RadiusTile - Mathf.RoundToInt(b)));
 
-            int fs = size.x >= 64 ? 13 : 11;
-            var lbl = Label(inner.transform, text, fs, TextAnchor.MiddleCenter, Vector2.zero, Vector2.zero);
-            var lrt = (RectTransform)lbl.transform;
-            lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
-            lrt.offsetMin = new Vector2(2, 2); lrt.offsetMax = new Vector2(-2, -2);
-            lbl.color = rarity != null ? Palette.Rarity(rarity.Value) : Theme.TextDisabled;
-            lbl.raycastTarget = false;
+            // The tile's centre: the slot's icon when we have one, the old text abbreviation when we
+            // don't. Same COLOUR rule either way — the glyph carries rarity, the border carries it
+            // again, and an empty doll slot stays dim while still saying what belongs there.
+            var glyph = rarity != null ? Palette.Rarity(rarity.Value) : Theme.TextDisabled;
+            var icon = slot != null ? SlotIcon(slot.Value) : null;
+            if (icon != null)
+            {
+                var iconGo = new GameObject("Icon", typeof(RectTransform));
+                iconGo.transform.SetParent(inner.transform, false);
+                var iconRt = (RectTransform)iconGo.transform;
+                iconRt.anchorMin = Vector2.zero; iconRt.anchorMax = Vector2.one;
+                // Proportional inset, so one icon set serves the 84px doll cell and the 56px bag
+                // tile without a second asset or a per-caller size.
+                float pad = Mathf.Round(size.x * 0.17f);
+                iconRt.offsetMin = new Vector2(pad, pad); iconRt.offsetMax = new Vector2(-pad, -pad);
+                var im = iconGo.AddComponent<Image>();
+                im.sprite = icon;
+                im.preserveAspect = true;   // the source art is square, but never trust a caller's size
+                im.color = glyph;
+                im.raycastTarget = false;   // the border Image owns the tile's clicks
+            }
+            else
+            {
+                int fs = size.x >= 64 ? 13 : 11;
+                var lbl = Label(inner.transform, text, fs, TextAnchor.MiddleCenter, Vector2.zero, Vector2.zero);
+                var lrt = (RectTransform)lbl.transform;
+                lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
+                lrt.offsetMin = new Vector2(2, 2); lrt.offsetMax = new Vector2(-2, -2);
+                lbl.color = glyph;
+                lbl.raycastTarget = false;
+            }
 
             // 10.20b glyph channel: the rarity mark in the tile's BOTTOM-RIGHT corner, inside the
             // inner bg, so the tier reads without color vision. Bottom-right is the one free corner
@@ -301,7 +325,25 @@ namespace IdleGame.Game
             return go;
         }
 
-        /// <summary>Short tile label for an equip slot (placeholder until real item icons).</summary>
+        /// <summary>Loaded slot icons, including the MISSES: a null here means "we looked and there
+        /// is no sprite", which keeps a failed load from re-hitting Resources on every tile of every
+        /// redraw. Sprite names match the enum (weapon/helm/chest/gloves/boots), so adding a slot
+        /// needs art and nothing else.</summary>
+        private static readonly Dictionary<EquipSlot, Sprite?> _slotIcons = new();
+
+        /// <summary>The icon for an equip slot, or null to fall back to <see cref="SlotAbbrev"/>.
+        /// Art: game-icons.net, CC BY 3.0 (credited in the README and in Settings) — baked to
+        /// tintable white-on-transparent PNGs by <c>art/icons/build.py</c>.</summary>
+        public static Sprite? SlotIcon(EquipSlot s)
+        {
+            if (_slotIcons.TryGetValue(s, out var cached)) return cached;
+            var sprite = Resources.Load<Sprite>("Icons/" + s.ToString().ToLowerInvariant());
+            _slotIcons[s] = sprite;
+            return sprite;
+        }
+
+        /// <summary>Short tile label for an equip slot — the fallback when an icon is missing, and
+        /// still the name every non-tile surface uses.</summary>
         public static string SlotAbbrev(EquipSlot s) => s switch
         {
             EquipSlot.Weapon => "Wpn", EquipSlot.Helm => "Helm", EquipSlot.Chest => "Body",

@@ -80,3 +80,12 @@ All baked assets are committed; skip this unless making new heroes/clips.
   Xml.m2d name/slot tables and prints manifest-ready paths. Index caches at
   `Extracted\wardrobe_index.json` (outside the repo); `--rebuild` after
   re-extracting.
+
+## Credits & third-party art
+- **UI item icons** — [game-icons.net](https://game-icons.net) by **Lorc** and
+  **Delapouite**, licensed **CC BY 3.0**. Sources live in `art/icons/src/`;
+  `art/icons/build.py` bakes them to tintable white-on-transparent PNGs under
+  `unity/Assets/Game/Resources/Icons/`. The attribution also ships in-game
+  (Settings) because CC BY binds the built product, not just this repo.
+  Re-bake with:
+  `uv run --with svglib --with reportlab --with pillow --with rlPyCairo python art/icons/build.py`

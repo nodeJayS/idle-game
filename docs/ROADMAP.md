@@ -46,11 +46,11 @@ drop-table hints · manual achievement-claim UX · BFS build-reveal anim ·
 tilt-shift band-blur · SDF jiggle tail · crypt mid-run merchant/boon-draft.
 
 **10.23 UI polish arc — ACTIVE (user: "best UX and impressiveness").**
-P1 reskin + P2 layering + P3 window motion & press squash SHIPPED (ledger).
-REMAINING: **P3 rest** (reward count-ups, feed slide-in — both gate on
-`Settings.ReducedMotion`) · **icons** (tiles still read "Wpn/Glov/Boot",
-the most placeholder thing left; plus currency + nav — NOT under the MS2
-heroes-only rule) · **moment screens** (arrival, gacha reveal) · HUD cards.
+P1 reskin + P2 layering + P3 motion + the 5 slot icons SHIPPED (ledger).
+REMAINING: **icons pass 2** (currency + nav, same game-icons.net source
+and bake script) · **moment screens** (arrival, gacha reveal) · HUD cards
+· feed slide-in. Reward count-ups judged NOT worth it 2026-08-19 (the
+chat feed already prints an explicit "+X", so the delta is legible).
 
 **MM1-MM5 (10.13-10.17) COMPLETE 2026-07-15 — receipts in the ledger.
 Durable lessons the next slices ride:** non-interactive IMGUI remains by
@@ -135,17 +135,17 @@ fields on hand-copied models must thread EVERY copy site — grep
   structurally (public `Close()` animates, rebuild paths tear down
   instantly), a closing canvas is renamed + raycast-deaf, and the squash
   rides `ApplyButtonStates` so tint and movement are one contract. 857 tests.
-- 2026-08-14 movement freeze FIXED (user-reported, stage 24): heroes
-  pinned at a ledge/corner while only the melee leader fought. Two
-  defects in `Combat.StepAlong` (was MoveToward), both PERMANENT because
-  the geometry is stateless — an axis-aligned block collapsed one slide
-  candidate onto the unit's OWN position (trivially "walkable" ⇒ a
-  successful slide that never moved), and with both slides blocked it
-  simply held, stranding units in the concave mouths of the authored
-  perimeter bays. Now: slides must DISPLACE, an off-surface unit is
-  projected back on, and a pocket escape sweeps the heading in 30° rings
-  (nearest ring wins, deterministic). Probe: worst party freeze 412
-  steps → 0. 857 tests.
+- 2026-08-19 slot icons (10.23): the five equip slots stopped being text
+  abbreviations. game-icons.net art (CC BY 3.0 — Lorc + Delapouite) baked
+  white-on-transparent by `art/icons/build.py`, so ONE tint serves rarity
+  at every tile size; `UiKit.SlotIcon` caches misses and falls back to
+  `SlotAbbrev`. Attribution ships in SETTINGS — CC BY binds the build.
+- 2026-08-14 movement freeze FIXED (user-reported, stage 24): two defects
+  in `Combat.StepAlong` (was MoveToward), both PERMANENT because the
+  geometry is stateless — a slide candidate could collapse onto the unit's
+  own position and read as success, and a doubly-blocked unit just held in
+  the concave bays. Now slides must DISPLACE, strays are projected back
+  on, and a 30° ring sweep escapes pockets. Worst freeze 412 steps → 0.
 - 2026-08-01..06 UI polish P1+P2 (10.23): the warm "Tunic" reskin at KIT
   level — Theme palette rotated warm (RED highest channel, BLUE lowest,
   data-carrying hues frozen), procedural rounded 9-slice + shadow

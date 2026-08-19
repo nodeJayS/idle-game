@@ -332,7 +332,7 @@ namespace IdleGame.Game
                     hero.Equipped.TryGetValue(slot, out var itemId);
                     var item = itemId != null ? save.Inventory.Find(i => i.Id == itemId) : null;
                     var tile = UiKit.ItemTile(gridGo.transform, new Vector2(DollCell, DollCell), Vector2.zero,
-                        item?.Rarity, UiKit.SlotAbbrev(slot), raycast: true);
+                        item?.Rarity, UiKit.SlotAbbrev(slot), raycast: true, slot: slot);
                     var captured = item;
                     var dollBtn = tile.AddComponent<Button>();
                     dollBtn.onClick.AddListener(
@@ -374,7 +374,7 @@ namespace IdleGame.Game
                 any = true;
                 var it = item;
                 var tile = UiKit.ItemTile(grid, new Vector2(BagTile, BagTile), Vector2.zero, it.Rarity,
-                    UiKit.SlotAbbrev(SlotOf(it)), raycast: true);
+                    UiKit.SlotAbbrev(SlotOf(it)), raycast: true, slot: SlotOf(it));
                 var bagBtn = tile.AddComponent<Button>();
                 bagBtn.onClick.AddListener(
                     () => { SoundFx.Play("System_Shift_Click", 0.3f); EquipFromBag(save, it); }); // one click to equip (10.9d tick)

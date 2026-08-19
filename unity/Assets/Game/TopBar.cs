@@ -151,6 +151,12 @@ namespace IdleGame.Game
             ToggleRow(list, Loc.T("settings.post-fx"), () => Settings.PostFx,
                 v => { Settings.PostFx = v; GraphicsQuality.Apply(); });
 
+            // Credits. The slot icons are CC BY 3.0, which REQUIRES attribution in the shipped
+            // product — the README alone would not do it, since nobody playing the game reads that.
+            // Settings is the only surface a player can reach from anywhere, so it lives here.
+            PanelKit.Label(list, Loc.T("settings.credits"), Theme.FsTiny, Theme.TextMuted,
+                           TextAnchor.MiddleLeft);
+
             // Verb row (fixed, below the scroll): the two LEAVING verbs. Close used to sit here too,
             // competing with the header Close directly above it — two controls, same job, one screen.
             // The header Close is the kit-wide affordance every other window carries, so it wins.
