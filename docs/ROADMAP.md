@@ -105,10 +105,10 @@ pass is still owed by the user (the editor audio wedge looks healed).
 
 **10.12 Performance & mobile-readiness — (a-d) SHIPPED (ledger); (e)
 the laptop `-benchmark` run is the final confirmation (user-gated).**
-Traps that BITE: vSyncCount>0 makes Unity IGNORE targetFrameRate;
-Shader.Find-only shaders get STRIPPED from builds — customs MUST live
-under Assets/Game/Resources/Shaders; shadow gates read MESH bounds ×
-scale (renderer.bounds is zero pre-first-render); profile in bursts.
+Rig SWEEPS levers per run (scale 1/.75/.6, shadows+post isolated,
+boot_to_playable_ms, `-benchmarkTag`) — one trip says WHICH cut to
+spend. Traps: vSync>0 ⇒ targetFrameRate IGNORED; Shader.Find-only
+customs get STRIPPED (→ Resources/Shaders); gates read MESH bounds.
 
 **10.3 UI kit lessons (shipped 2026-07-11 — 10.13 and the polish arc
 ride them):** force-expand HLG clamps CHILD flex to ≥1 — a fixed-height

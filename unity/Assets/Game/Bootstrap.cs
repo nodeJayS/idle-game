@@ -100,6 +100,10 @@ namespace IdleGame.Game
             SaveStore.Delete(); // a fresh sandbox every run
             Application.targetFrameRate = -1;
             QualitySettings.vSyncCount = 0;
+            // 2026-08-20: a standalone player THROTTLES ITSELF when it loses focus, and the whole
+            // point of the .bat is that the tester walks away. Without this the tour crawls and
+            // every frame time in the report is a lie about the machine, not a measurement.
+            Application.runInBackground = true;
 
             var save = Save.NewGame(Seed, cfg, NowMs());
             for (int st = 1; st < 25; st++) save = Progression.OnStageCleared(save, st, cfg);
