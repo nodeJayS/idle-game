@@ -84,10 +84,26 @@ namespace IdleGame.Game
 
         // Chat window layout — remembered across runs. X/Y are the window's top-left anchored
         // position; W/H its size. Locked freezes drag + resize; Collapsed = minimized to the bar.
+        //
+        // Chat lives BOTTOM-left, not top-left (2026-08-20). The top-left corner is a column
+        // three systems already share: the TopBar chip + Settings button (uGUI, ref units 0→114),
+        // then the IMGUI wallet and the FTUE breadcrumb stacked under it. IMGUI paints after
+        // canvas compositing, so no sortingOrder saves a panel parked there — the wallet drew its
+        // "0 / 0 / 0" and "Next: …" straight through the chat feed while the Settings button sat
+        // on the chat header. The two systems also measure in different spaces (canvas ref units
+        // vs DPI-scaled GUI units) and the column's height moves with a11y text scale and whether
+        // the breadcrumb is armed, so an offset tuned to clear it would only drift. Bottom-left is
+        // free at every scale: party chips are bottom-RIGHT and the NavBar owns the bottom band.
+        private const float ChatDefaultH = 190f;
+        // Sits the panel as low as the drag clamp allows: canvas half-height (720 ref / 2), less
+        // the clamp's 8px edge margin, the NavBar's reserved band, and the panel's own height
+        // (pivot is the TOP-left corner, so Y is the top edge). Matches UiKit.ClampToCanvas's minY,
+        // which re-derives the same floor if text scale grows the window.
+        private const float ChatDefaultY = -(360f - 8f - Theme.HudBarH - ChatDefaultH);
         public static float ChatX        { get => PlayerPrefs.GetFloat("chatX", 12f);  set => SetF("chatX", value); }
-        public static float ChatY        { get => PlayerPrefs.GetFloat("chatY", 300f); set => SetF("chatY", value); }
+        public static float ChatY        { get => PlayerPrefs.GetFloat("chatY", ChatDefaultY); set => SetF("chatY", value); }
         public static float ChatW        { get => PlayerPrefs.GetFloat("chatW", 250f); set => SetF("chatW", value); }
-        public static float ChatH        { get => PlayerPrefs.GetFloat("chatH", 190f); set => SetF("chatH", value); }
+        public static float ChatH        { get => PlayerPrefs.GetFloat("chatH", ChatDefaultH); set => SetF("chatH", value); }
         public static bool  ChatLocked   { get => PlayerPrefs.GetInt("chatLock", 0) != 0;      set => Set("chatLock", value); }
         public static bool  ChatCollapsed { get => PlayerPrefs.GetInt("chatCollapsed", 0) != 0; set => Set("chatCollapsed", value); }
 
