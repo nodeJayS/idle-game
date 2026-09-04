@@ -179,9 +179,11 @@ namespace IdleGame.GameCore
             ["arrival.bonus"] = "Bonus",
             ["arrival.claim-line"] = "{0}   +{1} gems",
             ["arrival.collect"] = "Collect",
-            ["arrival.gold"] = "Gold:  {0}",
-            ["arrival.xp"] = "XP:    {0}",
-            ["arrival.items"] = "Items: {0}",
+            // 10.23: the arrival payoff became tiles (number over caption), so these are the
+            // CAPTIONS now — the value renders separately and carries its own emphasis.
+            ["arrival.gold-label"] = "Gold",
+            ["arrival.xp-label"] = "XP",
+            ["arrival.items-label"] = "Items",
 
             // ---- chat window chrome (ChatPanel) ----
             ["chat.title"] = "Chat",

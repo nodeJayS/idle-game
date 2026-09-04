@@ -47,7 +47,7 @@ tilt-shift band-blur · SDF jiggle tail · crypt mid-run merchant/boon-draft.
 
 **10.23 UI polish arc — ACTIVE (user: "best UX and impressiveness").**
 P1 reskin · P2 layering · P3 motion · icons · gacha reveal beat SHIPPED.
-REMAINING: **arrival card** · HUD cards · feed slide-in. NOT worth it, don't
+REMAINING: **HUD cards** · feed slide-in. NOT worth it, don't
 re-pitch (2026-08-19, measured): count-ups (feed already prints "+X"); NAV
 icons (clusters use 1016 of 1280 ref width; 7 icons eat 210 of 264 slack).
 
@@ -127,6 +127,13 @@ fields on hand-copied models must thread EVERY copy site — grep
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-09-04 arrival card (10.23): the boot payoff stopped being a list of
+  labelled lines and became three TILES (number loud, caption quiet) that
+  land in sequence and count up — the arc's card language, on the offline
+  return. Unscaled + Reduced-Motion-settled; every band pinned with
+  PanelKit.Fixed and the PANEL SIZED FROM THE SAME NUMBERS, because sizing
+  a card by guesswork clipped its own title at 100% (Play-caught, the 10.20
+  trap). Verified at 100% and 130% text scale, zero clipped rects.
 - 2026-08-19 UI polish P3 motion (10.23): windows ease IN (130ms) and OUT
   (90ms); controls squash 4% under the finger. Panels are destroy-and-rebuild,
   so a build ≠ an open and a destroy ≠ a close: `IsRebuild` gates the entrance
@@ -203,8 +210,7 @@ fields on hand-copied models must thread EVERY copy site — grep
 - 2026-07-12 10.8 Endless COMPLETE: `StageFor` generates rows past the
   table, zones cycle, EndlessBest (save v3), "Push beyond…" nav +
   Endless-N label (`MaxSelectableStage` = the ONE selection rule), gems
-  every 5th new depth, BalanceSim `endless` (caught a long-gold overflow
-  → EndlessRateGrowth 1.02 taper), account-chip record line.
+  every 5th depth, BalanceSim `endless` (caught a long-gold overflow).
 - 2026-07-11/12 crypt own-depth curve + tuning (user verdicts): floors
   anchor to `Crypt.StageEquivalent` — nothing to sandbag; loot/gold/XP
   ride the depth, key-bounded; HP ×0.6 + atk +2%/floor (walls = wipes,
@@ -212,30 +218,23 @@ fields on hand-copied models must thread EVERY copy site — grep
   1.06, boon base 20→50 · 2× speed toggle (Crypt+Tower only; timeScale
   pinned off the mode kind every frame) · caster root (CastRootMs 700).
 - 2026-07-11 10.5 Loot QoL 2.0 COMPLETE: per-slot loot filter + imprint
-  guard · CompareCard compare-anywhere · SalvageMany + Select mode ·
-  §6.2 set bonuses (30 gen'd, gate-tuned ≤8%) + tells · loadout
-  snapshots. 699 → 738 tests, all Play-verified.
+  guard · CompareCard · SalvageMany + Select mode · §6.2 set bonuses
+  (30 gen'd, gate-tuned ≤8%) + tells · loadout snapshots. 738 tests.
 - 2026-07-11 10.12(a-d) perf: FrameCap 60/10 · StepCombat scratch buffers
-  (calm farming ~31→11 KB/frame) · scenery material cache + static
-  combine (~1,514→~486 batches) · shader Prewarm behind the main menu ·
-  quality tiers in Settings → GraphicsQuality.Apply.
-- 2026-07-10 10.4 Goals hub COMPLETE (§7.5): Claimables/ClaimAll read
-  model + PreviewNext; Goals window on PanelKit; control-bar pip;
-  Achievements panel retired. Play-verified claim loop end-to-end.
+  (~31→11 KB/frame) · scenery cache + static combine (~1,514→~486
+  batches) · shader Prewarm · quality tiers → GraphicsQuality.Apply.
+- 2026-07-10 10.4 Goals hub COMPLETE (§7.5): Claimables/ClaimAll +
+  PreviewNext; Goals window on PanelKit; pip; claim loop verified.
 - 2026-07-10/11 10.3 UI foundation COMPLETE: Theme tokens + PanelKit
-  layout-group kit (+Modal); Heroes/Inventory/three modals migrated —
-  zero positional literals; HUD anchoring; font audit (single
-  UiKit.Font, 24/24 glyphs); verified at 16:9/16:10/21:9.
+  layout kit (+Modal); Heroes/Inventory/three modals migrated — zero
+  positional literals; font audit; verified at 16:9/16:10/21:9.
 - 2026-07-10 10.2 FTUE COMPLETE (§7.4): staged-reveal gating, five guided
-  intro beats, staged button reveal, reveal toasts, intro strip,
-  celebration beats, breadcrumb. Play-verified S0→S12.
+  intro beats + toasts/intro strip/breadcrumb. Play-verified S0→S12.
 - 2026-07-09 10.1 The Great Rebalance COMPLETE: thorns capped mirror,
-  gear/level ~50/50, per-tier HP+damage taper, major-boss taper (soft
-  wall ~80-90; stage 100 = the ~L100 mythic capstone), BalanceSim
-  account stacks + `pace` mode.
+  gear/level ~50/50, per-tier + major-boss tapers (soft wall ~80-90;
+  stage 100 = the ~L100 capstone), BalanceSim stacks + `pace` mode.
 - 2026-07-09 10.7 crypt overhaul COMPLETE: room roles/keys, wave phases,
-  chests/mimics/reward vault, client tells, mid-run persistence+resume+
-  summary, BalanceSim `crypt` chart (10.7a–g).
+  chests/mimics/vault, tells, mid-run resume+summary (10.7a–g).
 - 2026-07-07 10.11 hero look & FX COMPLETE: wardrobe browser, hero
   relooks (user-picked), FxKit procedural FX for every projectile.
 - 2026-07-03..07 foundation week (receipts in git): gacha MVP + Ice
