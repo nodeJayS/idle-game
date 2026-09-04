@@ -47,9 +47,9 @@ tilt-shift band-blur · SDF jiggle tail · crypt mid-run merchant/boon-draft.
 
 **10.23 UI polish arc — ACTIVE (user: "best UX and impressiveness").**
 P1 reskin · P2 layering · P3 motion · icons · gacha reveal beat SHIPPED.
-REMAINING: **HUD cards** · feed slide-in. NOT worth it, don't
-re-pitch (2026-08-19, measured): count-ups (feed already prints "+X"); NAV
-icons (clusters use 1016 of 1280 ref width; 7 icons eat 210 of 264 slack).
+REMAINING: **feed slide-in**. NOT worth it, don't re-pitch (2026-08-19,
+measured): count-ups (feed already prints "+X"); NAV icons (clusters use
+1016 of 1280 ref width; 7 icons eat 210 of 264 slack).
 
 **MM1-MM5 (10.13-10.17) COMPLETE 2026-07-15 — receipts in the ledger.
 Durable lessons the next slices ride:** non-interactive IMGUI remains by
@@ -127,6 +127,13 @@ fields on hand-copied models must thread EVERY copy site — grep
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-09-04 HUD cards (10.23): party chips were flat DrawRect slabs and the
+  wallet bare text on the diorama — the last surfaces reading as debug overlay
+  beside the rounded, shadowed uGUI panels. Both now sit on the kit's OWN baked
+  sprites, 9-sliced by hand for IMGUI (`DrawSliced`/`DrawCard`, scratch arrays
+  so OnGUI still allocates ~nothing): the same arcs as every window, not a
+  lookalike that drifts when a radius changes. The wallet card is MEASURED off
+  the widest line, so 130% text or a 999.9M jump grows it, never spills it.
 - 2026-09-04 arrival card (10.23): the boot payoff stopped being a list of
   labelled lines and became three TILES (number loud, caption quiet) that
   land in sequence and count up — the arc's card language, on the offline
@@ -148,18 +155,15 @@ fields on hand-copied models must thread EVERY copy site — grep
   white-on-transparent (`art/icons/build.py`) so ONE tint serves anything;
   `SlotIcon`/`IconTex` cache misses. Attribution in SETTINGS — CC BY binds it.
 - 2026-08-14 movement freeze FIXED (user-reported, stage 24): two defects
-  in `Combat.StepAlong` (was MoveToward), both PERMANENT because the
-  geometry is stateless — a slide candidate could collapse onto the unit's
-  own position and read as success, and a doubly-blocked unit just held in
-  the concave bays. Now slides must DISPLACE, strays are projected back
-  on, and a 30° ring sweep escapes pockets. Worst freeze 412 steps → 0.
+  in `Combat.StepAlong`, PERMANENT because the geometry is stateless — a
+  slide could collapse onto the unit's own position and read as success,
+  and doubly-blocked units held in concave bays. Slides must now DISPLACE,
+  strays project back on, a 30° ring sweep escapes pockets. 412 steps → 0.
 - 2026-08-01..06 UI polish P1+P2 (10.23): the warm "Tunic" reskin at KIT
-  level — Theme palette rotated warm (RED highest channel, BLUE lowest,
-  data-carrying hues frozen), procedural rounded 9-slice + shadow
-  sprites, ColorTint press states — one slice reskinned every screen ·
-  P2 layering: Summon backdrop, Heroes columns scroll, Settings/IMGUI
-  z-order, scroll bottom-fade, HUD panels reserving the NavBar band,
-  Tower packs ringing the party. 848 tests.
+  level — Theme palette rotated warm (RED highest channel, data-carrying
+  hues frozen), procedural rounded 9-slice + shadow sprites, ColorTint
+  press states · P2 layering: Summon backdrop, Heroes scroll, IMGUI
+  z-order, bottom-fade, the NavBar band, Tower packs ring. 848 tests.
 - 2026-07-16 10.20(a-c) a11y + l10n foundation (MM8): Text Size
   100/115/130 via one `UiKit.Scaled` multiplier (IMGUI styles restamped
   per OnGUI), Reduced Motion (hit-stop, shake, pulse), Haptics toggle +
@@ -177,24 +181,21 @@ fields on hand-copied models must thread EVERY copy site — grep
   (10 pts/quest, auto-pay, gems every 5th); Season tab + Today
   live-events + boot banners. 823 tests; verified on the live window.
 - 2026-07-15 10.15 codex/collection COMPLETE: CodexState (lifetime kills
-  via PendingKills + BankKills tier crossings; set-slot discovery
-  stamped at AddLoot BEFORE the salvage decision — seen is seen). Every
-  completed tier pays +0.1% Hp/Atk/Def (~+16% full, ≤25% ceiling-tested);
-  Goals hub Codex tab; retro-stamp at load. 794 tests.
+  via PendingKills + BankKills tiers; set discovery stamped at AddLoot
+  BEFORE the salvage decision — seen is seen). Each tier pays +0.1%
+  Hp/Atk/Def (≤25% ceiling-tested); Codex tab; retro-stamp. 794 tests.
 - 2026-07-15 10.14 the 30-second session COMPLETE: `Session.Arrive`
   (idle + daily as ONE atomic boot payoff — two boot modals became one
   arrival card) + `Session.Preview/Apply` (the Manage super-verb: claim →
   equip sweep → nuclear salvage). Taps-to-payoff at boot: 2. 770 tests.
 - 2026-07-14/15 10.13 touch-first UI reflow COMPLETE: SafeArea + pinch
   zoom (a) · uGUI thumb-reach NavBar replaced the IMGUI control bar (b) ·
-  44pt floors + safe-inset panels over full-bleed dims (c) · Settings/
-  TowerView/ModifierPanel/MainMenu onto PanelKit — ZERO hand-placed
-  windows (d) · TopControls + ModesWindow retire the last interactive
-  IMGUI (e). Play-verified at 2340×1080 through real button clicks.
+  44pt floors + safe-inset panels (c) · Settings/Tower/Modifier/MainMenu
+  onto PanelKit — ZERO hand-placed windows (d) · TopControls + ModesWindow
+  retire the last interactive IMGUI (e). Verified at 2340×1080.
 - 2026-07-14 Tower per-floor reward bundles: first clear banks gold + a
-  boss-loot bundle in `Tower.RecordClear` (exploit-proof gate; kills
-  still pay nothing), anchored to `Tower.StageEquivalent` (floor 30 ≈
-  stage 100); milestone floors pay MAJOR bundles. 760 tests.
+  boss-loot bundle in `Tower.RecordClear` (exploit-proof gate; kills still
+  pay nothing), anchored to `Tower.StageEquivalent`. 760 tests.
 - 2026-07-13 10.6 combat juice COMPLETE: hit-stop (income provably
   untaxed — sim accumulator on REAL time × mode speed) · per-element
   ImpactBursts · frost de-whited · trail ribbons · kill-streak beats ·

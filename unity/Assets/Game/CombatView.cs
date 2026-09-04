@@ -2924,11 +2924,26 @@ namespace IdleGame.Game
             // Icon + number. The word ("Gold", "Scrap", "Gems") was the icon's job all along, so the
             // loc strings are now the bare value — the keys stay because a language may still want
             // an affix, and because a missing texture falls back to a naked number, never to nothing.
-            DrawWalletLine(Theme.HudPad, ref y, Loc.F("hud.wallet-gold", Num.CompactFloor(gold)),
+            string goldLine = Loc.F("hud.wallet-gold", Num.CompactFloor(gold));
+            string scrapLine = Loc.F("hud.wallet-scrap", Num.CompactFloor(scrap));
+            string gemsLine = Loc.F("hud.wallet-gems", Num.CompactFloor(gems));
+
+            // 10.23 HUD cards: the wallet used to be bare text lying on the diorama, where a gold
+            // number over sunlit grass is a contrast accident waiting to happen. It gets the same
+            // card as everything else — MEASURED, not guessed: the widest line decides the width, so
+            // a 130% text scale or a jump to "999.9M" grows the card instead of spilling out of it.
+            float wts = Settings.TextScale;
+            float wPad = 10f * wts, iconW = 24f * wts;
+            float textW = Mathf.Max(WalletTextWidth(goldLine),
+                          Mathf.Max(WalletTextWidth(scrapLine), WalletTextWidth(gemsLine)));
+            DrawCard(Theme.HudPad - wPad, y - wPad,
+                     wPad * 2f + iconW + textW, wPad * 2f + 70f * wts, Theme.BgHudPanel);
+
+            DrawWalletLine(Theme.HudPad, ref y, goldLine,
                            new Color(1f, 0.84f, 0.35f), icon: UiKit.IconTex("gold"));
-            DrawWalletLine(Theme.HudPad, ref y, Loc.F("hud.wallet-scrap", Num.CompactFloor(scrap)),
+            DrawWalletLine(Theme.HudPad, ref y, scrapLine,
                            new Color(0.75f, 0.78f, 0.85f), icon: UiKit.IconTex("scrap"));
-            DrawWalletLine(Theme.HudPad, ref y, Loc.F("hud.wallet-gems", Num.CompactFloor(gems)),
+            DrawWalletLine(Theme.HudPad, ref y, gemsLine,
                            new Color(0.65f, 0.85f, 1f), icon: UiKit.IconTex("gems"));
 
             // FTUE breadcrumb (§7.4): one muted contextual hint under the wallet — the least-cluttered HUD
@@ -2939,6 +2954,17 @@ namespace IdleGame.Game
                 // Hints run longer than wallet lines ("Idle rewards ready to claim") — widen or they clip.
                 if (hint != null) { y += 4f; DrawWalletLine(Theme.HudPad, ref y, hint, new Color(0.70f, 0.73f, 0.80f), 520f); }
             }
+        }
+
+        /// <summary>Width one wallet line's TEXT needs at the current style/scale. The GUIContent is
+        /// cached and re-pointed rather than newed per call — this runs three times a frame inside
+        /// OnGUI, which is the hot path 10.12b cleared of allocations.</summary>
+        private readonly GUIContent _measure = new();
+        private float WalletTextWidth(string text)
+        {
+            if (_walletStyle == null) return 0f;
+            _measure.text = text;
+            return _walletStyle.CalcSize(_measure).x;
         }
 
         // Per-frame OnGUI style caches (10.12b — the _walletStyle ??= idiom: GUIStyle needs
@@ -3042,8 +3068,9 @@ namespace IdleGame.Game
 
                 // Shares the floating-HUD ground with the chat/quest panels (P1): these chips sit ON
                 // the world beside them, so a cold literal here read as a slate island once the kit
-                // went warm. IMGUI, but the token is the same one the uGUI panels use.
-                DrawRect(x, y, w, rowH, Theme.BgHudPanel);
+                // went warm. IMGUI, but the token — and now the SURFACE (10.23 HUD cards: rounded,
+                // shadowed, same baked sprites) — is the same one the uGUI panels use.
+                DrawCard(x, y, w, rowH, Theme.BgHudPanel);
                 if (heroId == null)
                 {
                     GUI.Label(new Rect(x, y, w, rowH), Loc.T("hud.party-empty"), PartyEmptyStyle);
@@ -3220,6 +3247,70 @@ namespace IdleGame.Game
             GUI.color = c;
             GUI.DrawTexture(new Rect(x, y, w, h), _white);
             GUI.color = prev;
+        }
+
+        // 9-slice scratch (10.12b: OnGUI allocates ~nothing in the steady state). Reused by every
+        // DrawSliced call — IMGUI is single-threaded, so one set of buffers is enough.
+        private readonly float[] _slX = new float[3], _slW = new float[3], _slY = new float[3], _slH = new float[3];
+        private readonly float[] _slU = new float[3], _slUw = new float[3], _slV = new float[3], _slVh = new float[3];
+
+        /// <summary>
+        /// Draw one of the kit's 9-sliced sprites in IMGUI. uGUI gets slicing for free from
+        /// <c>Image.Type.Sliced</c>; the HUD has to do it by hand, and it is worth doing rather than
+        /// stretching the sprite whole — an unsliced rounded rect squashes its corner arcs into
+        /// ellipses, which is exactly the tell that says "this panel is not from the same kit".
+        /// Deliberately reuses <see cref="UiKit"/>'s baked textures: the HUD's corners are then the
+        /// SAME arcs as every window's, not a lookalike that drifts the next time a radius changes.
+        /// </summary>
+        private void DrawSliced(Rect r, Sprite sprite, Color color)
+        {
+            var tex = sprite.texture;
+            float n = tex.width;
+            float b = sprite.border.x;                 // the kit bakes an equal border on all four sides
+            if (n <= 0f || b <= 0f) return;
+
+            // Below twice the border there is no middle left to stretch; the arcs would overlap and
+            // read as a blob, so a too-small card just takes the corner radius it can afford.
+            b = Mathf.Min(b, Mathf.Min(r.width, r.height) * 0.5f);
+            float ub = b / n;
+
+            _slX[0] = r.x; _slX[1] = r.x + b; _slX[2] = r.xMax - b;
+            _slW[0] = b; _slW[1] = Mathf.Max(0f, r.width - 2f * b); _slW[2] = b;
+            _slY[0] = r.y; _slY[1] = r.y + b; _slY[2] = r.yMax - b;
+            _slH[0] = b; _slH[1] = Mathf.Max(0f, r.height - 2f * b); _slH[2] = b;
+
+            _slU[0] = 0f; _slU[1] = ub; _slU[2] = 1f - ub;
+            _slUw[0] = ub; _slUw[1] = Mathf.Max(0f, 1f - 2f * ub); _slUw[2] = ub;
+            // Texture v runs BOTTOM-up while screen y runs top-down, so the screen's top row has to
+            // sample the texture's top band. Symmetric sprites hide this mistake; a future asymmetric
+            // one would not.
+            _slV[0] = 1f - ub; _slV[1] = ub; _slV[2] = 0f;
+            _slVh[0] = ub; _slVh[1] = Mathf.Max(0f, 1f - 2f * ub); _slVh[2] = ub;
+
+            var prev = GUI.color;
+            GUI.color = color;
+            for (int iy = 0; iy < 3; iy++)
+                for (int ix = 0; ix < 3; ix++)
+                {
+                    if (_slW[ix] <= 0f || _slH[iy] <= 0f) continue;
+                    GUI.DrawTextureWithTexCoords(new Rect(_slX[ix], _slY[iy], _slW[ix], _slH[iy]), tex,
+                                                 new Rect(_slU[ix], _slV[iy], _slUw[ix], _slVh[iy]));
+                }
+            GUI.color = prev;
+        }
+
+        /// <summary>
+        /// A HUD surface with the same body the uGUI panels have: rounded, and lifted off the diorama
+        /// by the kit's soft shadow. The HUD floats over a painted world rather than over a neutral
+        /// page, so the shadow is doing legibility work as much as style — it separates a dark chip
+        /// from dark ground, which a flat rect leaves to luck.
+        /// </summary>
+        private void DrawCard(float x, float y, float w, float h, Color fill, int radius = Theme.RadiusPanel)
+        {
+            const float grow = 10f, drop = 3f;   // nudged DOWN: one light source, same as the windows
+            DrawSliced(new Rect(x - grow, y - grow + drop, w + grow * 2f, h + grow * 2f),
+                       UiKit.SoftShadow(radius + 4), new Color(0f, 0f, 0f, 0.30f));
+            DrawSliced(new Rect(x, y, w, h), UiKit.RoundedRect(radius), fill);
         }
 
         private void EnsureTextures()
