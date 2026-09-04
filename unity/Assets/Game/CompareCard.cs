@@ -57,13 +57,13 @@ namespace IdleGame.Game
 
             if (eval == null || targetId == null)
             {
-                Line(parent, "No upgrade for any hero", Theme.FsSmall, UpgradeTell.Side, HeaderH);
+                Line(parent, Loc.T("compare.no-upgrade"), Theme.FsSmall, UpgradeTell.Side, HeaderH);
                 return;
             }
 
             // Header: who we're comparing against, and what currently fills that slot.
             var slot = cfg.ItemBases[item.BaseId].Slot;
-            Line(parent, $"vs {HeroName(save, cfg, targetId)} — {EquippedName(save, cfg, targetId, slot)}",
+            Line(parent, Loc.F("compare.vs", HeroName(save, cfg, targetId), EquippedName(save, cfg, targetId, slot)),
                 Theme.FsSmall, Theme.TextMuted, HeaderH);
 
             // §6.2 set tells: what set this joins and where the target hero would land. The
@@ -72,14 +72,14 @@ namespace IdleGame.Game
             SetLines(parent, save, item, cfg, targetId);
 
             // Headline verdict — for ALL verdicts (a red ▼ −12% is as actionable as a green ▲ +5%).
-            Line(parent, $"{UpgradeTell.Glyph(eval.Verdict)} {UpgradeTell.Pct(eval.DeltaPercent)} power",
+            Line(parent, Loc.F("compare.power", UpgradeTell.Glyph(eval.Verdict), UpgradeTell.Pct(eval.DeltaPercent)),
                 Theme.FsBody, UpgradeTell.Color(eval.Verdict), HeadlineH);
 
             // Derived deltas (DPS / Effective-Life), same rounding/glyph convention as the Heroes
             // screen's compare pane (EquipmentView.DerivedDeltaRow).
             var (before, after) = Inventory.ComparePairForHero(save, targetId, item, cfg);
-            DerivedRow(parent, "DPS", DerivedStats.Dps(after) - DerivedStats.Dps(before));
-            DerivedRow(parent, "Eff. Life",
+            DerivedRow(parent, Loc.T("compare.dps"), DerivedStats.Dps(after) - DerivedStats.Dps(before));
+            DerivedRow(parent, Loc.T("compare.eff-life"),
                 DerivedStats.EffectiveHp(after, cfg, stage) - DerivedStats.EffectiveHp(before, cfg, stage));
 
             // Raw stat swap: the non-zero sheet-stat deltas, in canonical order. Iterating
@@ -91,7 +91,7 @@ namespace IdleGame.Game
             {
                 double d = delta.Get(k);
                 if (d == 0) continue;
-                Line(parent, $"{(d > 0 ? "▲" : "▼")} {StatDisplay.Label(k)}  {StatDisplay.Delta(k, d)}",
+                Line(parent, Loc.F("compare.stat-row", d > 0 ? "▲" : "▼", StatDisplay.Label(k), StatDisplay.Delta(k, d)),
                     Theme.FsSmall, d > 0 ? Theme.Good : Theme.Bad, RawH);
                 if (++shown >= MaxRawRows) break;
             }
@@ -103,7 +103,7 @@ namespace IdleGame.Game
             {
                 var all = Upgrades.BestForItem(save, item, cfg, stage);
                 if (all != null && all.Verdict == Upgrades.Verdict.Upgrade && all.HeroId != targetId)
-                    Line(parent, $"▲ {UpgradeTell.Pct(all.DeltaPercent)} for {HeroName(save, cfg, all.HeroId)} (benched)",
+                    Line(parent, Loc.F("compare.benched", UpgradeTell.Pct(all.DeltaPercent), HeroName(save, cfg, all.HeroId)),
                         Theme.FsSmall, UpgradeTell.Up, HeaderH);
             }
         }
@@ -134,16 +134,17 @@ namespace IdleGame.Game
                         if (eq != null && eq.SetId == item.SetId) worn++;
                     }
                     worn++; // the candidate itself
-                    wear = $" — {worn}/4";
+                    wear = Loc.F("compare.set-wear", worn);
                 }
             }
 
-            Line(parent, $"{set.Name}{wear}", Theme.FsSmall, Theme.SetBonus, RawH);
+            Line(parent, StatDisplay.SetName(item.SetId, set.Name) + wear, Theme.FsSmall, Theme.SetBonus, RawH);
             // Both tiers on ONE rich-text line (the detail panes are height-budgeted — a third
             // set line was enough to starve the identity block at 1080p): reached tier in set
             // teal, unreached in dim.
             var bonus = Line(parent,
-                $"{TierText("2pc", set.Piece2, worn >= 2)}   {TierText("4pc", set.Piece4, worn >= 4)}",
+                $"{TierText(Loc.T("compare.tier-2pc"), set.Piece2, worn >= 2)}   "
+                + TierText(Loc.T("compare.tier-4pc"), set.Piece4, worn >= 4),
                 Theme.FsSmall, Color.white, RawH);
             bonus.supportRichText = true;
         }
@@ -154,7 +155,7 @@ namespace IdleGame.Game
             string hex = ColorUtility.ToHtmlStringRGB(color);
             var parts = new List<string>();
             foreach (var kv in block)
-                parts.Add($"+{StatDisplay.Value(kv.Key, kv.Value)} {StatDisplay.Label(kv.Key)}");
+                parts.Add(Loc.F("compare.set-stat", StatDisplay.Value(kv.Key, kv.Value), StatDisplay.Label(kv.Key)));
             return $"<color=#{hex}>{tag} {string.Join(", ", parts)}</color>";
         }
 
@@ -167,7 +168,7 @@ namespace IdleGame.Game
             string arrow = r > 0 ? "▲" : "▼";
             string val = (r > 0 ? "+" : "-") + Math.Abs(r).ToString("N0");
             var color = r > 0 ? Theme.GoodBright : Theme.BadBright;
-            Line(into, $"{arrow} {label}  {val}", Theme.FsLabel, color, DerivedH);
+            Line(into, Loc.F("compare.derived-row", arrow, label, val), Theme.FsLabel, color, DerivedH);
         }
 
         /// <summary>A fixed-height compare line (Fixed/Label idiom).</summary>
@@ -191,16 +192,16 @@ namespace IdleGame.Game
             if (hero != null && hero.Equipped.TryGetValue(slot, out var eqId))
             {
                 var eq = save.Inventory.Find(i => i.Id == eqId);
-                if (eq != null) return StatDisplay.PrettyBase(eq.BaseId);
+                if (eq != null) return StatDisplay.BaseName(eq.BaseId);
             }
-            return "empty slot";
+            return Loc.T("compare.empty-slot");
         }
 
         private static string HeroName(SaveState save, GameConfig cfg, string heroId)
         {
             var hero = save.Heroes.Find(h => h.Id == heroId);
             if (hero != null && cfg.Heroes.TryGetValue(hero.DefId, out var def) && !string.IsNullOrEmpty(def.Name))
-                return def.Name;
+                return StatDisplay.HeroName(hero.DefId, def.Name);
             return heroId;
         }
     }

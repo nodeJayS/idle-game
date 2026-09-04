@@ -206,6 +206,69 @@ namespace IdleGame.GameCore
             ["rarity.legendary"] = "Legendary",
             ["rarity.mythic"] = "Mythic",
 
+            // ---- stat sheet vocabulary (StatDisplay) ----
+            ["stat.hp"] = "Life",
+            ["stat.def"] = "Defense",
+            ["stat.hp-regen"] = "Life Regen",
+            ["stat.atk"] = "Attack",
+            ["stat.atk-spd"] = "Attack Speed",
+            ["stat.crit-chance"] = "Crit Chance",
+            ["stat.crit-dmg"] = "Crit Damage",
+            ["stat.attack-range"] = "Range",
+            ["stat.splash-radius"] = "Splash",
+            ["stat.move-spd"] = "Move Speed",
+            // Units: the NUMBER arrives pre-formatted; these place the marker around it.
+            ["stat.unit-percent"] = "{0}%",
+            ["stat.unit-multiplier"] = "x{0}",
+            ["stat.unit-per-second"] = "{0}/s",
+
+            // ---- item naming grammar (StatDisplay.ItemName) ----
+            // Affix word order is grammar, not decoration: a language that inflects or inverts
+            // these reorders the placeholders instead of patching the composition in C#.
+            ["item.name-prefixed"] = "{0} {1}",
+            ["item.name-suffixed"] = "{0} of {1}",
+            ["item.name-enhanced"] = "+{0} {1}",
+
+            // ---- Tower of Ascension window ----
+            ["tower.title"] = "Tower of Ascension",
+            ["tower.highest"] = "Highest floor cleared: <b>{0}</b> / {1}",
+            ["tower.buff"] = "Ascension buff: <color=#ffd766>+{0:0}%</color> Hp / Atk / Def (account-wide)",
+            ["tower.buff-none"] = "Ascension buff: none yet",
+            ["tower.next-milestone"] = "Next milestone at floor {0} (+{1:0}% more)",
+            ["tower.conquered"] = "Tower conquered — every floor cleared!",
+            ["tower.floor-preview"] = "<b>Floor {0}</b>   ·   modifier: {1}",
+            ["tower.modifier-none"] = "none",
+            ["tower.guardian-tag"] = "   ·   <color=#ffd766>guardian + buff</color>",
+            ["tower.reward"] = "Clear: +{0} gems · ~{1} gold · ",
+            ["tower.bundle-major"] = "major boss bundle",
+            ["tower.bundle-boss"] = "boss loot bundle",
+            ["tower.reward-buff"] = " · account buff",
+            ["tower.reward-mod-pair"] = " · unlocks rare modifier pair",
+            ["tower.one-attempt"] = "One attempt per floor — no farm income here. Beat it to keep the floor; fail and train up to retry.",
+            ["tower.enter-floor"] = "Enter Floor {0}",
+
+            // ---- compare card / equip-compare pane ----
+            ["compare.no-upgrade"] = "No upgrade for any hero",
+            ["compare.vs"] = "vs {0} — {1}",
+            ["compare.power"] = "{0} {1} power",
+            ["compare.dps"] = "DPS",
+            ["compare.eff-life"] = "Eff. Life",
+            ["compare.stat-row"] = "{0} {1}  {2}",
+            ["compare.derived-row"] = "{0} {1}  {2}",
+            ["compare.benched"] = "▲ {0} for {1} (benched)",
+            ["compare.empty-slot"] = "empty slot",
+            ["compare.set-wear"] = " — {0}/4",
+            ["compare.set-stat"] = "+{0} {1}",
+            ["compare.tier-2pc"] = "2pc",
+            ["compare.tier-4pc"] = "4pc",
+
+            // ---- imprint flavor (mechanical-modifier signatures, shown instead of a raw stat) ----
+            ["imprint.splash-radius"] = "wider splash radius",
+            ["imprint.attack-range"] = "longer attack range",
+            ["imprint.lifesteal"] = "leeches life on hit",
+            ["imprint.thorns-reflect"] = "reflects damage taken",
+            ["imprint.chain-count"] = "attacks chain to nearby enemies",
+
             // ---- codex kill tiers (CombatView feed) ----
             ["codex.tier-bronze"] = "Bronze",
             ["codex.tier-silver"] = "Silver",
@@ -214,6 +277,8 @@ namespace IdleGame.GameCore
             // ---- live-ops events (composed CLIENT-side off EventInfo.Id — the 10.20c leak fix) ----
             ["event.weekend-boost"] = "{0} Weekend Boost",
             ["event.mutated-crypt"] = "Mutated Crypt",
+            // Mirrors Events.Active's own defensive fallback for an out-of-range zone index.
+            ["event.zone-fallback"] = "Zone",
             ["event.ends-in"] = "{0} — ends in {1}h",
 
             // ---- IMGUI HUD (CombatView wallet / context lines / party chips) ----

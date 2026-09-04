@@ -36,7 +36,7 @@ namespace IdleGame.Game
         {
             // PanelKit.Window: standard header (title + Close) + a layout-driven body. Close routes
             // through the same Close() the toggle/Modes callers use, so the open/close contract holds.
-            var winGo = PanelKit.Window(transform, "Tower of Ascension", Close, out var body,
+            var winGo = PanelKit.Window(transform, Loc.T("tower.title"), Close, out var body,
                                         "TowerCanvas", sortOrder: 90, max: new Vector2(560f, 420f));
             _canvas = winGo.GetComponent<Canvas>();
             var save = _view.CurrentSave;
@@ -50,21 +50,22 @@ namespace IdleGame.Game
             PanelKit.Stack(body);
 
             // Climbed line (rich text) then the two-line ascension-buff line.
-            PanelKit.Label(body, $"Highest floor cleared: <b>{highest}</b> / {max}", 16,
+            PanelKit.Label(body, Loc.F("tower.highest", highest, max), 16,
                 new Color(0.85f, 0.89f, 0.95f), TextAnchor.UpperLeft);
 
             string buffLine = buffPct > 0
-                ? $"Ascension buff: <color=#ffd766>+{buffPct:0}%</color> Hp / Atk / Def (account-wide)"
-                : "Ascension buff: none yet";
+                ? Loc.F("tower.buff", buffPct)
+                : Loc.T("tower.buff-none");
             int nextMilestone = (Tower.MilestonesCleared(save, _cfg) + 1) * _cfg.Balance.TowerMilestoneEvery;
             PanelKit.Label(body,
-                $"{buffLine}\nNext milestone at floor {Mathf.Min(nextMilestone, max)} (+{_cfg.Balance.TowerMilestoneStatPct * 100:0}% more)",
+                buffLine + "\n" + Loc.F("tower.next-milestone", Mathf.Min(nextMilestone, max),
+                                                    _cfg.Balance.TowerMilestoneStatPct * 100),
                 14, new Color(0.80f, 0.84f, 0.90f), TextAnchor.UpperLeft);
 
             if (complete)
             {
                 PanelKit.Flex(body);
-                PanelKit.Label(body, "Tower conquered — every floor cleared!", 17,
+                PanelKit.Label(body, Loc.T("tower.conquered"), 17,
                     new Color(0.6f, 0.95f, 0.65f), TextAnchor.MiddleCenter);
                 PanelKit.Flex(body);
                 return;
@@ -73,33 +74,35 @@ namespace IdleGame.Game
             // Next-floor preview: difficulty, modifier, and whether it's a milestone (guardian) floor.
             bool milestone = next % _cfg.Balance.TowerMilestoneEvery == 0;
             string? modId = _cfg.TowerModifierForFloor(next);
-            string modName = modId != null && _cfg.Modifiers.TryGetValue(modId, out var md) ? md.Name : "none";
-            string preview = $"<b>Floor {next}</b>   ·   modifier: {modName}"
-                           + (milestone ? "   ·   <color=#ffd766>guardian + buff</color>" : "");
+            string modName = modId != null && _cfg.Modifiers.TryGetValue(modId, out var md)
+                ? StatDisplay.ModifierName(md) : Loc.T("tower.modifier-none");
+            string preview = Loc.F("tower.floor-preview", next, modName)
+                           + (milestone ? Loc.T("tower.guardian-tag") : "");
             PanelKit.Label(body, preview, 15, new Color(0.86f, 0.80f, 0.72f), TextAnchor.UpperLeft);
 
             // Next-floor reward preview, one muted line: the flat gem drip, the one-time gold bundle
             // (Tower.GoldBundle — the same formula RecordClear banks, at the floor's difficulty-equivalent
             // stage), a boss loot bundle (MAJOR on guardian/milestone floors), plus the milestone account
             // buff and any rare-mod pair unlock when they apply. String logic kept verbatim (shipped slice 3).
-            string reward = $"Clear: +{_cfg.Balance.TowerGemsPerFloor} gems · ~{Num.CompactFloor(Tower.GoldBundle(next, _cfg))} gold · "
-                          + (milestone ? "major boss bundle" : "boss loot bundle");
-            if (milestone) reward += " · account buff";
+            string reward = Loc.F("tower.reward", _cfg.Balance.TowerGemsPerFloor,
+                                  Num.CompactFloor(Tower.GoldBundle(next, _cfg)))
+                          + (milestone ? Loc.T("tower.bundle-major") : Loc.T("tower.bundle-boss"));
+            if (milestone) reward += Loc.T("tower.reward-buff");
             bool unlocksMod = false;
             foreach (var kv in _cfg.Modifiers)
                 if (kv.Value.TowerUnlockFloor == next) { unlocksMod = true; break; }
-            if (unlocksMod) reward += " · unlocks rare modifier pair";
+            if (unlocksMod) reward += Loc.T("tower.reward-mod-pair");
             PanelKit.Label(body, reward, 13, new Color(0.72f, 0.82f, 0.66f), TextAnchor.UpperLeft);
 
             PanelKit.Label(body,
-                "One attempt per floor — no farm income here. Beat it to keep the floor; fail and train up to retry.",
+                Loc.T("tower.one-attempt"),
                 12, new Color(0.66f, 0.70f, 0.78f), TextAnchor.UpperLeft);
 
             PanelKit.Flex(body); // push Enter to the panel bottom
 
             int floor = next;
             var enterRow = PanelKit.Row(body, 56f); // 56 tall, over the 48 primary-verb floor
-            var enter = PanelKit.ButtonCell(enterRow, $"Enter Floor {floor}",
+            var enter = PanelKit.ButtonCell(enterRow, Loc.F("tower.enter-floor", floor),
                 () => { _view.EnterTowerFloor(floor); Close(); }, width: 260f, fontSize: 18);
             var img = enter.GetComponent<Image>();
             if (img != null) img.color = new Color(0.26f, 0.42f, 0.62f);

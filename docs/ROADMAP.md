@@ -78,13 +78,13 @@ conversion) — every retention decision above is a guess until
 measured. Remote `GameConfig` seam so balance patches skip store
 review. Prerequisite for any monetization decision.
 
-**10.20 Accessibility & l10n (MM8) — a11y + the string-table
-foundation SHIPPED 2026-07-16 (ledger); the PHASE-2 sweep REMAINS**
-(Inventory/Equipment/Gacha/Goals-body/Modifier/Tower/Compare, plus
-GameCore content names via `Loc.Content`). Durable: uGUI Text CLIPS to
-its rect, so every text-bearing rect AND chrome metric must ride the
-text scale or labels behead (Play-caught at 130%); rarity marks avoid
-▲/▼/✦ — the shipped upgrade/imprint vocabulary.
+**10.20 Accessibility & l10n (MM8) — a11y + string-table foundation
+SHIPPED 2026-07-16; PHASE-2 sweep IN PROGRESS.** Done: StatDisplay /
+Compare / Tower + the `Loc.Content` seam (item/hero/zone/set/modifier
+names by stable id — one helper per kind, wrong prefix won't compile).
+REMAINS: Inventory / Equipment / Gacha / Goals-body / Modifier. Durable:
+uGUI Text CLIPS to its rect, so every text-bearing rect AND chrome metric
+must ride the text scale or labels behead; rarity marks avoid ▲/▼/✦.
 
 **10.21 Monetization charter (MM9 — design-only, written BEFORE any
 real-money work un-parks).** What we sell (roster breadth via gacha,
