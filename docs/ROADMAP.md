@@ -17,8 +17,9 @@ family, and a balance simulator over pure GameCore. Roster: Knight /
 Fire Mage / Assassin / Priest (+ banner Ice Mage) on the MS2 skinned
 pipeline; monsters faceted or SDF blend-shell. **857 GameCore tests
 green.** The 100-stage ladder is FIXED (10.1). **Phase M mobile arc:
-MM1-MM5 + MM8 shipped; the UI polish arc (10.23) is ACTIVE.** Gaps:
-music (10.9a, PAUSED), laptop perf (10.12e), the user's ears pass.
+MM1-MM5 + MM8 shipped; the UI polish arc (10.23) is COMPLETE — MM6
+(cloud save) is next and BLOCKED on call 11.** Gaps: music (10.9a,
+PAUSED), laptop perf (10.12e), the user's ears pass.
 
 ## Your calls — decisions waiting on the USER
 
@@ -45,11 +46,11 @@ Also parked, not goals: real-money gems · server authority (§9) · zone
 drop-table hints · manual achievement-claim UX · BFS build-reveal anim ·
 tilt-shift band-blur · SDF jiggle tail · crypt mid-run merchant/boon-draft.
 
-**10.23 UI polish arc — ACTIVE (user: "best UX and impressiveness").**
-P1 reskin · P2 layering · P3 motion · icons · gacha reveal beat SHIPPED.
-REMAINING: **feed slide-in**. NOT worth it, don't re-pitch (2026-08-19,
-measured): count-ups (feed already prints "+X"); NAV icons (clusters use
-1016 of 1280 ref width; 7 icons eat 210 of 264 slack).
+**10.23 UI polish arc — COMPLETE 2026-09-04 (user: "best UX and
+impressiveness").** P1 reskin · P2 layering · P3 motion · icons · gacha
+reveal · arrival card · HUD cards · feed slide-in. NOT worth it, don't
+re-pitch (2026-08-19, measured): count-ups (feed already prints "+X"); NAV
+icons (clusters use 1016 of 1280 ref width; 7 icons eat 210 of 264 slack).
 
 **MM1-MM5 (10.13-10.17) COMPLETE 2026-07-15 — receipts in the ledger.
 Durable lessons the next slices ride:** non-interactive IMGUI remains by
@@ -127,6 +128,12 @@ fields on hand-copied models must thread EVERY copy site — grep
 
 ## Shipped ledger (newest first — full receipts in `git log`)
 
+- 2026-09-04 feed slide-in (10.23) — the arc's LAST item, 10.23 COMPLETE: a
+  new line rises in from below instead of popping. The feed is ONE rich-text
+  label, so there is no per-row transform to animate; the handle that DOES
+  exist is the scroll POSITION — start one line back, ease to the pinned
+  bottom (150ms, unscaled, Reduced-Motion-settled). Only AddFeed slides: a
+  rebuild would replay the arrival of a line already read.
 - 2026-09-04 HUD cards (10.23): party chips were flat DrawRect slabs and the
   wallet bare text on the diorama — the last surfaces reading as debug overlay
   beside the rounded, shadowed uGUI panels. Both now sit on the kit's OWN baked
@@ -184,40 +191,34 @@ fields on hand-copied models must thread EVERY copy site — grep
   via PendingKills + BankKills tiers; set discovery stamped at AddLoot
   BEFORE the salvage decision — seen is seen). Each tier pays +0.1%
   Hp/Atk/Def (≤25% ceiling-tested); Codex tab; retro-stamp. 794 tests.
-- 2026-07-15 10.14 the 30-second session COMPLETE: `Session.Arrive`
-  (idle + daily as ONE atomic boot payoff — two boot modals became one
-  arrival card) + `Session.Preview/Apply` (the Manage super-verb: claim →
-  equip sweep → nuclear salvage). Taps-to-payoff at boot: 2. 770 tests.
-- 2026-07-14/15 10.13 touch-first UI reflow COMPLETE: SafeArea + pinch
-  zoom (a) · uGUI thumb-reach NavBar replaced the IMGUI control bar (b) ·
-  44pt floors + safe-inset panels (c) · Settings/Tower/Modifier/MainMenu
-  onto PanelKit — ZERO hand-placed windows (d) · TopControls + ModesWindow
-  retire the last interactive IMGUI (e). Verified at 2340×1080.
+- 2026-07-15 10.14 the 30-second session COMPLETE: `Session.Arrive` (idle +
+  daily as ONE atomic boot payoff) + `Session.Preview/Apply` (the Manage
+  super-verb: claim → equip sweep → nuclear salvage). Boot taps: 2.
+- 2026-07-14/15 10.13 touch-first UI reflow COMPLETE: SafeArea + pinch zoom
+  (a) · uGUI thumb-reach NavBar replaced the IMGUI control bar (b) · 44pt
+  floors + safe-inset panels (c) · Settings/Tower/Modifier/MainMenu onto
+  PanelKit — ZERO hand-placed windows (d) · TopControls + ModesWindow retire
+  the last interactive IMGUI (e). Verified at 2340×1080.
 - 2026-07-14 Tower per-floor reward bundles: first clear banks gold + a
   boss-loot bundle in `Tower.RecordClear` (exploit-proof gate; kills still
   pay nothing), anchored to `Tower.StageEquivalent`. 760 tests.
-- 2026-07-13 10.6 combat juice COMPLETE: hit-stop (income provably
-  untaxed — sim accumulator on REAL time × mode speed) · per-element
-  ImpactBursts · frost de-whited · trail ribbons · kill-streak beats ·
-  SFX duck bus with a duckExempt hook for 10.9 stingers.
+- 2026-07-13 10.6 combat juice COMPLETE: hit-stop (income provably untaxed
+  — sim accumulator on REAL time × mode speed) · per-element ImpactBursts ·
+  frost de-whited · trail ribbons · kill-streak beats · SFX duck bus.
 - 2026-07-13 10.9(c)+(d): 16 zone ambience beds (AMB bank, crossfade host
   = the AudioDirector scaffold, volume slider) + one UI sound family at
-  BOTH button factories (uGUI UiKit.TextButton + the IMGUI control-bar
-  helpers), tile ticks, popups, claim, deny/spend, enchant.
+  BOTH button factories, tile ticks, popups, claim, deny/spend, enchant.
 - 2026-07-12/13 10.10 SDF monster expansion COMPLETE: 8 blob critters ·
-  Slither+Pulse gaits · Ossuary Wyrm crypt boss · perf gate passed ·
-  bog_horror/chaos_spawn rebodied. Art lessons in SdfBlobDefs comments;
-  faceted Tunic stays the rule — SDF only for genuinely amorphous.
+  Slither+Pulse gaits · Ossuary Wyrm crypt boss · perf gate passed. Art
+  lessons in SdfBlobDefs; faceted Tunic stays the rule.
 - 2026-07-12 10.8 Endless COMPLETE: `StageFor` generates rows past the
-  table, zones cycle, EndlessBest (save v3), "Push beyond…" nav +
-  Endless-N label (`MaxSelectableStage` = the ONE selection rule), gems
-  every 5th depth, BalanceSim `endless` (caught a long-gold overflow).
+  table, zones cycle, EndlessBest (save v3), "Push beyond…" nav
+  (`MaxSelectableStage` = the ONE selection rule), gems every 5th depth.
 - 2026-07-11/12 crypt own-depth curve + tuning (user verdicts): floors
-  anchor to `Crypt.StageEquivalent` — nothing to sandbag; loot/gold/XP
-  ride the depth, key-bounded; HP ×0.6 + atk +2%/floor (walls = wipes,
-  never timer slogs); HpGrowth 1.045 / DmgGrowth 1.05 / RewardGrowth
-  1.06, boon base 20→50 · 2× speed toggle (Crypt+Tower only; timeScale
-  pinned off the mode kind every frame) · caster root (CastRootMs 700).
+  anchor to `Crypt.StageEquivalent` — nothing to sandbag; HP ×0.6 + atk
+  +2%/floor (walls = wipes, never timer slogs); HpGrowth 1.045 / DmgGrowth
+  1.05 / RewardGrowth 1.06, boon base 20→50 · 2× speed toggle (Crypt+Tower;
+  timeScale pinned off the mode kind every frame) · CastRootMs 700.
 - 2026-07-11 10.5 Loot QoL 2.0 COMPLETE: per-slot loot filter + imprint
   guard · CompareCard · SalvageMany + Select mode · §6.2 set bonuses
   (30 gen'd, gate-tuned ≤8%) + tells · loadout snapshots. 738 tests.
@@ -225,7 +226,8 @@ fields on hand-copied models must thread EVERY copy site — grep
   (~31→11 KB/frame) · scenery cache + static combine (~1,514→~486
   batches) · shader Prewarm · quality tiers → GraphicsQuality.Apply.
 - 2026-07-10 10.4 Goals hub COMPLETE (§7.5): Claimables/ClaimAll +
-  PreviewNext; Goals window on PanelKit; pip; claim loop verified.
+  PreviewNext; Goals on PanelKit; pip; claim loop verified. 10.11 hero look
+  & FX (2026-07-07): wardrobe browser, relooks, FxKit projectile FX.
 - 2026-07-10/11 10.3 UI foundation COMPLETE: Theme tokens + PanelKit
   layout kit (+Modal); Heroes/Inventory/three modals migrated — zero
   positional literals; font audit; verified at 16:9/16:10/21:9.
@@ -236,8 +238,6 @@ fields on hand-copied models must thread EVERY copy site — grep
   stage 100 = the ~L100 capstone), BalanceSim stacks + `pace` mode.
 - 2026-07-09 10.7 crypt overhaul COMPLETE: room roles/keys, wave phases,
   chests/mimics/vault, tells, mid-run resume+summary (10.7a–g).
-- 2026-07-07 10.11 hero look & FX COMPLETE: wardrobe browser, hero
-  relooks (user-picked), FxKit procedural FX for every projectile.
 - 2026-07-03..07 foundation week (receipts in git): gacha MVP + Ice
   Mage banner · SDF blend-shell + party feel · terrain slices + Tower
   gems/quest rework · crypt meta + packed maze · balance sim + audit ·

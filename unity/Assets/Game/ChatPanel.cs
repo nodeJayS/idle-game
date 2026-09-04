@@ -35,6 +35,15 @@ namespace IdleGame.Game
         private static readonly Vector2 MinSize = new(210f, 110f);
         private static readonly Vector2 MaxSize = new(440f, 420f);
 
+        /// <summary>Feed slide duration (10.23). Sits just above the kit's 130ms panel entrance:
+        /// a line arrives while the player is looking somewhere else entirely — at the fight — so
+        /// it needs to be catchable in peripheral vision without ever becoming a thing to wait on.</summary>
+        private const float FeedSlideMs = 150f;
+
+        private float _slideFrom;   // normalized scroll position the slide starts from (0 = pinned bottom)
+        private float _slideMs;
+        private bool _sliding;
+
         private readonly List<(string text, Color color)> _feed = new();
         private readonly Dictionary<string, Button> _tabButtons = new();
 
@@ -69,7 +78,10 @@ namespace IdleGame.Game
         {
             _feed.Add((text, color));
             if (_feed.Count > MaxFeed) _feed.RemoveAt(0);
-            if (!_collapsed && _active == SystemTab && _feedText != null) RefreshFeed();
+            // slide: true only HERE. A rebuild or a tab switch re-renders the same feed and must
+            // land settled — animating those would replay the arrival of a line the player already
+            // read (the same build-is-not-an-open rule PanelKit learned in 10.23 P3).
+            if (!_collapsed && _active == SystemTab && _feedText != null) RefreshFeed(slide: true);
         }
 
         // ---- window ----
@@ -287,7 +299,7 @@ namespace IdleGame.Game
 
         /// <summary>Rebuild the feed label from the line buffer (one rich-text string) and pin the
         /// view to the newest line at the bottom.</summary>
-        private void RefreshFeed()
+        private void RefreshFeed(bool slide = false)
         {
             if (_feedText == null) return;
             var sb = new System.Text.StringBuilder();
@@ -299,7 +311,45 @@ namespace IdleGame.Game
             _feedText.text = sb.ToString();
 
             Canvas.ForceUpdateCanvases();
-            if (_feedScroll != null) _feedScroll.verticalNormalizedPosition = 0f; // scroll to newest
+            if (_feedScroll == null) return;
+            _feedScroll.verticalNormalizedPosition = 0f; // scroll to newest
+            _sliding = false;
+
+            if (!slide || Settings.ReducedMotion) return;
+
+            // The feed is ONE rich-text label, so there is no per-row transform to animate — the
+            // line that just arrived is characters in the middle of a string. The scroll POSITION
+            // is the handle that exists: start one line back and ease to the pinned bottom, and the
+            // new line rises in from below while the older ones slide up. That is the motion a chat
+            // log actually has, and it costs no restructuring of a label whose single-content layout
+            // is load-bearing (per-row children clipped their own left edge, see BuildFeedScroll).
+            var viewport = (RectTransform)_feedScroll.viewport;
+            float range = _feedScroll.content.rect.height - viewport.rect.height;
+            // Nothing to scroll yet: until the feed outgrows its viewport the content is pinned and
+            // normalized position has no range to travel. That is also while the feed is nearly
+            // empty, where a line appearing into open space barely reads as a pop at all.
+            if (range <= 1f) return;
+
+            float lineH = _feedText.fontSize * 1.25f;   // nominal, not measured: this is motion, not layout
+            _slideFrom = Mathf.Clamp01(lineH / range);
+            _slideMs = 0f;
+            _sliding = true;
+            _feedScroll.velocity = Vector2.zero;         // a live flick would fight the tween for its whole length
+            _feedScroll.verticalNormalizedPosition = _slideFrom;
+        }
+
+        /// <summary>Drives the feed's slide and nothing else — a settled panel returns on the first
+        /// line. UNSCALED like the rest of the kit's motion: the feed fills up fastest during combat,
+        /// which is exactly when hit-stop and the 2× alt-mode speed are messing with Time.deltaTime.</summary>
+        private void Update()
+        {
+            if (!_sliding) return;
+            if (_feedScroll == null) { _sliding = false; return; }
+
+            _slideMs += Time.unscaledDeltaTime * 1000f;
+            float t = Mathf.Clamp01(_slideMs / FeedSlideMs);
+            _feedScroll.verticalNormalizedPosition = Mathf.Lerp(_slideFrom, 0f, UiMotion.EaseOut(t));
+            if (t >= 1f) _sliding = false;
         }
 
         private void RefreshTabHighlight()
