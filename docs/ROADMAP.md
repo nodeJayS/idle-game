@@ -80,9 +80,9 @@ review. Prerequisite for any monetization decision.
 
 **10.20 Accessibility & l10n (MM8) — a11y + string-table foundation
 SHIPPED 2026-07-16; PHASE-2 sweep IN PROGRESS.** Done: StatDisplay /
-Compare / Tower + the `Loc.Content` seam (item/hero/zone/set/modifier
-names by stable id — one helper per kind, wrong prefix won't compile).
-REMAINS: Inventory / Equipment / Gacha / Goals-body / Modifier. Durable:
+Compare / Tower / Inventory / Gacha + the `Loc.Content` seam (item/hero/
+zone/set/modifier/banner names by stable id — one helper per kind, wrong
+prefix won't compile). REMAINS: Equipment / Goals-body / Modifier. Durable:
 uGUI Text CLIPS to its rect, so every text-bearing rect AND chrome metric
 must ride the text scale or labels behead; rarity marks avoid ▲/▼/✦.
 

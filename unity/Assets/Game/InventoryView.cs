@@ -118,7 +118,7 @@ namespace IdleGame.Game
         {
             var save = _view.CurrentSave;
 
-            _panel = PanelKit.Window(transform, "Inventory", Close, out var body, "InventoryCanvas",
+            _panel = PanelKit.Window(transform, Loc.T("inv.title"), Close, out var body, "InventoryCanvas",
                                      sortOrder: 95, max: new Vector2(920, 640));
             var canvas = _panel.GetComponent<Canvas>();
             var panelRt = (RectTransform)_panel.GetComponentInChildren<WindowSizer>().transform;
@@ -129,11 +129,11 @@ namespace IdleGame.Game
             var header = PanelKit.Row(body, Theme.BtnHs);
             int loose = Inventory.LooseCount(save);
             int cap = _cfg.Balance.InventoryCap;
-            PanelKit.TextCell(header, $"{loose}/{cap}", Theme.FsBody,
+            PanelKit.TextCell(header, Loc.F("inv.capacity", loose, cap), Theme.FsBody,
                 loose > cap ? Theme.Overfull : Theme.TextBody, // overfilled (idle/boss spillover)
                 TextAnchor.MiddleLeft, width: CountW);
             long scrap = save.Currencies.TryGetValue("scrap", out var sc) ? sc : 0;
-            PanelKit.TextCell(header, $"Scrap: {Num.CompactFloor(scrap)}", Theme.FsBody, Theme.TextBody,
+            PanelKit.TextCell(header, Loc.F("inv.scrap", Num.CompactFloor(scrap)), Theme.FsBody, Theme.TextBody,
                 TextAnchor.MiddleLeft, width: ScrapW);
             PanelKit.FlexSpacer(header);
             var lootFilterBtn = BuildLootFilter(header);
@@ -196,7 +196,7 @@ namespace IdleGame.Game
             }
             else
             {
-                PanelKit.ButtonCell(footer, "Sort", () => { _view.SortInventory(); Rebuild(); },
+                PanelKit.ButtonCell(footer, Loc.T("inv.sort"), () => { _view.SortInventory(); Rebuild(); },
                     width: SortW, fontSize: Theme.FsBody);
                 BuildMassSalvage(footer);
             }
@@ -237,7 +237,7 @@ namespace IdleGame.Game
             if (item == null)
             {
                 PanelKit.Flex(_detail);
-                PanelKit.Label(_detail, "Hover or click an item.", Theme.FsBody, Theme.TextBright, TextAnchor.MiddleCenter);
+                PanelKit.Label(_detail, Loc.T("inv.hint"), Theme.FsBody, Theme.TextBright, TextAnchor.MiddleCenter);
                 PanelKit.Flex(_detail);
                 return;
             }
@@ -255,12 +255,13 @@ namespace IdleGame.Game
             var rar = PanelKit.Label(_detail, StatDisplay.RarityTag(item.Rarity), Theme.FsSmall,
                 Palette.Rarity(item.Rarity), TextAnchor.MiddleLeft); // rarity as a status line (glyph = the colorblind channel)
             PanelKit.Fixed(rar.gameObject, height: 18f);
-            var slotLbl = PanelKit.Label(_detail, $"{SlotOf(item)} · item level {item.ItemLevel}", Theme.FsSmall,
+            var slotLbl = PanelKit.Label(_detail, Loc.F("inv.slot-line", SlotName(SlotOf(item)), item.ItemLevel), Theme.FsSmall,
                 Theme.TextBright, TextAnchor.MiddleLeft);
             PanelKit.Fixed(slotLbl.gameObject, height: 18f);
             if (item.Enhance > 0)
             {
-                var enhLbl = PanelKit.Label(_detail, $"Enhanced +{item.Enhance} · +{item.Enhance * _cfg.Balance.EnhanceBasePctPerLevel * 100:0}% base stats",
+                var enhLbl = PanelKit.Label(_detail, Loc.F("inv.enhanced", item.Enhance,
+                        item.Enhance * _cfg.Balance.EnhanceBasePctPerLevel * 100),
                     Theme.FsSmall, Theme.Good, TextAnchor.MiddleLeft);
                 PanelKit.Fixed(enhLbl.gameObject, height: 18f);
             }
@@ -270,9 +271,9 @@ namespace IdleGame.Game
             foreach (var a in affixes)
             {
                 var affLbl = Loot.IsImprintStat(a.Stat, _cfg) // mechanical-mod signature: flavor, not a raw number
-                    ? PanelKit.Label(_detail, $"✦ Imprinted — {StatDisplay.ImprintBlurb(a.Stat)}", Theme.FsSmall,
+                    ? PanelKit.Label(_detail, Loc.F("inv.imprinted-affix", StatDisplay.ImprintBlurb(a.Stat)), Theme.FsSmall,
                         Theme.Imprint, TextAnchor.MiddleLeft)
-                    : PanelKit.Label(_detail, $"+{StatDisplay.Value(a.Stat, a.Value)} {StatDisplay.Label(a.Stat)}",
+                    : PanelKit.Label(_detail, Loc.F("inv.affix", StatDisplay.Value(a.Stat, a.Value), StatDisplay.Label(a.Stat)),
                         Theme.FsSmall, Theme.TextBright, TextAnchor.MiddleLeft);
                 PanelKit.Fixed(affLbl.gameObject, height: 18f);
             }
@@ -288,9 +289,10 @@ namespace IdleGame.Game
                 double chance = _cfg.Balance.EnhanceSuccess[nextLvl - 1];
                 bool canEn = Inventory.CanEnhance(save, item.Id, _cfg);
                 string odds = chance >= 1.0 ? "" :
-                    nextLvl >= _cfg.Balance.EnhanceDropFrom ? $"  {chance * 100:0}% ⚠" : $"  {chance * 100:0}%";
+                    nextLvl >= _cfg.Balance.EnhanceDropFrom ? Loc.F("inv.enhance-odds-risky", chance * 100)
+                                                            : Loc.F("inv.enhance-odds", chance * 100);
                 var enRow = PanelKit.Row(_detail, FooterH);
-                var en = PanelKit.ButtonCell(enRow, $"Enhance → +{nextLvl}  {Num.CompactCeil(ec)}s{odds}",
+                var en = PanelKit.ButtonCell(enRow, Loc.F("inv.enhance", nextLvl, Num.CompactCeil(ec), odds),
                     () => { _view.EnhanceItem(item.Id); ShowDetail(_view.CurrentSave, _view.CurrentSave.Inventory.Find(i => i.Id == item.Id)); },
                     fontSize: Theme.FsBody, enabled: canEn);
                 en.GetComponent<Image>().color = canEn ? Theme.BtnEnhance : Theme.BtnDisabledDark;
@@ -303,7 +305,7 @@ namespace IdleGame.Game
                 var (rg, rs) = Inventory.ReforgeCost(item, _cfg);
                 bool canRf = Inventory.CanReforge(save, item.Id, _cfg);
                 var rfRow = PanelKit.Row(_detail, FooterH);
-                var rf = PanelKit.ButtonCell(rfRow, $"Reforge  {Num.CompactCeil(rg)}g + {Num.CompactCeil(rs)}s",
+                var rf = PanelKit.ButtonCell(rfRow, Loc.F("inv.reforge", Num.CompactCeil(rg), Num.CompactCeil(rs)),
                     () => { _view.ReforgeItem(item.Id); ShowDetail(_view.CurrentSave, _view.CurrentSave.Inventory.Find(i => i.Id == item.Id)); },
                     fontSize: Theme.FsBody, enabled: canRf);
                 rf.GetComponent<Image>().color = canRf ? Theme.BtnReforge : Theme.BtnDisabledDark;
@@ -319,7 +321,7 @@ namespace IdleGame.Game
                 // Equipped gear can't be salvaged (the reducer throws) — show the owner instead,
                 // with the §6.2 set tells counted against them (they're wearing it).
                 CompareCard.SetLines(_detail, save, item, _cfg, owner);
-                PanelKit.Label(_detail, $"Equipped by {HeroName(save, owner)}", Theme.FsLabel,
+                PanelKit.Label(_detail, Loc.F("inv.equipped-by", HeroName(save, owner)), Theme.FsLabel,
                     Theme.Info, TextAnchor.MiddleLeft);
                 return;
             }
@@ -333,7 +335,7 @@ namespace IdleGame.Game
             if (item.Locked)
             {
                 var pRow = PanelKit.Row(_detail, SalvageH);
-                var protd = PanelKit.ButtonCell(pRow, "Locked — unlock to salvage", () => { },
+                var protd = PanelKit.ButtonCell(pRow, Loc.T("inv.locked-cant-salvage"), () => { },
                     fontSize: Theme.FsBody, enabled: false);
                 protd.GetComponent<Image>().color = Theme.BtnDisabledDark;
                 var plbl = protd.GetComponentInChildren<Text>();
@@ -346,7 +348,7 @@ namespace IdleGame.Game
             if (save.Progress.Loot.NeverSalvageImprinted && Inventory.IsImprinted(item, _cfg))
             {
                 var gRow = PanelKit.Row(_detail, SalvageH);
-                var guarded = PanelKit.ButtonCell(gRow, "✦ Imprinted — guarded by the loot filter", () => { },
+                var guarded = PanelKit.ButtonCell(gRow, Loc.T("inv.imprint-guarded"), () => { },
                     fontSize: Theme.FsBody, enabled: false);
                 guarded.GetComponent<Image>().color = Theme.BtnDisabledDark;
                 var glbl = guarded.GetComponentInChildren<Text>();
@@ -359,18 +361,18 @@ namespace IdleGame.Game
             if (_confirmSalvageId == item.Id)
             {
                 var cRow = PanelKit.Row(_detail, SalvageH);
-                PanelKit.ButtonCell(cRow, $"Confirm salvage  +{worth}", () => DoSalvage(save, item), fontSize: Theme.FsH2)
+                PanelKit.ButtonCell(cRow, Loc.F("inv.confirm-salvage", worth), () => DoSalvage(save, item), fontSize: Theme.FsH2)
                     .GetComponent<Image>().color = Theme.BtnDangerArmed;
                 var xRow = PanelKit.Row(_detail, FooterH);
                 PanelKit.FlexSpacer(xRow);
-                PanelKit.ButtonCell(xRow, "Cancel", () => { _confirmSalvageId = null; ShowDetail(save, item); },
+                PanelKit.ButtonCell(xRow, Loc.T("common.cancel"), () => { _confirmSalvageId = null; ShowDetail(save, item); },
                     width: CancelW, fontSize: FsMid);
                 PanelKit.FlexSpacer(xRow);
             }
             else
             {
                 var sRow = PanelKit.Row(_detail, SalvageH);
-                PanelKit.ButtonCell(sRow, $"Salvage  +{worth} scrap",
+                PanelKit.ButtonCell(sRow, Loc.F("inv.salvage", worth),
                     () =>
                     {
                         if (item.Rarity >= Rarity.Unique) { _confirmSalvageId = item.Id; ShowDetail(save, item); }
@@ -394,7 +396,7 @@ namespace IdleGame.Game
             if (_detail == null) return;
             var row = PanelKit.Row(_detail, Theme.TouchMin); // Lock/Locked button: pin the 44 touch floor (10.13c)
             PanelKit.FlexSpacer(row);
-            var btn = PanelKit.ButtonCell(row, item.Locked ? "Locked" : "Lock", () =>
+            var btn = PanelKit.ButtonCell(row, Loc.T(item.Locked ? "common.locked" : "inv.lock"), () =>
                 {
                     _view.ToggleItemLock(item.Id);
                     Rebuild(); // re-open the panel so tiles/badges refresh, then re-show this item
@@ -411,18 +413,20 @@ namespace IdleGame.Game
         // they're the top boss-only chase tiers, so auto-salvage never touches them.
         // Unique IS offered for the late game where Unique drops become churn.
         // "& below" matches Inventory.WouldAutoSalvage's `Rarity <= floor` semantics.
-        private static readonly (Rarity? max, string label)[] AutoSalvageOptions =
+        // Stores KEYS, not text: this is a static readonly table, so resolving Loc.T here would
+        // bind the labels once at type-init and a later language swap would never reach them.
+        private static readonly (Rarity? max, string key)[] AutoSalvageOptions =
         {
-            (null, "Off"),
-            (Rarity.Normal, "Normal"),
-            (Rarity.Rare, "Rare & below"),
-            (Rarity.Unique, "Unique & below"),
+            (null, "common.off"),
+            (Rarity.Normal, "inv.filter-normal"),
+            (Rarity.Rare, "inv.filter-rare"),
+            (Rarity.Unique, "inv.filter-unique"),
         };
 
         private static string AutoSalvageLabel(Rarity? max)
         {
-            foreach (var o in AutoSalvageOptions) if (o.max == max) return MarkPrefix(o.max) + o.label;
-            return "Off";
+            foreach (var o in AutoSalvageOptions) if (o.max == max) return MarkPrefix(o.max) + Loc.T(o.key);
+            return Loc.T("common.off");
         }
 
         /// <summary>"● " / "■ " / … before a floor label — the 10.20b glyph channel on the filter's
@@ -470,8 +474,8 @@ namespace IdleGame.Game
         {
             var filter = _view.CurrentSave.Progress.Loot;
             var (uniform, shared) = SharedFloor(filter);
-            string summary = uniform ? AutoSalvageLabel(shared) : "Custom";
-            var btn = PanelKit.ButtonCell(header, $"Loot filter: {summary}  {(_filterOpen ? "▴" : "▾")}",
+            string summary = uniform ? AutoSalvageLabel(shared) : Loc.T("inv.filter-custom");
+            var btn = PanelKit.ButtonCell(header, Loc.F("inv.loot-filter", summary, _filterOpen ? "▴" : "▾"),
                 () => { _filterOpen = !_filterOpen; Rebuild(); },
                 width: AutoSalvageW, fontSize: Theme.FsBody);
             var lbl = btn.GetComponentInChildren<Text>();
@@ -527,11 +531,12 @@ namespace IdleGame.Game
             // spell out "& below"). The active one highlights only when every slot already agrees.
             var (uniform, shared) = SharedFloor(filter);
             var all = PanelKit.Row(rootRt, DropRowH);
-            PanelKit.TextCell(all, "All slots", FsMid, Theme.TextMuted, TextAnchor.MiddleLeft, width: SlotLabelW);
+            PanelKit.TextCell(all, Loc.T("inv.all-slots"), FsMid, Theme.TextMuted, TextAnchor.MiddleLeft, width: SlotLabelW);
             foreach (var (max, _) in AutoSalvageOptions)
             {
                 var m = max; // capture
-                string shortLbl = max == null ? "Off" : MarkPrefix(max) + max.Value.ToString();
+                string shortLbl = max == null ? Loc.T("common.off")
+                                              : MarkPrefix(max) + StatDisplay.RarityName(max.Value);
                 bool selected = uniform && shared == max;
                 var ab = PanelKit.ButtonCell(all, shortLbl,
                     () => { _view.SetSalvageFloorAll(m); Rebuild(); }, fontSize: Theme.FsSmall);
@@ -543,9 +548,9 @@ namespace IdleGame.Game
             // Imprint guard: On = imprinted gear refuses every salvage path (the Locked precedent).
             bool guard = filter.NeverSalvageImprinted;
             var gRow = PanelKit.Row(rootRt, DropRowH);
-            PanelKit.TextCell(gRow, "Keep imprinted", FsMid, guard ? Theme.Imprint : Theme.TextBody,
+            PanelKit.TextCell(gRow, Loc.T("inv.keep-imprinted"), FsMid, guard ? Theme.Imprint : Theme.TextBody,
                 TextAnchor.MiddleLeft, flex: 1f);
-            var gb = PanelKit.ButtonCell(gRow, guard ? "On" : "Off",
+            var gb = PanelKit.ButtonCell(gRow, Loc.T(guard ? "common.on" : "common.off"),
                 () => { _view.SetImprintGuard(!guard); Rebuild(); }, width: GuardBtnW, fontSize: FsMid);
             var gl = gb.GetComponentInChildren<Text>();
             if (gl != null) gl.color = guard ? Theme.Imprint : Theme.ToggleOff;
@@ -585,9 +590,9 @@ namespace IdleGame.Game
             int n = SalvageableCount(save);
             bool enabled = n > 0;
 
-            string label = !enabled ? "Salvage all"
-                         : _confirmMassSalvage ? $"Confirm salvage all ({n})"
-                         : "Salvage all";
+            string label = !enabled ? Loc.T("inv.salvage-all")
+                         : _confirmMassSalvage ? Loc.F("inv.confirm-salvage-all", n)
+                         : Loc.T("inv.salvage-all");
             var btn = PanelKit.ButtonCell(footer, label, OnMassSalvageClick,
                 width: SalvageAllW, fontSize: Theme.FsBody, enabled: enabled);
             btn.GetComponent<Image>().color = !enabled ? Theme.BtnDisabledDark
@@ -633,7 +638,7 @@ namespace IdleGame.Game
         /// closing the window (see <see cref="Toggle"/>) — discards the selection.</summary>
         private void BuildSelectToggle(RectTransform footer)
         {
-            var btn = PanelKit.ButtonCell(footer, "Select", ToggleSelectMode, width: SelectW, fontSize: Theme.FsBody);
+            var btn = PanelKit.ButtonCell(footer, Loc.T("inv.select"), ToggleSelectMode, width: SelectW, fontSize: Theme.FsBody);
             if (_selectMode) btn.GetComponent<Image>().color = Theme.BtnSelected;
         }
 
@@ -695,7 +700,7 @@ namespace IdleGame.Game
             if (_detail == null) return;
             for (int i = _detail.childCount - 1; i >= 0; i--) Destroy(_detail.GetChild(i).gameObject);
             PanelKit.Flex(_detail);
-            PanelKit.Label(_detail, "Tap items to select — drag to sweep.", Theme.FsBody, Theme.TextMuted, TextAnchor.MiddleCenter);
+            PanelKit.Label(_detail, Loc.T("inv.select-hint"), Theme.FsBody, Theme.TextMuted, TextAnchor.MiddleCenter);
             PanelKit.Flex(_detail);
         }
 
@@ -722,7 +727,7 @@ namespace IdleGame.Game
             long scrap = 0;
             foreach (var it in save.Inventory)
                 if (_selected.Contains(it.Id)) { n++; scrap += _cfg.Balance.ScrapValue(it.Rarity, it.ItemLevel); }
-            _selSalvageLbl.text = $"Salvage {n} selected  (+{Num.CompactFloor(scrap)} scrap)";
+            _selSalvageLbl.text = Loc.F("inv.salvage-selected", n, Num.CompactFloor(scrap));
             _selSalvageBtn.interactable = n > 0;
             _selSalvageBtn.GetComponent<Image>().color = n > 0 ? Theme.BtnDanger : Theme.BtnDisabledDark;
         }
@@ -745,7 +750,7 @@ namespace IdleGame.Game
         private void BuildAutoEquip(RectTransform header)
         {
             bool on = Settings.AutoEquipUpgrades;
-            var btn = PanelKit.ButtonCell(header, $"Auto-equip: {(on ? "On" : "Off")}",
+            var btn = PanelKit.ButtonCell(header, Loc.F("inv.auto-equip", Loc.T(on ? "common.on" : "common.off")),
                 () => { Settings.AutoEquipUpgrades = !on; Rebuild(); },
                 width: AutoEquipW, fontSize: Theme.FsBody);
             var lbl = btn.GetComponentInChildren<Text>();
@@ -760,7 +765,7 @@ namespace IdleGame.Game
         /// badge class of positional exception, same as UpgradeTell's badges.)</summary>
         private static void LockBadgeTile(GameObject tile)
         {
-            var lbl = UiKit.Label(tile.transform, "[L]", Theme.FsTiny, TextAnchor.LowerLeft, new Vector2(24, 14), Vector2.zero);
+            var lbl = UiKit.Label(tile.transform, Loc.T("inv.lock-badge"), Theme.FsTiny, TextAnchor.LowerLeft, new Vector2(24, 14), Vector2.zero);
             var rt = (RectTransform)lbl.transform;
             rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0f, 0f);
             rt.anchoredPosition = new Vector2(2f, 2f);
@@ -770,11 +775,15 @@ namespace IdleGame.Game
 
         private EquipSlot SlotOf(Item item) => _cfg.ItemBases[item.BaseId].Slot;
 
+        /// <summary>The slot's player-facing word. The enum name was being interpolated straight
+        /// into the detail line, which is English leaking out of a C# identifier.</summary>
+        private static string SlotName(EquipSlot s) => Loc.T("slot." + s.ToString().ToLowerInvariant());
+
         private string HeroName(SaveState save, string heroId)
         {
             var hero = save.Heroes.Find(h => h.Id == heroId);
             if (hero != null && _cfg.Heroes.TryGetValue(hero.DefId, out var def) && !string.IsNullOrEmpty(def.Name))
-                return def.Name;
+                return StatDisplay.HeroName(hero.DefId, def.Name);
             return heroId;
         }
 

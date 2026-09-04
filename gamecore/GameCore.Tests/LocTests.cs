@@ -92,6 +92,18 @@ namespace IdleGame.GameCore.Tests
         }
 
         [Fact]
+        public void ComposedSlotKeysExist()
+        {
+            // InventoryView.SlotName composes "slot." + the enum name (the slot word used to be the
+            // raw enum interpolated into the detail line). Same blind spot as the rarity keys below,
+            // so pin it the same way. EquipSlots.Active, NOT Enum.GetValues — the enum still carries
+            // retired load-compat members that no live item base can produce.
+            foreach (var s in EquipSlots.Active)
+                Assert.True(Loc.En.ContainsKey("slot." + s.ToString().ToLowerInvariant()),
+                    $"Loc.En is missing 'slot.{s.ToString().ToLowerInvariant()}' (composed by InventoryView.SlotName).");
+        }
+
+        [Fact]
         public void ComposedRarityKeysExist()
         {
             // StatDisplay.RarityName builds its key by concatenation ("rarity." + name), which the

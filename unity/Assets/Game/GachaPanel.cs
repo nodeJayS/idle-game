@@ -76,18 +76,18 @@ namespace IdleGame.Game
             // Header: title left, Close right. The row rides Theme.RowH (now the 44 touch floor, 10.13c),
             // so Close is 44 tall for free; widen it to 120 so it's a proper target, not a sliver.
             var header = PanelKit.Row(body, Theme.RowH);
-            PanelKit.TextCell(header, "Summon", Theme.FsH1, Theme.GachaGold, TextAnchor.MiddleLeft, flex: 1f);
-            PanelKit.ButtonCell(header, "Close", Close, width: 120f, fontSize: Theme.FsBody);
+            PanelKit.TextCell(header, Loc.T("gacha.title"), Theme.FsH1, Theme.GachaGold, TextAnchor.MiddleLeft, flex: 1f);
+            PanelKit.ButtonCell(header, Loc.T("common.close"), Close, width: 120f, fontSize: Theme.FsBody);
 
             long gems = _view.Gems;
-            var wallet = PanelKit.Label(body, $"Gems: <color=#a6d8ff>{Num.CompactFloor(gems)}</color>",
+            var wallet = PanelKit.Label(body, Loc.F("gacha.wallet", Num.CompactFloor(gems)),
                                         Theme.FsBody, Theme.TextBright, TextAnchor.MiddleLeft);
             wallet.supportRichText = true;
             PanelKit.Fixed(wallet.gameObject, height: WalletH); // pinned so the height formula above holds
 
             if (banners == 0)
             {
-                PanelKit.Label(body, "No banners are live right now — check back soon.",
+                PanelKit.Label(body, Loc.T("gacha.no-banners"),
                                Theme.FsBody, Theme.TextMuted, TextAnchor.MiddleCenter);
                 PanelKit.Flex(body);
                 return;
@@ -111,12 +111,13 @@ namespace IdleGame.Game
             var col = PanelKit.VStack(row, Theme.GapXs);
             col.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f; // text column takes the slack
 
-            PanelKit.Label(col, banner.Name, Theme.FsH2, Theme.GachaBannerName, TextAnchor.MiddleLeft);
+            PanelKit.Label(col, Loc.Content("banner." + banner.Id, banner.Name), Theme.FsH2,
+                           Theme.GachaBannerName, TextAnchor.MiddleLeft);
 
-            var feat = PanelKit.Label(col, $"Featured: <color=#ffd766>{featured}</color>",
+            var feat = PanelKit.Label(col, Loc.F("gacha.featured", featured),
                                       Theme.FsLabel, Theme.TextBright, TextAnchor.MiddleLeft);
             feat.supportRichText = true;
-            var cost = PanelKit.Label(col, $"Cost: <color=#a6d8ff>{Num.CompactCeil(banner.CostGems)} gems</color> per roll",
+            var cost = PanelKit.Label(col, Loc.F("gacha.cost", Num.CompactCeil(banner.CostGems)),
                                       Theme.FsLabel, Theme.TextBody, TextAnchor.MiddleLeft);
             cost.supportRichText = true;
 
@@ -124,7 +125,7 @@ namespace IdleGame.Game
             if (banner.PityCount > 0)
             {
                 int pity = _view.GachaPityOf(banner.Id);
-                PanelKit.Label(col, $"{pity} / {banner.PityCount} rolls to guarantee {featured}",
+                PanelKit.Label(col, Loc.F("gacha.pity-progress", pity, banner.PityCount, featured),
                                Theme.FsSmall, Theme.TextMuted, TextAnchor.MiddleLeft);
             }
 
@@ -140,7 +141,7 @@ namespace IdleGame.Game
             slot.GetComponent<VerticalLayoutGroup>().childAlignment = TextAnchor.MiddleCenter;
             var sle = slot.gameObject.AddComponent<LayoutElement>();
             sle.preferredWidth = 150f; sle.flexibleWidth = 0f;
-            var roll = PanelKit.ButtonCell(slot, "Roll", () => Roll(bannerId),
+            var roll = PanelKit.ButtonCell(slot, Loc.T("gacha.roll"), () => Roll(bannerId),
                                            fontSize: Theme.FsH2, enabled: canRoll);
             if (canRoll) roll.GetComponent<Image>().color = Theme.BtnGold;
             PanelKit.Fixed(roll.gameObject, height: RollH);
